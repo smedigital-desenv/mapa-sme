@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAPA - Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <header class="header">
+            <div class="header-content">
+                <h1>📊 MAPA - Dashboard de Atribuições</h1>
+                <p>Sistema de Gerenciamento de Atribuições de Professores - SME Ribeirão Preto</p>
+            </div>
+        </header>
+
+        <!-- FILTROS -->
+        <section class="filters">
+            <div class="filter-group">
+                <label for="unidadeSelect">Filtrar por Unidade:</label>
+                <select id="unidadeSelect">
+                    <option value="">Todas as Unidades</option>
+                </select>
+            </div>
+            <button id="btnRefresh" class="btn-refresh">🔄 Atualizar</button>
+        </section>
+
+        <!-- CARREGANDO -->
+        <div id="loading" class="loading" style="display:none;">
+            <p>⏳ Carregando dados...</p>
+        </div>
+
+        <!-- ERRO -->
+        <div id="error" class="error" style="display:none;"></div>
+
+        <!-- TABELA DE DADOS -->
+        <section class="data-section">
+            <div class="table-responsive">
+                <table id="dashboardTable" class="dashboard-table">
+                    <thead>
+                        <tr>
+                            <th>Unidade</th>
+                            <th>Período</th>
+                            <th>Total Turmas</th>
+                            <th>Carga Total (h)</th>
+                            <th>Carga Atribuída (h)</th>
+                            <th>Carga Não Atribuída (h)</th>
+                            <th>% Atribuição</th>
+                            <th>Turmas OK</th>
+                            <th>Turmas Faltando</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <tr>
+                            <td colspan="9" class="text-center">Nenhum dado carregado</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- RESUMO GERAL -->
+        <section class="summary">
+            <div class="summary-card">
+                <h3>📈 Resumo Geral</h3>
+                <div class="summary-grid">
+                    <div class="stat">
+                        <span class="stat-label">Total de Turmas</span>
+                        <span class="stat-value" id="totalTurmas">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Carga Total (h)</span>
+                        <span class="stat-value" id="cargaTotal">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Carga Atribuída (h)</span>
+                        <span class="stat-value green" id="cargaAtribuida">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Carga Não Atribuída (h)</span>
+                        <span class="stat-value red" id="cargaNaoAtribuida">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">% Geral Atribuído</span>
+                        <span class="stat-value" id="percentualGeral">0%</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FOOTER -->
+        <footer class="footer">
+            <p>🔗 Conectado ao Supabase | Last Updated: <span id="lastUpdate">--:--</span></p>
+        </footer>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
