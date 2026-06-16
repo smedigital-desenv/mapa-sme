@@ -1,0 +1,13 @@
+/* ============================================================
+   CHARTS.CSS - Estilos de Gráficos (Chart.js)
+   ============================================================ */
+
+/* Container do canvas */
+#chartDisciplinas {
+  max-height: 350px;
+}
+
+/* Card que contém o gráfico */
+.card-body canvas {
+  width: 100% !important;
+}

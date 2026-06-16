@@ -1,0 +1,92 @@
+╔════════════════════════════════════════════════════════════════════════╗
+║                     MAPA - INSTRUÇÕES DE USO                           ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+Este pacote já está PRONTO. A estrutura de pastas está correta — basta
+fazer o deploy. Siga os passos abaixo.
+
+═══════════════════════════════════════════════════════════════════════════
+PARTE A — BANCO DE DADOS (só na primeira vez)
+═══════════════════════════════════════════════════════════════════════════
+
+A tabela de Bimestres ainda precisa ser criada e preenchida no Supabase.
+As tabelas de Turmas/Unidades/Alunos já foram migradas anteriormente.
+
+PASSO A1 — Criar tabela
+  1. Acesse https://gmwotfulohkmuqrezeef.supabase.co
+  2. SQL Editor → New Query
+  3. Cole o conteúdo de:  sql/01_schema_bimestres.sql
+  4. Run
+
+PASSO A2 — Criar as funções
+  1. SQL Editor → New Query
+  2. Cole o conteúdo de:  sql/02_functions_bimestres.sql
+  3. Run
+
+PASSO A3 — Migrar os dados (269.701 registros)
+  1. Abra o Google Sheets do MAPA
+  2. Extensões → Apps Script
+  3. Cole o conteúdo de:  apps-script/migrar_bimestres.gs
+  4. Salve e execute a função: testarConexaoBimestres()  (deve dar ✅)
+  5. Depois execute: executarMigracaoBimestres()
+  6. Aguarde ~15-20 min. Ao final: "Registros inseridos: 269701"
+
+OBS: Se as funções de Turmas (obter_dashboard_turmas) ainda não existirem
+no Supabase, elas já estavam funcionando no deploy anterior. Caso precise
+recriar, o código está no histórico.
+
+═══════════════════════════════════════════════════════════════════════════
+PARTE B — SUBIR PARA O GITHUB (deploy do site)
+═══════════════════════════════════════════════════════════════════════════
+
+Abra o CMD/PowerShell dentro desta pasta (mapa-sme-main) e rode:
+
+  git init
+  git add .
+  git commit -m "MAPA modular - frontend completo"
+  git branch -M main
+  git remote add origin https://github.com/SEU_USUARIO/mapa-sme-main.git
+  git push -u origin main
+
+Se o repositório JÁ existe (você já fez push antes), use apenas:
+
+  git add .
+  git commit -m "Refatoração modular + aba Avaliações"
+  git push
+
+Depois: GitHub → Settings → Pages → Branch: main / (root) → Save
+
+═══════════════════════════════════════════════════════════════════════════
+PARTE C — TESTAR
+═══════════════════════════════════════════════════════════════════════════
+
+1. Acesse: https://seu_usuario.github.io/mapa-sme-main
+2. Abra o Console do navegador (tecla F12)
+3. Procure por:  ✅ MAPA Dashboard carregado com sucesso!
+4. Teste as 3 abas: Turmas, Avaliações (com gráfico) e Rede
+
+═══════════════════════════════════════════════════════════════════════════
+RODAR LOCALMENTE (opcional, antes de subir)
+═══════════════════════════════════════════════════════════════════════════
+
+NÃO abra o index.html dando duplo-clique (o fetch não funciona assim).
+Use um servidor local:
+
+  Opção 1 (VS Code): extensão "Live Server" → botão direito no index.html
+  Opção 2 (Python):  python -m http.server 8000  →  http://localhost:8000
+
+═══════════════════════════════════════════════════════════════════════════
+ESTRUTURA (referência rápida)
+═══════════════════════════════════════════════════════════════════════════
+
+  index.html              ← página principal
+  css/style.css           ← único CSS (importa os outros)
+  js/config.js            ← credenciais (mude aqui se precisar)
+  js/main.js              ← inicialização
+  sql/                    ← scripts do banco
+  apps-script/            ← migração de dados
+  docs/ARQUITETURA.md     ← como o sistema funciona / como estender
+
+═══════════════════════════════════════════════════════════════════════════
+
+Dúvidas sobre a arquitetura? Leia: docs/ARQUITETURA.md

@@ -1,0 +1,39 @@
+/* ============================================================
+   BASE.CSS - Reset e Estilos Base
+   ============================================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--mapa-font);
+  background-color: var(--mapa-bg);
+  color: var(--mapa-dark);
+  margin: 0;
+  padding: 0;
+}
+
+/* Scrollbar estilizada (navegadores WebKit) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--mapa-light);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--mapa-gray);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--mapa-dark);
+}
+
+/* Transições suaves padrão */
+a, button, .nav-link, .btn {
+  transition: all 0.2s ease;
+}

@@ -1,101 +1,273 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MAPA - Dashboard</title>
-    <link rel="stylesheet" href="css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MAPA | SME Ribeirão Preto</title>
+
+  <!-- Bootstrap 5.3 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+  <!-- Chart.js + plugin de rótulos -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+
+  <!-- CSS do projeto (único arquivo, importa os demais) -->
+  <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
-    <div class="container">
-        <!-- HEADER -->
-        <header class="header">
-            <div class="header-content">
-                <h1>📊 MAPA - Dashboard de Atribuições</h1>
-                <p>Sistema de Gerenciamento de Atribuições de Professores - SME Ribeirão Preto</p>
-            </div>
-        </header>
 
-        <!-- FILTROS -->
-        <section class="filters">
-            <div class="filter-group">
-                <label for="unidadeSelect">Filtrar por Unidade:</label>
-                <select id="unidadeSelect">
-                    <option value="">Todas as Unidades</option>
-                </select>
-            </div>
-            <button id="btnRefresh" class="btn-refresh">🔄 Atualizar</button>
-        </section>
-
-        <!-- CARREGANDO -->
-        <div id="loading" class="loading" style="display:none;">
-            <p>⏳ Carregando dados...</p>
+  <!-- ═══════════════ HEADER ═══════════════ -->
+  <header class="navbar navbar-dark bg-primary sticky-top">
+    <div class="container-fluid">
+      <div class="navbar-brand d-flex align-items-center gap-2">
+        <i class="bi bi-map-fill" style="font-size: 1.8rem;"></i>
+        <div>
+          <h5 class="m-0 fw-bold">MAPA</h5>
+          <small style="font-size: 0.65rem; opacity: 0.85;">SME Ribeirão Preto</small>
         </div>
-
-        <!-- ERRO -->
-        <div id="error" class="error" style="display:none;"></div>
-
-        <!-- TABELA DE DADOS -->
-        <section class="data-section">
-            <div class="table-responsive">
-                <table id="dashboardTable" class="dashboard-table">
-                    <thead>
-                        <tr>
-                            <th>Unidade</th>
-                            <th>Período</th>
-                            <th>Total Turmas</th>
-                            <th>Carga Total (h)</th>
-                            <th>Carga Atribuída (h)</th>
-                            <th>Carga Não Atribuída (h)</th>
-                            <th>% Atribuição</th>
-                            <th>Turmas OK</th>
-                            <th>Turmas Faltando</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tableBody">
-                        <tr>
-                            <td colspan="9" class="text-center">Nenhum dado carregado</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- RESUMO GERAL -->
-        <section class="summary">
-            <div class="summary-card">
-                <h3>📈 Resumo Geral</h3>
-                <div class="summary-grid">
-                    <div class="stat">
-                        <span class="stat-label">Total de Turmas</span>
-                        <span class="stat-value" id="totalTurmas">0</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Carga Total (h)</span>
-                        <span class="stat-value" id="cargaTotal">0</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Carga Atribuída (h)</span>
-                        <span class="stat-value green" id="cargaAtribuida">0</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Carga Não Atribuída (h)</span>
-                        <span class="stat-value red" id="cargaNaoAtribuida">0</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">% Geral Atribuído</span>
-                        <span class="stat-value" id="percentualGeral">0%</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- FOOTER -->
-        <footer class="footer">
-            <p>🔗 Conectado ao Supabase | Last Updated: <span id="lastUpdate">--:--</span></p>
-        </footer>
+      </div>
+      <div class="text-white text-end" style="font-size: 0.85rem;">
+        <div id="relogio">--:--:--</div>
+        <small style="opacity: 0.85;">v1.0 · Supabase</small>
+      </div>
     </div>
+  </header>
 
-    <script src="js/app.js"></script>
+  <!-- ═══════════════ NAVEGAÇÃO PRINCIPAL ═══════════════ -->
+  <nav class="navbar bg-white border-bottom sticky-top" style="top: 56px; z-index: 99;">
+    <div class="container-fluid">
+      <div class="nav nav-pills gap-2 flex-wrap justify-content-center w-100" role="tablist">
+        <button class="nav-link active" id="navTurmas" type="button" role="tab"
+                onclick="Tabs.switchTab('turmas')">
+          <i class="bi bi-diagram-3-fill me-2"></i>Turmas (PPA)
+        </button>
+        <button class="nav-link" id="navAvaliacoes" type="button" role="tab"
+                onclick="Tabs.switchTab('avaliacoes')">
+          <i class="bi bi-clipboard-data-fill me-2"></i>Avaliações
+        </button>
+        <button class="nav-link" id="navRede" type="button" role="tab"
+                onclick="Tabs.switchTab('rede')">
+          <i class="bi bi-people-fill me-2"></i>Rede
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ═══════════════ SUB-NAVEGAÇÃO (AVALIAÇÕES) ═══════════════ -->
+  <div id="subNavAvaliacoes" class="bg-light border-bottom py-2 d-none"
+       style="position: sticky; top: 110px; z-index: 98;">
+    <div class="container-fluid d-flex gap-2 justify-content-center flex-wrap">
+      <button class="btn btn-sm btn-outline-primary active" data-subtab="diagnostica"
+              onclick="Tabs.switchSubTab('diagnostica')">Diagnóstica</button>
+      <button class="btn btn-sm btn-outline-primary" data-subtab="bimestre1"
+              onclick="Tabs.switchSubTab('bimestre1')">Bimestre 1</button>
+      <button class="btn btn-sm btn-outline-primary" data-subtab="bimestre2"
+              onclick="Tabs.switchSubTab('bimestre2')">Bimestre 2</button>
+      <button class="btn btn-sm btn-outline-primary" data-subtab="bimestre3"
+              onclick="Tabs.switchSubTab('bimestre3')">Bimestre 3</button>
+      <button class="btn btn-sm btn-outline-primary" data-subtab="bimestre4"
+              onclick="Tabs.switchSubTab('bimestre4')">Bimestre 4</button>
+      <button class="btn btn-sm btn-outline-primary" data-subtab="total"
+              onclick="Tabs.switchSubTab('total')">Total</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════ CONTEÚDO ═══════════════ -->
+  <main class="container-fluid py-4">
+
+    <!-- ───── ABA: TURMAS ───── -->
+    <section id="tabTurmas" class="tab-content active">
+      <div class="card mb-4">
+        <div class="card-body">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-9">
+              <label class="form-label fw-bold">Filtrar por Unidade:</label>
+              <select id="unidadeSelect" class="form-select">
+                <option value="">Todas as Unidades</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <button class="btn btn-primary w-100" onclick="Dashboard.carregar()">
+                <i class="bi bi-arrow-clockwise me-2"></i>Atualizar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead class="table-primary">
+                <tr>
+                  <th>Unidade</th>
+                  <th>Período</th>
+                  <th>Total Turmas</th>
+                  <th>Carga Total (h)</th>
+                  <th>Carga Atribuída (h)</th>
+                  <th>% Atribuição</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaDashboardBody">
+                <tr><td colspan="6" class="text-center text-muted">Carregando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── ABA: AVALIAÇÕES ───── -->
+    <section id="tabAvaliacoes" class="tab-content d-none">
+      <div class="card mb-4">
+        <div class="card-body">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+              <label class="form-label fw-bold">Unidade:</label>
+              <select id="unidadeSelectAv" class="form-select">
+                <option value="">Todas</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold">Disciplina:</label>
+              <select id="disciplinaSelect" class="form-select">
+                <option value="">Todas</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold">Aluno:</label>
+              <input type="text" id="alunoSearch" class="form-control" placeholder="Buscar nome...">
+            </div>
+            <div class="col-md-3">
+              <button class="btn btn-primary w-100" onclick="Avaliacoes.buscar()">
+                <i class="bi bi-search me-2"></i>Buscar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+          <i class="bi bi-bar-chart-fill me-2"></i>Resumo por Disciplina
+        </div>
+        <div class="card-body">
+          <canvas id="chartDisciplinas" height="80"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <i class="bi bi-table me-2"></i>Detalhes dos Registros
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover table-sm">
+              <thead class="table-light">
+                <tr>
+                  <th>Aluno</th>
+                  <th>Disciplina</th>
+                  <th>Descrição</th>
+                  <th>Resultado</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaBimestreBody">
+                <tr><td colspan="4" class="text-center text-muted">Selecione filtros e clique em Buscar</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── ABA: REDE ───── -->
+    <section id="tabRede" class="tab-content d-none">
+      <div class="card">
+        <div class="card-header bg-success text-white">
+          <i class="bi bi-people-fill me-2"></i>Estatísticas Gerais da Rede
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-3 mb-3">
+              <div class="alert alert-info mb-0">
+                <small>Total de Turmas</small>
+                <h3 id="statTurmas" class="m-0">--</h3>
+              </div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <div class="alert alert-success mb-0">
+                <small>Carga Atribuída (h)</small>
+                <h3 id="statCarga" class="m-0">--</h3>
+              </div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <div class="alert alert-warning mb-0">
+                <small>% de Atribuição</small>
+                <h3 id="statPercentual" class="m-0">--%</h3>
+              </div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <div class="alert alert-primary mb-0">
+                <small>Total de Alunos</small>
+                <h3 id="statAlunos" class="m-0">--</h3>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══════════════ FOOTER ═══════════════ -->
+  <footer class="bg-dark text-white py-3">
+    <div class="container-fluid text-center">
+      <small>
+        🔗 Sistema MAPA conectado ao Supabase ·
+        Última atualização: <span id="lastUpdate">--:--</span>
+      </small>
+    </div>
+  </footer>
+
+  <!-- ═══════════════ SCRIPTS (ordem de dependência) ═══════════════ -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- 1. Configuração -->
+  <script src="js/config.js"></script>
+
+  <!-- 2. Utilitários -->
+  <script src="js/utils/format.js"></script>
+  <script src="js/utils/helpers.js"></script>
+
+  <!-- 3. API -->
+  <script src="js/api/supabase.js"></script>
+  <script src="js/api/dashboard-api.js"></script>
+  <script src="js/api/bimestre-api.js"></script>
+
+  <!-- 4. UI -->
+  <script src="js/ui/common.js"></script>
+  <script src="js/ui/tabs.js"></script>
+
+  <!-- 5. Módulo Dashboard -->
+  <script src="js/modules/dashboard/dashboard-render.js"></script>
+  <script src="js/modules/dashboard/dashboard-events.js"></script>
+  <script src="js/modules/dashboard/dashboard.js"></script>
+
+  <!-- 6. Módulo Avaliações -->
+  <script src="js/modules/avaliacoes/charts.js"></script>
+  <script src="js/modules/avaliacoes/avaliacoes-render.js"></script>
+  <script src="js/modules/avaliacoes/avaliacoes-events.js"></script>
+  <script src="js/modules/avaliacoes/avaliacoes.js"></script>
+
+  <!-- 7. Módulo Rede -->
+  <script src="js/modules/rede/rede.js"></script>
+
+  <!-- 8. Inicialização -->
+  <script src="js/main.js"></script>
+
 </body>
 </html>

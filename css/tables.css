@@ -1,0 +1,43 @@
+/* ============================================================
+   TABLES.CSS - Estilos de Tabelas
+   ============================================================ */
+
+.table {
+  margin-bottom: 0;
+}
+
+.table thead th {
+  font-weight: 600;
+  border-bottom: 2px solid var(--mapa-border);
+  white-space: nowrap;
+}
+
+.table-primary thead th,
+.table thead.table-primary th {
+  background-color: var(--mapa-primary);
+  color: #fff;
+  border: none;
+}
+
+.table-hover tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.table-hover tbody tr:hover {
+  background-color: rgba(13, 110, 253, 0.05);
+}
+
+.table td {
+  vertical-align: middle;
+}
+
+/* Responsividade horizontal */
+.table-responsive {
+  border-radius: var(--mapa-radius-sm);
+}
+
+/* Spinner dentro de tabelas */
+.spinner-border {
+  width: 2.5rem;
+  height: 2.5rem;
+}

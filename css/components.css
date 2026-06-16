@@ -1,0 +1,79 @@
+/* ============================================================
+   COMPONENTS.CSS - Botões, Cards, Badges, Navegação
+   ============================================================ */
+
+/* ── Cards ── */
+.card {
+  border: none;
+  border-radius: var(--mapa-radius);
+  box-shadow: var(--mapa-shadow-sm);
+}
+
+.card-header {
+  border-radius: var(--mapa-radius) var(--mapa-radius) 0 0 !important;
+  font-weight: 600;
+}
+
+/* ── Header principal ── */
+header.navbar {
+  box-shadow: var(--mapa-shadow);
+}
+
+.navbar-brand h5 {
+  letter-spacing: 0.5px;
+}
+
+/* ── Navegação por abas (pills) ── */
+.nav-pills .nav-link {
+  color: var(--mapa-gray);
+  font-weight: 500;
+  border-radius: var(--mapa-radius-sm);
+  padding: 0.5rem 1.25rem;
+}
+
+.nav-pills .nav-link:hover {
+  background-color: rgba(13, 110, 253, 0.08);
+  color: var(--mapa-primary);
+}
+
+.nav-pills .nav-link.active {
+  background-color: var(--mapa-primary);
+  color: #fff;
+  box-shadow: var(--mapa-shadow-sm);
+}
+
+/* ── Sub-navegação (bimestres) ── */
+#subNavAvaliacoes .btn {
+  border-radius: 20px;
+  padding: 0.3rem 1rem;
+  font-weight: 500;
+}
+
+#subNavAvaliacoes .btn.active {
+  background-color: var(--mapa-primary);
+  color: #fff;
+  border-color: var(--mapa-primary);
+}
+
+/* ── Botões ── */
+.btn-primary {
+  background-color: var(--mapa-primary);
+  border-color: var(--mapa-primary);
+}
+
+.btn-primary:hover {
+  background-color: var(--mapa-primary-dark);
+  border-color: var(--mapa-primary-dark);
+  transform: translateY(-1px);
+}
+
+/* ── Badges ── */
+.badge {
+  font-weight: 600;
+  padding: 0.4em 0.7em;
+}
+
+/* ── Cards de estatística (Rede) ── */
+.alert h3 {
+  font-weight: 700;
+}
