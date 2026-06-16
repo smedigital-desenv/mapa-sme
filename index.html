@@ -22,6 +22,14 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    window.MAPA_SUPABASE = {
+      url: "https://gmwotfulohkmuqrezeef.supabase.co",
+      anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk"
+    };
+  </script>
 
   <!-- CSS original do Apps Script convertido para GitHub Pages -->
   <style>
@@ -6431,62 +6439,456 @@ function _renderTabelaTotal(linhas) {
   
 <script>
 // ===========================================================
-// ADAPTADOR TEMPORÁRIO PARA GITHUB PAGES
-// Mantém o layout original do Apps Script sem quebrar enquanto
-// substituímos google.script.run pelas consultas do Supabase.
+// ADAPTADOR SUPABASE — MAPA SME
+// Substitui google.script.run no GitHub Pages usando as tabelas:
+// turmas, base_mapa, alunos, bimestres e usuarios.
 // ===========================================================
 (function () {
-  if (window.google && window.google.script && window.google.script.run) return;
+  const SUPA_CONFIG = window.MAPA_SUPABASE || {};
+  const supabaseUrl = SUPA_CONFIG.url || '';
+  const supabaseAnonKey = SUPA_CONFIG.anonKey || '';
 
-  const dashboardVazio = {
-    ppa: [],
-    pra: [],
-    disciplinasLista: [],
-    disciplinasTurmas: {},
-    alunos: [],
-    avaliacoesConfig: [
-      { key: 'primeiroBimestre', label: '1º Bimestre', sheet: 'Primeiro_Bimestre' },
-      { key: 'segundoBimestre', label: '2º Bimestre', sheet: 'Segundo_Bimestre' },
-      { key: 'terceiroBimestre', label: '3º Bimestre', sheet: 'Terceiro_Bimestre' },
-      { key: 'quartoBimestre', label: '4º Bimestre', sheet: 'Quarto_Bimestre' }
-    ]
-  };
-
-  function criarRunner() {
-    const runner = {
-      _success: null,
-      _failure: null,
-      withSuccessHandler(fn) { this._success = fn; return this; },
-      withFailureHandler(fn) { this._failure = fn; return this; },
-      _ok(data) {
-        const cb = this._success;
-        this._success = null;
-        this._failure = null;
-        setTimeout(() => { if (typeof cb === 'function') cb(data); }, 0);
-        return this;
-      },
-      getDashboardLeve() { return this._ok(dashboardVazio); },
-      getDashboardData() { return this._ok(dashboardVazio); },
-      getDashboardAlunos() { return this._ok([]); },
-      getPacoteBimestreRapido() { return this._ok({ ok: true, linhas: [], hierLinhas: [], arvore: {}, disciplinas: [], anos: [] }); },
-      getAvaliacaoBimestreRapida() { return this._ok({ ok: true, disciplinas: [], resumo: {}, alunosTotal: 0 }); },
-      getHierarquiaBimestre() { return this._ok({ ok: true, arvore: {} }); },
-      getDetalheEixo() { return this._ok({ ok: true, perguntas: {} }); },
-      getTotalAvaliacoesRapido() { return this._ok({ ok: true, linhas: [] }); },
-      getHierarquiaTotal() { return this._ok({ ok: true, arvore: {} }); },
-      getDetalhesTurmasDisciplina() { return this._ok({ ok: true, details: [] }); },
-      getTurmasPPASemProfessor() { return this._ok({ ok: true, turmas: [] }); },
-      salvarNovaAtribuicaoPPA() { return this._ok({ ok: false, message: 'Função disponível apenas após conectar o Supabase.' }); },
-      salvarAtribuicaoPPAExistente() { return this._ok({ ok: false, message: 'Função disponível apenas após conectar o Supabase.' }); }
-    };
-    return runner;
+  if (!window.supabase || !supabaseUrl || !supabaseAnonKey) {
+    console.error('[MAPA] Supabase não configurado. Verifique window.MAPA_SUPABASE no index.html.');
   }
 
+  const supa = window.supabase && supabaseUrl && supabaseAnonKey
+    ? window.supabase.createClient(supabaseUrl, supabaseAnonKey)
+    : null;
+
+  const BIM_KEY_TO_NUM = {
+    primeiroBimestre: 1,
+    segundoBimestre: 2,
+    terceiroBimestre: 3,
+    quartoBimestre: 4
+  };
+
+  const AVALIACOES_CONFIG = [
+    { key: 'primeiroBimestre', label: '1º Bimestre', sheet: 'Primeiro_Bimestre' },
+    { key: 'segundoBimestre', label: '2º Bimestre', sheet: 'Segundo_Bimestre' },
+    { key: 'terceiroBimestre', label: '3º Bimestre', sheet: 'Terceiro_Bimestre' },
+    { key: 'quartoBimestre', label: '4º Bimestre', sheet: 'Quarto_Bimestre' }
+  ];
+
+  const TURMAS_REGULARES_MAGISTERIO_II = [
+    'ETAPA I - PARCIAL', 'ETAPA I - INTEGRAL - M', 'ETAPA I - INTEGRAL - T',
+    'ETAPA II - PARCIAL', 'ETAPA II - INTEGRAL - M', 'ETAPA II - INTEGRAL - T',
+    'TERMOS - ANOS INICIAIS', 'TERMOS - ANOS FINAIS', 'TERMOS - ANOS INICIAIS EGYDIO',
+    '1 ANO', '2 ANO', '3 ANO', '4 ANO', '5 ANO'
+  ];
+
+  function normalizar(txt) {
+    return String(txt || '')
+      .trim()
+      .toUpperCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[º°]/g, '')
+      .replace(/[–—]/g, '-')
+      .replace(/\s*-\s*/g, ' - ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function compactar(txt) {
+    return normalizar(txt).replace(/[^A-Z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function cleanUnit(txt) {
+    return String(txt || '').trim().replace(/\s+/g, ' ');
+  }
+
+  function periodoDesc(valor) {
+    const p = String(valor || '').trim().toUpperCase();
+    if (p === 'M') return 'Manhã';
+    if (p === 'T') return 'Tarde';
+    if (p === 'N') return 'Noite';
+    return p || '-';
+  }
+
+  function isMagisterioII(disc) {
+    const d = normalizar(disc);
+    return d.includes('MAGISTERIO II') || d.includes('MAGISTERIO 2');
+  }
+
+  function isTurmaRegularMagisterioII(anoEscolar) {
+    const a = normalizar(anoEscolar);
+    const c = compactar(anoEscolar);
+    return TURMAS_REGULARES_MAGISTERIO_II.some(item => normalizar(item) === a || compactar(item) === c);
+  }
+
+  function isAtribuido(row) {
+    return !!(
+      row.codigo_professor_prop || row.nome_professor_prop ||
+      row.codigo_professor_sub || row.nome_professor_sub ||
+      String(row.situacao_professor || '').trim()
+    );
+  }
+
+  function isSubstituto(row) {
+    return !!(row.codigo_professor_sub || row.nome_professor_sub);
+  }
+
+  function detalheTurma(row, disc, workload, atribuido, substituto) {
+    return {
+      profName: atribuido ? (substituto ? row.nome_professor_sub : row.nome_professor_prop) || '-' : 'S/ ATRIBUIÇÃO',
+      profCode: atribuido ? (substituto ? row.codigo_professor_sub : row.codigo_professor_prop) || '-' : '-',
+      profStatus: atribuido ? row.situacao_professor || row.funcao_professor || 'ATRIBUÍDO' : '-',
+      turma: `${row.ano_escolar || ''} ${row.letra_turma || ''}`.trim(),
+      disc,
+      workload
+    };
+  }
+
+  function respostaLabel(row) {
+    const texto = row.texto_resposta ?? row.valor_resposta ?? row.codigo_resposta ?? 'Não Avaliado';
+    return String(texto || 'Não Avaliado').trim() || 'Não Avaliado';
+  }
+
+  function respostaScore(row) {
+    const vRaw = row.valor_resposta ?? row.codigo_resposta ?? row.texto_resposta;
+    const v = String(vRaw ?? '').trim().toUpperCase();
+    const n = Number(String(vRaw ?? '').replace(',', '.'));
+    if (!Number.isNaN(n) && String(vRaw ?? '').trim() !== '') return n;
+    if (['S', 'SIM', 'ADEQUADO', 'L. FLUENTE', 'ORTOGRAFICA', 'ORTOGRÁFICA', 'ALFABETICA', 'ALFABÉTICA', 'NIVEL 4', 'NÍVEL 4', 'NIVEL 5', 'NÍVEL 5'].some(x => v.includes(x))) return 1;
+    if (['N', 'NAO', 'NÃO', 'NAO AVALIADO', 'NÃO AVALIADO'].some(x => v.includes(x))) return 0;
+    return 0;
+  }
+
+  async function fetchAll(table, select = '*', applyFilter) {
+    if (!supa) throw new Error('Supabase não inicializado.');
+    const pageSize = 1000;
+    let from = 0;
+    let rows = [];
+
+    while (true) {
+      let q = supa.from(table).select(select).range(from, from + pageSize - 1);
+      if (typeof applyFilter === 'function') q = applyFilter(q);
+      const { data, error } = await q;
+      if (error) throw error;
+      const batch = data || [];
+      rows = rows.concat(batch);
+      if (batch.length < pageSize) break;
+      from += pageSize;
+      if (from > 300000) break;
+    }
+
+    return rows;
+  }
+
+  function agruparBimestrePacote(rows) {
+    const ag = new Map();
+    const hier = new Map();
+    const disciplinas = new Set();
+    const anos = new Set();
+
+    rows.forEach(r => {
+      const u = cleanUnit(r.nome_unidade || 'Sem unidade');
+      const a = normalizar(r.ano_escolar || 'TODOS') || 'TODOS';
+      const t = String(r.turma || 'Sem turma').trim().toUpperCase();
+      const d = String(r.fnc_disciplina || 'Sem disciplina').trim();
+      const e = String(r.descricao_fne || 'Sem eixo').trim();
+      const resp = respostaLabel(r);
+      const k = [u, a, t, d, e, resp].join('||');
+
+      ag.set(k, (ag.get(k) || 0) + 1);
+      disciplinas.add(d);
+      if (a) anos.add(a);
+
+      const alunoKey = r.rema_aluno || r.nome_aluno || JSON.stringify(r);
+      const hk = [u, a, t, alunoKey].join('||');
+      if (!hier.has(hk)) hier.set(hk, [u, a, t, 1]);
+    });
+
+    const hierAg = new Map();
+    hier.forEach(v => {
+      const k = [v[0], v[1], v[2]].join('||');
+      if (!hierAg.has(k)) hierAg.set(k, [v[0], v[1], v[2], 0]);
+      hierAg.get(k)[3] += 1;
+    });
+
+    return {
+      ok: true,
+      linhas: Array.from(ag.entries()).map(([k, qtd]) => k.split('||').concat([qtd])),
+      hierLinhas: Array.from(hierAg.values()),
+      disciplinas: Array.from(disciplinas).sort(),
+      anos: Array.from(anos).sort(),
+      generatedAt: new Date().toISOString()
+    };
+  }
+
+  const api = {
+    async getDashboardLeve() {
+      const [turmas, baseMapa] = await Promise.all([
+        fetchAll('turmas'),
+        fetchAll('base_mapa').catch(() => [])
+      ]);
+
+      const ppaSummary = {};
+      const praSummary = {};
+      const disciplinasTurmas = {};
+
+      turmas.forEach(row => {
+        const unit = cleanUnit(row.nome_unidade || 'Sem unidade');
+        const disc = String(row.descricao_disciplina || '').trim().toUpperCase();
+        if (!disc) return;
+
+        const workload = Number(row.carga_horaria || 0);
+        const pDesc = periodoDesc(row.periodo);
+        const anoDesc = String(row.ano_escolar || '').toUpperCase();
+        const atribuido = isAtribuido(row);
+        const substituto = isSubstituto(row);
+        const magII = isMagisterioII(disc);
+
+        if (magII && !isTurmaRegularMagisterioII(anoDesc)) return;
+
+        const key = `${unit.toUpperCase()}|${pDesc.toUpperCase()}`;
+        const detailObj = detalheTurma(row, disc, workload, atribuido, substituto);
+
+        if (!disciplinasTurmas[disc]) disciplinasTurmas[disc] = {};
+        if (!disciplinasTurmas[disc][key]) {
+          disciplinasTurmas[disc][key] = {
+            unit, period: pDesc, disciplina: disc,
+            criadas: 0, atribuidas: 0,
+            cargaCriada: 0, cargaAtribuida: 0,
+            detailsCount: 0, lazyDetails: true, details: []
+          };
+        }
+        disciplinasTurmas[disc][key].criadas += 1;
+        disciplinasTurmas[disc][key].cargaCriada += workload;
+        disciplinasTurmas[disc][key].detailsCount += 1;
+        if (atribuido) {
+          disciplinasTurmas[disc][key].atribuidas += 1;
+          disciplinasTurmas[disc][key].cargaAtribuida += workload;
+        }
+
+        if (magII || disc.includes('PROJ. PROF. ALFABETIZADOR') || anoDesc.includes('PROJETO PROFESSOR ALFABETIZADOR')) {
+          if (!ppaSummary[key]) ppaSummary[key] = { unit, period: pDesc, magisterio: 0, cargaAtribuida: 0, details: [] };
+          if (magII) ppaSummary[key].magisterio += 1;
+          if (atribuido && (disc.includes('ALFABETIZADOR') || disc.includes('PPA'))) ppaSummary[key].cargaAtribuida += workload;
+          ppaSummary[key].details.push(detailObj);
+        }
+
+        if (disc.includes('PROJ. RECUP. APREND. ANOS INIC')) {
+          if (!praSummary[key]) praSummary[key] = { unit, period: pDesc, criadas: 0, atribuidas: 0, details: [] };
+          praSummary[key].criadas += 1;
+          if (atribuido) praSummary[key].atribuidas += 1;
+          praSummary[key].details.push(detailObj);
+        }
+      });
+
+      (baseMapa || []).forEach(row => {
+        const unit = cleanUnit(row.nome_unidade || '');
+        const period = String(row.periodo || '').trim().toUpperCase();
+        const carga = Number(row.carga_horaria || 0);
+        const key = `${unit.toUpperCase()}|${period}`;
+        if (ppaSummary[key]) {
+          ppaSummary[key].cargaAtribuida += carga;
+          ppaSummary[key].details.push({
+            profName: 'ATRIBUÍDO VIA MAPA',
+            profCode: '-',
+            profStatus: 'SISTEMA',
+            turma: String(row.qtd_turmas || '').trim(),
+            disc: 'PROJ. PROF. ALFABETIZADOR',
+            workload: carga
+          });
+        }
+      });
+
+      const ppaRows = Object.values(ppaSummary)
+        .filter(r => r.magisterio > 0)
+        .map(r => {
+          r.meta = r.magisterio * 12;
+          r.percAtribuido = r.meta > 0 ? Math.min((r.cargaAtribuida / r.meta) * 100, 100) : 0;
+          r.faltaAtribuir = Math.max(0, r.meta - r.cargaAtribuida);
+          return r;
+        })
+        .sort((a, b) => a.unit.localeCompare(b.unit));
+
+      const praRows = Object.values(praSummary)
+        .filter(r => r.criadas > 0)
+        .sort((a, b) => a.unit.localeCompare(b.unit));
+
+      const disciplinasObjetoFinal = {};
+      Object.keys(disciplinasTurmas).sort().forEach(disc => {
+        disciplinasObjetoFinal[disc] = Object.values(disciplinasTurmas[disc])
+          .filter(r => r.criadas > 0)
+          .sort((a, b) => a.unit.localeCompare(b.unit) || a.period.localeCompare(b.period));
+      });
+
+      return {
+        ppa: ppaRows,
+        pra: praRows,
+        disciplinasLista: Object.keys(disciplinasObjetoFinal).sort(),
+        disciplinasTurmas: disciplinasObjetoFinal,
+        alunos: [],
+        avaliacoesConfig: AVALIACOES_CONFIG
+      };
+    },
+
+    async getDashboardData() {
+      const d = await this.getDashboardLeve();
+      d.alunos = await this.getDashboardAlunos();
+      return d;
+    },
+
+    async getDashboardAlunos() {
+      const rows = await fetchAll('alunos');
+      const dict = {};
+      rows.forEach(r => {
+        const unidade = cleanUnit(r.nome_unidade || 'Sem unidade');
+        const ano = normalizar(r.ano_escolar || '');
+        const turma = String(r.turma || '').trim().toUpperCase();
+        const nome = String(r.nome_aluno || r.aluno || r.nome || '').trim();
+        const ra = String(r.rema_aluno || r.ra || r.id || nome).trim();
+        const key = `${ra}|${unidade}|${ano}|${turma}`;
+        if (!dict[key]) dict[key] = { u: unidade, a: ano, t: turma, n: nome, e: 'Não Avaliado', l: 'Não Avaliado', p: 'Não Avaliado' };
+        const fne = normalizar(r.descricao_fne || r.disciplina_fnc || '');
+        const label = respostaLabel(r);
+        if (fne.includes('ESCRITA')) dict[key].e = label;
+        else if (fne.includes('LEITURA')) dict[key].l = label;
+        else if (fne.includes('PRODUCAO')) dict[key].p = label;
+      });
+      return Object.values(dict);
+    },
+
+    async getPacoteBimestreRapido(key, filtros) {
+      const bimestre = BIM_KEY_TO_NUM[key] || 1;
+      const ano = normalizar((filtros && filtros.ano) || 'TODOS');
+      const rows = await fetchAll('bimestres', '*', q => {
+        q = q.eq('bimestre', bimestre);
+        if (ano && ano !== 'TODOS') q = q.ilike('ano_escolar', `%${ano.replace(' ANO', '')}%`);
+        return q;
+      });
+      return agruparBimestrePacote(rows);
+    },
+
+    async getAvaliacaoBimestreRapida(key, filtros) {
+      const pacote = await this.getPacoteBimestreRapido(key, filtros || {});
+      return { ok: true, disciplinas: pacote.disciplinas || [], resumo: {}, alunosTotal: 0 };
+    },
+
+    async getHierarquiaBimestre(key, filtros) {
+      const pacote = await this.getPacoteBimestreRapido(key, filtros || {});
+      const arvore = {};
+      (pacote.hierLinhas || []).forEach(r => {
+        const u = r[0], t = r[2], qtd = Number(r[3] || 0);
+        if (!arvore[u]) arvore[u] = {};
+        arvore[u][t] = (arvore[u][t] || 0) + qtd;
+      });
+      return { ok: true, arvore };
+    },
+
+    async getDetalheEixo(key, filtros) {
+      const bimestre = BIM_KEY_TO_NUM[key] || 1;
+      const rows = await fetchAll('bimestres', '*', q => {
+        q = q.eq('bimestre', bimestre);
+        if (filtros && filtros.unidade && filtros.unidade !== 'TODAS') q = q.eq('nome_unidade', filtros.unidade);
+        if (filtros && filtros.turma && filtros.turma !== 'TODAS') q = q.eq('turma', filtros.turma);
+        if (filtros && filtros.disciplina) q = q.eq('fnc_disciplina', filtros.disciplina);
+        if (filtros && filtros.eixo) q = q.eq('descricao_fne', filtros.eixo);
+        return q;
+      });
+      const perguntas = {};
+      rows.forEach(r => {
+        const pergunta = String(r.fqs || r.descricao_fne || 'Pergunta').trim();
+        if (!perguntas[pergunta]) perguntas[pergunta] = { label: pergunta, contagem: {} };
+        const resp = respostaLabel(r);
+        perguntas[pergunta].contagem[resp] = (perguntas[pergunta].contagem[resp] || 0) + 1;
+      });
+      return { ok: true, perguntas };
+    },
+
+    async getTotalAvaliacoesRapido(filtros) {
+      const pacote = !!(filtros && filtros.__pacote);
+      const rows = await fetchAll('bimestres');
+      const ag = new Map();
+      rows.forEach(r => {
+        const b = Number(r.bimestre || 1);
+        const campo = b === 1 ? 'b1' : b === 2 ? 'b2' : b === 3 ? 'b3' : b === 4 ? 'b4' : 'b1';
+        const u = cleanUnit(r.nome_unidade || 'Sem unidade');
+        const a = normalizar(r.ano_escolar || 'TODOS') || 'TODOS';
+        const t = String(r.turma || 'Sem turma').trim().toUpperCase();
+        const d = String(r.fnc_disciplina || 'Sem disciplina').trim();
+        const e = String(r.descricao_fne || 'Sem eixo').trim();
+        const score = respostaScore(r);
+        const k = [u, a, t, d, e, campo].join('||');
+        if (!ag.has(k)) ag.set(k, { soma: 0, qtd: 0 });
+        ag.get(k).soma += score;
+        ag.get(k).qtd += 1;
+      });
+      const linhas = Array.from(ag.entries()).map(([k, v]) => {
+        const parts = k.split('||');
+        return pacote
+          ? [parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], v.soma, v.qtd]
+          : { disciplina: parts[3], tipo: parts[4], [parts[5]]: v.qtd ? Math.round((v.soma / v.qtd) * 100) / 100 : null };
+      });
+      return { ok: true, linhas };
+    },
+
+    async getHierarquiaTotal() {
+      const rows = await fetchAll('bimestres');
+      const arvore = {};
+      rows.forEach(r => {
+        const u = cleanUnit(r.nome_unidade || 'Sem unidade');
+        const t = String(r.turma || 'Sem turma').trim().toUpperCase();
+        if (!arvore[u]) arvore[u] = {};
+        arvore[u][t] = (arvore[u][t] || 0) + 1;
+      });
+      return { ok: true, arvore };
+    },
+
+    async getDetalhesTurmasDisciplina(disciplina, unidade, periodo) {
+      const rows = await fetchAll('turmas', '*', q => q.eq('nome_unidade', unidade));
+      const details = rows
+        .filter(r => String(r.descricao_disciplina || '').trim().toUpperCase() === String(disciplina || '').trim().toUpperCase())
+        .filter(r => periodoDesc(r.periodo) === periodo)
+        .filter(r => !(isMagisterioII(r.descricao_disciplina) && !isTurmaRegularMagisterioII(r.ano_escolar)))
+        .map(r => detalheTurma(r, String(r.descricao_disciplina || '').trim().toUpperCase(), Number(r.carga_horaria || 0), isAtribuido(r), isSubstituto(r)));
+      return { ok: true, details };
+    },
+
+    async getTurmasPPASemProfessor() { return { ok: true, turmas: [] }; },
+    async salvarNovaAtribuicaoPPA() { return { ok: false, message: 'Salvar atribuição ainda não migrado para Supabase.' }; },
+    async salvarAtribuicaoPPAExistente() { return { ok: false, message: 'Salvar atribuição ainda não migrado para Supabase.' }; }
+  };
+
+  function createRunner(success, failure) {
+    return {
+      withSuccessHandler(fn) { return createRunner(fn, failure); },
+      withFailureHandler(fn) { return createRunner(success, fn); },
+      _exec(promise) {
+        Promise.resolve(promise)
+          .then(data => { if (typeof success === 'function') success(data); })
+          .catch(err => {
+            console.error('[MAPA Supabase]', err);
+            if (typeof failure === 'function') failure(err);
+          });
+        return this;
+      },
+      getDashboardLeve() { return this._exec(api.getDashboardLeve()); },
+      getDashboardData() { return this._exec(api.getDashboardData()); },
+      getDashboardAlunos() { return this._exec(api.getDashboardAlunos()); },
+      getPacoteBimestreRapido(key, filtros) { return this._exec(api.getPacoteBimestreRapido(key, filtros)); },
+      getAvaliacaoBimestreRapida(key, filtros) { return this._exec(api.getAvaliacaoBimestreRapida(key, filtros)); },
+      getHierarquiaBimestre(key, filtros) { return this._exec(api.getHierarquiaBimestre(key, filtros)); },
+      getDetalheEixo(key, filtros) { return this._exec(api.getDetalheEixo(key, filtros)); },
+      getTotalAvaliacoesRapido(filtros) { return this._exec(api.getTotalAvaliacoesRapido(filtros)); },
+      getHierarquiaTotal(filtros) { return this._exec(api.getHierarquiaTotal(filtros)); },
+      getDetalhesTurmasDisciplina(disciplina, unidade, periodo) { return this._exec(api.getDetalhesTurmasDisciplina(disciplina, unidade, periodo)); },
+      getTurmasPPASemProfessor() { return this._exec(api.getTurmasPPASemProfessor()); },
+      salvarNovaAtribuicaoPPA() { return this._exec(api.salvarNovaAtribuicaoPPA()); },
+      salvarAtribuicaoPPAExistente() { return this._exec(api.salvarAtribuicaoPPAExistente()); }
+    };
+  }
+
+  window.MAPA_SUPABASE_CLIENT = supa;
   window.google = window.google || {};
   window.google.script = window.google.script || {};
-  window.google.script.run = criarRunner();
+  window.google.script.run = createRunner(null, null);
 })();
 </script>
+
 
 <script>
 // ===========================================================
