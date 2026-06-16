@@ -1,0 +1,470 @@
+<script>
+// ===========================================================
+// JS_Diagnostica.html — Aba Diagnóstica / Rede
+// Corrigido: filtro de ano funcionando também no menu Rede.
+// ===========================================================
+
+function iniciarDiagnostica() {
+  avaliacaoAtual = 'AnoEscolar';
+
+  prepararLayoutDiagnostica('Diagnóstica');
+
+  if (!rawData || !Array.isArray(rawData.alunos) || !rawData.alunos.length) {
+    _mostrarLoadingDiagnostica();
+    return;
+  }
+
+  _hierUnidadeAtiva = 'TODAS';
+  _hierTurmaAtiva = 'TODAS';
+  _hierArvoreDiag = {};
+
+  renderHierarquiaDiag(true);
+  _atualizarBreadcrumbDiag();
+  _aplicarFiltroDiag();
+}
+
+function _mostrarLoadingDiagnostica() {
+  const ids = ['kpiAlunos1', 'kpiAlunos2', 'kpiAlunos3', 'kpiAlunos4'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  });
+
+  const h = document.getElementById('hierarquiaContainerDiag');
+  if (h) {
+    h.innerHTML = `
+      <div class="text-center text-muted p-4">
+        <div class="spinner-border spinner-border-sm mb-2"></div><br>
+        Carregando dados da Rede…
+      </div>
+    `;
+  }
+}
+
+function prepararLayoutDiagnostica(titulo) {
+  const viewAlunos = document.getElementById('viewAlunos');
+  if (!viewAlunos) return;
+
+  [alunosBarChart, alunosPieChart, alunosProdChart].forEach(c => {
+    if (c) c.destroy();
+  });
+
+  viewAlunos.classList.remove('row', 'g-3', 'mb-4');
+  viewAlunos.innerHTML = `
+    <div class="row g-3">
+      <div class="col-12 col-lg-3">
+        <div class="bg-white border rounded-3 shadow-sm p-0" style="min-height:200px;position:sticky;top:70px;">
+          <div class="p-3 border-bottom d-flex justify-content-between align-items-center"
+               style="background:#002b5e;border-radius:10px 10px 0 0;">
+            <span class="text-white fw-bold" style="font-size:.8rem;">
+              <i class="bi bi-building me-2"></i>Unidade / Turma
+            </span>
+            <button class="btn btn-sm text-white p-0"
+                    style="font-size:.7rem;opacity:.75;"
+                    onclick="limparHierarquiaDiag()"
+                    title="Ver todas">
+              <i class="bi bi-x-circle me-1"></i>Todos
+            </button>
+          </div>
+          <div id="hierarquiaContainerDiag" style="max-height:65vh;overflow-y:auto;font-size:.78rem;">
+            <div class="text-center text-muted p-4">
+              <div class="spinner-border spinner-border-sm mb-2"></div><br>Carregando…
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-9">
+        <div class="filter-card mb-3 py-2 px-3">
+          <div class="d-flex flex-wrap align-items-center gap-3">
+            <div>
+              <div class="mini-label mb-1">Avaliação</div>
+              <h5 class="fw-bold text-primary m-0" id="diagAvaliacaoTitulo">${escapeHtml(titulo)}</h5>
+            </div>
+            <div style="flex:1;min-width:200px;">
+              <div class="mini-label mb-1">Filtro ativo</div>
+              <div id="diagBreadcrumb" class="small text-muted fst-italic">Toda a rede</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-6 col-md-3"><div class="card-kpi"><div class="label-mini text-truncate">Avaliações</div><div class="kpi-val text-primary" id="kpiAlunos1">0</div></div></div>
+          <div class="col-6 col-md-3"><div class="card-kpi"><div class="label-mini text-truncate">Alunos Únicos</div><div class="kpi-val text-success" id="kpiAlunos2">0</div></div></div>
+          <div class="col-6 col-md-3"><div class="card-kpi"><div class="label-mini text-truncate">Críticos</div><div class="kpi-val text-danger" id="kpiAlunos3">0</div></div></div>
+          <div class="col-6 col-md-3"><div class="card-kpi"><div class="label-mini text-truncate">Taxa de Fluência</div><div class="kpi-val" style="color:var(--neon-blue);" id="kpiAlunos4">0%</div></div></div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-md-4">
+            <div class="bg-white border rounded-3 shadow-sm p-3 d-flex flex-column" style="border-left:4px solid #002b5e!important;">
+              <h6 class="fw-bold mb-2 text-primary text-center m-0">Leitura</h6>
+              <div class="chart-canvas-wrapper"><canvas id="alunosBarChart"></canvas></div>
+              <div class="text-center mt-2 small text-muted"><i class="bi bi-info-circle me-1"></i>Clique na fatia</div>
+              ${_htmlLegenda('LEITURA', null)}
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="bg-white border rounded-3 shadow-sm p-3 d-flex flex-column" style="border-left:4px solid #002b5e!important;">
+              <h6 class="fw-bold mb-2 text-primary text-center m-0">Escrita</h6>
+              <div class="chart-canvas-wrapper"><canvas id="alunosPieChart"></canvas></div>
+              <div class="text-center mt-2 small text-muted"><i class="bi bi-info-circle me-1"></i>Clique na fatia</div>
+              ${_htmlLegenda('ESCRITA', null)}
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="bg-white border rounded-3 shadow-sm p-3 d-flex flex-column" style="border-left:4px solid #002b5e!important;">
+              <h6 class="fw-bold mb-2 text-primary text-center m-0">Produção Textual</h6>
+              <div class="chart-canvas-wrapper"><canvas id="alunosProdChart"></canvas></div>
+              <div class="text-center mt-2 small text-muted"><i class="bi bi-info-circle me-1"></i>Clique na fatia</div>
+              ${_htmlLegenda('PRODUCAO TEXTUAL', null)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function _anoNumeroDiag_(valor) {
+  const m = String(valor || '').match(/[1-5]/);
+  return m ? m[0] : '';
+}
+
+function _alunoPassaAnoDiag_(aluno) {
+  const anoAtual = normalizarAnoFiltroFront(anoFiltroAtual || 'TODOS');
+  if (!anoAtual || anoAtual === 'TODOS') return true;
+
+  const anoFiltro = _anoNumeroDiag_(anoAtual);
+  const anoAluno = _anoNumeroDiag_(aluno && aluno.a);
+
+  return !!anoFiltro && !!anoAluno && anoFiltro === anoAluno;
+}
+
+function _construirArvoreDiag() {
+  const arv = {};
+
+  (rawData?.alunos || [])
+    .filter(_alunoPassaAnoDiag_)
+    .forEach(al => {
+      const unidade = al.u || 'Sem unidade';
+      const turma = al.t || 'Sem turma';
+
+      if (!arv[unidade]) arv[unidade] = {};
+      if (!arv[unidade][turma]) arv[unidade][turma] = 0;
+      arv[unidade][turma]++;
+    });
+
+  return arv;
+}
+
+function renderHierarquiaDiag(forcarRecriar) {
+  if (forcarRecriar || !Object.keys(_hierArvoreDiag || {}).length) {
+    _hierArvoreDiag = _construirArvoreDiag();
+  }
+
+  const container = document.getElementById('hierarquiaContainerDiag');
+  if (!container) return;
+
+  const unidades = Object.keys(_hierArvoreDiag).sort();
+
+  if (!unidades.length) {
+    container.innerHTML = `
+      <div class="text-center text-muted p-3 small">
+        Sem dados para o filtro atual.
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = unidades.map((u, ui) => {
+    const turmas = Object.keys(_hierArvoreDiag[u]).sort();
+    const totalU = Object.values(_hierArvoreDiag[u]).reduce((a, b) => a + b, 0);
+    const ativaU = _hierUnidadeAtiva === u;
+
+    return `
+      <div class="hier-unidade${ativaU ? ' ativa' : ''}"
+           onclick="selecionarUnidadeDiag('${escapeJs(u)}', ${ui})">
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+              title="${escapeHtml(u)}">${escapeHtml(u)}</span>
+        <span class="hier-count ms-2">${totalU}</span>
+      </div>
+
+      <div class="hier-turmas" style="${ativaU ? 'display:block' : 'display:none'}">
+        ${turmas.map(t => `
+          <div class="hier-turma${(_hierTurmaAtiva === t && ativaU) ? ' ativa' : ''}"
+               onclick="selecionarTurmaDiag('${escapeJs(u)}','${escapeJs(t)}',event)">
+            <span><i class="bi bi-people-fill me-2" style="font-size:.65rem;"></i>Turma ${escapeHtml(t)}</span>
+            <span class="hier-count">${_hierArvoreDiag[u][t]}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }).join('');
+}
+
+function selecionarUnidadeDiag(unidade, ui) {
+  const jaSelecionada = _hierUnidadeAtiva === unidade;
+
+  _hierUnidadeAtiva = jaSelecionada ? 'TODAS' : unidade;
+  _hierTurmaAtiva = 'TODAS';
+
+  renderHierarquiaDiag(false);
+  _atualizarBreadcrumbDiag();
+  _aplicarFiltroDiag();
+}
+
+function selecionarTurmaDiag(unidade, turma, ev) {
+  if (ev) ev.stopPropagation();
+
+  const jaSelecionada = _hierUnidadeAtiva === unidade && _hierTurmaAtiva === turma;
+
+  _hierUnidadeAtiva = unidade;
+  _hierTurmaAtiva = jaSelecionada ? 'TODAS' : turma;
+
+  renderHierarquiaDiag(false);
+  _atualizarBreadcrumbDiag();
+  _aplicarFiltroDiag();
+}
+
+function limparHierarquiaDiag() {
+  _hierUnidadeAtiva = 'TODAS';
+  _hierTurmaAtiva = 'TODAS';
+
+  renderHierarquiaDiag(false);
+  _atualizarBreadcrumbDiag();
+  _aplicarFiltroDiag();
+}
+
+function _atualizarBreadcrumbDiag() {
+  const el = document.getElementById('diagBreadcrumb');
+  if (!el) return;
+
+  const anoAtual = normalizarAnoFiltroFront(anoFiltroAtual || 'TODOS');
+  const ano = anoAtual !== 'TODOS' ? ` · ${escapeHtml(anoAtual)}` : '';
+
+  if (_hierUnidadeAtiva === 'TODAS') {
+    el.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-globe me-1"></i>Toda a rede${ano}</span>`;
+  } else if (_hierTurmaAtiva === 'TODAS') {
+    el.innerHTML = `<i class="bi bi-building me-1 text-primary"></i><b class="text-primary">${escapeHtml(_hierUnidadeAtiva)}</b>${ano}`;
+  } else {
+    el.innerHTML = `<i class="bi bi-building me-1 text-primary"></i><b class="text-primary">${escapeHtml(_hierUnidadeAtiva)}</b>
+                    <i class="bi bi-chevron-right mx-1 text-muted"></i>
+                    <i class="bi bi-people-fill me-1 text-info"></i><b class="text-info">Turma ${escapeHtml(_hierTurmaAtiva)}</b>${ano}`;
+  }
+}
+
+function _aplicarFiltroDiag() {
+  let base = rawData?.alunos || [];
+
+  base = base.filter(_alunoPassaAnoDiag_);
+
+  if (_hierUnidadeAtiva !== 'TODAS') {
+    base = base.filter(a => a.u === _hierUnidadeAtiva);
+  }
+
+  if (_hierTurmaAtiva !== 'TODAS') {
+    base = base.filter(a => a.t === _hierTurmaAtiva);
+  }
+
+  currentAlunosViewList = base;
+  atualizarPainelAlunos(currentAlunosViewList);
+}
+
+function switchYear(ano, btn) {
+  _setAnoFiltroAtualSeguro(ano || 'TODOS', btn);
+
+  _hierUnidadeAtiva = 'TODAS';
+  _hierTurmaAtiva = 'TODAS';
+  _hierArvoreDiag = {};
+
+  renderHierarquiaDiag(true);
+  _atualizarBreadcrumbDiag();
+  _aplicarFiltroDiag();
+}
+
+function atualizarPainelAlunos(lista) {
+  if (!lista) return;
+
+  currentAlunosViewList = lista;
+
+  const countsL = {};
+  const countsE = {};
+  const countsP = {};
+  let criticos = 0;
+  let fluentes = 0;
+
+  lista.forEach(al => {
+    const l = al.l || 'Sem Dado';
+    const e = al.e || 'Sem Dado';
+    const p = al.p || 'Sem Dado';
+
+    countsL[l] = (countsL[l] || 0) + 1;
+    countsE[e] = (countsE[e] || 0) + 1;
+    countsP[p] = (countsP[p] || 0) + 1;
+
+    if (isCritico(l) || isCritico(e) || isCritico(p)) criticos++;
+    if (isFluente(l) && isFluente(e)) fluentes++;
+  });
+
+  const k1 = document.getElementById('kpiAlunos1');
+  const k2 = document.getElementById('kpiAlunos2');
+  const k3 = document.getElementById('kpiAlunos3');
+  const k4 = document.getElementById('kpiAlunos4');
+
+  if (k1) k1.innerText = (lista.length * 3).toLocaleString('pt-BR');
+  if (k2) k2.innerText = lista.length.toLocaleString('pt-BR');
+  if (k3) k3.innerText = criticos.toLocaleString('pt-BR');
+  if (k4) k4.innerText = lista.length > 0 ? Math.round((fluentes / lista.length) * 100) + '%' : '0%';
+
+  renderAlunosCharts(countsL, countsE, countsP);
+}
+
+function _ordenarRotulosDiag(fne, rotulos) {
+  const ordens = {
+    LEITURA: ['N1 Pré-leitor', 'N2 Pré-leitor', 'N3 Pré-leitor', 'N4 Pré-leitor', 'L. Iniciante', 'L. Fluente', 'Não Avaliado', 'Sem Dado'],
+    ESCRITA: ['Pré-silábica', 'Silábica', 'Silábico-alf.', 'Alfabética', 'Ortográfica', 'Não Avaliado', 'Sem Dado'],
+    PROD: ['Não produz', 'Nível 1', 'Nível 2', 'Nível 3', 'Nível 4', 'Nível 5', 'Não Avaliado', 'Sem Dado']
+  };
+
+  const ordem = ordens[fne] || [];
+  const pos = {};
+  ordem.forEach((r, i) => pos[r] = i);
+
+  return rotulos.sort((a, b) => {
+    const pa = pos[a] !== undefined ? pos[a] : 999;
+    const pb = pos[b] !== undefined ? pos[b] : 999;
+    return pa - pb || String(a).localeCompare(String(b));
+  });
+}
+
+function renderAlunosCharts(countsL, countsE, countsP) {
+  const commonOptions = {
+    maintainAspectRatio: false,
+    layout: { padding: { right: 5, left: 5 } },
+    onClick: (event, elements, chart) => {
+      if (elements.length > 0) {
+        const idx = elements[0].index;
+        const rawLabel = chart.data.rawLabels[idx];
+        const tipo = chart.canvas.id === 'alunosBarChart' ? 'L'
+                   : chart.canvas.id === 'alunosPieChart' ? 'E'
+                   : 'P';
+        abrirModalAlunos(tipo, rawLabel);
+      }
+    },
+    plugins: {
+      legend: { display: false },
+      datalabels: {
+        color: ctx => getTextColor(ctx.dataset.backgroundColor[ctx.dataIndex]),
+        font: { weight: 'bold', size: 12 },
+        formatter: (value, ctx) => {
+          const sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+          if (sum === 0 || value === 0) return '';
+          const pct = Math.round((value / sum) * 100);
+          return pct >= 4 ? pct + '%' : '';
+        }
+      },
+      tooltip: {
+        callbacks: {
+          label: c => c.chart.data.rawLabels[c.dataIndex] + ': ' + c.raw.toLocaleString('pt-BR') + ' alunos'
+        }
+      }
+    }
+  };
+
+  function buildData(cObj, fne) {
+    const rawLabels = _ordenarRotulosDiag(fne, Object.keys(cObj));
+    const data = rawLabels.map(l => cObj[l]);
+    const bgColors = rawLabels.map(l => getCorParaRotulo(l));
+    return { rawLabels, data, bgColors };
+  }
+
+  const cL = buildData(countsL, 'LEITURA');
+  const cE = buildData(countsE, 'ESCRITA');
+  const cP = buildData(countsP, 'PROD');
+
+  if (alunosBarChart) alunosBarChart.destroy();
+  alunosBarChart = new Chart(document.getElementById('alunosBarChart'), {
+    type: 'doughnut',
+    data: {
+      labels: cL.rawLabels,
+      rawLabels: cL.rawLabels,
+      datasets: [{ data: cL.data, backgroundColor: cL.bgColors, borderWidth: 1, borderColor: '#ffffff', hoverOffset: 10 }]
+    },
+    options: { ...commonOptions, cutout: '50%' }
+  });
+
+  if (alunosPieChart) alunosPieChart.destroy();
+  alunosPieChart = new Chart(document.getElementById('alunosPieChart'), {
+    type: 'doughnut',
+    data: {
+      labels: cE.rawLabels,
+      rawLabels: cE.rawLabels,
+      datasets: [{ data: cE.data, backgroundColor: cE.bgColors, borderWidth: 1, borderColor: '#ffffff', hoverOffset: 10 }]
+    },
+    options: { ...commonOptions, cutout: '50%' }
+  });
+
+  if (alunosProdChart) alunosProdChart.destroy();
+  alunosProdChart = new Chart(document.getElementById('alunosProdChart'), {
+    type: 'doughnut',
+    data: {
+      labels: cP.rawLabels,
+      rawLabels: cP.rawLabels,
+      datasets: [{ data: cP.data, backgroundColor: cP.bgColors, borderWidth: 1, borderColor: '#ffffff', hoverOffset: 10 }]
+    },
+    options: { ...commonOptions, cutout: '50%' }
+  });
+}
+
+
+function renderBadgeAlunos(rotulo) {
+  const cor = getCorParaRotulo(rotulo || 'Sem Dado');
+  return `
+    <span class="badge-avaliacao" style="background:${cor};color:${getTextColor(cor)};">
+      ${escapeHtml(rotulo || 'Sem Dado')}
+    </span>
+  `;
+}
+
+function abrirModalAlunos(tipo, labelFiltro) {
+  const lista = currentAlunosViewList.filter(al => {
+    const valor = tipo === 'L' ? al.l : tipo === 'E' ? al.e : al.p;
+    return valor === labelFiltro;
+  });
+
+  lista.sort((a, b) => String(a.u).localeCompare(String(b.u)) || String(a.t).localeCompare(String(b.t)) || String(a.n).localeCompare(String(b.n)));
+
+  document.getElementById('theadChartDetails').innerHTML = `
+    <tr style="font-size:.75rem;color:#666;text-transform:uppercase;">
+      <th class="ps-3">Nome</th>
+      <th>Unidade</th>
+      <th>Ano</th>
+      <th class="text-center">Turma</th>
+      <th class="text-center">Escrita</th>
+      <th class="text-center">Leitura</th>
+      <th class="text-center">Prod. Textual</th>
+    </tr>
+  `;
+
+  document.getElementById('tbodyChartDetails').innerHTML = lista.map(al => `
+    <tr>
+      <td class="fw-bold ps-3" style="font-size:.8rem;">${escapeHtml(al.n)}</td>
+      <td class="small text-muted">${escapeHtml(al.u)}</td>
+      <td class="small">${escapeHtml(al.a)}</td>
+      <td class="small text-center">${escapeHtml(al.t)}</td>
+      <td class="text-center">${renderBadgeAlunos(al.e || 'Sem Dado')}</td>
+      <td class="text-center">${renderBadgeAlunos(al.l || 'Sem Dado')}</td>
+      <td class="text-center">${renderBadgeAlunos(al.p || 'Sem Dado')}</td>
+    </tr>
+  `).join('') || `<tr><td colspan="7" class="text-center p-3">Nenhum aluno.</td></tr>`;
+
+  const nc = tipo === 'L' ? 'Leitura' : tipo === 'E' ? 'Escrita' : 'Produção Textual';
+  document.getElementById('modalChartTitle').innerHTML = `
+    <i class="bi bi-pie-chart-fill me-2"></i>${escapeHtml(nc)} = ${escapeHtml(labelFiltro)}
+    <span class="badge bg-secondary ms-2">${lista.length} alunos</span>
+  `;
+
+  new bootstrap.Modal(document.getElementById('modalChartDetails')).show();
+}
+</script>

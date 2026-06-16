@@ -1,0 +1,433 @@
+<script>
+// ===========================================================
+// JS_Nav.html — Navegação, modos especiais, ano filter e pré-cache
+// Versão pacote local: pré-carrega pacotes de bimestre em background.
+// ===========================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+  if ((typeof isVIP !== 'undefined' && isVIP) || window.__IS_VIP__) {
+    const btnContainer = document.getElementById('btnRelatorioContainer');
+    if (btnContainer) {
+      btnContainer.innerHTML =
+        `<button class="btn btn-sheets btn-sm w-100 fw-bold shadow-sm" onclick="abrirRelatorioSaldo()">
+           <i class="bi bi-file-earmark-spreadsheet me-1"></i> SALDO PPA
+         </button>`;
+    }
+  }
+
+  atualizarDados();
+
+  setInterval(() => {
+    const c = document.getElementById('clock');
+    if (c) c.innerText = new Date().toLocaleTimeString();
+  }, 1000);
+});
+
+let _preloadBackgroundIniciado = false;
+let _preloadPrimeiroBimInicial = false;
+
+function _preCarregarPrimeiroBimInicial() {
+  if (_preloadPrimeiroBimInicial) return;
+  _preloadPrimeiroBimInicial = true;
+
+  // Pacote principal do 1º Bim. sempre em TODOS.
+  // Isso deixa a primeira abertura do 1º Bim. praticamente instantânea
+  // e evita abrir preso no último ano selecionado.
+  if (typeof _prefetchPacoteBimestre === 'function') {
+    _prefetchPacoteBimestre('primeiroBimestre', { ano: 'TODOS' }, 0);
+  }
+}
+
+// ===========================================================
+// CARREGAMENTO INICIAL + PRÉ-CACHE EM BACKGROUND
+// ===========================================================
+function _cacheGetDashboardLevePreferencial() {
+  const chaves = [
+    'dashboardLeve|turmasFast|v1',
+    'dashboardLeve|v4',
+    'dashboardLeve|v3'
+  ];
+
+  for (const ch of chaves) {
+    const item = _cacheGet(ch);
+    if (item) return item;
+  }
+
+  return null;
+}
+
+function atualizarDados() {
+  const chDash = 'dashboardLeve|turmasFast|v1';
+  const cached = _cacheGetDashboardLevePreferencial();
+  let jaRenderizou = false;
+
+  function aplicarDashboard(res, origem) {
+    if (!res) return;
+
+    // Aplica filtro de unidade escolar (sem efeito quando filtroUnidadeEscola = '').
+    rawData = (typeof _filtrarDashPorUnidade === 'function') ? _filtrarDashPorUnidade(res) : res;
+    window.rawData = rawData;
+    if (!rawData.alunos) rawData.alunos = [];
+
+    const selectedNav = document.querySelector('input[name="mainNav"]:checked');
+
+    if (modoApp === 'apresentacao') {
+      switchMainView('Turmas');
+      switchProject('PPA');
+      iniciarModoEspecial();
+    } else if (modoApp === 'atribuicao') {
+      switchMainView('Turmas');
+      switchProject('PPA');
+      iniciarModoEspecial();
+    } else if (!jaRenderizou) {
+      if (selectedNav) switchMainView(selectedNav.id.replace('nav', ''));
+      else switchMainView('Turmas');
+    }
+
+    jaRenderizou = true;
+  }
+
+  function iniciarPreloadDepoisDosAlunos() {
+    setTimeout(_preCarregarBackground, 900);
+  }
+
+  if (cached) {
+    aplicarDashboard(cached, 'cache');
+    setTimeout(_preCarregarPrimeiroBimInicial, 120);
+    _carregarAlunosDiagnosticaBackground(iniciarPreloadDepoisDosAlunos);
+
+    // Atualiza o cache em silêncio com os dados completos (sem filtro), para reutilizar.
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res) _cacheSet(chDash, res);
+      })
+      .withFailureHandler(err => console.warn('Refresh silencioso getDashboardLeve falhou:', err))
+      .getDashboardLeve();
+
+    return;
+  }
+
+  google.script.run
+    .withSuccessHandler(res => {
+      _cacheSet(chDash, res); // grava sem filtro para reutilizar no refresh
+      aplicarDashboard(res, 'server');
+      setTimeout(_preCarregarPrimeiroBimInicial, 120);
+      _carregarAlunosDiagnosticaBackground(iniciarPreloadDepoisDosAlunos);
+    })
+    .withFailureHandler(err => {
+      console.error('getDashboardLeve falhou; tentando getDashboardData:', err);
+      google.script.run.withSuccessHandler(res => {
+        _cacheSet(chDash, res);
+        aplicarDashboard(res, 'serverFallback');
+        setTimeout(_preCarregarPrimeiroBimInicial, 120);
+        _carregarAlunosDiagnosticaBackground(iniciarPreloadDepoisDosAlunos);
+      }).getDashboardData();
+    })
+    .getDashboardLeve();
+}
+
+
+function _carregarAlunosDiagnosticaBackground(onReady) {
+  const chAlunos = 'dashboardAlunos|v4';
+  const cached = _cacheGet(chAlunos);
+
+  if (cached && Array.isArray(cached)) {
+    // Aplica filtro de unidade na lista já em cache.
+    rawData.alunos = (typeof _filtrarAlunosPorUnidade === 'function') ? _filtrarAlunosPorUnidade(cached) : cached;
+    if (avaliacaoAtual === 'AnoEscolar' && typeof iniciarDiagnostica === 'function') iniciarDiagnostica();
+    if (typeof onReady === 'function') setTimeout(onReady, 0);
+    return;
+  }
+
+  google.script.run
+    .withSuccessHandler(alunos => {
+      const lista = alunos || [];
+      _cacheSet(chAlunos, lista); // grava sem filtro para reutilizar no refresh
+      rawData.alunos = (typeof _filtrarAlunosPorUnidade === 'function') ? _filtrarAlunosPorUnidade(lista) : lista;
+      if (avaliacaoAtual === 'AnoEscolar' && typeof iniciarDiagnostica === 'function') iniciarDiagnostica();
+      if (typeof onReady === 'function') onReady();
+    })
+    .withFailureHandler(err => {
+      console.error('Erro ao carregar Diagnóstica em background:', err);
+      if (typeof onReady === 'function') onReady();
+    })
+    .getDashboardAlunos();
+}
+
+function _preCarregarBackground() {
+  if (_preloadBackgroundIniciado) return;
+  _preloadBackgroundIniciado = true;
+
+  // Preload enxuto: evita deixar a Diagnóstica lenta.
+  // 1º Bim. vem primeiro porque já foi otimizado para filtro local.
+  _preCarregarPrimeiroBimInicial();
+
+  // Total é aquecido um pouco depois. Se o backend ainda não tiver getPacoteTotalRapido,
+  // o JS_Core ignora sem quebrar a tela.
+  setTimeout(() => {
+    if (typeof _prefetchPacoteTotal === 'function') {
+      _prefetchPacoteTotal({ ano: 'TODOS' }, 4);
+    }
+  }, 1600);
+
+  // Demais bimestres em baixa prioridade.
+  setTimeout(() => {
+    ['segundoBimestre', 'terceiroBimestre', 'quartoBimestre'].forEach((key, i) => {
+      _prefetchPacoteBimestre(key, { ano: 'TODOS' }, 30 + i);
+    });
+  }, 5000);
+}
+
+// ===========================================================
+// MODOS ESPECIAIS
+// ===========================================================
+let apresentacaoTimer = null;
+let apresentacaoIndex = 0;
+
+const APRESENTACAO_ROTA = [
+  { nome: 'PPA', view: 'Turmas', project: 'PPA', tempo: 15000 },
+  { nome: 'PRA', view: 'Turmas', project: 'PRA', tempo: 15000 }
+];
+
+function iniciarModoEspecial() {
+  if (modoApp === 'atribuicao') {
+    iniciarModoAtribuicao();
+    return;
+  }
+  if (modoApp === 'apresentacao') iniciarModoApresentacao();
+}
+
+function iniciarModoAtribuicao() {
+  document.body.classList.add('modo-atribuicao');
+  switchMainView('Turmas');
+  switchProject('PPA');
+
+  if (!document.getElementById('avisoModoAtribuicao')) {
+    document.body.insertAdjacentHTML('afterbegin',
+      `<div id="avisoModoAtribuicao" class="text-center fw-bold small py-1"
+            style="background:#00e5ff;color:#002b5e;position:sticky;top:0;z-index:2000;">
+         MODO ATRIBUIÇÃO ATIVO
+       </div>`);
+  }
+}
+
+function iniciarModoApresentacao() {
+  document.body.classList.add('modo-apresentacao');
+
+  if (!document.getElementById('avisoModoApresentacao')) {
+    document.body.insertAdjacentHTML('afterbegin',
+      `<div id="avisoModoApresentacao" class="text-center fw-bold small py-1"
+            style="background:#002b5e;color:#00e5ff;position:sticky;top:0;z-index:2000;">
+         MODO APRESENTAÇÃO ATIVO
+       </div>`);
+  }
+
+  if (apresentacaoTimer) clearTimeout(apresentacaoTimer);
+  apresentacaoIndex = 0;
+  executarPassoApresentacao();
+}
+
+function executarPassoApresentacao() {
+  if (!APRESENTACAO_ROTA.length) return;
+  const passo = APRESENTACAO_ROTA[apresentacaoIndex % APRESENTACAO_ROTA.length];
+
+  try {
+    if (passo.view === 'Turmas') {
+      switchMainView('Turmas');
+      if (passo.project) switchProject(passo.project);
+      const navTurmas = document.getElementById('navTurmas');
+      if (navTurmas) navTurmas.checked = true;
+    }
+  } catch (erro) {
+    console.error('Erro no modo apresentação:', erro);
+  }
+
+  apresentacaoIndex++;
+  apresentacaoTimer = setTimeout(executarPassoApresentacao, passo.tempo || 15000);
+}
+
+// ===========================================================
+// BARRA DE ANO
+// ===========================================================
+function mostrarAnoFilterBar(show) {
+  const bar = document.getElementById('anoFilterBar');
+  if (bar) bar.classList.toggle('d-none', !show);
+}
+
+function _resetarAnoFilterBar() {
+  anoFiltroAtual = 'TODOS';
+  document.querySelectorAll('#anoFilterBar .btn-ano').forEach((b, i) => b.classList.toggle('active', i === 0));
+  const aSel = document.getElementById('filtroAvAno');
+  if (aSel) aSel.value = 'TODOS';
+}
+
+function selecionarAnoFiltro(ano, btn) {
+  const anoNormalizado = _setAnoFiltroAtualSeguro(ano, btn);
+
+  if (avaliacaoAtual === 'AnoEscolar') {
+    if (typeof switchYear === 'function') {
+      switchYear(anoNormalizado, btn);
+      return;
+    }
+    if (typeof renderHierarquiaDiag === 'function') renderHierarquiaDiag(true);
+    if (typeof _aplicarFiltroDiag === 'function') _aplicarFiltroDiag();
+    return;
+  }
+
+  if (avaliacaoAtual === 'Total') {
+    totalDisciplinaSelecionada = '';
+    totalEixoAtual = 'TODOS';
+
+    // Não limpamos pacoteTotalAtual aqui. Se o pacote mestre já estiver carregado,
+    // o Total filtra o ano localmente e a troca fica instantânea.
+    if (typeof _prefetchPacoteTotal === 'function') {
+      _prefetchPacoteTotal({ ano: anoNormalizado }, 1);
+      _prefetchPacoteTotal({ ano: 'TODOS' }, 4);
+    }
+
+    if (typeof atualizarBreadcrumbTotal === 'function') atualizarBreadcrumbTotal();
+    if (typeof carregarTotalRapido === 'function') carregarTotalRapido(false);
+    return;
+  }
+
+  if (avaliacaoAtual && avaliacaoAtual !== 'AnoEscolar') {
+    if (typeof carregarResumoBimestreRapido === 'function') carregarResumoBimestreRapido();
+  }
+}
+
+// ===========================================================
+// NAVEGAÇÃO PRINCIPAL
+// ===========================================================
+function switchMainView(view) {
+  if (typeof rawData === 'undefined' || !rawData) return;
+
+  const subNavTurmas = document.getElementById('subNavTurmas');
+  const subNavAvaliacoes = document.getElementById('subNavAvaliacoes');
+  const vTurmas = document.getElementById('viewTurmas');
+  const vAlunos = document.getElementById('viewAlunos');
+  const vBimestre = document.getElementById('viewBimestre1');
+  const vTotal = document.getElementById('viewTotal');
+
+  [subNavTurmas, subNavAvaliacoes].forEach(el => el && el.classList.add('d-none'));
+  [vTurmas, vAlunos, vBimestre, vTotal].forEach(el => el && el.classList.add('d-none'));
+  mostrarAnoFilterBar(false);
+
+  if (view === 'Turmas') {
+    if (subNavTurmas) subNavTurmas.classList.remove('d-none');
+    if (vTurmas) vTurmas.classList.remove('d-none');
+    switchProject(currentProject);
+    return;
+  }
+
+  if (view === 'Rede') {
+    avaliacaoAtual = 'AnoEscolar';
+
+    if (vAlunos) vAlunos.classList.remove('d-none');
+    mostrarAnoFilterBar(true);
+    _resetarAnoFilterBar();
+
+    currentAlunosViewList = rawData.alunos || [];
+
+    if (typeof iniciarDiagnostica === 'function') {
+      iniciarDiagnostica();
+    }
+
+    return;
+  }
+
+  if (view === 'Avaliacoes' || view === 'AnoEscolar' || view === 'Bimestre1') {
+    if (subNavAvaliacoes) subNavAvaliacoes.classList.remove('d-none');
+    abrirAvaliacao(view === 'Bimestre1' ? 'primeiroBimestre' : 'AnoEscolar');
+  }
+}
+
+// ===========================================================
+// SWITCH DE AVALIAÇÃO
+// ===========================================================
+function marcarSubAvaliacao(tipo, btn) {
+  document.querySelectorAll('#subNavAvaliacoes .btn-toggle').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  else {
+    const found = document.querySelector(`#subNavAvaliacoes [data-avaliacao="${tipo}"]`);
+    if (found) found.classList.add('active');
+  }
+}
+
+function abrirAvaliacao(tipo, btn) {
+  // O 1º Bimestre deve abrir sempre na visão geral (Todos),
+  // mesmo que a pessoa tenha deixado 2º/5º Ano selecionado em outra aba.
+  if (tipo === 'primeiroBimestre' && typeof _setAnoFiltroAtualSeguro === 'function') {
+    _setAnoFiltroAtualSeguro('TODOS');
+  }
+
+  avaliacaoAtual = tipo;
+  _preAquecerAvaliacao(tipo);
+  marcarSubAvaliacao(tipo, btn);
+
+  ['viewTurmas','viewAlunos','viewBimestre1','viewTotal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('d-none');
+  });
+
+  mostrarAnoFilterBar(true);
+
+  if (tipo === 'AnoEscolar') {
+    document.getElementById('viewAlunos').classList.remove('d-none');
+    _resetarAnoFilterBar();
+
+    if (typeof iniciarDiagnostica === 'function') {
+      iniciarDiagnostica();
+    }
+
+    return;
+  }
+
+  if (tipo === 'Total') {
+    document.getElementById('viewTotal').classList.remove('d-none');
+    iniciarTotalAvaliacoes();
+    return;
+  }
+
+  document.getElementById('viewBimestre1').classList.remove('d-none');
+  limparAreaAvaliacao();
+  iniciarBimestreGenerico(tipo, BIMESTRE_LABELS[tipo] || tipo);
+}
+
+function _preAquecerAvaliacao(tipo) {
+  if (!tipo || tipo === 'AnoEscolar') return;
+
+  if (tipo === 'Total') {
+    const anoAtual = _anoFiltroAtualSeguro();
+
+    // Aquece o pacote específico do ano e o pacote mestre.
+    // Se qualquer um terminar antes da tela abrir, o Total renderiza localmente.
+    if (typeof _prefetchPacoteTotal === 'function') {
+      _prefetchPacoteTotal({ ano: anoAtual }, 1);
+      _prefetchPacoteTotal({ ano: 'TODOS' }, 2);
+    }
+    return;
+  }
+
+  const anoBaseBimestre = tipo === 'primeiroBimestre'
+    ? 'TODOS'
+    : (typeof _anoFiltroAtualSeguro === 'function' ? _anoFiltroAtualSeguro() : (anoFiltroAtual || 'TODOS'));
+
+  _preload(
+    _chavePacoteBimestre(tipo, { ano: anoBaseBimestre }),
+    cb => google.script.run
+      .withSuccessHandler(r => cb(r))
+      .withFailureHandler(err => {
+        console.error('Erro preaquecer pacote bimestre:', tipo, err);
+        cb({ ok: false, linhas: [], arvore: {}, disciplinas: [] });
+      })
+      .getPacoteBimestreRapido(tipo, { ano: anoBaseBimestre }),
+    1
+  );
+}
+
+function limparAreaAvaliacao() {
+  ['pillsDisciplinasContainer','bimestre1Kpis','bimestre1Charts','bimestre1TableHead','bimestre1TableBody']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+  if (typeof fecharDetalheEixo === 'function') fecharDetalheEixo();
+}
+</script>
