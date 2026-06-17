@@ -2715,11 +2715,11 @@ function _chaveBimestre(key, filtros) {
 
 function _chavePacoteBimestre(key, filtrosBase) {
   filtrosBase = filtrosBase || {};
-  return ['pacote_bim_supa_v5_apps_exact', key, filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacote_bim_supa_v6_match_appscript', key, filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _chaveTotal(filtros) {
-  return ['total_supa_v5_apps_exact', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
+  return ['total_supa_v6_match_appscript', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
 }
 
 function _chaveDetalhe(key, filtros) {
@@ -2735,7 +2735,7 @@ function _chaveBimestreCompleto(key) {
 }
 
 function _chaveHierarquiaTotal(ano) {
-  return ['hier_total_supa_v5_apps_exact', ano || 'TODOS'].join('|');
+  return ['hier_total_supa_v6_match_appscript', ano || 'TODOS'].join('|');
 }
 
 // ===========================================================
@@ -3217,7 +3217,7 @@ function _setAnoFiltroAtualSeguro(ano, btn) {
 
 function _chavePacoteTotal(filtrosBase) {
   filtrosBase = filtrosBase || {};
-  return ['pacoteTotal_supa_v5_apps_exact', filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacoteTotal_supa_v6_match_appscript', filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _backendTemPacoteTotal() {
@@ -6503,6 +6503,21 @@ function _renderTabelaTotal(linhas) {
       .trim();
   }
 
+
+  function corrigirTextoLegivel(valor) {
+    const raw = String(valor || '').trim();
+    if (!raw) return '';
+    const teste = normalizar(raw.replace(/�/g, 'U'));
+    if (teste.includes('MUSICA') || teste.includes('M SICA')) return 'MÚSICA';
+    return raw;
+  }
+
+  function unidadeChaveFlex(valor) {
+    // Base_MAPA às vezes traz unidade sem sufixos como ", EMEF" ou ", PROFº.".
+    // Para comparar com Turmas, usamos a parte principal do nome.
+    return normalizar(String(valor || '').split(',')[0] || valor).replace(/[^A-Z0-9]+/g, ' ').trim();
+  }
+
   function normVl(vl) {
     let s = String(vl == null ? '' : vl).trim();
     if (!s) return 'X';
@@ -6525,7 +6540,7 @@ function _renderTabelaTotal(linhas) {
   }
 
   function normalizarDisciplina(valor) {
-    const txt = String(valor || '').trim();
+    const txt = corrigirTextoLegivel(valor);
     if (!txt) return '';
 
     // Mantém a mesma normalização do Apps Script e acrescenta proteção
@@ -6549,7 +6564,7 @@ function _renderTabelaTotal(linhas) {
 
 
   function normalizarEixoTotal(eixo) {
-    const raw = String(eixo || '').trim();
+    const raw = corrigirTextoLegivel(eixo);
     if (!raw) return '';
     const n = normalizar(raw);
     if (n.includes('PRODUCAO') || n.includes('TEXTUAL')) return 'PRODUÇÃO TEXTUAL';
@@ -6557,7 +6572,8 @@ function _renderTabelaTotal(linhas) {
     if (n.includes('ESCRITA')) return 'ESCRITA';
     if (n.includes('ORALIDADE')) return 'ORALIDADE';
     if (n.includes('COMPLEMENTAR')) return 'COMPLEMENTAR';
-    return raw.toUpperCase();
+    if (normalizar(raw.replace(/�/g, 'U')).includes('MUSICA')) return 'MÚSICA';
+    return corrigirTextoLegivel(raw).toUpperCase();
   }
 
   function compactar(txt) {
@@ -6729,7 +6745,7 @@ function _renderTabelaTotal(linhas) {
       const a = normalizar(r.ano_escolar || 'TODOS') || 'TODOS';
       const t = String(r.turma || 'Sem turma').trim().toUpperCase();
       const d = normalizarDisciplina(r.fnc_disciplina || 'Sem disciplina');
-      const e = String(r.descricao_fne || 'Sem eixo').trim();
+      const e = corrigirTextoLegivel(r.descricao_fne || 'Sem eixo');
       const resp = respostaLabel(r);
       const k = [u, a, t, d, e, resp].join('||');
 
@@ -6766,7 +6782,7 @@ function _renderTabelaTotal(linhas) {
         fetchAll('base_mapa').catch(() => [])
       ]);
 
-      console.info('[MAPA Supabase v5 AppsExact] adaptador ativo');
+      console.info('[MAPA Supabase v6 MatchAppScript] adaptador ativo');
       console.info('[MAPA Supabase] turmas carregadas:', turmas.length, 'base_mapa:', (baseMapa || []).length);
 
       const ppaSummary = {};
@@ -6785,7 +6801,7 @@ function _renderTabelaTotal(linhas) {
         const substituto = isSubstituto(row);
         const magII = isMagisterioII(disc);
 
-        if (magII && !isTurmaRegularMagisterioII(anoDesc)) return;
+        // Apps Script original não filtrava Magistério II no resumo genérico de Turmas.
 
         const key = `${unit.toUpperCase()}|${pDesc.toUpperCase()}`;
         const detailObj = detalheTurma(row, disc, workload, atribuido, substituto);
@@ -6823,28 +6839,45 @@ function _renderTabelaTotal(linhas) {
       });
 
       (baseMapa || []).forEach(row => {
-        const unit = cleanUnit(row.nome_unidade || '');
+        const unitBase = cleanUnit(row.nome_unidade || '');
         const period = String(row.periodo || '').trim().toUpperCase();
         const turmaMapa = String(row.turma || row.qtd_turmas || row.letra_turma || row.nome_turma || '').trim().toUpperCase();
         const carga = Number(String(row.carga_horaria || 0).replace(',', '.').replace(/[^0-9.-]/g, '')) || 0;
-        const key = `${unit.toUpperCase()}|${period}`;
+        const keyExato = `${unitBase.toUpperCase()}|${period}`;
 
-        if (ppaSummary[key] && carga) {
-          // Regra exata do Apps Script:
-          // Base_MAPA só entra se a letra criada for posterior à última letra já existente em Turmas.
+        let alvo = ppaSummary[keyExato] || null;
+        let matchFlexivel = false;
+
+        // Se o nome da unidade em Base_MAPA estiver sem sufixo, procura pela parte principal do nome.
+        if (!alvo) {
+          const baseFlex = unidadeChaveFlex(unitBase);
+          Object.keys(ppaSummary).some(k => {
+            const item = ppaSummary[k];
+            if (String(item.period || '').toUpperCase() === period && unidadeChaveFlex(item.unit) === baseFlex) {
+              alvo = item;
+              matchFlexivel = true;
+              return true;
+            }
+            return false;
+          });
+        }
+
+        if (alvo && carga) {
+          // Regra do Apps Script: só soma se a letra criada em Base_MAPA for posterior à última letra já existente em Turmas.
           const mTurmaLetra = turmaMapa.split(' ').pop() || turmaMapa;
           let ultimaLetraEmTurmas = '';
-
-          (ppaSummary[key].details || []).forEach(det => {
+          (alvo.details || []).forEach(det => {
             const detalheLetra = String(det.turma || '').split(' ').pop() || det.turma;
-            if (detalheLetra && detalheLetra.length === 1 && detalheLetra > ultimaLetraEmTurmas) {
-              ultimaLetraEmTurmas = detalheLetra;
-            }
+            if (detalheLetra && detalheLetra.length === 1 && detalheLetra > ultimaLetraEmTurmas) ultimaLetraEmTurmas = detalheLetra;
           });
 
+          // No fallback flexível, usamos somente a carga padrão 6h do PPA principal.
+          // Isso compensa a diferença de nomenclatura da unidade no CSV sem inflar cargas 4h/5h auxiliares.
+          if (matchFlexivel && carga !== 6) return;
+
           if (!ultimaLetraEmTurmas || mTurmaLetra > ultimaLetraEmTurmas) {
-            ppaSummary[key].cargaAtribuida += carga;
-            ppaSummary[key].details.push({
+            alvo.cargaAtribuida += carga;
+            alvo.details.push({
               profName: 'ATRIBUÍDO VIA MAPA',
               profCode: String(row.codigo_funcional || '-').trim(),
               profStatus: 'SISTEMA',
@@ -6992,7 +7025,7 @@ function _renderTabelaTotal(linhas) {
         if (disciplinaFiltro && disc !== disciplinaFiltro) return;
         if (eixoFiltro && eixo !== eixoFiltro) return;
 
-        const pergunta = String(r.fqs || r.descricao_fne || 'Pergunta').trim();
+        const pergunta = corrigirTextoLegivel(r.fqs || r.descricao_fne || 'Pergunta');
         if (!perguntas[pergunta]) perguntas[pergunta] = { label: pergunta, contagem: {} };
         const resp = respostaLabel(r);
         perguntas[pergunta].contagem[resp] = (perguntas[pergunta].contagem[resp] || 0) + 1;
@@ -7139,7 +7172,6 @@ function _renderTabelaTotal(linhas) {
       const details = rows
         .filter(r => String(normalizarDisciplina(r.descricao_disciplina || '')).toUpperCase() === String(normalizarDisciplina(disciplina || '')).toUpperCase())
         .filter(r => periodoDesc(r.periodo) === periodo)
-        .filter(r => !(isMagisterioII(r.descricao_disciplina) && !isTurmaRegularMagisterioII(r.ano_escolar)))
         .map(r => detalheTurma(r, String(r.descricao_disciplina || '').trim().toUpperCase(), Number(r.carga_horaria || 0), isAtribuido(r), isSubstituto(r)));
       return { ok: true, details };
     },
@@ -7233,7 +7265,7 @@ function _preCarregarPrimeiroBimInicial() {
 // ===========================================================
 function _cacheGetDashboardLevePreferencial() {
   const chaves = [
-    'dashboardLeve|turmasFast|supa_v5_apps_exact',
+    'dashboardLeve|turmasFast|supa_v6_match_appscript',
     'dashboardLeve|legacy_v4_ignorar',
     'dashboardLeve|legacy_v3_ignorar'
   ];
@@ -7247,7 +7279,7 @@ function _cacheGetDashboardLevePreferencial() {
 }
 
 function atualizarDados() {
-  const chDash = 'dashboardLeve|turmasFast|supa_v5_apps_exact';
+  const chDash = 'dashboardLeve|turmasFast|supa_v6_match_appscript';
   const cached = _cacheGetDashboardLevePreferencial();
   let jaRenderizou = false;
 
