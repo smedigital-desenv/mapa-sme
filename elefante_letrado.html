@@ -199,21 +199,32 @@
 
   <!-- ── Visão unificada ───────────────────────────────────── -->
   <div id="viewPrincipal">
+
+    <!-- Alertas rápidos -->
+    <div id="elAlertas" class="mb-4"></div>
+
+    <!-- Gráficos -->
     <div class="row g-3 mb-4">
-      <div class="col-12 col-lg-7">
-        <div class="chart-container">
-          <h6 class="fw-bold mb-3 text-muted">
-            <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Leituras Concluídas — Top Escolas
+      <div class="col-12 col-lg-5">
+        <div class="chart-container h-100">
+          <h6 class="fw-bold mb-1 text-muted">
+            <i class="bi bi-pie-chart-fill me-2 text-primary"></i>Situação da Rede
           </h6>
-          <div class="chart-canvas-wrapper"><canvas id="elBarChart"></canvas></div>
+          <div class="text-muted small mb-3" style="font-size:.72rem;">
+            Escolas por nível de engajamento em relação à média
+          </div>
+          <div class="chart-canvas-wrapper" style="height:240px;"><canvas id="elPieChart"></canvas></div>
         </div>
       </div>
-      <div class="col-12 col-lg-5">
-        <div class="chart-container">
-          <h6 class="fw-bold mb-3 text-muted">
-            <i class="bi bi-clock-fill me-2 text-primary"></i>Horas de Leitura — Distribuição
+      <div class="col-12 col-lg-7">
+        <div class="chart-container h-100">
+          <h6 class="fw-bold mb-1 text-muted">
+            <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Engajamento por Escola
           </h6>
-          <div class="chart-canvas-wrapper"><canvas id="elPieChart"></canvas></div>
+          <div class="text-muted small mb-3" style="font-size:.72rem;">
+            % de estudantes que realizaram ao menos uma leitura
+          </div>
+          <div class="chart-canvas-wrapper" style="height:240px;"><canvas id="elBarChart"></canvas></div>
         </div>
       </div>
     </div>
@@ -231,13 +242,13 @@
           <thead class="table-light"
                  style="font-size:.75rem;color:#666;text-transform:uppercase;">
             <tr>
-              <th>Escola / Turma</th>
-              <th class="text-center">Turno</th>
-              <th>Professor(es)</th>
-              <th class="text-center">Estudantes</th>
-              <th class="text-center">Leitores / Livros</th>
-              <th class="text-center">Tempo Leitura</th>
-              <th class="text-center">Engajamento</th>
+              <th style="min-width:260px;">Escola / Turma</th>
+              <th class="text-center" style="width:80px;">Turno</th>
+              <th style="min-width:180px;">Professor(es)</th>
+              <th class="text-center" style="width:90px;">Estudantes</th>
+              <th class="text-center" style="width:120px;">Leitores / Livros</th>
+              <th class="text-center" style="width:110px;">Tempo Leitura</th>
+              <th class="text-center" style="width:100px;">Engajamento</th>
             </tr>
           </thead>
           <tbody id="elTbPrincipal"></tbody>
@@ -506,7 +517,6 @@ function renderKpis() {
 function renderTabela(busca) {
   busca = (busca || '').toLowerCase().trim();
 
-  // Filtra escolas pelo termo de busca
   const escolas = busca
     ? S.escolas.filter(e => e.nome_escola.toLowerCase().includes(busca))
     : S.escolas;
@@ -531,18 +541,15 @@ function renderTabela(busca) {
     const grpId  = `grp_${gi}`;
     const turmas = turmasPorEscola[e.nome_escola] || [];
 
-    // Métricas da escola
-    const media    = e.estudantes_leitura > 0
-      ? (e.leituras_concluidas / e.estudantes_leitura).toFixed(1) : '—';
-    const engajPct = e.estudantes_leitura > 0
-      ? Math.round((S.turmas
-          .filter(t => t.escola === e.nome_escola)
-          .reduce((s, t) => s + (t.leitores || 0), 0)
-        / e.estudantes_leitura) * 100) : 0;
-    const engajCls = engajPct >= 80 ? 'el-chip-alto' : engajPct >= 40 ? 'el-chip-medio'
-                   : engajPct > 0   ? 'el-chip-baixo' : 'el-chip-zero';
+    // Totais da escola a partir das turmas
+    const totalEstud    = turmas.reduce((s,t) => s+(t.estudantes||0), 0);
+    const totalLeitores = turmas.reduce((s,t) => s+(t.leitores||0), 0);
+    const totalLivros   = turmas.reduce((s,t) => s+(t.livros_lidos||0), 0);
+    const totalSeg      = turmas.reduce((s,t) => s+(t.tempo_leitura_seg||0), 0);
+    const pctEsc        = totalEstud > 0 ? Math.round((totalLeitores/totalEstud)*100) : 0;
+    const engajCls      = pctEsc>=80?'el-chip-alto':pctEsc>=40?'el-chip-medio':pctEsc>0?'el-chip-baixo':'el-chip-zero';
 
-    // Linha da escola
+    // ── Linha da escola (mesmas 7 colunas) ──
     const linhaEscola = `
       <tr class="el-grp-header" onclick="toggleGrupo('${grpId}')">
         <td style="font-weight:900;font-size:.83rem;color:#002b5e;padding-left:12px;">
@@ -551,42 +558,35 @@ function renderTabela(busca) {
           ${esc(e.nome_escola)}
           <span class="badge ms-2" style="background:#e0e7ff;color:#3730a3;
                 font-size:.6rem;font-weight:800;vertical-align:middle;">
-            ${turmas.length} turma${turmas.length !== 1 ? 's' : ''}
+            ${turmas.length} turma${turmas.length!==1?'s':''}
           </span>
         </td>
         <td class="text-center text-muted small">—</td>
-        <td class="text-muted small" style="font-size:.72rem;">
-          Leituras: <strong>${(e.leituras_concluidas||0).toLocaleString('pt-BR')}</strong>
-          &nbsp;·&nbsp; Média: <strong>${media}</strong>/aluno
-        </td>
-        <td class="text-center">${(e.estudantes_leitura||0).toLocaleString('pt-BR')}</td>
+        <td class="text-muted small">—</td>
+        <td class="text-center fw-bold">${totalEstud.toLocaleString('pt-BR')}</td>
         <td class="text-center">
-          <span class="fw-bold" style="color:#002b5e">${(e.leituras_concluidas||0).toLocaleString('pt-BR')}</span>
+          <span style="color:#0062ff;font-weight:700;">${totalLeitores.toLocaleString('pt-BR')}</span>
+          <span class="text-muted"> / ${totalLivros.toLocaleString('pt-BR')}</span>
         </td>
-        <td class="text-center text-muted small">${hms(e.tempo_total_leitura_seg)}</td>
-        <td class="text-center">
-          <span class="el-chip ${engajCls}">${engajPct > 0 ? engajPct+'%' : '—'}</span>
-        </td>
+        <td class="text-center text-muted small">${hms(totalSeg)}</td>
+        <td class="text-center"><span class="el-chip ${engajCls}">${pctEsc>0?pctEsc+'%':'—'}</span></td>
       </tr>`;
 
-    // Linhas das turmas (colapsadas por padrão)
+    // ── Linhas das turmas (mesmas 7 colunas, colapsadas) ──
     const linhasTurma = turmas.map(t => {
-      const pct    = t.estudantes > 0 ? Math.round((t.leitores / t.estudantes) * 100) : 0;
-      const eCls   = pct >= 80 ? 'el-chip-alto' : pct >= 40 ? 'el-chip-medio'
-                   : pct > 0   ? 'el-chip-baixo' : 'el-chip-zero';
-      const turnoBg = t.turno === 'MANHA'
-        ? 'background:#dbeafe;color:#1e40af'
-        : 'background:#fef9c3;color:#854d0e';
+      const pct    = t.estudantes>0 ? Math.round((t.leitores/t.estudantes)*100) : 0;
+      const eCls   = pct>=80?'el-chip-alto':pct>=40?'el-chip-medio':pct>0?'el-chip-baixo':'el-chip-zero';
+      const turnoBg= t.turno==='MANHA'?'background:#dbeafe;color:#1e40af':'background:#fef9c3;color:#854d0e';
       return `
         <tr class="el-grp-row" data-grp="${grpId}" style="display:none;">
           <td style="padding-left:32px;font-size:.78rem;">
-            <i class="bi bi-arrow-return-right me-1" style="font-size:.65rem;opacity:.35;"></i>
+            <i class="bi bi-arrow-return-right me-1" style="font-size:.65rem;opacity:.3;"></i>
             <span class="text-muted">${esc(t.ano_escolar)}</span>
             <strong class="ms-2">${esc(t.turma)}</strong>
           </td>
           <td class="text-center">
             <span class="badge" style="${turnoBg};font-size:.62rem;font-weight:800;">
-              ${t.turno === 'MANHA' ? 'Manhã' : t.turno === 'TARDE' ? 'Tarde' : esc(t.turno)}
+              ${t.turno==='MANHA'?'Manhã':t.turno==='TARDE'?'Tarde':esc(t.turno)}
             </span>
           </td>
           <td style="font-size:.72rem;max-width:200px;overflow:hidden;
@@ -595,12 +595,10 @@ function renderTabela(busca) {
           <td class="text-center small">${t.estudantes||0}</td>
           <td class="text-center small">
             <span style="color:#0062ff;font-weight:700;">${t.leitores||0}</span>
-            <span class="text-muted"> / ${(t.livros_lidos||0).toLocaleString('pt-BR')} livros</span>
+            <span class="text-muted"> / ${(t.livros_lidos||0).toLocaleString('pt-BR')}</span>
           </td>
           <td class="text-center text-muted small">${hms(t.tempo_leitura_seg)}</td>
-          <td class="text-center">
-            <span class="el-chip ${eCls}">${pct > 0 ? pct+'%' : '—'}</span>
-          </td>
+          <td class="text-center"><span class="el-chip ${eCls}">${pct>0?pct+'%':'—'}</span></td>
         </tr>`;
     }).join('');
 
@@ -618,53 +616,131 @@ function toggleGrupo(grpId) {
   if (icon) icon.style.transform = aberto ? 'rotate(0deg)' : 'rotate(90deg)';
 }
 
-// Funções antigas mantidas como alias para não quebrar nada
-function renderTbEscolas() {}
-function renderTbTurmas()  {}
-function renderTabela_old(){}
-
 // ── Gráficos ───────────────────────────────────────────────
 function renderGraficos() {
-  const CORES = ['#002b5e','#0062ff','#7c3aed','#059669','#d97706','#dc2626','#0891b2','#6d28d9'];
-  const top15 = [...S.escolas]
-    .sort((a,b) => (b.leituras_concluidas||0)-(a.leituras_concluidas||0))
-    .slice(0,15);
-
   if (S.barChart) { S.barChart.destroy(); S.barChart = null; }
   if (S.pieChart) { S.pieChart.destroy(); S.pieChart = null; }
 
-  const ctxBar = document.getElementById('elBarChart')?.getContext('2d');
-  if (ctxBar && top15.length) {
-    S.barChart = new Chart(ctxBar, {
-      type: 'bar',
-      data: {
-        labels:   top15.map(e => e.nome_escola.replace(' EMEF','').trim()),
-        datasets: [{ label:'Leituras', data: top15.map(e => e.leituras_concluidas||0),
-                     backgroundColor:'rgba(0,43,94,.82)', borderRadius:6 }],
-      },
-      options: {
-        responsive:true, maintainAspectRatio:false,
-        plugins: { legend:{ display:false } },
-        scales:  { x:{ ticks:{ font:{size:9}, maxRotation:45 } }, y:{ beginAtZero:true } },
-      },
-    });
+  const escolas = S.escolas;
+  if (!escolas.length) return;
+
+  // Calcula engajamento por escola (% leitores / estudantes)
+  const turmasPorEscola = {};
+  S.turmas.forEach(t => {
+    if (!turmasPorEscola[t.escola]) turmasPorEscola[t.escola] = { leitores:0, estudantes:0 };
+    turmasPorEscola[t.escola].leitores   += t.leitores   || 0;
+    turmasPorEscola[t.escola].estudantes += t.estudantes || 0;
+  });
+
+  const comEngaj = escolas.map(e => {
+    const tp  = turmasPorEscola[e.nome_escola] || { leitores:0, estudantes: e.estudantes_leitura||0 };
+    const pct = tp.estudantes > 0 ? Math.round((tp.leitores / tp.estudantes) * 100) : 0;
+    return { nome: e.nome_escola.replace(' EMEF','').replace(' PROF','').replace(' DR','').trim(), pct };
+  }).sort((a,b) => b.pct - a.pct);
+
+  const mediaEngaj = Math.round(comEngaj.reduce((s,e)=>s+e.pct,0) / comEngaj.length);
+
+  // Classifica escolas
+  const zero      = comEngaj.filter(e => e.pct === 0).length;
+  const abaixo    = comEngaj.filter(e => e.pct > 0 && e.pct < mediaEngaj).length;
+  const naMedia   = comEngaj.filter(e => e.pct >= mediaEngaj && e.pct < mediaEngaj + 15).length;
+  const acima     = comEngaj.filter(e => e.pct >= mediaEngaj + 15).length;
+
+  // Alerta de escolas com zero leitura
+  const elAlertas = document.getElementById('elAlertas');
+  if (elAlertas && zero > 0) {
+    const nomesZero = escolas
+      .filter(e => {
+        const tp = turmasPorEscola[e.nome_escola];
+        return !tp || tp.leitores === 0;
+      })
+      .map(e => e.nome_escola.replace(' EMEF','').trim())
+      .join(', ');
+    elAlertas.innerHTML = `
+      <div class="alert alert-danger d-flex align-items-start gap-3 mb-0" style="border-radius:12px;">
+        <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1"></i>
+        <div>
+          <strong>${zero} escola${zero>1?'s':''} com zero leituras</strong>
+          <div class="small mt-1 text-danger-emphasis">${nomesZero}</div>
+        </div>
+      </div>`;
+  } else if (elAlertas) {
+    elAlertas.innerHTML = '';
   }
 
-  const top8   = top15.slice(0,8);
+  // ── Donut: situação da rede ────────────────────────────
   const ctxPie = document.getElementById('elPieChart')?.getContext('2d');
-  if (ctxPie && top8.length) {
+  if (ctxPie) {
     S.pieChart = new Chart(ctxPie, {
       type: 'doughnut',
       data: {
-        labels:   top8.map(e => e.nome_escola.replace(' EMEF','').trim()),
-        datasets: [{ data: top8.map(e => Math.round((e.tempo_total_leitura_seg||0)/3600)),
-                     backgroundColor:CORES, borderWidth:2, borderColor:'#fff' }],
+        labels:   ['Zero leituras','Abaixo da média','Na média','Acima da média'],
+        datasets: [{
+          data:            [zero, abaixo, naMedia, acima],
+          backgroundColor: ['#fca5a5','#fde68a','#93c5fd','#6ee7b7'],
+          borderColor:     ['#dc2626','#d97706','#2563eb','#059669'],
+          borderWidth:     2,
+        }],
       },
       options: {
         responsive:true, maintainAspectRatio:false,
         plugins: {
-          legend:  { position:'bottom', labels:{ font:{size:9}, padding:8 } },
-          tooltip: { callbacks:{ label: ctx => ` ${ctx.label}: ${ctx.raw}h` } },
+          legend: { position:'bottom', labels:{ font:{size:10}, padding:10 } },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.label}: ${ctx.raw} escola${ctx.raw!==1?'s':''}`,
+              afterLabel: ctx => ctx.dataIndex === 1 || ctx.dataIndex === 3
+                ? ` (média: ${mediaEngaj}%)`  : '',
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // ── Barras horizontais: engajamento por escola ─────────
+  const ctxBar = document.getElementById('elBarChart')?.getContext('2d');
+  if (ctxBar) {
+    const top20 = comEngaj.slice(0, 20);
+    S.barChart = new Chart(ctxBar, {
+      type: 'bar',
+      data: {
+        labels:   top20.map(e => e.nome),
+        datasets: [
+          {
+            label: 'Engajamento (%)',
+            data:  top20.map(e => e.pct),
+            backgroundColor: top20.map(e =>
+              e.pct === 0          ? '#fca5a5' :
+              e.pct < mediaEngaj   ? '#fde68a' :
+              e.pct < mediaEngaj+15? '#93c5fd' : '#6ee7b7'
+            ),
+            borderRadius: 4,
+          },
+          {
+            label: `Média (${mediaEngaj}%)`,
+            data:  top20.map(() => mediaEngaj),
+            type:  'line',
+            borderColor: '#dc2626',
+            borderDash:  [5,3],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false,
+          },
+        ],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive:true, maintainAspectRatio:false,
+        plugins: {
+          legend: { display:true, position:'bottom', labels:{ font:{size:9}, padding:8 } },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw}%` } },
+        },
+        scales: {
+          x: { beginAtZero:true, max:100,
+               ticks:{ callback: v => v+'%', font:{size:9} },
+               grid:{ color:'#f1f5f9' } },
+          y: { ticks:{ font:{size:9} } },
         },
       },
     });
