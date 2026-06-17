@@ -849,39 +849,49 @@ function renderGraficos() {
   const ctxBar = document.getElementById('elBarChart')?.getContext('2d');
   if (ctxBar) {
     const top20 = comEngaj.slice(0, 20);
+
+    const pluginMediaRede = {
+      id: 'mediaRede',
+      afterDraw(chart) {
+        const { ctx: c, scales: { x, y } } = chart;
+        const xPos = x.getPixelForValue(mediaEngaj);
+        c.save();
+        c.beginPath();
+        c.setLineDash([6, 4]);
+        c.strokeStyle = '#EC4899';
+        c.lineWidth = 2;
+        c.moveTo(xPos, y.top);
+        c.lineTo(xPos, y.bottom);
+        c.stroke();
+        c.setLineDash([]);
+        c.fillStyle = '#EC4899';
+        c.font = 'bold 9px sans-serif';
+        c.fillText(`Média ${mediaEngaj}%`, xPos + 4, y.top + 12);
+        c.restore();
+      }
+    };
+
     S.barChart = new Chart(ctxBar, {
       type: 'bar',
       data: {
         labels:   top20.map(e => e.nome),
-        datasets: [
-          {
-            label: 'Engajamento (%)',
-            data:  top20.map(e => e.pct),
-            backgroundColor: top20.map(e =>
-              e.pct === 0        ? '#FF007F' :
-              e.pct < mediaEngaj ? '#F59E0B' :
-              e.pct < mediaEngaj+15 ? '#3B82F6' : '#10B981'
-            ),
-            borderRadius: 5,
-          },
-          {
-            label: `Média da rede (${mediaEngaj}%)`,
-            data:  top20.map(() => mediaEngaj),
-            type:  'line',
-            borderColor: '#EC4899',
-            borderDash:  [6,3],
-            borderWidth: 2,
-            pointRadius: 0,
-            fill: false,
-          },
-        ],
+        datasets: [{
+          label: 'Engajamento (%)',
+          data:  top20.map(e => e.pct),
+          backgroundColor: top20.map(e =>
+            e.pct === 0           ? '#FF007F' :
+            e.pct < mediaEngaj    ? '#F59E0B' :
+            e.pct < mediaEngaj+15 ? '#3B82F6' : '#10B981'
+          ),
+          borderRadius: 5,
+        }],
       },
       options: {
         indexAxis: 'y',
         responsive:true, maintainAspectRatio:false,
         plugins: {
-          legend: { display:true, position:'bottom', labels:{ font:{size:9, weight:'700'}, padding:8 } },
-          tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw}%` } },
+          legend: { display:false },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.raw}%` } },
         },
         scales: {
           x: { beginAtZero:true, max:100,
@@ -890,6 +900,7 @@ function renderGraficos() {
           y: { ticks:{ font:{size:9} } },
         },
       },
+      plugins: [pluginMediaRede],
     });
   }
 }
@@ -1137,36 +1148,53 @@ function abrirModalEscola(idx) {
     if (ctx2) {
       const turmasOrd = [...turmas].sort((a,b)=>(b.leitores/Math.max(b.estudantes,1))-(a.leitores/Math.max(a.estudantes,1)));
       const pcts = turmasOrd.map(t => t.estudantes>0 ? Math.round((t.leitores/t.estudantes)*100) : 0);
+
+      // Plugin inline para desenhar a linha da média
+      const pluginMediaLinha = {
+        id: 'mediaLinha',
+        afterDraw(chart) {
+          const { ctx: c, scales: { x, y } } = chart;
+          const xPos = x.getPixelForValue(engajEsc);
+          c.save();
+          c.beginPath();
+          c.setLineDash([6, 4]);
+          c.strokeStyle = '#EC4899';
+          c.lineWidth = 2;
+          c.moveTo(xPos, y.top);
+          c.lineTo(xPos, y.bottom);
+          c.stroke();
+          c.setLineDash([]);
+          // Label
+          c.fillStyle = '#EC4899';
+          c.font = 'bold 9px sans-serif';
+          c.fillText(`Média ${engajEsc}%`, xPos + 4, y.top + 12);
+          c.restore();
+        }
+      };
+
       _chartTurmasEngaj = new Chart(ctx2, {
         type: 'bar',
         data: {
           labels: turmasOrd.map(t => t.turma),
-          datasets: [
-            {
-              label: 'Engajamento',
-              data:  pcts,
-              backgroundColor: pcts.map(p => p>=80?'#10B981' : p>=40?'#3B82F6' : p>0?'#F59E0B' : '#FF007F'),
-              borderRadius: 4,
-            },
-            {
-              label: `Média escola (${engajEsc}%)`,
-              data:  turmasOrd.map(() => engajEsc),
-              type: 'line', borderColor: '#EC4899', borderDash:[5,3],
-              borderWidth:2, pointRadius:0, fill:false,
-            },
-          ],
+          datasets: [{
+            label: 'Engajamento',
+            data:  pcts,
+            backgroundColor: pcts.map(p => p>=80?'#10B981' : p>=40?'#3B82F6' : p>0?'#F59E0B' : '#FF007F'),
+            borderRadius: 4,
+          }],
         },
         options: {
-          indexAxis:'y', responsive:true, maintainAspectRatio:false,
+          indexAxis: 'y', responsive:true, maintainAspectRatio:false,
           plugins: {
-            legend: { display:true, position:'bottom', labels:{ font:{size:9,weight:'700'}, padding:8 } },
-            tooltip: { callbacks: { label: ctx => ' '+ctx.raw+'%' } },
+            legend: { display:false },
+            tooltip: { callbacks: { label: ctx => ' ' + ctx.raw + '%' } },
           },
           scales: {
             x: { beginAtZero:true, max:100, ticks:{ callback:v=>v+'%', font:{size:9} }, grid:{color:'#f1f5f9'} },
             y: { ticks:{ font:{size:9} } },
           },
         },
+        plugins: [pluginMediaLinha],
       });
     }
 
