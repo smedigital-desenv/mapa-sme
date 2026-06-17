@@ -183,24 +183,22 @@
       </select>
     </div>
 
-    <div class="btn-group" role="group">
-      <button class="btn-toggle-visao active" id="btnVisaoEscolas"
-              onclick="trocarVisao('escolas')">
-        <i class="bi bi-building me-1"></i>Por Escola
-      </button>
-      <button class="btn-toggle-visao" id="btnVisaoTurmas"
-              onclick="trocarVisao('turmas')">
-        <i class="bi bi-people me-1"></i>Por Turma
-      </button>
-    </div>
-
     <input type="text" id="elBusca" class="form-control form-control-sm shadow-sm"
            style="min-width:220px;" placeholder="Pesquisar escola…"
            oninput="filtrar()">
+
+    <div class="d-flex gap-2 ms-auto">
+      <button class="btn btn-sm btn-outline-secondary" onclick="expandirTodos()">
+        <i class="bi bi-arrows-expand me-1"></i>Expandir tudo
+      </button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="colapsarTodos()">
+        <i class="bi bi-arrows-collapse me-1"></i>Colapsar tudo
+      </button>
+    </div>
   </div>
 
-  <!-- ── Visão Escolas ──────────────────────────────────── -->
-  <div id="viewEscolas">
+  <!-- ── Visão unificada ───────────────────────────────────── -->
+  <div id="viewPrincipal">
     <div class="row g-3 mb-4">
       <div class="col-12 col-lg-7">
         <div class="chart-container">
@@ -223,9 +221,9 @@
     <div class="table-container">
       <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <h5 class="fw-bold m-0 text-primary">
-          <i class="bi bi-list-task me-2"></i>Detalhamento por Escola
+          <i class="bi bi-list-task me-2"></i>Escolas e Turmas
         </h5>
-        <span id="elContadorEscolas"
+        <span id="elContador"
               class="badge bg-primary bg-opacity-10 text-primary fw-bold px-3 py-2"></span>
       </div>
       <div class="table-responsive">
@@ -233,52 +231,20 @@
           <thead class="table-light"
                  style="font-size:.75rem;color:#666;text-transform:uppercase;">
             <tr>
-              <th>Escola</th>
-              <th class="text-center">Estudantes</th>
-              <th class="text-center">Leituras</th>
-              <th class="text-center">Média/Aluno</th>
-              <th class="text-center">Tempo Total Leitura</th>
-              <th class="text-center">Escutas</th>
-              <th class="text-center">Tempo Total Escuta</th>
-            </tr>
-          </thead>
-          <tbody id="elTbEscolas"></tbody>
-        </table>
-      </div>
-    </div>
-  </div><!-- /viewEscolas -->
-
-  <!-- ── Visão Turmas ───────────────────────────────────── -->
-  <div id="viewTurmas" style="display:none;">
-    <div class="table-container">
-      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-        <h5 class="fw-bold m-0 text-primary">
-          <i class="bi bi-people-fill me-2"></i>Detalhamento por Turma
-        </h5>
-        <span id="elContadorTurmas"
-              class="badge bg-primary bg-opacity-10 text-primary fw-bold px-3 py-2"></span>
-      </div>
-      <div class="table-responsive">
-        <table class="table align-middle table-hover">
-          <thead class="table-light"
-                 style="font-size:.75rem;color:#666;text-transform:uppercase;">
-            <tr>
-              <th>Ano</th>
-              <th>Turma</th>
+              <th>Escola / Turma</th>
               <th class="text-center">Turno</th>
               <th>Professor(es)</th>
               <th class="text-center">Estudantes</th>
-              <th class="text-center">Leitores</th>
-              <th class="text-center">Livros</th>
+              <th class="text-center">Leitores / Livros</th>
               <th class="text-center">Tempo Leitura</th>
               <th class="text-center">Engajamento</th>
             </tr>
           </thead>
-          <tbody id="elTbTurmas"></tbody>
+          <tbody id="elTbPrincipal"></tbody>
         </table>
       </div>
     </div>
-  </div><!-- /viewTurmas -->
+  </div>
 
 </main>
 
@@ -458,28 +424,19 @@ async function trocarMes() {
   await carregarMes(mes);
 }
 
-function trocarVisao(visao) {
-  S.visao = visao;
-  document.getElementById('viewEscolas').style.display = visao === 'escolas' ? '' : 'none';
-  document.getElementById('viewTurmas').style.display  = visao === 'turmas'  ? '' : 'none';
-  document.getElementById('btnVisaoEscolas').classList.toggle('active', visao === 'escolas');
-  document.getElementById('btnVisaoTurmas').classList.toggle('active',  visao === 'turmas');
-  document.getElementById('elBusca').placeholder =
-    visao === 'escolas' ? 'Pesquisar escola…' : 'Pesquisar escola ou turma…';
-  document.getElementById('elBusca').value = '';
-  renderTabela(visao === 'escolas' ? S.escolas : S.turmas);
+function filtrar() {
+  const q = document.getElementById('elBusca').value.toLowerCase().trim();
+  renderTabela(q);
 }
 
-function filtrar() {
-  const q = document.getElementById('elBusca').value.toLowerCase();
-  if (S.visao === 'escolas') {
-    renderTbEscolas(S.escolas.filter(e => e.nome_escola.toLowerCase().includes(q)));
-  } else {
-    renderTbTurmas(S.turmas.filter(t =>
-      t.escola.toLowerCase().includes(q) ||
-      (t.turma || '').toLowerCase().includes(q)
-    ));
-  }
+function expandirTodos() {
+  document.querySelectorAll('.el-grp-row').forEach(r => r.style.display = '');
+  document.querySelectorAll('.el-grp-icon').forEach(i => i.style.transform = 'rotate(0deg)');
+}
+
+function colapsarTodos() {
+  document.querySelectorAll('.el-grp-row').forEach(r => r.style.display = 'none');
+  document.querySelectorAll('.el-grp-icon').forEach(i => i.style.transform = 'rotate(-90deg)');
 }
 
 // ── Carregamento ───────────────────────────────────────────
@@ -495,13 +452,13 @@ async function carregarMes(mes) {
   S.turmas  = turmas  || [];
 
   renderKpis();
-  renderTabela(S.visao === 'escolas' ? S.escolas : S.turmas);
+  renderTabela('');
   renderGraficos();
 }
 
 function semDados() {
   document.getElementById('elKpis').innerHTML = '';
-  document.getElementById('elTbEscolas').innerHTML =
+  document.getElementById('elTbPrincipal').innerHTML =
     '<tr><td colspan="7" class="text-center text-muted py-5">Nenhum dado importado ainda.</td></tr>';
 }
 
@@ -545,132 +502,126 @@ function renderKpis() {
     </div>`).join('');
 }
 
-// ── Tabelas ────────────────────────────────────────────────
-function renderTabela(lista) {
-  if (S.visao === 'escolas') renderTbEscolas(lista);
-  else                        renderTbTurmas(lista);
-}
+// ── Tabela unificada (escola + turmas colapsadas) ───────────
+function renderTabela(busca) {
+  busca = (busca || '').toLowerCase().trim();
 
-function renderTbEscolas(lista) {
-  const c = document.getElementById('elContadorEscolas');
-  if (c) c.textContent = `${lista.length} escola${lista.length !== 1 ? 's' : ''}`;
+  // Filtra escolas pelo termo de busca
+  const escolas = busca
+    ? S.escolas.filter(e => e.nome_escola.toLowerCase().includes(busca))
+    : S.escolas;
 
-  document.getElementById('elTbEscolas').innerHTML = lista.length
-    ? lista.map(e => {
-        const media = e.estudantes_leitura > 0
-          ? (e.leituras_concluidas / e.estudantes_leitura).toFixed(1) : '—';
-        const cls = media === '—' ? 'el-chip-zero'
-          : +media >= 10 ? 'el-chip-alto' : +media >= 5 ? 'el-chip-medio' : 'el-chip-baixo';
-        return `
-          <tr>
-            <td style="font-weight:700;font-size:.82rem;">${esc(e.nome_escola)}</td>
-            <td class="text-center">${(e.estudantes_leitura||0).toLocaleString('pt-BR')}</td>
-            <td class="text-center fw-bold" style="color:#002b5e">
-              ${(e.leituras_concluidas||0).toLocaleString('pt-BR')}
-            </td>
-            <td class="text-center"><span class="el-chip ${cls}">${media}</span></td>
-            <td class="text-center text-muted small">${hms(e.tempo_total_leitura_seg)}</td>
-            <td class="text-center">${(e.escutas_concluidas||0).toLocaleString('pt-BR')}</td>
-            <td class="text-center text-muted small">${hms(e.tempo_total_escuta_seg)}</td>
-          </tr>`;
-      }).join('')
-    : '<tr><td colspan="7" class="text-center text-muted py-4">Nenhum resultado.</td></tr>';
-}
+  const contador = document.getElementById('elContador');
+  if (contador) contador.textContent = `${escolas.length} escola${escolas.length !== 1 ? 's' : ''}`;
 
-function renderTbTurmas(lista) {
-  const c = document.getElementById('elContadorTurmas');
-  if (c) c.textContent = `${lista.length} turma${lista.length !== 1 ? 's' : ''}`;
-
-  if (!lista.length) {
-    document.getElementById('elTbTurmas').innerHTML =
-      '<tr><td colspan="9" class="text-center text-muted py-4">Nenhum resultado.</td></tr>';
+  if (!escolas.length) {
+    document.getElementById('elTbPrincipal').innerHTML =
+      '<tr><td colspan="7" class="text-center text-muted py-4">Nenhum resultado encontrado.</td></tr>';
     return;
   }
 
-  // Agrupa por escola mantendo a ordem original
-  const grupos = [];
-  const idx    = {};
-  lista.forEach(t => {
-    if (idx[t.escola] === undefined) {
-      idx[t.escola] = grupos.length;
-      grupos.push({ escola: t.escola, turmas: [] });
-    }
-    grupos[idx[t.escola]].turmas.push(t);
+  // Indexa turmas por escola
+  const turmasPorEscola = {};
+  S.turmas.forEach(t => {
+    if (!turmasPorEscola[t.escola]) turmasPorEscola[t.escola] = [];
+    turmasPorEscola[t.escola].push(t);
   });
 
-  const html = grupos.map((g, gi) => {
-    const totalLivros   = g.turmas.reduce((s, t) => s + (t.livros_lidos||0), 0);
-    const totalEstud    = g.turmas.reduce((s, t) => s + (t.estudantes||0), 0);
-    const totalLeitores = g.turmas.reduce((s, t) => s + (t.leitores||0), 0);
-    const totalSeg      = g.turmas.reduce((s, t) => s + (t.tempo_leitura_seg||0), 0);
-    const pctGeral      = totalEstud > 0 ? Math.round((totalLeitores / totalEstud) * 100) : 0;
-    const engajCls      = pctGeral >= 80 ? 'el-chip-alto' : pctGeral >= 40 ? 'el-chip-medio'
-                        : pctGeral > 0   ? 'el-chip-baixo' : 'el-chip-zero';
-    const grpId = `grp_${gi}`;
+  const html = escolas.map((e, gi) => {
+    const grpId  = `grp_${gi}`;
+    const turmas = turmasPorEscola[e.nome_escola] || [];
 
-    // Linha de cabeçalho da escola (clicável)
+    // Métricas da escola
+    const media    = e.estudantes_leitura > 0
+      ? (e.leituras_concluidas / e.estudantes_leitura).toFixed(1) : '—';
+    const engajPct = e.estudantes_leitura > 0
+      ? Math.round((S.turmas
+          .filter(t => t.escola === e.nome_escola)
+          .reduce((s, t) => s + (t.leitores || 0), 0)
+        / e.estudantes_leitura) * 100) : 0;
+    const engajCls = engajPct >= 80 ? 'el-chip-alto' : engajPct >= 40 ? 'el-chip-medio'
+                   : engajPct > 0   ? 'el-chip-baixo' : 'el-chip-zero';
+
+    // Linha da escola
     const linhaEscola = `
-      <tr class="el-grp-header" onclick="toggleGrupo('${grpId}')" style="cursor:pointer;">
-        <td colspan="2" style="font-weight:900;font-size:.82rem;color:#002b5e;padding-left:12px;">
-          <i class="bi bi-chevron-down el-grp-icon" id="icon_${grpId}"
-             style="font-size:.7rem;margin-right:6px;transition:.2s;"></i>
-          ${esc(g.escola)}
-        </td>
-        <td class="text-center">
-          <span class="badge" style="background:#e0e7ff;color:#3730a3;font-size:.65rem;font-weight:800;">
-            ${g.turmas.length} turma${g.turmas.length !== 1 ? 's' : ''}
+      <tr class="el-grp-header" onclick="toggleGrupo('${grpId}')">
+        <td style="font-weight:900;font-size:.83rem;color:#002b5e;padding-left:12px;">
+          <i class="bi bi-chevron-right el-grp-icon" id="icon_${grpId}"
+             style="font-size:.7rem;margin-right:6px;transition:transform .2s;"></i>
+          ${esc(e.nome_escola)}
+          <span class="badge ms-2" style="background:#e0e7ff;color:#3730a3;
+                font-size:.6rem;font-weight:800;vertical-align:middle;">
+            ${turmas.length} turma${turmas.length !== 1 ? 's' : ''}
           </span>
         </td>
-        <td class="text-center text-muted small" colspan="2">—</td>
-        <td class="text-center fw-bold" style="color:#002b5e">${totalEstud}</td>
-        <td class="text-center fw-bold" style="color:#0062ff">${totalLivros.toLocaleString('pt-BR')}</td>
-        <td class="text-center text-muted small">${hms(totalSeg)}</td>
-        <td class="text-center"><span class="el-chip ${engajCls}">${pctGeral > 0 ? pctGeral+'%' : '—'}</span></td>
+        <td class="text-center text-muted small">—</td>
+        <td class="text-muted small" style="font-size:.72rem;">
+          Leituras: <strong>${(e.leituras_concluidas||0).toLocaleString('pt-BR')}</strong>
+          &nbsp;·&nbsp; Média: <strong>${media}</strong>/aluno
+        </td>
+        <td class="text-center">${(e.estudantes_leitura||0).toLocaleString('pt-BR')}</td>
+        <td class="text-center">
+          <span class="fw-bold" style="color:#002b5e">${(e.leituras_concluidas||0).toLocaleString('pt-BR')}</span>
+        </td>
+        <td class="text-center text-muted small">${hms(e.tempo_total_leitura_seg)}</td>
+        <td class="text-center">
+          <span class="el-chip ${engajCls}">${engajPct > 0 ? engajPct+'%' : '—'}</span>
+        </td>
       </tr>`;
 
-    // Linhas de turma (inicialmente visíveis)
-    const linhasTurma = g.turmas.map(t => {
-      const pct     = t.estudantes > 0 ? Math.round((t.leitores / t.estudantes) * 100) : 0;
-      const eCls    = pct >= 80 ? 'el-chip-alto' : pct >= 40 ? 'el-chip-medio'
-                    : pct > 0   ? 'el-chip-baixo' : 'el-chip-zero';
+    // Linhas das turmas (colapsadas por padrão)
+    const linhasTurma = turmas.map(t => {
+      const pct    = t.estudantes > 0 ? Math.round((t.leitores / t.estudantes) * 100) : 0;
+      const eCls   = pct >= 80 ? 'el-chip-alto' : pct >= 40 ? 'el-chip-medio'
+                   : pct > 0   ? 'el-chip-baixo' : 'el-chip-zero';
       const turnoBg = t.turno === 'MANHA'
         ? 'background:#dbeafe;color:#1e40af'
         : 'background:#fef9c3;color:#854d0e';
       return `
-        <tr class="el-grp-row" data-grp="${grpId}">
-          <td style="padding-left:28px;font-size:.75rem;color:#64748b;">
-            <i class="bi bi-arrow-return-right me-1" style="font-size:.65rem;opacity:.4;"></i>
-            ${esc(t.ano_escolar)}
+        <tr class="el-grp-row" data-grp="${grpId}" style="display:none;">
+          <td style="padding-left:32px;font-size:.78rem;">
+            <i class="bi bi-arrow-return-right me-1" style="font-size:.65rem;opacity:.35;"></i>
+            <span class="text-muted">${esc(t.ano_escolar)}</span>
+            <strong class="ms-2">${esc(t.turma)}</strong>
           </td>
-          <td class="fw-bold small">${esc(t.turma)}</td>
           <td class="text-center">
-            <span class="badge" style="${turnoBg};font-size:.65rem;font-weight:800;">
+            <span class="badge" style="${turnoBg};font-size:.62rem;font-weight:800;">
               ${t.turno === 'MANHA' ? 'Manhã' : t.turno === 'TARDE' ? 'Tarde' : esc(t.turno)}
             </span>
           </td>
-          <td style="font-size:.72rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+          <td style="font-size:.72rem;max-width:200px;overflow:hidden;
+                     text-overflow:ellipsis;white-space:nowrap;"
               title="${esc(t.professores)}">${esc(t.professores)||'—'}</td>
-          <td class="text-center small text-muted">${t.estudantes||0}</td>
-          <td class="text-center fw-bold" style="color:#002b5e">${t.leitores||0}</td>
-          <td class="text-center">${(t.livros_lidos||0).toLocaleString('pt-BR')}</td>
+          <td class="text-center small">${t.estudantes||0}</td>
+          <td class="text-center small">
+            <span style="color:#0062ff;font-weight:700;">${t.leitores||0}</span>
+            <span class="text-muted"> / ${(t.livros_lidos||0).toLocaleString('pt-BR')} livros</span>
+          </td>
           <td class="text-center text-muted small">${hms(t.tempo_leitura_seg)}</td>
-          <td class="text-center"><span class="el-chip ${eCls}">${pct > 0 ? pct+'%' : '—'}</span></td>
+          <td class="text-center">
+            <span class="el-chip ${eCls}">${pct > 0 ? pct+'%' : '—'}</span>
+          </td>
         </tr>`;
     }).join('');
 
     return linhaEscola + linhasTurma;
   }).join('');
 
-  document.getElementById('elTbTurmas').innerHTML = html;
+  document.getElementById('elTbPrincipal').innerHTML = html;
 }
 
 function toggleGrupo(grpId) {
-  const rows = document.querySelectorAll(`[data-grp="${grpId}"]`);
-  const icon = document.getElementById(`icon_${grpId}`);
+  const rows   = document.querySelectorAll(`[data-grp="${grpId}"]`);
+  const icon   = document.getElementById(`icon_${grpId}`);
   const aberto = rows[0]?.style.display !== 'none';
   rows.forEach(r => r.style.display = aberto ? 'none' : '');
-  if (icon) icon.style.transform = aberto ? 'rotate(-90deg)' : 'rotate(0deg)';
+  if (icon) icon.style.transform = aberto ? 'rotate(0deg)' : 'rotate(90deg)';
 }
+
+// Funções antigas mantidas como alias para não quebrar nada
+function renderTbEscolas() {}
+function renderTbTurmas()  {}
+function renderTabela_old(){}
 
 // ── Gráficos ───────────────────────────────────────────────
 function renderGraficos() {
