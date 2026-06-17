@@ -674,8 +674,9 @@ function renderTabela(busca) {
   });
 
   const html = escolasOrdenadas.map((e, gi) => {
-    const grpId  = `grp_${gi}`;
-    const turmas = turmasPorEscola[e.nome_escola] || [];
+    const grpId   = `grp_${gi}`;
+    const idxReal = S.escolas.indexOf(e);  // índice real em S.escolas
+    const turmas  = turmasPorEscola[e.nome_escola] || [];
 
     // Totais da escola a partir das turmas
     const totalEstud    = turmas.reduce((s,t) => s+(t.estudantes||0), 0);
@@ -685,15 +686,14 @@ function renderTabela(busca) {
     const pctEsc        = totalEstud > 0 ? Math.round((totalLeitores/totalEstud)*100) : 0;
     const engajCls      = pctEsc>=80?'el-chip-alto':pctEsc>=40?'el-chip-medio':pctEsc>0?'el-chip-baixo':'el-chip-zero';
 
-    // ── Linha da escola (mesmas 7 colunas) ──
     const linhaEscola = `
-      <tr class="el-grp-header">
+      <tr class="el-grp-header" data-escola-idx="${idxReal}">
         <td style="font-weight:900;font-size:.83rem;color:#002b5e;padding-left:12px;">
           <i class="bi bi-chevron-right el-grp-icon" id="icon_${grpId}"
              style="font-size:.7rem;margin-right:6px;transition:transform .2s;cursor:pointer;"
-             onclick="toggleGrupo('${grpId}')"></i>
+             onclick="event.stopPropagation();toggleGrupo('${grpId}')"></i>
           <span style="cursor:pointer;"
-                onclick="abrirModalEscola(${gi})"
+                onclick="event.stopPropagation();abrirModalEscola(${idxReal})"
                 title="Clique para ver detalhes da escola">
             ${esc(e.nome_escola)}
           </span>
@@ -703,7 +703,7 @@ function renderTabela(busca) {
           </span>
           <i class="bi bi-box-arrow-up-right ms-2 text-primary"
              style="font-size:.65rem;opacity:.5;cursor:pointer;"
-             onclick="abrirModalEscola(${gi})"
+             onclick="event.stopPropagation();abrirModalEscola(${idxReal})"
              title="Ver detalhes"></i>
         </td>
         <td class="text-center text-muted small">—</td>
@@ -1040,8 +1040,8 @@ let _chartTurmasEngaj = null;
 let _chartTurmasLivros= null;
 
 function abrirModalEscola(idx) {
-  const e      = S.escolas[idx];
-  if (!e) return;
+  const e = S.escolas[idx];
+  if (!e) { console.error('Escola não encontrada, idx:', idx); return; }
   const nomeEscola = e.nome_escola;
 
   const turmas  = S.turmas.filter(t => t.escola === nomeEscola);
