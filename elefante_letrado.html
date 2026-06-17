@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Elefante Letrado | SME Ribeirão Preto</title>
+
+  <!-- Bootstrap + Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+  <!-- Chart.js + SheetJS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    /* ── Variáveis (mesmo padrão do index.html) ────────── */
+    :root {
+      --primary:    #002b5e;
+      --neon-blue:  #00e5ff;
+      --neon-pink:  #FF007F;
+      --neon-green: #39FF14;
+    }
+
+    body {
+      background: #f0f4f8;
+      font-family: 'Inter', 'Segoe UI', sans-serif;
+      padding-bottom: 60px;
+    }
+
+    /* ── Header ────────────────────────────────────────── */
+    .nav-header {
+      background: var(--primary);
+      color: white;
+      border-bottom: 5px solid var(--neon-blue);
+      padding: .95rem 1.6rem;
+      position: sticky;
+      top: 0;
+      z-index: 1020;
+      box-shadow: 0 6px 18px rgba(0,43,94,.18);
+    }
+    .brand-icon {
+      width: 34px; height: 34px;
+      display: grid; place-items: center;
+      color: var(--neon-blue);
+      font-size: 1.4rem;
+      filter: drop-shadow(0 0 6px rgba(0,229,255,.55));
+    }
+
+    /* ── KPIs ──────────────────────────────────────────── */
+    .card-kpi {
+      background: white; border-radius: 12px;
+      padding: 1.2rem;
+      box-shadow: 0 4px 15px rgba(0,0,0,.05);
+      height: 100%;
+    }
+    .kpi-val   { font-size: 1.6rem; font-weight: 900; line-height: 1.1; }
+    .label-mini {
+      font-size: .7rem; font-weight: 800; color: #64748b;
+      text-transform: uppercase; letter-spacing: .04em;
+    }
+
+    /* ── Gráficos ───────────────────────────────────────── */
+    .chart-container {
+      background: white; border-radius: 15px; padding: 1.2rem;
+      box-shadow: 0 4px 15px rgba(0,0,0,.05); margin-bottom: 20px;
+    }
+    .chart-canvas-wrapper { position: relative; height: 300px; width: 100%; }
+
+    /* ── Tabela ─────────────────────────────────────────── */
+    .table-container {
+      background: white; border-radius: 15px; padding: 1.5rem;
+      box-shadow: 0 4px 15px rgba(0,0,0,.05);
+    }
+
+    /* ── Chips de engajamento ───────────────────────────── */
+    .el-chip {
+      display: inline-flex; align-items: center;
+      font-size: .68rem; font-weight: 900;
+      padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+    }
+    .el-chip-alto  { background: #dcfce7; color: #166534; }
+    .el-chip-medio { background: #fef9c3; color: #854d0e; }
+    .el-chip-baixo { background: #fee2e2; color: #991b1b; }
+    .el-chip-zero  { background: #f1f5f9; color: #94a3b8; }
+
+    /* ── Dropzone ───────────────────────────────────────── */
+    .el-dropzone {
+      border: 2px dashed #cbd5e1; border-radius: 12px;
+      padding: 28px 20px; text-align: center;
+      cursor: pointer; transition: .2s; background: white;
+    }
+    .el-dropzone:hover, .el-dropzone.dragover {
+      border-color: var(--primary); background: #f0f4ff;
+    }
+
+    /* ── Toggle visão ───────────────────────────────────── */
+    .btn-toggle-visao {
+      border: 2px solid var(--neon-blue); color: white;
+      font-weight: 700; border-radius: 8px;
+      transition: .3s; background: transparent;
+      font-size: .78rem; padding: 5px 14px;
+    }
+    .btn-toggle-visao.active {
+      background: var(--neon-blue); color: var(--primary);
+      box-shadow: 0 0 12px var(--neon-blue);
+    }
+
+    /* ── Loading ────────────────────────────────────────── */
+    .loading-soft {
+      color: #64748b; font-size: .85rem;
+    }
+
+    /* ── Responsive ─────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .nav-header { padding: .75rem 1rem; }
+      .kpi-val    { font-size: 1.3rem; }
+      .chart-canvas-wrapper { height: 220px !important; }
+      .table-container { padding: 1rem; }
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- ══════════════════════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════════════════════ -->
+<header class="nav-header">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+
+    <div class="d-flex align-items-center gap-2">
+      <div class="brand-icon"><i class="bi bi-book-fill"></i></div>
+      <div>
+        <h5 class="m-0 fw-900">Elefante Letrado</h5>
+        <div style="font-size:.63rem;color:rgba(255,255,255,.68);font-weight:800;
+                    letter-spacing:.08em;text-transform:uppercase;">
+          SME Ribeirão Preto
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-sm btn-success d-flex align-items-center gap-2 shadow-sm"
+            onclick="abrirImport()">
+      <i class="bi bi-cloud-arrow-up-fill"></i>Importar planilha
+    </button>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════════════════
+     MAIN
+══════════════════════════════════════════════════════════ -->
+<main class="container-fluid p-3 p-md-4" style="max-width:1600px;margin:0 auto;">
+
+  <!-- KPIs -->
+  <div class="row g-3 mb-4" id="elKpis">
+    <div class="col-12 text-center py-5 text-muted loading-soft">
+      <div class="spinner-border spinner-border-sm mb-2"></div>
+      <div>Carregando dados…</div>
+    </div>
+  </div>
+
+  <!-- Controles -->
+  <div class="d-flex flex-wrap gap-3 align-items-center mb-4">
+
+    <div class="d-flex align-items-center gap-2">
+      <label class="fw-bold text-muted small text-uppercase" style="letter-spacing:.05em;white-space:nowrap;">
+        <i class="bi bi-calendar3 me-1"></i>Mês
+      </label>
+      <select id="elMesFiltro" class="form-select form-select-sm shadow-sm"
+              style="min-width:160px;" onchange="trocarMes()">
+        <option>Carregando…</option>
+      </select>
+    </div>
+
+    <div class="btn-group" role="group">
+      <button class="btn-toggle-visao active" id="btnVisaoEscolas"
+              onclick="trocarVisao('escolas')">
+        <i class="bi bi-building me-1"></i>Por Escola
+      </button>
+      <button class="btn-toggle-visao" id="btnVisaoTurmas"
+              onclick="trocarVisao('turmas')">
+        <i class="bi bi-people me-1"></i>Por Turma
+      </button>
+    </div>
+
+    <input type="text" id="elBusca" class="form-control form-control-sm shadow-sm"
+           style="min-width:220px;" placeholder="Pesquisar escola…"
+           oninput="filtrar()">
+  </div>
+
+  <!-- ── Visão Escolas ──────────────────────────────────── -->
+  <div id="viewEscolas">
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-lg-7">
+        <div class="chart-container">
+          <h6 class="fw-bold mb-3 text-muted">
+            <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Leituras Concluídas — Top Escolas
+          </h6>
+          <div class="chart-canvas-wrapper"><canvas id="elBarChart"></canvas></div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-5">
+        <div class="chart-container">
+          <h6 class="fw-bold mb-3 text-muted">
+            <i class="bi bi-clock-fill me-2 text-primary"></i>Horas de Leitura — Distribuição
+          </h6>
+          <div class="chart-canvas-wrapper"><canvas id="elPieChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h5 class="fw-bold m-0 text-primary">
+          <i class="bi bi-list-task me-2"></i>Detalhamento por Escola
+        </h5>
+        <span id="elContadorEscolas"
+              class="badge bg-primary bg-opacity-10 text-primary fw-bold px-3 py-2"></span>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle table-hover">
+          <thead class="table-light"
+                 style="font-size:.75rem;color:#666;text-transform:uppercase;">
+            <tr>
+              <th>Escola</th>
+              <th class="text-center">Estudantes</th>
+              <th class="text-center">Leituras</th>
+              <th class="text-center">Média/Aluno</th>
+              <th class="text-center">Tempo Total Leitura</th>
+              <th class="text-center">Escutas</th>
+              <th class="text-center">Tempo Total Escuta</th>
+            </tr>
+          </thead>
+          <tbody id="elTbEscolas"></tbody>
+        </table>
+      </div>
+    </div>
+  </div><!-- /viewEscolas -->
+
+  <!-- ── Visão Turmas ───────────────────────────────────── -->
+  <div id="viewTurmas" style="display:none;">
+    <div class="table-container">
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h5 class="fw-bold m-0 text-primary">
+          <i class="bi bi-people-fill me-2"></i>Detalhamento por Turma
+        </h5>
+        <span id="elContadorTurmas"
+              class="badge bg-primary bg-opacity-10 text-primary fw-bold px-3 py-2"></span>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle table-hover">
+          <thead class="table-light"
+                 style="font-size:.75rem;color:#666;text-transform:uppercase;">
+            <tr>
+              <th>Escola</th>
+              <th class="text-center">Ano</th>
+              <th class="text-center">Turma</th>
+              <th class="text-center">Turno</th>
+              <th>Professor(es)</th>
+              <th class="text-center">Estudantes</th>
+              <th class="text-center">Leitores</th>
+              <th class="text-center">Livros</th>
+              <th class="text-center">Tempo Leitura</th>
+              <th class="text-center">Engajamento</th>
+            </tr>
+          </thead>
+          <tbody id="elTbTurmas"></tbody>
+        </table>
+      </div>
+    </div>
+  </div><!-- /viewTurmas -->
+
+</main>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL IMPORTAÇÃO
+══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalImport" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:480px;">
+    <div class="modal-content border-0 shadow-lg" style="border-radius:18px;overflow:hidden;">
+
+      <div class="modal-header border-0 p-0">
+        <div style="background:#002b5e;color:white;width:100%;
+                    padding:18px 24px 14px;border-bottom:3px solid var(--neon-blue);">
+          <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-3">
+              <div style="width:38px;height:38px;background:rgba(0,229,255,.15);
+                          border-radius:10px;display:grid;place-items:center;">
+                <i class="bi bi-cloud-arrow-up-fill"
+                   style="color:var(--neon-blue);font-size:1.2rem;"></i>
+              </div>
+              <div>
+                <div style="font-weight:900;font-size:1rem;">Importar Planilha</div>
+                <div style="font-size:.68rem;opacity:.65;font-weight:600;
+                            text-transform:uppercase;letter-spacing:.08em;">
+                  Elefante Letrado → Supabase
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn-close btn-close-white"
+                    data-bs-dismiss="modal"></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-body p-4" style="background:#f8fafc;">
+
+        <div class="mb-3">
+          <label class="form-label fw-bold text-muted small text-uppercase"
+                 style="letter-spacing:.05em;">Mês de referência</label>
+          <input type="month" id="importMes" class="form-control shadow-sm">
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold text-muted small text-uppercase"
+                 style="letter-spacing:.05em;">Arquivo (.xlsx)</label>
+          <div class="el-dropzone"
+               onclick="document.getElementById('importFile').click()"
+               ondragover="event.preventDefault();this.classList.add('dragover')"
+               ondragleave="this.classList.remove('dragover')"
+               ondrop="dropFile(event)">
+            <i class="bi bi-file-earmark-spreadsheet"
+               style="font-size:2rem;color:var(--primary);opacity:.5;"></i>
+            <div class="mt-2 fw-bold text-muted">Clique ou arraste o arquivo aqui</div>
+            <div class="small text-muted">Apenas .xlsx — mesmo formato do Elefante Letrado</div>
+            <input type="file" id="importFile" accept=".xlsx" style="display:none;"
+                   onchange="selecionarArquivo(this.files[0])">
+          </div>
+          <div id="importArqInfo" class="d-none mt-2 alert alert-success py-2 mb-0">
+            <i class="bi bi-check-circle me-2"></i>
+            <span id="importArqNome"></span>
+          </div>
+        </div>
+
+        <div id="importProgresso" class="d-none">
+          <div class="progress mb-1" style="height:5px;">
+            <div id="importBar"
+                 class="progress-bar progress-bar-striped progress-bar-animated"
+                 style="width:0%;transition:width .3s;"></div>
+          </div>
+          <div id="importMsg" class="small text-muted text-center mt-1"></div>
+        </div>
+
+        <div id="importResultado" class="d-none"></div>
+      </div>
+
+      <div class="modal-footer border-0 bg-white px-4 pb-4 pt-0">
+        <button type="button" class="btn btn-outline-secondary rounded-pill px-4"
+                data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="btnImportar"
+                class="btn btn-primary rounded-pill px-4"
+                onclick="confirmarImport()">
+          <i class="bi bi-cloud-arrow-up me-2"></i>Importar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════════ -->
+<script>
+// ── Config Supabase ────────────────────────────────────────
+const SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk';
+
+// ── Estado ─────────────────────────────────────────────────
+const S = {
+  mesAtual: null,
+  escolas:  [],
+  turmas:   [],
+  visao:    'escolas',
+  barChart: null,
+  pieChart: null,
+  arquivoImport: null,
+};
+
+const MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+// ── Inicialização ──────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const meses = await getMeses();
+    renderSeletorMes(meses);
+    if (meses.length) {
+      S.mesAtual = meses[0];
+      await carregarMes(S.mesAtual);
+    } else {
+      semDados();
+    }
+  } catch (e) {
+    document.getElementById('elKpis').innerHTML =
+      `<div class="col-12"><div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle me-2"></i>${e.message}
+      </div></div>`;
+  }
+});
+
+// ── API Supabase ───────────────────────────────────────────
+async function apiFetch(path) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+  });
+  if (!r.ok) throw new Error(`Supabase ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
+async function apiUpsert(tabela, registros, onConflict) {
+  if (!registros.length) return;
+  const LOTE = 500;
+  for (let i = 0; i < registros.length; i += LOTE) {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/${tabela}?on_conflict=${onConflict.join(',')}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          apikey:          SUPABASE_KEY,
+          Authorization:   `Bearer ${SUPABASE_KEY}`,
+          Prefer:          'resolution=merge-duplicates,return=minimal',
+        },
+        body: JSON.stringify(registros.slice(i, i + LOTE)),
+      }
+    );
+    if (!r.ok) throw new Error(`${tabela} → ${r.status}: ${await r.text()}`);
+  }
+}
+
+async function getMeses() {
+  const d = await apiFetch('elefante_escolas?select=mes_referencia&order=mes_referencia.desc');
+  return [...new Set((d || []).map(r => r.mes_referencia))];
+}
+
+async function getEscolas(mes) {
+  return apiFetch(`elefante_escolas?mes_referencia=eq.${mes}&order=leituras_concluidas.desc`);
+}
+
+async function getTurmas(mes) {
+  return apiFetch(`elefante_turmas?mes_referencia=eq.${mes}&order=livros_lidos.desc`);
+}
+
+// ── Controles ──────────────────────────────────────────────
+async function trocarMes() {
+  const mes = document.getElementById('elMesFiltro').value;
+  if (!mes || mes === S.mesAtual) return;
+  S.mesAtual = mes;
+  await carregarMes(mes);
+}
+
+function trocarVisao(visao) {
+  S.visao = visao;
+  document.getElementById('viewEscolas').style.display = visao === 'escolas' ? '' : 'none';
+  document.getElementById('viewTurmas').style.display  = visao === 'turmas'  ? '' : 'none';
+  document.getElementById('btnVisaoEscolas').classList.toggle('active', visao === 'escolas');
+  document.getElementById('btnVisaoTurmas').classList.toggle('active',  visao === 'turmas');
+  document.getElementById('elBusca').placeholder =
+    visao === 'escolas' ? 'Pesquisar escola…' : 'Pesquisar escola ou turma…';
+  document.getElementById('elBusca').value = '';
+  renderTabela(visao === 'escolas' ? S.escolas : S.turmas);
+}
+
+function filtrar() {
+  const q = document.getElementById('elBusca').value.toLowerCase();
+  if (S.visao === 'escolas') {
+    renderTbEscolas(S.escolas.filter(e => e.nome_escola.toLowerCase().includes(q)));
+  } else {
+    renderTbTurmas(S.turmas.filter(t =>
+      t.escola.toLowerCase().includes(q) ||
+      (t.turma || '').toLowerCase().includes(q)
+    ));
+  }
+}
+
+// ── Carregamento ───────────────────────────────────────────
+async function carregarMes(mes) {
+  document.getElementById('elKpis').innerHTML = `
+    <div class="col-12 text-center py-4 loading-soft">
+      <div class="spinner-border spinner-border-sm mb-2"></div>
+      <div>Carregando…</div>
+    </div>`;
+
+  const [escolas, turmas] = await Promise.all([getEscolas(mes), getTurmas(mes)]);
+  S.escolas = escolas || [];
+  S.turmas  = turmas  || [];
+
+  renderKpis();
+  renderTabela(S.visao === 'escolas' ? S.escolas : S.turmas);
+  renderGraficos();
+}
+
+function semDados() {
+  document.getElementById('elKpis').innerHTML = '';
+  document.getElementById('elTbEscolas').innerHTML =
+    '<tr><td colspan="7" class="text-center text-muted py-5">Nenhum dado importado ainda.</td></tr>';
+}
+
+function renderSeletorMes(meses) {
+  const sel = document.getElementById('elMesFiltro');
+  sel.innerHTML = meses.length
+    ? meses.map(m => {
+        const [ano, mes] = m.split('-');
+        return `<option value="${m}">${MESES_PT[+mes-1]}/${ano}</option>`;
+      }).join('')
+    : '<option value="">Nenhum dado</option>';
+}
+
+// ── KPIs ───────────────────────────────────────────────────
+function renderKpis() {
+  const esc      = S.escolas;
+  const leituras = esc.reduce((s, e) => s + (e.leituras_concluidas || 0), 0);
+  const alunos   = esc.reduce((s, e) => s + (e.estudantes_leitura  || 0), 0);
+  const horas    = Math.round(esc.reduce((s, e) => s + (e.tempo_total_leitura_seg || 0), 0) / 3600);
+  const ativas   = esc.filter(e => (e.leituras_concluidas || 0) > 0).length;
+
+  const items = [
+    { icon: 'bi-book-fill',      cor: '#002b5e', label: 'Leituras Concluídas', val: leituras.toLocaleString('pt-BR') },
+    { icon: 'bi-people-fill',    cor: '#0062ff', label: 'Estudantes Ativos',   val: alunos.toLocaleString('pt-BR') },
+    { icon: 'bi-clock-fill',     cor: '#7c3aed', label: 'Horas de Leitura',    val: `${horas.toLocaleString('pt-BR')}h` },
+    { icon: 'bi-building-check', cor: '#059669', label: 'Escolas Engajadas',   val: `${ativas} / ${esc.length}` },
+  ];
+
+  document.getElementById('elKpis').innerHTML = items.map(k => `
+    <div class="col-6 col-md-3">
+      <div class="card-kpi d-flex align-items-center gap-3">
+        <div style="width:46px;height:46px;border-radius:12px;background:${k.cor}18;
+                    display:grid;place-items:center;flex-shrink:0;">
+          <i class="bi ${k.icon}" style="color:${k.cor};font-size:1.3rem;"></i>
+        </div>
+        <div>
+          <div class="kpi-val" style="color:${k.cor};">${k.val}</div>
+          <div class="label-mini">${k.label}</div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ── Tabelas ────────────────────────────────────────────────
+function renderTabela(lista) {
+  if (S.visao === 'escolas') renderTbEscolas(lista);
+  else                        renderTbTurmas(lista);
+}
+
+function renderTbEscolas(lista) {
+  const c = document.getElementById('elContadorEscolas');
+  if (c) c.textContent = `${lista.length} escola${lista.length !== 1 ? 's' : ''}`;
+
+  document.getElementById('elTbEscolas').innerHTML = lista.length
+    ? lista.map(e => {
+        const media = e.estudantes_leitura > 0
+          ? (e.leituras_concluidas / e.estudantes_leitura).toFixed(1) : '—';
+        const cls = media === '—' ? 'el-chip-zero'
+          : +media >= 10 ? 'el-chip-alto' : +media >= 5 ? 'el-chip-medio' : 'el-chip-baixo';
+        return `
+          <tr>
+            <td style="font-weight:700;font-size:.82rem;">${esc(e.nome_escola)}</td>
+            <td class="text-center">${(e.estudantes_leitura||0).toLocaleString('pt-BR')}</td>
+            <td class="text-center fw-bold" style="color:#002b5e">
+              ${(e.leituras_concluidas||0).toLocaleString('pt-BR')}
+            </td>
+            <td class="text-center"><span class="el-chip ${cls}">${media}</span></td>
+            <td class="text-center text-muted small">${hms(e.tempo_total_leitura_seg)}</td>
+            <td class="text-center">${(e.escutas_concluidas||0).toLocaleString('pt-BR')}</td>
+            <td class="text-center text-muted small">${hms(e.tempo_total_escuta_seg)}</td>
+          </tr>`;
+      }).join('')
+    : '<tr><td colspan="7" class="text-center text-muted py-4">Nenhum resultado.</td></tr>';
+}
+
+function renderTbTurmas(lista) {
+  const c = document.getElementById('elContadorTurmas');
+  if (c) c.textContent = `${lista.length} turma${lista.length !== 1 ? 's' : ''}`;
+
+  document.getElementById('elTbTurmas').innerHTML = lista.length
+    ? lista.map(t => {
+        const pct = t.estudantes > 0 ? Math.round((t.leitores / t.estudantes) * 100) : 0;
+        const engajCls = pct >= 80 ? 'el-chip-alto' : pct >= 40 ? 'el-chip-medio'
+                       : pct > 0  ? 'el-chip-baixo' : 'el-chip-zero';
+        const turnoBg  = t.turno === 'MANHA'
+          ? 'background:#dbeafe;color:#1e40af'
+          : 'background:#fef9c3;color:#854d0e';
+        return `
+          <tr>
+            <td style="font-size:.78rem;font-weight:600;">${esc(t.escola)}</td>
+            <td class="text-center small">${esc(t.ano_escolar)}</td>
+            <td class="text-center fw-bold small">${esc(t.turma)}</td>
+            <td class="text-center">
+              <span class="badge" style="${turnoBg};font-size:.65rem;font-weight:800;">
+                ${t.turno === 'MANHA' ? 'Manhã' : t.turno === 'TARDE' ? 'Tarde' : esc(t.turno)}
+              </span>
+            </td>
+            <td style="font-size:.72rem;max-width:200px;overflow:hidden;
+                       text-overflow:ellipsis;white-space:nowrap;"
+                title="${esc(t.professores)}">${esc(t.professores)||'—'}</td>
+            <td class="text-center">${t.estudantes||0}</td>
+            <td class="text-center fw-bold" style="color:#002b5e">${t.leitores||0}</td>
+            <td class="text-center">${(t.livros_lidos||0).toLocaleString('pt-BR')}</td>
+            <td class="text-center text-muted small">${hms(t.tempo_leitura_seg)}</td>
+            <td class="text-center">
+              <span class="el-chip ${engajCls}">${pct > 0 ? pct+'%' : '—'}</span>
+            </td>
+          </tr>`;
+      }).join('')
+    : '<tr><td colspan="10" class="text-center text-muted py-4">Nenhum resultado.</td></tr>';
+}
+
+// ── Gráficos ───────────────────────────────────────────────
+function renderGraficos() {
+  const CORES = ['#002b5e','#0062ff','#7c3aed','#059669','#d97706','#dc2626','#0891b2','#6d28d9'];
+  const top15 = [...S.escolas]
+    .sort((a,b) => (b.leituras_concluidas||0)-(a.leituras_concluidas||0))
+    .slice(0,15);
+
+  if (S.barChart) { S.barChart.destroy(); S.barChart = null; }
+  if (S.pieChart) { S.pieChart.destroy(); S.pieChart = null; }
+
+  const ctxBar = document.getElementById('elBarChart')?.getContext('2d');
+  if (ctxBar && top15.length) {
+    S.barChart = new Chart(ctxBar, {
+      type: 'bar',
+      data: {
+        labels:   top15.map(e => e.nome_escola.replace(' EMEF','').trim()),
+        datasets: [{ label:'Leituras', data: top15.map(e => e.leituras_concluidas||0),
+                     backgroundColor:'rgba(0,43,94,.82)', borderRadius:6 }],
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins: { legend:{ display:false } },
+        scales:  { x:{ ticks:{ font:{size:9}, maxRotation:45 } }, y:{ beginAtZero:true } },
+      },
+    });
+  }
+
+  const top8   = top15.slice(0,8);
+  const ctxPie = document.getElementById('elPieChart')?.getContext('2d');
+  if (ctxPie && top8.length) {
+    S.pieChart = new Chart(ctxPie, {
+      type: 'doughnut',
+      data: {
+        labels:   top8.map(e => e.nome_escola.replace(' EMEF','').trim()),
+        datasets: [{ data: top8.map(e => Math.round((e.tempo_total_leitura_seg||0)/3600)),
+                     backgroundColor:CORES, borderWidth:2, borderColor:'#fff' }],
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins: {
+          legend:  { position:'bottom', labels:{ font:{size:9}, padding:8 } },
+          tooltip: { callbacks:{ label: ctx => ` ${ctx.label}: ${ctx.raw}h` } },
+        },
+      },
+    });
+  }
+}
+
+// ── Importação ─────────────────────────────────────────────
+function abrirImport() {
+  S.arquivoImport = null;
+  document.getElementById('importArqInfo').classList.add('d-none');
+  document.getElementById('importProgresso').classList.add('d-none');
+  document.getElementById('importResultado').classList.add('d-none');
+  document.getElementById('importFile').value = '';
+
+  const hoje = new Date();
+  document.getElementById('importMes').value =
+    `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalImport')).show();
+}
+
+function dropFile(ev) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('dragover');
+  const f = ev.dataTransfer?.files?.[0];
+  if (f) selecionarArquivo(f);
+}
+
+function selecionarArquivo(f) {
+  if (!f?.name.endsWith('.xlsx')) { alert('Selecione um arquivo .xlsx'); return; }
+  S.arquivoImport = f;
+  document.getElementById('importArqNome').textContent = f.name;
+  document.getElementById('importArqInfo').classList.remove('d-none');
+}
+
+async function confirmarImport() {
+  if (!S.arquivoImport) { alert('Selecione um arquivo .xlsx primeiro.'); return; }
+  const mesInput = document.getElementById('importMes').value;
+  if (!mesInput) { alert('Informe o mês de referência.'); return; }
+  const mesRef = mesInput + '-01';
+
+  const btn = document.getElementById('btnImportar');
+  const bar = document.getElementById('importBar');
+  const msg = document.getElementById('importMsg');
+  const res = document.getElementById('importResultado');
+
+  btn.disabled = true;
+  document.getElementById('importProgresso').classList.remove('d-none');
+  res.classList.add('d-none');
+
+  try {
+    msg.textContent = 'Lendo planilha…'; bar.style.width = '15%';
+    const { escolas, turmas } = await lerXlsx(S.arquivoImport);
+
+    msg.textContent = 'Enviando escolas…'; bar.style.width = '50%';
+    await apiUpsert('elefante_escolas',
+      escolas.map(e => ({ ...e, mes_referencia: mesRef, arquivo_origem: S.arquivoImport.name })),
+      ['mes_referencia','nome_escola']
+    );
+
+    msg.textContent = 'Enviando turmas…'; bar.style.width = '80%';
+    await apiUpsert('elefante_turmas',
+      turmas.map(t => ({ ...t, mes_referencia: mesRef, arquivo_origem: S.arquivoImport.name })),
+      ['mes_referencia','escola','turma']
+    );
+
+    bar.style.width = '100%';
+    msg.textContent = 'Concluído!';
+    res.innerHTML = `
+      <div class="alert alert-success mt-3 mb-0">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        <strong>Importado com sucesso!</strong><br>
+        <small>${escolas.length} escolas · ${turmas.length} turmas</small>
+      </div>`;
+    res.classList.remove('d-none');
+
+    setTimeout(async () => {
+      bootstrap.Modal.getInstance(document.getElementById('modalImport'))?.hide();
+      const meses = await getMeses();
+      renderSeletorMes(meses);
+      document.getElementById('elMesFiltro').value = mesRef;
+      S.mesAtual = mesRef;
+      await carregarMes(mesRef);
+    }, 1500);
+
+  } catch (e) {
+    res.innerHTML = `<div class="alert alert-danger mt-3 mb-0">
+      <i class="bi bi-x-circle me-2"></i>${e.message}</div>`;
+    res.classList.remove('d-none');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Leitor xlsx (SheetJS) ──────────────────────────────────
+async function lerXlsx(file) {
+  const buf = await file.arrayBuffer();
+  const wb  = XLSX.read(buf, { type:'array' });
+
+  const nE = wb.SheetNames.find(n => n.toLowerCase().includes('escola'));
+  const nT = wb.SheetNames.find(n => n.toLowerCase().includes('turma'));
+  if (!nE) throw new Error('Aba "Por Escola" não encontrada.');
+  if (!nT) throw new Error('Aba "Por Turma" não encontrada.');
+
+  const rawE = XLSX.utils.sheet_to_json(wb.Sheets[nE]);
+  const rawT = XLSX.utils.sheet_to_json(wb.Sheets[nT]);
+
+  const escolas = rawE.map(r => ({
+    nome_escola:             String(r['Nome da Escola']       ||'').trim(),
+    estudantes_leitura:      n(r['Estudantes (Leitura)']),
+    leituras_concluidas:     n(r['Leituras Concluídas']),
+    tempo_medio_leitura_seg: t(r['Tempo Médio de Leitura']),
+    tempo_total_leitura_seg: t(r['Tempo Total de Leitura']),
+    estudantes_escuta:       n(r['Estudantes (Escuta)']),
+    escutas_concluidas:      n(r['Escutas Concluídas']),
+    tempo_medio_escuta_seg:  t(r['Tempo Médio de Escuta']),
+    tempo_total_escuta_seg:  t(r['Tempo Total de Escuta']),
+  })).filter(e => e.nome_escola);
+
+  const turmas = rawT.map(r => ({
+    escola:            String(r['Escola']     ||'').trim(),
+    ano_escolar:       String(r['Ano']        ||'').trim(),
+    turma:             String(r['Turma']       ||'').trim(),
+    turno:             String(r['Turno']       ||'').trim(),
+    tipo:              String(r['Tipo']        ||'').trim(),
+    professores:       String(r['Professores'] ||'').trim(),
+    estudantes:        n(r['Estudantes']),
+    leitores:          n(r['Leitores']),
+    livros_lidos:      n(r['Livros Lidos']),
+    tempo_leitura_seg: t(r['Tempo de Leitura']),
+  })).filter(t => t.escola && t.turma);
+
+  return { escolas, turmas };
+}
+
+// ── Helpers ────────────────────────────────────────────────
+function hms(seg) {
+  if (!seg) return '—';
+  const h = Math.floor(seg/3600), m = Math.floor((seg%3600)/60);
+  if (h > 0) return `${h}h ${String(m).padStart(2,'0')}min`;
+  if (m > 0) return `${m}min`;
+  return `${seg}s`;
+}
+
+function n(v) { const x = parseFloat(String(v||0).replace(',','.')); return isNaN(x)?0:Math.round(x); }
+
+function t(v) {
+  if (!v && v!==0) return 0;
+  const s = String(v).toLowerCase().replace(/\s+/g,'');
+  if (!s||s==='00s') return 0;
+  const h=s.match(/(\d+)h/), m=s.match(/(\d+)min/), sc=s.match(/(\d+)s/);
+  return (h?+h[1]*3600:0)+(m?+m[1]*60:0)+(sc?+sc[1]:0);
+}
+
+function esc(s) {
+  return String(s??'').replace(/[&<>"']/g,
+    c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>
