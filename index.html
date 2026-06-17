@@ -2715,11 +2715,11 @@ function _chaveBimestre(key, filtros) {
 
 function _chavePacoteBimestre(key, filtrosBase) {
   filtrosBase = filtrosBase || {};
-  return ['pacote_bim_v3', key, filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacote_bim_supa_v5_apps_exact', key, filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _chaveTotal(filtros) {
-  return ['total', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
+  return ['total_supa_v5_apps_exact', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
 }
 
 function _chaveDetalhe(key, filtros) {
@@ -2735,7 +2735,7 @@ function _chaveBimestreCompleto(key) {
 }
 
 function _chaveHierarquiaTotal(ano) {
-  return ['hier_total_v6', ano || 'TODOS'].join('|');
+  return ['hier_total_supa_v5_apps_exact', ano || 'TODOS'].join('|');
 }
 
 // ===========================================================
@@ -3217,7 +3217,7 @@ function _setAnoFiltroAtualSeguro(ano, btn) {
 
 function _chavePacoteTotal(filtrosBase) {
   filtrosBase = filtrosBase || {};
-  return ['pacoteTotal', filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacoteTotal_supa_v5_apps_exact', filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _backendTemPacoteTotal() {
@@ -6439,7 +6439,7 @@ function _renderTabelaTotal(linhas) {
   
 <script>
 // ===========================================================
-// ADAPTADOR SUPABASE — MAPA SME
+// ADAPTADOR SUPABASE — MAPA SME V3
 // Substitui google.script.run no GitHub Pages usando as tabelas:
 // turmas, base_mapa, alunos, bimestres e usuarios.
 // ===========================================================
@@ -6477,6 +6477,19 @@ function _renderTabelaTotal(linhas) {
     '1 ANO', '2 ANO', '3 ANO', '4 ANO', '5 ANO'
   ];
 
+  // Mesma tabela de rótulos curtos usada no Apps Script.
+  const LABEL_CURTO = {
+    'ESCRITA': { '1':'Pré-silábica','2':'Silábica','3':'Silábico-alf.','4':'Alfabética','5':'Ortográfica' },
+    'LEITURA': { '1':'N1 Pré-leitor','2':'N2 Pré-leitor','3':'N3 Pré-leitor','4':'N4 Pré-leitor','5':'L. Iniciante','6':'L. Fluente' },
+    'PRODUCAO TEXTUAL': { '1':'Nível 1','2':'Nível 2','3':'Nível 3','4':'Nível 4','5':'Nível 5','9':'Não produz' },
+    'AUTONOMIA': { '0':'Autônomo','1':'Apoio leve','2':'Apoio frequente','3':'Dependente' },
+    'AUTORREGULACAO': { '0':'Autônomo','1':'Apoio leve','2':'Apoio frequente','3':'Dependente' },
+    'COMUNICACAO': { '0':'Autônomo','1':'Apoio leve','2':'Apoio frequente','3':'Dependente' },
+    'ENGAJAMENTO': { '0':'Autônomo','1':'Apoio leve','2':'Apoio frequente','3':'Dependente' },
+    'SEGURANCA': { '0':'Autônomo','1':'Apoio leve','2':'Apoio frequente','3':'Dependente' },
+    'POTENCIALIDADES': { 'S':'Sim','N':'Não','X':'Não Avaliado' }
+  };
+
   function normalizar(txt) {
     return String(txt || '')
       .trim()
@@ -6488,6 +6501,63 @@ function _renderTabelaTotal(linhas) {
       .replace(/\s*-\s*/g, ' - ')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  function normVl(vl) {
+    let s = String(vl == null ? '' : vl).trim();
+    if (!s) return 'X';
+    const sUp = normalizar(s).replace(/\s+/g, ' ');
+    if (sUp.includes('NAO AVAL')) return 'X';
+    if (sUp === 'S' || sUp === 'SIM') return 'S';
+    if (sUp === 'N' || sUp === 'NAO') return 'N';
+    if (sUp === 'X') return 'X';
+    return s;
+  }
+
+  function labelCurto(fne, vlRaw) {
+    const vl = normVl(vlRaw);
+    const fneN = normalizar(fne);
+    if (vl === 'S') return 'Sim';
+    if (vl === 'N') return 'Não';
+    if (vl === 'X') return 'Não Avaliado';
+    if (LABEL_CURTO[fneN] && LABEL_CURTO[fneN][vl]) return LABEL_CURTO[fneN][vl];
+    return String(vl || 'Não Avaliado');
+  }
+
+  function normalizarDisciplina(valor) {
+    const txt = String(valor || '').trim();
+    if (!txt) return '';
+
+    // Mantém a mesma normalização do Apps Script e acrescenta proteção
+    // para variações importadas do CSV/Supabase com acentos ou caracteres quebrados.
+    const n = normalizar(txt);
+    const flat = n.replace(/[^A-Z0-9]+/g, '');
+
+    if (flat.includes('LINGUAPORTUGUESA') || flat.includes('PORTUGUES')) return 'Língua Portuguesa';
+    if (flat.includes('MATEMATICA')) return 'Matemática';
+    if (flat.includes('CIENCIAS')) return 'Ciências';
+    if (flat.includes('HISTORIA')) return 'História';
+    if (flat.includes('GEOGRAFIA')) return 'Geografia';
+    if (flat.includes('ARTESVISUAIS')) return 'Artes Visuais';
+    if (flat === 'ARTE' || flat.includes('ARTE')) return 'Arte';
+    if ((flat.includes('EDUCACAO') || flat.includes('EDUCA')) && (flat.includes('FISICA') || flat.includes('FIS'))) return 'Educação Física';
+    if ((flat.includes('LINGUA') || flat.includes('LNGUA') || flat.includes('INGUA')) && (flat.includes('INGLESA') || flat.includes('INGLES'))) return 'Língua Inglesa';
+    if (flat.includes('ATENDIMENTOEDUCACIONAL') || flat.includes('EDUCACIONALESPECIALIZADO') || flat === 'AEE') return 'Atendimento Educacional Especializado';
+
+    return txt;
+  }
+
+
+  function normalizarEixoTotal(eixo) {
+    const raw = String(eixo || '').trim();
+    if (!raw) return '';
+    const n = normalizar(raw);
+    if (n.includes('PRODUCAO') || n.includes('TEXTUAL')) return 'PRODUÇÃO TEXTUAL';
+    if (n.includes('LEITURA')) return 'LEITURA';
+    if (n.includes('ESCRITA')) return 'ESCRITA';
+    if (n.includes('ORALIDADE')) return 'ORALIDADE';
+    if (n.includes('COMPLEMENTAR')) return 'COMPLEMENTAR';
+    return raw.toUpperCase();
   }
 
   function compactar(txt) {
@@ -6517,16 +6587,35 @@ function _renderTabelaTotal(linhas) {
     return TURMAS_REGULARES_MAGISTERIO_II.some(item => normalizar(item) === a || compactar(item) === c);
   }
 
+
+  function isSegundoAnoPPA(anoEscolar) {
+    // Regra original do Apps Script para PPA:
+    // Magistério II entra na conta do PPA somente para 2º Ano.
+    const a = normalizar(anoEscolar);
+    return a.includes('2 ANO') || a.includes('2O ANO');
+  }
+
+  function valorPreenchido(v) {
+    const s = normalizar(v);
+    return !!s && !['-', '0', 'NULL', 'NULO', 'SEM PROFESSOR', 'S ATRIBUICAO', 'SEM ATRIBUICAO'].includes(s);
+  }
+
+  function statusAtribuicao(row) {
+    return normalizar(row.status_atribuicao || row.status || row.situacao_atribuicao || row.situacao_turma || row.situacao_professor || '');
+  }
+
   function isAtribuido(row) {
-    return !!(
-      row.codigo_professor_prop || row.nome_professor_prop ||
-      row.codigo_professor_sub || row.nome_professor_sub ||
-      String(row.situacao_professor || '').trim()
-    );
+    const st = statusAtribuicao(row);
+    // Regra exata do Apps Script: status 2, status 4 ou TROCA.
+    return st.includes('2 -') || st.startsWith('2 ') || st === '2' ||
+           st.includes('4 -') || st.startsWith('4 ') || st === '4' ||
+           st.includes('TROCA');
   }
 
   function isSubstituto(row) {
-    return !!(row.codigo_professor_sub || row.nome_professor_sub);
+    const st = statusAtribuicao(row);
+    // Regra exata do Apps Script: substituto somente quando a identificação é 4.
+    return st.includes('4 -') || st.startsWith('4 ') || st === '4';
   }
 
   function detalheTurma(row, disc, workload, atribuido, substituto) {
@@ -6540,19 +6629,72 @@ function _renderTabelaTotal(linhas) {
     };
   }
 
+  function labelRespostaPainel(eixo, vlRaw, textoResposta) {
+    const eixoN = normalizar(eixo);
+    const vl = normVl(vlRaw);
+
+    if (vl === 'S') return 'Sim';
+    if (vl === 'N') return 'Não';
+    if (vl === 'X') return 'Não Avaliado';
+
+    if (eixoN.includes('ESCRITA')) {
+      return ({ '1':'Pré-silábica','2':'Silábica','3':'Silábico-alf.','4':'Alfabética','5':'Ortográfica' })[vl] || labelCurto(eixo, vlRaw);
+    }
+    if (eixoN.includes('LEITURA')) {
+      return ({ '1':'N1 Pré-leitor','2':'N2 Pré-leitor','3':'N3 Pré-leitor','4':'N4 Pré-leitor','5':'L. Iniciante','6':'L. Fluente' })[vl] || labelCurto(eixo, vlRaw);
+    }
+    if (eixoN.includes('PRODUCAO TEXTUAL')) {
+      return ({ '1':'Nível 1','2':'Nível 2','3':'Nível 3','4':'Nível 4','5':'Nível 5','9':'Não produz' })[vl] || labelCurto(eixo, vlRaw);
+    }
+
+    if (eixoN.includes('AUTONOMIA') || eixoN.includes('AUTORREGUL') || eixoN.includes('COMUNICAC') ||
+        eixoN.includes('ENGAJAMENTO') || eixoN.includes('SEGURANCA')) {
+      return ({ '0':'Autônomo','1':'Apoio leve','2':'Apoio frequente','3':'Dependente' })[vl] || labelCurto(eixo, vlRaw);
+    }
+
+    if (textoResposta) {
+      const txt = String(textoResposta).trim();
+      if (normalizar(txt).includes('NAO AVAL')) return 'Não Avaliado';
+      if (txt.length <= 45) return txt;
+    }
+
+    return labelCurto(eixo, vlRaw);
+  }
+
+  function valorNumericoPainel(eixo, vlRaw, rotulo) {
+    const eixoN = normalizar(eixo);
+    const vl = normVl(vlRaw);
+
+    if (vl === 'S') return 1;
+    if (vl === 'N') return 0;
+    if (vl === 'X') return null;
+    if (vl === '9' && eixoN.includes('PRODUCAO TEXTUAL')) return null;
+
+    const direto = Number(String(vl).replace(',', '.'));
+    if (!Number.isNaN(direto) && String(vl).trim() !== '') return direto;
+
+    const r = normalizar(rotulo);
+    const map = {
+      'PRE-SILABICA': 1, 'SILABICA': 2, 'SILABICO-ALF.': 3, 'SILABICO-ALFABETICA': 3, 'ALFABETICA': 4, 'ORTOGRAFICA': 5,
+      'N1 PRE-LEITOR': 1, 'N2 PRE-LEITOR': 2, 'N3 PRE-LEITOR': 3, 'N4 PRE-LEITOR': 4, 'L. INICIANTE': 5, 'L. FLUENTE': 6,
+      'NIVEL 1': 1, 'NIVEL 2': 2, 'NIVEL 3': 3, 'NIVEL 4': 4, 'NIVEL 5': 5,
+      'DEPENDENTE': 1, 'APOIO FREQUENTE': 2, 'APOIO LEVE': 3, 'AUTONOMO': 4
+    };
+    if (map[r] !== undefined) return map[r];
+    return null;
+  }
+
   function respostaLabel(row) {
-    const texto = row.texto_resposta ?? row.valor_resposta ?? row.codigo_resposta ?? 'Não Avaliado';
-    return String(texto || 'Não Avaliado').trim() || 'Não Avaliado';
+    const eixo = row.descricao_fne || row.disciplina_fnc || row.fnc_disciplina || '';
+    const valor = row.valor_resposta ?? row.codigo_resposta ?? '';
+    return labelRespostaPainel(eixo, valor, row.texto_resposta || '');
   }
 
   function respostaScore(row) {
-    const vRaw = row.valor_resposta ?? row.codigo_resposta ?? row.texto_resposta;
-    const v = String(vRaw ?? '').trim().toUpperCase();
-    const n = Number(String(vRaw ?? '').replace(',', '.'));
-    if (!Number.isNaN(n) && String(vRaw ?? '').trim() !== '') return n;
-    if (['S', 'SIM', 'ADEQUADO', 'L. FLUENTE', 'ORTOGRAFICA', 'ORTOGRÁFICA', 'ALFABETICA', 'ALFABÉTICA', 'NIVEL 4', 'NÍVEL 4', 'NIVEL 5', 'NÍVEL 5'].some(x => v.includes(x))) return 1;
-    if (['N', 'NAO', 'NÃO', 'NAO AVALIADO', 'NÃO AVALIADO'].some(x => v.includes(x))) return 0;
-    return 0;
+    const eixo = row.descricao_fne || row.disciplina_fnc || row.fnc_disciplina || '';
+    const valor = row.valor_resposta ?? row.codigo_resposta ?? '';
+    const rotulo = respostaLabel(row);
+    return valorNumericoPainel(eixo, valor, rotulo);
   }
 
   async function fetchAll(table, select = '*', applyFilter) {
@@ -6586,7 +6728,7 @@ function _renderTabelaTotal(linhas) {
       const u = cleanUnit(r.nome_unidade || 'Sem unidade');
       const a = normalizar(r.ano_escolar || 'TODOS') || 'TODOS';
       const t = String(r.turma || 'Sem turma').trim().toUpperCase();
-      const d = String(r.fnc_disciplina || 'Sem disciplina').trim();
+      const d = normalizarDisciplina(r.fnc_disciplina || 'Sem disciplina');
       const e = String(r.descricao_fne || 'Sem eixo').trim();
       const resp = respostaLabel(r);
       const k = [u, a, t, d, e, resp].join('||');
@@ -6624,13 +6766,16 @@ function _renderTabelaTotal(linhas) {
         fetchAll('base_mapa').catch(() => [])
       ]);
 
+      console.info('[MAPA Supabase v5 AppsExact] adaptador ativo');
+      console.info('[MAPA Supabase] turmas carregadas:', turmas.length, 'base_mapa:', (baseMapa || []).length);
+
       const ppaSummary = {};
       const praSummary = {};
       const disciplinasTurmas = {};
 
       turmas.forEach(row => {
         const unit = cleanUnit(row.nome_unidade || 'Sem unidade');
-        const disc = String(row.descricao_disciplina || '').trim().toUpperCase();
+        const disc = String(normalizarDisciplina(row.descricao_disciplina || '') || '').trim().toUpperCase();
         if (!disc) return;
 
         const workload = Number(row.carga_horaria || 0);
@@ -6662,7 +6807,7 @@ function _renderTabelaTotal(linhas) {
           disciplinasTurmas[disc][key].cargaAtribuida += workload;
         }
 
-        if (magII || disc.includes('PROJ. PROF. ALFABETIZADOR') || anoDesc.includes('PROJETO PROFESSOR ALFABETIZADOR')) {
+        if ((magII && isSegundoAnoPPA(anoDesc)) || disc.includes('PROJ. PROF. ALFABETIZADOR') || anoDesc.includes('PROJETO PROFESSOR ALFABETIZADOR')) {
           if (!ppaSummary[key]) ppaSummary[key] = { unit, period: pDesc, magisterio: 0, cargaAtribuida: 0, details: [] };
           if (magII) ppaSummary[key].magisterio += 1;
           if (atribuido && (disc.includes('ALFABETIZADOR') || disc.includes('PPA'))) ppaSummary[key].cargaAtribuida += workload;
@@ -6680,18 +6825,34 @@ function _renderTabelaTotal(linhas) {
       (baseMapa || []).forEach(row => {
         const unit = cleanUnit(row.nome_unidade || '');
         const period = String(row.periodo || '').trim().toUpperCase();
-        const carga = Number(row.carga_horaria || 0);
+        const turmaMapa = String(row.turma || row.qtd_turmas || row.letra_turma || row.nome_turma || '').trim().toUpperCase();
+        const carga = Number(String(row.carga_horaria || 0).replace(',', '.').replace(/[^0-9.-]/g, '')) || 0;
         const key = `${unit.toUpperCase()}|${period}`;
-        if (ppaSummary[key]) {
-          ppaSummary[key].cargaAtribuida += carga;
-          ppaSummary[key].details.push({
-            profName: 'ATRIBUÍDO VIA MAPA',
-            profCode: '-',
-            profStatus: 'SISTEMA',
-            turma: String(row.qtd_turmas || '').trim(),
-            disc: 'PROJ. PROF. ALFABETIZADOR',
-            workload: carga
+
+        if (ppaSummary[key] && carga) {
+          // Regra exata do Apps Script:
+          // Base_MAPA só entra se a letra criada for posterior à última letra já existente em Turmas.
+          const mTurmaLetra = turmaMapa.split(' ').pop() || turmaMapa;
+          let ultimaLetraEmTurmas = '';
+
+          (ppaSummary[key].details || []).forEach(det => {
+            const detalheLetra = String(det.turma || '').split(' ').pop() || det.turma;
+            if (detalheLetra && detalheLetra.length === 1 && detalheLetra > ultimaLetraEmTurmas) {
+              ultimaLetraEmTurmas = detalheLetra;
+            }
           });
+
+          if (!ultimaLetraEmTurmas || mTurmaLetra > ultimaLetraEmTurmas) {
+            ppaSummary[key].cargaAtribuida += carga;
+            ppaSummary[key].details.push({
+              profName: 'ATRIBUÍDO VIA MAPA',
+              profCode: String(row.codigo_funcional || '-').trim(),
+              profStatus: 'SISTEMA',
+              turma: turmaMapa,
+              disc: 'PROJ. PROF. ALFABETIZADOR',
+              workload: carga
+            });
+          }
         }
       });
 
@@ -6764,8 +6925,41 @@ function _renderTabelaTotal(linhas) {
     },
 
     async getAvaliacaoBimestreRapida(key, filtros) {
-      const pacote = await this.getPacoteBimestreRapido(key, filtros || {});
-      return { ok: true, disciplinas: pacote.disciplinas || [], resumo: {}, alunosTotal: 0 };
+      filtros = filtros || {};
+      const pacote = await this.getPacoteBimestreRapido(key, filtros);
+      const resumo = {};
+      const disciplinas = {};
+      let alunosTotal = 0;
+
+      (pacote.linhas || []).forEach(row => {
+        const u = row[0], ano = row[1], turma = row[2], disc = row[3], eixo = row[4], resp = row[5], qtd = Number(row[6] || 0);
+        if (filtros.unidade && filtros.unidade !== 'TODAS' && u !== filtros.unidade) return;
+        if (filtros.turma && filtros.turma !== 'TODAS' && turma !== filtros.turma) return;
+        if (!disc || !eixo || !qtd) return;
+        disciplinas[disc] = true;
+        if (!resumo[disc]) resumo[disc] = {};
+        if (!resumo[disc][eixo]) resumo[disc][eixo] = {};
+        resumo[disc][eixo][resp] = (resumo[disc][eixo][resp] || 0) + qtd;
+      });
+
+      (pacote.hierLinhas || []).forEach(row => {
+        const u = row[0], turma = row[2], qtd = Number(row[3] || 0);
+        if (filtros.unidade && filtros.unidade !== 'TODAS' && u !== filtros.unidade) return;
+        if (filtros.turma && filtros.turma !== 'TODAS' && turma !== filtros.turma) return;
+        alunosTotal += qtd;
+      });
+
+      return {
+        ok: true,
+        source: 'supabase_pacote',
+        disciplinas: Object.keys(disciplinas).sort(),
+        unidades: [],
+        anos: [],
+        turmas: [],
+        alunosTotal,
+        resumo,
+        generatedAt: new Date().toISOString()
+      };
     },
 
     async getHierarquiaBimestre(key, filtros) {
@@ -6781,16 +6975,23 @@ function _renderTabelaTotal(linhas) {
 
     async getDetalheEixo(key, filtros) {
       const bimestre = BIM_KEY_TO_NUM[key] || 1;
+      const disciplinaFiltro = filtros && filtros.disciplina ? String(normalizarDisciplina(filtros.disciplina)).toUpperCase() : '';
+      const eixoFiltro = filtros && filtros.eixo ? normalizar(filtros.eixo) : '';
+
       const rows = await fetchAll('bimestres', '*', q => {
         q = q.eq('bimestre', bimestre);
         if (filtros && filtros.unidade && filtros.unidade !== 'TODAS') q = q.eq('nome_unidade', filtros.unidade);
         if (filtros && filtros.turma && filtros.turma !== 'TODAS') q = q.eq('turma', filtros.turma);
-        if (filtros && filtros.disciplina) q = q.eq('fnc_disciplina', filtros.disciplina);
-        if (filtros && filtros.eixo) q = q.eq('descricao_fne', filtros.eixo);
         return q;
       });
+
       const perguntas = {};
       rows.forEach(r => {
+        const disc = String(normalizarDisciplina(r.fnc_disciplina || '')).toUpperCase();
+        const eixo = normalizar(r.descricao_fne || '');
+        if (disciplinaFiltro && disc !== disciplinaFiltro) return;
+        if (eixoFiltro && eixo !== eixoFiltro) return;
+
         const pergunta = String(r.fqs || r.descricao_fne || 'Pergunta').trim();
         if (!perguntas[pergunta]) perguntas[pergunta] = { label: pergunta, contagem: {} };
         const resp = respostaLabel(r);
@@ -6799,49 +7000,144 @@ function _renderTabelaTotal(linhas) {
       return { ok: true, perguntas };
     },
 
-    async getTotalAvaliacoesRapido(filtros) {
-      const pacote = !!(filtros && filtros.__pacote);
-      const rows = await fetchAll('bimestres');
-      const ag = new Map();
+    async getAlunosPorRespostaBimestre(key, filtros) {
+      filtros = filtros || {};
+      const bimestre = BIM_KEY_TO_NUM[key] || 1;
+      const disciplinaFiltro = filtros.disciplina ? String(normalizarDisciplina(filtros.disciplina)).toUpperCase() : '';
+      const eixoFiltro = filtros.tipo ? normalizar(filtros.tipo) : '';
+      const respostaFiltro = filtros.resposta ? normalizar(filtros.resposta) : '';
+
+      const rows = await fetchAll('bimestres', '*', q => {
+        q = q.eq('bimestre', bimestre);
+        if (filtros.unidade && filtros.unidade !== 'TODAS') q = q.eq('nome_unidade', filtros.unidade);
+        if (filtros.turma && filtros.turma !== 'TODAS') q = q.eq('turma', filtros.turma);
+        return q;
+      });
+
+      const alunos = [];
       rows.forEach(r => {
-        const b = Number(r.bimestre || 1);
-        const campo = b === 1 ? 'b1' : b === 2 ? 'b2' : b === 3 ? 'b3' : b === 4 ? 'b4' : 'b1';
+        const disc = String(normalizarDisciplina(r.fnc_disciplina || '')).toUpperCase();
+        const eixo = normalizar(r.descricao_fne || '');
+        const resp = respostaLabel(r);
+        if (disciplinaFiltro && disc !== disciplinaFiltro) return;
+        if (eixoFiltro && eixo !== eixoFiltro) return;
+        if (respostaFiltro && normalizar(resp) !== respostaFiltro) return;
+        alunos.push({
+          n: String(r.nome_aluno || '').trim(),
+          u: cleanUnit(r.nome_unidade || ''),
+          a: normalizar(r.ano_escolar || ''),
+          t: String(r.turma || '').trim().toUpperCase(),
+          resposta: resp,
+          ra: String(r.rema_aluno || '').trim()
+        });
+      });
+
+      alunos.sort((a, b) => a.u.localeCompare(b.u) || a.a.localeCompare(b.a) || a.t.localeCompare(b.t) || a.n.localeCompare(b.n));
+      return { ok: true, alunos };
+    },
+
+    async getTotalAvaliacoesRapido(filtros) {
+      filtros = filtros || {};
+      const pacote = !!filtros.__pacote;
+      const anoFiltro = normalizar(filtros.ano || 'TODOS') || 'TODOS';
+      const unidadeFiltro = filtros.unidade || 'TODAS';
+      const turmaFiltro = filtros.turma || 'TODAS';
+
+      const [bimestresRows, alunosRows] = await Promise.all([
+        fetchAll('bimestres').catch(err => { console.error('[MAPA Supabase] Erro bimestres total:', err); return []; }),
+        fetchAll('alunos').catch(err => { console.error('[MAPA Supabase] Erro alunos total/diagnóstica:', err); return []; })
+      ]);
+
+      const ag = new Map();
+
+      function passaFiltros(u, a, t) {
+        if (anoFiltro && anoFiltro !== 'TODOS' && a !== anoFiltro) return false;
+        if (unidadeFiltro && unidadeFiltro !== 'TODAS' && u !== unidadeFiltro) return false;
+        if (turmaFiltro && turmaFiltro !== 'TODAS' && t !== turmaFiltro) return false;
+        return true;
+      }
+
+      function addTotal(r, campo, disciplinaCampo, disciplinaFixa) {
         const u = cleanUnit(r.nome_unidade || 'Sem unidade');
         const a = normalizar(r.ano_escolar || 'TODOS') || 'TODOS';
         const t = String(r.turma || 'Sem turma').trim().toUpperCase();
-        const d = String(r.fnc_disciplina || 'Sem disciplina').trim();
-        const e = String(r.descricao_fne || 'Sem eixo').trim();
+        if (!passaFiltros(u, a, t)) return;
+
+        const d = disciplinaFixa || normalizarDisciplina(r[disciplinaCampo] || 'Sem disciplina');
+        const e = normalizarEixoTotal(r.descricao_fne || 'Sem eixo');
+        if (!d || !e) return;
+
         const score = respostaScore(r);
+        if (score === null || Number.isNaN(score)) return;
         const k = [u, a, t, d, e, campo].join('||');
         if (!ag.has(k)) ag.set(k, { soma: 0, qtd: 0 });
         ag.get(k).soma += score;
         ag.get(k).qtd += 1;
+      }
+
+      // Diagnóstica vem da tabela alunos e precisa alimentar o campo diag do Total.
+      alunosRows.forEach(r => addTotal(r, 'diag', 'disciplina_fnc', 'Língua Portuguesa'));
+
+      // Bimestres vêm da tabela bimestres e alimentam b1/b2/b3/b4.
+      bimestresRows.forEach(r => {
+        const b = Number(r.bimestre || 1);
+        const campo = b === 1 ? 'b1' : b === 2 ? 'b2' : b === 3 ? 'b3' : b === 4 ? 'b4' : 'b1';
+        addTotal(r, campo, 'fnc_disciplina');
       });
-      const linhas = Array.from(ag.entries()).map(([k, v]) => {
+
+      if (pacote) {
+        const linhas = Array.from(ag.entries()).map(([k, v]) => {
+          const parts = k.split('||');
+          return [parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], v.soma, v.qtd];
+        });
+        return { ok: true, linhas, generatedAt: new Date().toISOString() };
+      }
+
+      const obj = {};
+      ag.forEach((v, k) => {
         const parts = k.split('||');
-        return pacote
-          ? [parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], v.soma, v.qtd]
-          : { disciplina: parts[3], tipo: parts[4], [parts[5]]: v.qtd ? Math.round((v.soma / v.qtd) * 100) / 100 : null };
+        const disc = parts[3], eixo = parts[4], campo = parts[5];
+        const key = disc + '||' + eixo;
+        if (!obj[key]) obj[key] = { disciplina: disc, tipo: eixo, diag: null, b1: null, b2: null, b3: null, b4: null };
+        obj[key][campo] = v.qtd ? Math.round((v.soma / v.qtd) * 100) / 100 : null;
       });
-      return { ok: true, linhas };
+
+      return { ok: true, linhas: Object.values(obj), generatedAt: new Date().toISOString() };
     },
 
-    async getHierarquiaTotal() {
-      const rows = await fetchAll('bimestres');
+    async getHierarquiaTotal(filtros) {
+      filtros = filtros || {};
+      const anoFiltro = normalizar(filtros.ano || 'TODOS') || 'TODOS';
+      const [bimestresRows, alunosRows] = await Promise.all([
+        fetchAll('bimestres').catch(() => []),
+        fetchAll('alunos').catch(() => [])
+      ]);
+
       const arvore = {};
-      rows.forEach(r => {
-        const u = cleanUnit(r.nome_unidade || 'Sem unidade');
-        const t = String(r.turma || 'Sem turma').trim().toUpperCase();
+      const vistos = new Set();
+      function add(uRaw, aRaw, tRaw, idRaw) {
+        const a = normalizar(aRaw || 'TODOS') || 'TODOS';
+        if (anoFiltro !== 'TODOS' && a !== anoFiltro) return;
+        const u = cleanUnit(uRaw || 'Sem unidade');
+        const t = String(tRaw || 'Sem turma').trim().toUpperCase();
+        const id = String(idRaw || '').trim() || (u + '|' + a + '|' + t);
+        const k = u + '||' + a + '||' + t + '||' + id;
+        if (vistos.has(k)) return;
+        vistos.add(k);
         if (!arvore[u]) arvore[u] = {};
         arvore[u][t] = (arvore[u][t] || 0) + 1;
-      });
+      }
+
+      bimestresRows.forEach(r => add(r.nome_unidade, r.ano_escolar, r.turma, r.rema_aluno || r.nome_aluno || JSON.stringify(r)));
+      alunosRows.forEach(r => add(r.nome_unidade, r.ano_escolar, r.turma, r.rema_aluno || r.nome_aluno || JSON.stringify(r)));
+
       return { ok: true, arvore };
     },
 
     async getDetalhesTurmasDisciplina(disciplina, unidade, periodo) {
       const rows = await fetchAll('turmas', '*', q => q.eq('nome_unidade', unidade));
       const details = rows
-        .filter(r => String(r.descricao_disciplina || '').trim().toUpperCase() === String(disciplina || '').trim().toUpperCase())
+        .filter(r => String(normalizarDisciplina(r.descricao_disciplina || '')).toUpperCase() === String(normalizarDisciplina(disciplina || '')).toUpperCase())
         .filter(r => periodoDesc(r.periodo) === periodo)
         .filter(r => !(isMagisterioII(r.descricao_disciplina) && !isTurmaRegularMagisterioII(r.ano_escolar)))
         .map(r => detalheTurma(r, String(r.descricao_disciplina || '').trim().toUpperCase(), Number(r.carga_horaria || 0), isAtribuido(r), isSubstituto(r)));
@@ -6890,6 +7186,8 @@ function _renderTabelaTotal(linhas) {
 </script>
 
 
+
+
 <script>
 // ===========================================================
 // JS_Nav.html — Navegação, modos especiais, ano filter e pré-cache
@@ -6935,9 +7233,9 @@ function _preCarregarPrimeiroBimInicial() {
 // ===========================================================
 function _cacheGetDashboardLevePreferencial() {
   const chaves = [
-    'dashboardLeve|turmasFast|v1',
-    'dashboardLeve|v4',
-    'dashboardLeve|v3'
+    'dashboardLeve|turmasFast|supa_v5_apps_exact',
+    'dashboardLeve|legacy_v4_ignorar',
+    'dashboardLeve|legacy_v3_ignorar'
   ];
 
   for (const ch of chaves) {
@@ -6949,7 +7247,7 @@ function _cacheGetDashboardLevePreferencial() {
 }
 
 function atualizarDados() {
-  const chDash = 'dashboardLeve|turmasFast|v1';
+  const chDash = 'dashboardLeve|turmasFast|supa_v5_apps_exact';
   const cached = _cacheGetDashboardLevePreferencial();
   let jaRenderizou = false;
 
