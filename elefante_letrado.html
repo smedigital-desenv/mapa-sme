@@ -186,15 +186,6 @@
     <input type="text" id="elBusca" class="form-control form-control-sm shadow-sm"
            style="min-width:220px;" placeholder="Pesquisar escola…"
            oninput="filtrar()">
-
-    <div class="d-flex gap-2 ms-auto">
-      <button class="btn btn-sm btn-outline-secondary" onclick="expandirTodos()">
-        <i class="bi bi-arrows-expand me-1"></i>Expandir tudo
-      </button>
-      <button class="btn btn-sm btn-outline-secondary" onclick="colapsarTodos()">
-        <i class="bi bi-arrows-collapse me-1"></i>Colapsar tudo
-      </button>
-    </div>
   </div>
 
   <!-- ── Visão unificada ───────────────────────────────────── -->
@@ -234,8 +225,16 @@
         <h5 class="fw-bold m-0 text-primary">
           <i class="bi bi-list-task me-2"></i>Escolas e Turmas
         </h5>
-        <span id="elContador"
-              class="badge bg-primary bg-opacity-10 text-primary fw-bold px-3 py-2"></span>
+        <div class="d-flex align-items-center gap-2">
+          <span id="elContador"
+                class="badge bg-primary bg-opacity-10 text-primary fw-bold px-3 py-2"></span>
+          <button class="btn btn-sm btn-outline-secondary" onclick="expandirTodos()" title="Expandir tudo">
+            <i class="bi bi-arrows-expand"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="colapsarTodos()" title="Colapsar tudo">
+            <i class="bi bi-arrows-collapse"></i>
+          </button>
+        </div>
       </div>
       <div class="table-responsive">
         <table class="table align-middle table-hover">
@@ -1207,111 +1206,82 @@ function abrirModalEscola(nomeEscola) {
 
 // ── PDF via print ──────────────────────────────────────────
 function gerarPDF() {
-  const nome   = document.getElementById('modalEscolaNome').textContent;
-  const sub    = document.getElementById('modalEscolaSub').textContent;
-  const kpis   = document.getElementById('escolaKpis').innerHTML;
-  const alerta = document.getElementById('escolaAlertaZero').innerHTML;
-  const tabela = document.getElementById('escolaTbTurmas').innerHTML;
+  const nome    = document.getElementById('modalEscolaNome').textContent;
+  const sub     = document.getElementById('modalEscolaSub').textContent;
+  const alerta  = document.getElementById('escolaAlertaZero').textContent.trim();
+  const tabela  = document.getElementById('escolaTbTurmas').innerHTML;
 
-  // Captura os gráficos como imagens
   const imgEngaj  = document.getElementById('chartEngajRede')?.toDataURL('image/png') || '';
   const imgTurmas = document.getElementById('chartTurmasEngaj')?.toDataURL('image/png') || '';
   const imgLivros = document.getElementById('chartTurmasLivros')?.toDataURL('image/png') || '';
 
-  const MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  const agora = new Date();
-  const dataGer = `${agora.getDate()}/${agora.getMonth()+1}/${agora.getFullYear()}`;
+  const agora   = new Date();
+  const dataGer = agora.getDate() + '/' + (agora.getMonth()+1) + '/' + agora.getFullYear();
+
+  // Coleta KPIs como texto simples
+  const kpiEls = document.querySelectorAll('#escolaKpis .card-kpi');
+  let kpisHtml = '';
+  kpiEls.forEach(el => {
+    const val   = el.querySelector('.kpi-val')?.textContent   || '';
+    const label = el.querySelector('.label-mini')?.textContent || '';
+    const cor   = el.querySelector('.kpi-val')?.style?.color  || '#002b5e';
+    kpisHtml += '<div class="kpi"><div class="kpi-val" style="color:' + cor + '">' + val + '</div>'
+              + '<div class="kpi-label">' + label + '</div></div>';
+  });
+
+  const css = [
+    '* { box-sizing:border-box; margin:0; padding:0; }',
+    'body { font-family:Segoe UI,sans-serif; background:white; color:#1e293b; padding:28px; font-size:12px; }',
+    '.hdr { background:#002b5e; color:white; padding:18px 22px; border-radius:10px; margin-bottom:20px; border-bottom:4px solid #00e5ff; display:flex; justify-content:space-between; align-items:flex-end; }',
+    '.hdr h1 { font-size:15px; font-weight:900; margin-bottom:3px; }',
+    '.hdr p  { font-size:9px; opacity:.7; text-transform:uppercase; letter-spacing:.06em; }',
+    '.hdr-data { font-size:9px; opacity:.55; white-space:nowrap; }',
+    '.kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px; }',
+    '.kpi  { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px; }',
+    '.kpi-val   { font-size:18px; font-weight:900; }',
+    '.kpi-label { font-size:8px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }',
+    '.graficos { display:grid; grid-template-columns:1fr 1.4fr; gap:14px; margin-bottom:16px; }',
+    '.gbox { border:1px solid #e2e8f0; border-radius:8px; padding:10px; }',
+    '.gbox h3 { font-size:9px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }',
+    '.gbox img, .gfull img { width:100%; height:auto; }',
+    '.gfull { border:1px solid #e2e8f0; border-radius:8px; padding:10px; margin-bottom:16px; }',
+    '.gfull h3 { font-size:9px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }',
+    'table { width:100%; border-collapse:collapse; font-size:9px; }',
+    'th { background:#f1f5f9; padding:6px 7px; text-align:left; font-size:8px; font-weight:700; color:#64748b; text-transform:uppercase; border-bottom:2px solid #e2e8f0; }',
+    'td { padding:6px 7px; border-bottom:1px solid #f1f5f9; }',
+    '.stitle { font-size:10px; font-weight:800; color:#002b5e; margin-bottom:7px; text-transform:uppercase; letter-spacing:.05em; }',
+    '.warn { background:#fef9c3; border:1px solid #d97706; border-radius:6px; padding:7px 10px; font-size:9px; margin-bottom:14px; }',
+    '.footer { margin-top:20px; font-size:8px; color:#94a3b8; text-align:center; border-top:1px solid #e2e8f0; padding-top:10px; }',
+    '@page { margin:1.4cm; }',
+  ].join('\n');
+
+  const parts = [
+    '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">',
+    '<title>Relatorio - ' + nome + '</title>',
+    '<style>' + css + '</style></head><body>',
+    '<div class="hdr"><div><div style="font-size:9px;opacity:.6;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;">SME Ribeirao Preto - Elefante Letrado</div>',
+    '<h1>' + nome + '</h1><p>' + sub + '</p></div>',
+    '<div class="hdr-data">Gerado em ' + dataGer + '</div></div>',
+    alerta ? '<div class="warn"><strong>Atencao: </strong>' + alerta + '</div>' : '',
+    '<div class="kpis">' + kpisHtml + '</div>',
+    '<div class="graficos">',
+    '<div class="gbox"><h3>Engajamento vs Rede</h3>' + (imgEngaj ? '<img src="' + imgEngaj + '">' : '') + '</div>',
+    '<div class="gbox"><h3>Engajamento por Turma</h3>' + (imgTurmas ? '<img src="' + imgTurmas + '">' : '') + '</div>',
+    '</div>',
+    '<div class="gfull"><h3>Livros Lidos por Turma</h3>' + (imgLivros ? '<img src="' + imgLivros + '">' : '') + '</div>',
+    '<div class="stitle">Detalhe por Turma</div>',
+    '<table><thead><tr><th>Turma</th><th>Professor(es)</th><th>Turno</th><th>Estudantes</th><th>Leitores</th><th>Livros</th><th>Tempo</th><th>Engajamento</th></tr></thead>',
+    '<tbody>' + tabela + '</tbody></table>',
+    '<div class="footer">Sistema MAPA - SME Ribeirao Preto - ' + sub.split('·')[0].trim() + '</div>',
+    '</body></html>',
+  ];
 
   const janela = window.open('', '_blank');
-  janela.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
-    <meta charset="UTF-8">
-    <title>Relatório — ${nome}</title>
-    <style>
-      * { box-sizing:border-box; margin:0; padding:0; }
-      body { font-family:'Segoe UI',sans-serif; background:white; color:#1e293b; padding:32px; font-size:12px; }
-      .header { background:#002b5e; color:white; padding:20px 24px; border-radius:10px; margin-bottom:24px; border-bottom:4px solid #00e5ff; }
-      .header h1 { font-size:16px; font-weight:900; margin-bottom:4px; }
-      .header p  { font-size:10px; opacity:.75; text-transform:uppercase; letter-spacing:.06em; }
-      .header-meta { display:flex; justify-content:space-between; align-items:flex-end; }
-      .header-data { font-size:10px; opacity:.6; }
-      .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
-      .kpi  { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; }
-      .kpi-val   { font-size:20px; font-weight:900; color:#002b5e; }
-      .kpi-label { font-size:9px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
-      .graficos { display:grid; grid-template-columns:1fr 1.4fr; gap:16px; margin-bottom:20px; }
-      .grafico-box { border:1px solid #e2e8f0; border-radius:8px; padding:12px; }
-      .grafico-box h3 { font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px; }
-      .grafico-box img { width:100%; height:auto; }
-      .grafico-full { border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:20px; }
-      .grafico-full h3 { font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px; }
-      .grafico-full img { width:100%; height:auto; }
-      table { width:100%; border-collapse:collapse; font-size:10px; }
-      th { background:#f1f5f9; padding:7px 8px; text-align:left; font-size:9px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; border-bottom:2px solid #e2e8f0; }
-      td { padding:7px 8px; border-bottom:1px solid #f1f5f9; }
-      .section-title { font-size:11px; font-weight:800; color:#002b5e; margin-bottom:8px; text-transform:uppercase; letter-spacing:.05em; }
-      .alert-warn { background:#fef9c3; border:1px solid #d97706; border-radius:6px; padding:8px 12px; font-size:10px; margin-bottom:16px; }
-      .badge-manha { background:#dbeafe; color:#1e40af; padding:2px 6px; border-radius:4px; font-size:9px; font-weight:700; }
-      .badge-tarde { background:#fef9c3; color:#854d0e; padding:2px 6px; border-radius:4px; font-size:9px; font-weight:700; }
-      .chip { padding:2px 8px; border-radius:999px; font-size:9px; font-weight:800; }
-      .chip-alto  { background:#dcfce7; color:#166534; }
-      .chip-medio { background:#fef9c3; color:#854d0e; }
-      .chip-baixo { background:#fee2e2; color:#991b1b; }
-      .chip-zero  { background:#f1f5f9; color:#94a3b8; }
-      .footer { margin-top:24px; font-size:9px; color:#94a3b8; text-align:center; border-top:1px solid #e2e8f0; padding-top:12px; }
-      @page { margin:1.5cm; }
-    </style>
-  </head><body>
-    <div class="header">
-      <div class="header-meta">
-        <div>
-          <div style="font-size:10px;opacity:.6;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">
-            SME Ribeirão Preto · Elefante Letrado
-          </div>
-          <h1>${nome}</h1>
-          <p>${sub}</p>
-        </div>
-        <div class="header-data">Gerado em ${dataGer}</div>
-      </div>
-    </div>
-
-    ${alerta ? `<div class="alert-warn"><strong>⚠ Atenção:</strong> ${alerta.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim()}</div>` : ''}
-
-    <div class="kpis">${kpis.replace(/class="card-kpi[^"]*"/g,'').replace(/<div style="width[^>]+>/g,'').replace(/<\/div>\s*<\/div>/g,'</div>').replace(/class="kpi-val[^"]*"/g,'class="kpi-val"').replace(/class="label-mini"/g,'class="kpi-label"')}</div>
-
-    <div class="graficos">
-      <div class="grafico-box">
-        <h3>Engajamento vs Rede</h3>
-        ${imgEngaj ? `<img src="${imgEngaj}">` : ''}
-      </div>
-      <div class="grafico-box">
-        <h3>Engajamento por Turma</h3>
-        ${imgTurmas ? `<img src="${imgTurmas}">` : ''}
-      </div>
-    </div>
-
-    <div class="grafico-full">
-      <h3>Livros Lidos por Turma</h3>
-      ${imgLivros ? `<img src="${imgLivros}">` : ''}
-    </div>
-
-    <div class="section-title">Detalhe por Turma</div>
-    <table>
-      <thead>
-        <tr>
-          <th>Turma</th><th>Professor(es)</th><th>Turno</th>
-          <th>Estudantes</th><th>Leitores</th><th>Livros</th><th>Tempo</th><th>Engajamento</th>
-        </tr>
-      </thead>
-      <tbody>${tabela}</tbody>
-    </table>
-
-    <div class="footer">
-      Sistema MAPA · SME Ribeirão Preto · Dados referentes a ${sub.split('·')[0].trim()}
-    </div>
-
-    <script>window.onload=()=>{window.print();}<\/script>
-  </body></html>`);
+  if (!janela) { alert('Permita pop-ups para gerar o PDF.'); return; }
+  janela.document.open();
+  janela.document.write(parts.join(''));
   janela.document.close();
+  setTimeout(() => janela.print(), 600);
 }
 
 // ── Helpers ────────────────────────────────────────────────
