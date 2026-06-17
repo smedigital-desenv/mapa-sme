@@ -112,6 +112,15 @@
       color: #64748b; font-size: .85rem;
     }
 
+    /* ── Agrupamento por escola na visão turmas ─────────── */
+    .el-grp-header {
+      background: #f0f4ff;
+      border-left: 4px solid #002b5e;
+    }
+    .el-grp-header:hover { background: #e6ecff !important; }
+    .el-grp-row { background: white; }
+    .el-grp-row td:first-child { border-left: 4px solid #e2e8f0; }
+
     /* ── Responsive ─────────────────────────────────────── */
     @media (max-width: 768px) {
       .nav-header { padding: .75rem 1rem; }
@@ -254,9 +263,8 @@
           <thead class="table-light"
                  style="font-size:.75rem;color:#666;text-transform:uppercase;">
             <tr>
-              <th>Escola</th>
-              <th class="text-center">Ano</th>
-              <th class="text-center">Turma</th>
+              <th>Ano</th>
+              <th>Turma</th>
               <th class="text-center">Turno</th>
               <th>Professor(es)</th>
               <th class="text-center">Estudantes</th>
@@ -573,37 +581,95 @@ function renderTbTurmas(lista) {
   const c = document.getElementById('elContadorTurmas');
   if (c) c.textContent = `${lista.length} turma${lista.length !== 1 ? 's' : ''}`;
 
-  document.getElementById('elTbTurmas').innerHTML = lista.length
-    ? lista.map(t => {
-        const pct = t.estudantes > 0 ? Math.round((t.leitores / t.estudantes) * 100) : 0;
-        const engajCls = pct >= 80 ? 'el-chip-alto' : pct >= 40 ? 'el-chip-medio'
-                       : pct > 0  ? 'el-chip-baixo' : 'el-chip-zero';
-        const turnoBg  = t.turno === 'MANHA'
-          ? 'background:#dbeafe;color:#1e40af'
-          : 'background:#fef9c3;color:#854d0e';
-        return `
-          <tr>
-            <td style="font-size:.78rem;font-weight:600;">${esc(t.escola)}</td>
-            <td class="text-center small">${esc(t.ano_escolar)}</td>
-            <td class="text-center fw-bold small">${esc(t.turma)}</td>
-            <td class="text-center">
-              <span class="badge" style="${turnoBg};font-size:.65rem;font-weight:800;">
-                ${t.turno === 'MANHA' ? 'Manhã' : t.turno === 'TARDE' ? 'Tarde' : esc(t.turno)}
-              </span>
-            </td>
-            <td style="font-size:.72rem;max-width:200px;overflow:hidden;
-                       text-overflow:ellipsis;white-space:nowrap;"
-                title="${esc(t.professores)}">${esc(t.professores)||'—'}</td>
-            <td class="text-center">${t.estudantes||0}</td>
-            <td class="text-center fw-bold" style="color:#002b5e">${t.leitores||0}</td>
-            <td class="text-center">${(t.livros_lidos||0).toLocaleString('pt-BR')}</td>
-            <td class="text-center text-muted small">${hms(t.tempo_leitura_seg)}</td>
-            <td class="text-center">
-              <span class="el-chip ${engajCls}">${pct > 0 ? pct+'%' : '—'}</span>
-            </td>
-          </tr>`;
-      }).join('')
-    : '<tr><td colspan="10" class="text-center text-muted py-4">Nenhum resultado.</td></tr>';
+  if (!lista.length) {
+    document.getElementById('elTbTurmas').innerHTML =
+      '<tr><td colspan="9" class="text-center text-muted py-4">Nenhum resultado.</td></tr>';
+    return;
+  }
+
+  // Agrupa por escola mantendo a ordem original
+  const grupos = [];
+  const idx    = {};
+  lista.forEach(t => {
+    if (idx[t.escola] === undefined) {
+      idx[t.escola] = grupos.length;
+      grupos.push({ escola: t.escola, turmas: [] });
+    }
+    grupos[idx[t.escola]].turmas.push(t);
+  });
+
+  const html = grupos.map((g, gi) => {
+    const totalLivros   = g.turmas.reduce((s, t) => s + (t.livros_lidos||0), 0);
+    const totalEstud    = g.turmas.reduce((s, t) => s + (t.estudantes||0), 0);
+    const totalLeitores = g.turmas.reduce((s, t) => s + (t.leitores||0), 0);
+    const totalSeg      = g.turmas.reduce((s, t) => s + (t.tempo_leitura_seg||0), 0);
+    const pctGeral      = totalEstud > 0 ? Math.round((totalLeitores / totalEstud) * 100) : 0;
+    const engajCls      = pctGeral >= 80 ? 'el-chip-alto' : pctGeral >= 40 ? 'el-chip-medio'
+                        : pctGeral > 0   ? 'el-chip-baixo' : 'el-chip-zero';
+    const grpId = `grp_${gi}`;
+
+    // Linha de cabeçalho da escola (clicável)
+    const linhaEscola = `
+      <tr class="el-grp-header" onclick="toggleGrupo('${grpId}')" style="cursor:pointer;">
+        <td colspan="2" style="font-weight:900;font-size:.82rem;color:#002b5e;padding-left:12px;">
+          <i class="bi bi-chevron-down el-grp-icon" id="icon_${grpId}"
+             style="font-size:.7rem;margin-right:6px;transition:.2s;"></i>
+          ${esc(g.escola)}
+        </td>
+        <td class="text-center">
+          <span class="badge" style="background:#e0e7ff;color:#3730a3;font-size:.65rem;font-weight:800;">
+            ${g.turmas.length} turma${g.turmas.length !== 1 ? 's' : ''}
+          </span>
+        </td>
+        <td class="text-center text-muted small" colspan="2">—</td>
+        <td class="text-center fw-bold" style="color:#002b5e">${totalEstud}</td>
+        <td class="text-center fw-bold" style="color:#0062ff">${totalLivros.toLocaleString('pt-BR')}</td>
+        <td class="text-center text-muted small">${hms(totalSeg)}</td>
+        <td class="text-center"><span class="el-chip ${engajCls}">${pctGeral > 0 ? pctGeral+'%' : '—'}</span></td>
+      </tr>`;
+
+    // Linhas de turma (inicialmente visíveis)
+    const linhasTurma = g.turmas.map(t => {
+      const pct     = t.estudantes > 0 ? Math.round((t.leitores / t.estudantes) * 100) : 0;
+      const eCls    = pct >= 80 ? 'el-chip-alto' : pct >= 40 ? 'el-chip-medio'
+                    : pct > 0   ? 'el-chip-baixo' : 'el-chip-zero';
+      const turnoBg = t.turno === 'MANHA'
+        ? 'background:#dbeafe;color:#1e40af'
+        : 'background:#fef9c3;color:#854d0e';
+      return `
+        <tr class="el-grp-row" data-grp="${grpId}">
+          <td style="padding-left:28px;font-size:.75rem;color:#64748b;">
+            <i class="bi bi-arrow-return-right me-1" style="font-size:.65rem;opacity:.4;"></i>
+            ${esc(t.ano_escolar)}
+          </td>
+          <td class="fw-bold small">${esc(t.turma)}</td>
+          <td class="text-center">
+            <span class="badge" style="${turnoBg};font-size:.65rem;font-weight:800;">
+              ${t.turno === 'MANHA' ? 'Manhã' : t.turno === 'TARDE' ? 'Tarde' : esc(t.turno)}
+            </span>
+          </td>
+          <td style="font-size:.72rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+              title="${esc(t.professores)}">${esc(t.professores)||'—'}</td>
+          <td class="text-center small text-muted">${t.estudantes||0}</td>
+          <td class="text-center fw-bold" style="color:#002b5e">${t.leitores||0}</td>
+          <td class="text-center">${(t.livros_lidos||0).toLocaleString('pt-BR')}</td>
+          <td class="text-center text-muted small">${hms(t.tempo_leitura_seg)}</td>
+          <td class="text-center"><span class="el-chip ${eCls}">${pct > 0 ? pct+'%' : '—'}</span></td>
+        </tr>`;
+    }).join('');
+
+    return linhaEscola + linhasTurma;
+  }).join('');
+
+  document.getElementById('elTbTurmas').innerHTML = html;
+}
+
+function toggleGrupo(grpId) {
+  const rows = document.querySelectorAll(`[data-grp="${grpId}"]`);
+  const icon = document.getElementById(`icon_${grpId}`);
+  const aberto = rows[0]?.style.display !== 'none';
+  rows.forEach(r => r.style.display = aberto ? 'none' : '');
+  if (icon) icon.style.transform = aberto ? 'rotate(-90deg)' : 'rotate(0deg)';
 }
 
 // ── Gráficos ───────────────────────────────────────────────
