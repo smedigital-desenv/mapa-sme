@@ -543,7 +543,7 @@ async function getMeses() {
 }
 
 async function getEscolas(mes) {
-  return apiFetch(`elefante_escolas?mes_referencia=eq.${mes}&order=leituras_concluidas.desc`);
+  return apiFetch(`elefante_escolas?mes_referencia=eq.${mes}&order=nome_escola.asc`);
 }
 
 async function getTurmas(mes) {
@@ -660,7 +660,20 @@ function renderTabela(busca) {
     turmasPorEscola[t.escola].push(t);
   });
 
-  const html = escolas.map((e, gi) => {
+  // Ordena escolas por engajamento (% leitores / estudantes)
+  const escolasOrdenadas = [...escolas].sort((a, b) => {
+    const ta = turmasPorEscola[a.nome_escola] || [];
+    const tb = turmasPorEscola[b.nome_escola] || [];
+    const estA = ta.reduce((s,t) => s+(t.estudantes||0), 0);
+    const estB = tb.reduce((s,t) => s+(t.estudantes||0), 0);
+    const leiA = ta.reduce((s,t) => s+(t.leitores||0), 0);
+    const leiB = tb.reduce((s,t) => s+(t.leitores||0), 0);
+    const pctA = estA > 0 ? leiA/estA : 0;
+    const pctB = estB > 0 ? leiB/estB : 0;
+    return pctB - pctA;
+  });
+
+  const html = escolasOrdenadas.map((e, gi) => {
     const grpId  = `grp_${gi}`;
     const turmas = turmasPorEscola[e.nome_escola] || [];
 
