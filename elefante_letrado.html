@@ -679,8 +679,8 @@ function renderTabela(busca) {
           <i class="bi bi-chevron-right el-grp-icon" id="icon_${grpId}"
              style="font-size:.7rem;margin-right:6px;transition:transform .2s;cursor:pointer;"
              onclick="toggleGrupo('${grpId}')"></i>
-          <span style="cursor:pointer;text-decoration-color:#002b5e;"
-                onclick="abrirModalEscola(${JSON.stringify(e.nome_escola)})"
+          <span style="cursor:pointer;"
+                onclick="abrirModalEscola(${gi})"
                 title="Clique para ver detalhes da escola">
             ${esc(e.nome_escola)}
           </span>
@@ -690,7 +690,7 @@ function renderTabela(busca) {
           </span>
           <i class="bi bi-box-arrow-up-right ms-2 text-primary"
              style="font-size:.65rem;opacity:.5;cursor:pointer;"
-             onclick="abrirModalEscola(${JSON.stringify(e.nome_escola)})"
+             onclick="abrirModalEscola(${gi})"
              title="Ver detalhes"></i>
         </td>
         <td class="text-center text-muted small">—</td>
@@ -1013,9 +1013,10 @@ let _chartEngajRede  = null;
 let _chartTurmasEngaj = null;
 let _chartTurmasLivros= null;
 
-function abrirModalEscola(nomeEscola) {
-  const escola  = S.escolas.find(e => e.nome_escola === nomeEscola);
-  if (!escola) return;
+function abrirModalEscola(idx) {
+  const e      = S.escolas[idx];
+  if (!e) return;
+  const nomeEscola = e.nome_escola;
 
   const turmas  = S.turmas.filter(t => t.escola === nomeEscola);
 
