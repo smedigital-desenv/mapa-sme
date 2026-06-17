@@ -879,7 +879,54 @@
     border-radius: 10px;
   }
 
-</style>
+
+
+    /* ── CONFIGURAÇÕES ───────────────────────────────────── */
+    .config-card {
+      background: #fff;
+      border-radius: 15px;
+      padding: 1.25rem;
+      box-shadow: 0 4px 15px rgba(0,0,0,.05);
+      border: 1px solid #e5edf6;
+      height: 100%;
+    }
+    .config-title {
+      color: var(--primary);
+      font-weight: 950;
+      font-size: 1rem;
+      margin-bottom: .75rem;
+    }
+    .series-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 8px;
+      max-height: 520px;
+      overflow-y: auto;
+      padding-right: 6px;
+    }
+    .series-item {
+      border: 1px solid #dbe5ef;
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: #f8fafc;
+      font-size: .76rem;
+      font-weight: 800;
+      color: #0f172a;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      min-height: 42px;
+    }
+    .series-item input { margin-top: 2px; }
+    .config-mini {
+      font-size: .68rem;
+      font-weight: 900;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+  </style>
 
 
   <style>
@@ -1094,6 +1141,11 @@
           <input type="radio" class="btn-check" name="mainNav" id="navRede" autocomplete="off" onclick="switchMainView('Rede')">
           <label class="btn btn-outline-light nav-btn-main" for="navRede">
             <i class="bi bi-people-fill me-2"></i>Rede
+          </label>
+
+          <input type="radio" class="btn-check" name="mainNav" id="navConfiguracoes" autocomplete="off" onclick="switchMainView('Configuracoes')">
+          <label class="btn btn-outline-light nav-btn-main" for="navConfiguracoes">
+            <i class="bi bi-gear-fill me-2"></i>Configurações
           </label>
         </div>
 
@@ -1341,6 +1393,100 @@
             </div>
           </div>
         </section>
+      </div>
+    </section>
+
+
+    <!-- ═════════════════════════════════════════════════════
+         VIEW CONFIGURAÇÕES
+         ═════════════════════════════════════════════════════ -->
+    <section id="viewConfiguracoes" class="d-none">
+      <div class="row g-3 mb-4">
+        <div class="col-12">
+          <div class="avaliacao-header-card">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+              <div>
+                <div class="mini-label mb-1">Administração</div>
+                <h5 class="avaliacao-title m-0"><i class="bi bi-gear-fill me-2"></i>Configurações do MAPA</h5>
+              </div>
+              <button class="btn btn-primary fw-bold" onclick="carregarConfiguracoesMapa(true)">
+                <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-5">
+          <div class="config-card">
+            <div class="config-title"><i class="bi bi-person-lock me-2"></i>Usuários e acessos</div>
+            <div class="row g-2 mb-3">
+              <div class="col-12 col-md-6">
+                <label class="config-mini">E-mail</label>
+                <input id="cfgEmailUsuario" class="form-control" placeholder="usuario@educacao.pmrp.sp.gov.br">
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="config-mini">Unidade</label>
+                <select id="cfgUnidadeUsuario" class="form-select"></select>
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="config-mini">Perfil</label>
+                <select id="cfgPerfilUsuario" class="form-select">
+                  <option value="ADMIN">ADMIN</option>
+                  <option value="REDE">REDE</option>
+                  <option value="ESCOLA">ESCOLA</option>
+                  <option value="LEITURA">LEITURA</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-8">
+                <label class="config-mini">Telas liberadas</label>
+                <div class="d-flex flex-wrap gap-2 pt-2">
+                  <label class="small fw-bold"><input type="checkbox" id="cfgAcessoTurmas" checked> Turmas</label>
+                  <label class="small fw-bold"><input type="checkbox" id="cfgAcessoAvaliacoes" checked> Avaliações</label>
+                  <label class="small fw-bold"><input type="checkbox" id="cfgAcessoRede" checked> Rede</label>
+                  <label class="small fw-bold"><input type="checkbox" id="cfgAcessoConfig"> Config.</label>
+                  <label class="small fw-bold"><input type="checkbox" id="cfgUsuarioAtivo" checked> Ativo</label>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="config-mini">Observação</label>
+                <input id="cfgObsUsuario" class="form-control" placeholder="Observação opcional">
+              </div>
+              <div class="col-12 d-flex gap-2">
+                <button class="btn btn-success fw-bold" onclick="salvarUsuarioConfiguracao()"><i class="bi bi-check-circle me-1"></i>Salvar usuário</button>
+                <button class="btn btn-outline-secondary fw-bold" onclick="limparFormularioUsuarioConfig()">Limpar</button>
+              </div>
+            </div>
+
+            <div class="table-responsive" style="max-height:420px;overflow:auto;">
+              <table class="table table-sm align-middle">
+                <thead class="table-light">
+                  <tr><th>E-mail</th><th>Unidade</th><th>Perfil</th><th>Status</th><th></th></tr>
+                </thead>
+                <tbody id="cfgUsuariosTabela"><tr><td colspan="5" class="text-muted">Carregando…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-7">
+          <div class="config-card">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+              <div>
+                <div class="config-title m-0"><i class="bi bi-filter-circle me-2"></i>Séries excluídas momentaneamente dos relatórios</div>
+                <div class="small text-muted">As séries marcadas serão ignoradas no relatório de Turmas. As séries da lista inicial já vêm marcadas.</div>
+              </div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary btn-sm fw-bold" onclick="marcarTodasSeriesConfig(true)">Marcar todas</button>
+                <button class="btn btn-outline-secondary btn-sm fw-bold" onclick="marcarTodasSeriesConfig(false)">Desmarcar</button>
+                <button class="btn btn-success btn-sm fw-bold" onclick="salvarSeriesExcluidasConfig()"><i class="bi bi-save me-1"></i>Salvar</button>
+              </div>
+            </div>
+            <input id="cfgBuscaSerie" class="form-control mb-3" placeholder="Pesquisar série..." oninput="filtrarSeriesConfig()">
+            <div id="cfgSeriesLista" class="series-grid">
+              <div class="text-muted">Carregando séries…</div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -2715,11 +2861,11 @@ function _chaveBimestre(key, filtros) {
 
 function _chavePacoteBimestre(key, filtrosBase) {
   filtrosBase = filtrosBase || {};
-  return ['pacote_bim_supa_v6_match_appscript', key, filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacote_bim_supa_v7_config', key, filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _chaveTotal(filtros) {
-  return ['total_supa_v6_match_appscript', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
+  return ['total_supa_v7_config', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
 }
 
 function _chaveDetalhe(key, filtros) {
@@ -2735,7 +2881,7 @@ function _chaveBimestreCompleto(key) {
 }
 
 function _chaveHierarquiaTotal(ano) {
-  return ['hier_total_supa_v6_match_appscript', ano || 'TODOS'].join('|');
+  return ['hier_total_supa_v7_config', ano || 'TODOS'].join('|');
 }
 
 // ===========================================================
@@ -3217,7 +3363,7 @@ function _setAnoFiltroAtualSeguro(ano, btn) {
 
 function _chavePacoteTotal(filtrosBase) {
   filtrosBase = filtrosBase || {};
-  return ['pacoteTotal_supa_v6_match_appscript', filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacoteTotal_supa_v7_config', filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _backendTemPacoteTotal() {
@@ -6490,6 +6636,36 @@ function _renderTabelaTotal(linhas) {
     'POTENCIALIDADES': { 'S':'Sim','N':'Não','X':'Não Avaliado' }
   };
 
+
+
+  const SERIES_EXCLUIDAS_PADRAO = [
+    'PROFESSOR APOIO PEDAGOGICO-10H/A',
+    'PROFESSOR APOIO PEDAGOGICO 3H/A',
+    'PROFESSOR APOIO PEDAGOGICO-5H/A',
+    'PROFESSOR APOIO PEDAGOGICO-1H/A',
+    'PROFESSOR APOIO PEDAGOGICO-11H/A',
+    'PROFESSOR APOIO PEDAGOGICO-8H/A',
+    'PROFESSOR APOIO PEDAGOGICO 6H',
+    'AULA EVENTUAL SL REC. A.E.E. 12H/A',
+    'AULA EVENTUAL SL REC. A.E.E. 6H/A',
+    'AULA EVENTUAL SL REC. A.E.E. 11H/A',
+    'AULA EVENTUAL SL REC. A.E.E. 7H/A',
+    'AULA EVENTUAL SL REC. A.E.E. 10H/A',
+    'ARTESANATO',
+    'TÉC. AGRÍCOLA',
+    'CULINÁRIA',
+    'GUARDAR CARROS',
+    'LAVAR CARROS',
+    'COSTURA',
+    'PADEIRO/CONFEITEIRO',
+    'ELÉTRICA',
+    'PEDREIRO',
+    'INFORMÁTICA',
+    'MECÂNICA'
+  ];
+
+  let _seriesExcluidasCache = null;
+
   function normalizar(txt) {
     return String(txt || '')
       .trim()
@@ -6516,6 +6692,34 @@ function _renderTabelaTotal(linhas) {
     // Base_MAPA às vezes traz unidade sem sufixos como ", EMEF" ou ", PROFº.".
     // Para comparar com Turmas, usamos a parte principal do nome.
     return normalizar(String(valor || '').split(',')[0] || valor).replace(/[^A-Z0-9]+/g, ' ').trim();
+  }
+
+
+  function serieNormConfig(valor) {
+    return normalizar(valor).replace(/[^A-Z0-9]+/g, ' ').trim();
+  }
+
+  function serieExcluidaPorSet(anoEscolar, setSeries) {
+    if (!setSeries || !setSeries.size) return false;
+    return setSeries.has(serieNormConfig(anoEscolar));
+  }
+
+  async function getSeriesExcluidasSet(forcar) {
+    if (_seriesExcluidasCache && !forcar) return _seriesExcluidasCache;
+    let linhas = [];
+    try {
+      linhas = await fetchAll('config_series_excluidas');
+    } catch (err) {
+      console.warn('[MAPA Config] tabela config_series_excluidas ainda não existe; usando padrão local.', err);
+    }
+    const set = new Set();
+    if (linhas && linhas.length) {
+      linhas.filter(r => r.excluido !== false).forEach(r => set.add(serieNormConfig(r.serie)));
+    } else {
+      SERIES_EXCLUIDAS_PADRAO.forEach(s => set.add(serieNormConfig(s)));
+    }
+    _seriesExcluidasCache = set;
+    return set;
   }
 
   function normVl(vl) {
@@ -6777,9 +6981,10 @@ function _renderTabelaTotal(linhas) {
 
   const api = {
     async getDashboardLeve() {
-      const [turmas, baseMapa] = await Promise.all([
+      const [turmas, baseMapa, seriesExcluidas] = await Promise.all([
         fetchAll('turmas'),
-        fetchAll('base_mapa').catch(() => [])
+        fetchAll('base_mapa').catch(() => []),
+        getSeriesExcluidasSet(false)
       ]);
 
       console.info('[MAPA Supabase v6 MatchAppScript] adaptador ativo');
@@ -6790,6 +6995,7 @@ function _renderTabelaTotal(linhas) {
       const disciplinasTurmas = {};
 
       turmas.forEach(row => {
+        if (serieExcluidaPorSet(row.ano_escolar, seriesExcluidas)) return;
         const unit = cleanUnit(row.nome_unidade || 'Sem unidade');
         const disc = String(normalizarDisciplina(row.descricao_disciplina || '') || '').trim().toUpperCase();
         if (!disc) return;
@@ -7169,11 +7375,87 @@ function _renderTabelaTotal(linhas) {
 
     async getDetalhesTurmasDisciplina(disciplina, unidade, periodo) {
       const rows = await fetchAll('turmas', '*', q => q.eq('nome_unidade', unidade));
+      const seriesExcluidas = await getSeriesExcluidasSet(false);
       const details = rows
+        .filter(r => !serieExcluidaPorSet(r.ano_escolar, seriesExcluidas))
         .filter(r => String(normalizarDisciplina(r.descricao_disciplina || '')).toUpperCase() === String(normalizarDisciplina(disciplina || '')).toUpperCase())
         .filter(r => periodoDesc(r.periodo) === periodo)
         .map(r => detalheTurma(r, String(r.descricao_disciplina || '').trim().toUpperCase(), Number(r.carga_horaria || 0), isAtribuido(r), isSubstituto(r)));
       return { ok: true, details };
+    },
+
+
+    async getConfiguracoesMapa() {
+      const [usuarios, unidades, turmas, cfgSeries] = await Promise.all([
+        fetchAll('usuarios').catch(() => []),
+        fetchAll('unidades').catch(() => []),
+        fetchAll('turmas', 'ano_escolar').catch(() => []),
+        fetchAll('config_series_excluidas').catch(() => [])
+      ]);
+
+      const todas = new Set();
+      turmas.forEach(r => { if (r.ano_escolar) todas.add(String(r.ano_escolar).trim()); });
+      SERIES_EXCLUIDAS_PADRAO.forEach(s => todas.add(s));
+
+      const cfgExiste = cfgSeries && cfgSeries.length > 0;
+      const cfgMap = new Map((cfgSeries || []).map(r => [serieNormConfig(r.serie), r.excluido !== false]));
+      const padrao = new Set(SERIES_EXCLUIDAS_PADRAO.map(serieNormConfig));
+
+      const series = Array.from(todas).filter(Boolean).sort((a,b) => a.localeCompare(b)).map(serie => ({
+        serie,
+        excluido: cfgExiste ? cfgMap.get(serieNormConfig(serie)) === true : padrao.has(serieNormConfig(serie))
+      }));
+
+      return {
+        ok: true,
+        usuarios: usuarios || [],
+        unidades: (unidades || []).map(u => u.nome_unidade || '').filter(Boolean).sort(),
+        series
+      };
+    },
+
+    async salvarUsuarioConfiguracao(payload) {
+      payload = payload || {};
+      const email = String(payload.email_usuario || '').trim().toLowerCase();
+      if (!email) return { ok: false, message: 'E-mail não informado.' };
+
+      const row = {
+        email_usuario: email,
+        nome_unidade: payload.nome_unidade || '',
+        observacao: payload.observacao || '',
+        perfil: payload.perfil || 'ESCOLA',
+        ativo: payload.ativo !== false,
+        acesso_turmas: payload.acesso_turmas !== false,
+        acesso_avaliacoes: payload.acesso_avaliacoes !== false,
+        acesso_rede: payload.acesso_rede !== false,
+        acesso_configuracoes: payload.acesso_configuracoes === true
+      };
+
+      const { error } = await supa.from('usuarios').upsert(row, { onConflict: 'email_usuario' });
+      if (error) throw error;
+      return { ok: true, message: 'Usuário salvo.' };
+    },
+
+    async removerUsuarioConfiguracao(email) {
+      email = String(email || '').trim().toLowerCase();
+      if (!email) return { ok: false, message: 'E-mail não informado.' };
+      const { error } = await supa.from('usuarios').delete().eq('email_usuario', email);
+      if (error) throw error;
+      return { ok: true };
+    },
+
+    async salvarSeriesExcluidas(seriesMarcadas) {
+      const lista = Array.isArray(seriesMarcadas) ? seriesMarcadas : [];
+      const rows = lista.map(s => ({ serie: String(s || '').trim(), excluido: true })).filter(r => r.serie);
+
+      await supa.from('config_series_excluidas').delete().neq('serie', '__nao_existe__');
+      if (rows.length) {
+        const { error } = await supa.from('config_series_excluidas').insert(rows);
+        if (error) throw error;
+      }
+
+      _seriesExcluidasCache = null;
+      return { ok: true, total: rows.length };
     },
 
     async getTurmasPPASemProfessor() { return { ok: true, turmas: [] }; },
@@ -7265,7 +7547,7 @@ function _preCarregarPrimeiroBimInicial() {
 // ===========================================================
 function _cacheGetDashboardLevePreferencial() {
   const chaves = [
-    'dashboardLeve|turmasFast|supa_v6_match_appscript',
+    'dashboardLeve|turmasFast|supa_v7_config',
     'dashboardLeve|legacy_v4_ignorar',
     'dashboardLeve|legacy_v3_ignorar'
   ];
@@ -7279,7 +7561,7 @@ function _cacheGetDashboardLevePreferencial() {
 }
 
 function atualizarDados() {
-  const chDash = 'dashboardLeve|turmasFast|supa_v6_match_appscript';
+  const chDash = 'dashboardLeve|turmasFast|supa_v7_config';
   const cached = _cacheGetDashboardLevePreferencial();
   let jaRenderizou = false;
 
@@ -7529,15 +7811,24 @@ function switchMainView(view) {
   const vAlunos = document.getElementById('viewAlunos');
   const vBimestre = document.getElementById('viewBimestre1');
   const vTotal = document.getElementById('viewTotal');
+  const vConfig = document.getElementById('viewConfiguracoes');
 
   [subNavTurmas, subNavAvaliacoes].forEach(el => el && el.classList.add('d-none'));
-  [vTurmas, vAlunos, vBimestre, vTotal].forEach(el => el && el.classList.add('d-none'));
+  [vTurmas, vAlunos, vBimestre, vTotal, vConfig].forEach(el => el && el.classList.add('d-none'));
   mostrarAnoFilterBar(false);
 
   if (view === 'Turmas') {
     if (subNavTurmas) subNavTurmas.classList.remove('d-none');
     if (vTurmas) vTurmas.classList.remove('d-none');
     switchProject(currentProject);
+    return;
+  }
+
+
+
+  if (view === 'Configuracoes') {
+    if (vConfig) vConfig.classList.remove('d-none');
+    carregarConfiguracoesMapa(false);
     return;
   }
 
@@ -7586,7 +7877,7 @@ function abrirAvaliacao(tipo, btn) {
   _preAquecerAvaliacao(tipo);
   marcarSubAvaliacao(tipo, btn);
 
-  ['viewTurmas','viewAlunos','viewBimestre1','viewTotal'].forEach(id => {
+  ['viewTurmas','viewAlunos','viewBimestre1','viewTotal','viewConfiguracoes'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.add('d-none');
   });
@@ -7653,6 +7944,127 @@ function limparAreaAvaliacao() {
   if (typeof fecharDetalheEixo === 'function') fecharDetalheEixo();
 }
 </script>
+
+
+  <script>
+    let _configMapaCache = null;
+
+    function carregarConfiguracoesMapa(forcar) {
+      const areaSeries = document.getElementById('cfgSeriesLista');
+      const tabUsuarios = document.getElementById('cfgUsuariosTabela');
+      if (areaSeries) areaSeries.innerHTML = '<div class="text-muted">Carregando séries…</div>';
+      if (tabUsuarios) tabUsuarios.innerHTML = '<tr><td colspan="5" class="text-muted">Carregando…</td></tr>';
+
+      google.script.run
+        .withSuccessHandler(res => {
+          _configMapaCache = res || { usuarios: [], unidades: [], series: [] };
+          renderConfiguracoesMapa();
+        })
+        .withFailureHandler(err => {
+          console.error('Erro configurações:', err);
+          if (areaSeries) areaSeries.innerHTML = `<div class="alert alert-warning">Erro ao carregar configurações: ${escapeHtml(err?.message || err)}</div>`;
+        })
+        .getConfiguracoesMapa();
+    }
+
+    function renderConfiguracoesMapa() {
+      const cfg = _configMapaCache || { usuarios: [], unidades: [], series: [] };
+      const sel = document.getElementById('cfgUnidadeUsuario');
+      if (sel) {
+        sel.innerHTML = '<option value="">Todas / Rede</option>' + (cfg.unidades || []).map(u => `<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
+      }
+
+      const tbody = document.getElementById('cfgUsuariosTabela');
+      if (tbody) {
+        tbody.innerHTML = (cfg.usuarios || []).map(u => `
+          <tr>
+            <td class="fw-bold small">${escapeHtml(u.email_usuario || '')}</td>
+            <td class="small text-muted">${escapeHtml(u.nome_unidade || 'Todas / Rede')}</td>
+            <td><span class="badge bg-primary">${escapeHtml(u.perfil || 'ESCOLA')}</span></td>
+            <td>${u.ativo === false ? '<span class="badge bg-danger">Inativo</span>' : '<span class="badge bg-success">Ativo</span>'}</td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-outline-primary" onclick="editarUsuarioConfig('${escapeJs(u.email_usuario || '')}')"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn-sm btn-outline-danger" onclick="removerUsuarioConfig('${escapeJs(u.email_usuario || '')}')"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>`).join('') || '<tr><td colspan="5" class="text-muted">Nenhum usuário cadastrado.</td></tr>';
+      }
+
+      const lista = document.getElementById('cfgSeriesLista');
+      if (lista) {
+        lista.innerHTML = (cfg.series || []).map((s, idx) => `
+          <label class="series-item" data-serie-label="${escapeHtml(normalizarTextoSemAcento(s.serie))}">
+            <input type="checkbox" class="cfg-serie-check" value="${escapeHtml(s.serie)}" ${s.excluido ? 'checked' : ''}>
+            <span>${escapeHtml(s.serie)}</span>
+          </label>`).join('') || '<div class="text-muted">Nenhuma série encontrada.</div>';
+      }
+    }
+
+    function editarUsuarioConfig(email) {
+      const u = (_configMapaCache?.usuarios || []).find(x => String(x.email_usuario || '').toLowerCase() === String(email || '').toLowerCase());
+      if (!u) return;
+      document.getElementById('cfgEmailUsuario').value = u.email_usuario || '';
+      document.getElementById('cfgUnidadeUsuario').value = u.nome_unidade || '';
+      document.getElementById('cfgPerfilUsuario').value = u.perfil || 'ESCOLA';
+      document.getElementById('cfgUsuarioAtivo').checked = u.ativo !== false;
+      document.getElementById('cfgAcessoTurmas').checked = u.acesso_turmas !== false;
+      document.getElementById('cfgAcessoAvaliacoes').checked = u.acesso_avaliacoes !== false;
+      document.getElementById('cfgAcessoRede').checked = u.acesso_rede !== false;
+      document.getElementById('cfgAcessoConfig').checked = u.acesso_configuracoes === true;
+      document.getElementById('cfgObsUsuario').value = u.observacao || '';
+    }
+
+    function limparFormularioUsuarioConfig() {
+      ['cfgEmailUsuario','cfgObsUsuario'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      document.getElementById('cfgUnidadeUsuario').value = '';
+      document.getElementById('cfgPerfilUsuario').value = 'ESCOLA';
+      document.getElementById('cfgUsuarioAtivo').checked = true;
+      document.getElementById('cfgAcessoTurmas').checked = true;
+      document.getElementById('cfgAcessoAvaliacoes').checked = true;
+      document.getElementById('cfgAcessoRede').checked = true;
+      document.getElementById('cfgAcessoConfig').checked = false;
+    }
+
+    function salvarUsuarioConfiguracao() {
+      const payload = {
+        email_usuario: document.getElementById('cfgEmailUsuario').value,
+        nome_unidade: document.getElementById('cfgUnidadeUsuario').value,
+        perfil: document.getElementById('cfgPerfilUsuario').value,
+        ativo: document.getElementById('cfgUsuarioAtivo').checked,
+        acesso_turmas: document.getElementById('cfgAcessoTurmas').checked,
+        acesso_avaliacoes: document.getElementById('cfgAcessoAvaliacoes').checked,
+        acesso_rede: document.getElementById('cfgAcessoRede').checked,
+        acesso_configuracoes: document.getElementById('cfgAcessoConfig').checked,
+        observacao: document.getElementById('cfgObsUsuario').value
+      };
+      google.script.run.withSuccessHandler(() => { limparFormularioUsuarioConfig(); carregarConfiguracoesMapa(true); }).salvarUsuarioConfiguracao(payload);
+    }
+
+    function removerUsuarioConfig(email) {
+      if (!confirm('Remover este usuário?')) return;
+      google.script.run.withSuccessHandler(() => carregarConfiguracoesMapa(true)).removerUsuarioConfiguracao(email);
+    }
+
+    function marcarTodasSeriesConfig(valor) {
+      document.querySelectorAll('.cfg-serie-check').forEach(ch => ch.checked = !!valor);
+    }
+
+    function filtrarSeriesConfig() {
+      const q = normalizarTextoSemAcento(document.getElementById('cfgBuscaSerie')?.value || '');
+      document.querySelectorAll('.series-item').forEach(el => {
+        el.classList.toggle('d-none', q && !(el.dataset.serieLabel || '').includes(q));
+      });
+    }
+
+    function salvarSeriesExcluidasConfig() {
+      const series = Array.from(document.querySelectorAll('.cfg-serie-check:checked')).map(ch => ch.value);
+      google.script.run.withSuccessHandler(() => {
+        if (typeof limparTodoCacheFront === 'function') limparTodoCacheFront();
+        alert('Séries excluídas salvas. Os relatórios serão recarregados.');
+        atualizarDados();
+        carregarConfiguracoesMapa(true);
+      }).salvarSeriesExcluidas(series);
+    }
+  </script>
 
   <!-- Compatibilidade / pequenos ajustes do Index -->
   <script>
