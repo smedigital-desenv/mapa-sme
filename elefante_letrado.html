@@ -303,42 +303,30 @@
         <!-- Alerta turmas zero -->
         <div id="escolaAlertaZero"></div>
 
-        <!-- Gráficos -->
-        <div class="row g-3 mb-4">
-          <div class="col-12 col-md-5">
-            <div class="chart-container h-100">
-              <h6 class="fw-bold mb-1" style="font-size:.8rem;color:#64748b;">
-                <i class="bi bi-speedometer2 me-2 text-primary"></i>Engajamento vs Rede
-              </h6>
-              <p class="text-muted mb-3" style="font-size:.7rem;">
-                Esta escola · Média da rede · Melhor da rede
-              </p>
-              <div style="position:relative;height:200px;"><canvas id="chartEngajRede"></canvas></div>
-            </div>
-          </div>
-          <div class="col-12 col-md-7">
-            <div class="chart-container h-100">
-              <h6 class="fw-bold mb-1" style="font-size:.8rem;color:#64748b;">
-                <i class="bi bi-people-fill me-2 text-primary"></i>Engajamento por Turma
-              </h6>
-              <p class="text-muted mb-3" style="font-size:.7rem;">
-                % de estudantes leitores — linha vermelha = média da escola
-              </p>
-              <div style="position:relative;height:200px;"><canvas id="chartTurmasEngaj"></canvas></div>
-            </div>
-          </div>
-        </div>
-
+        <!-- Gráfico unificado: engajamento por turma vs escola vs rede -->
         <div class="row g-3 mb-2">
-          <div class="col-12">
+          <div class="col-12 col-lg-8">
+            <div class="chart-container">
+              <h6 class="fw-bold mb-1" style="font-size:.8rem;color:#64748b;">
+                <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Engajamento por Turma
+              </h6>
+              <p class="text-muted mb-3" style="font-size:.7rem;">
+                % de estudantes leitores por turma ·
+                <span style="color:#EC4899;font-weight:700;">— — média da escola</span> ·
+                <span style="color:#6366F1;font-weight:700;">— — média da rede</span>
+              </p>
+              <div style="position:relative;height:260px;"><canvas id="chartTurmasEngaj"></canvas></div>
+            </div>
+          </div>
+          <div class="col-12 col-lg-4">
             <div class="chart-container">
               <h6 class="fw-bold mb-1" style="font-size:.8rem;color:#64748b;">
                 <i class="bi bi-book me-2 text-primary"></i>Livros Lidos por Turma
               </h6>
               <p class="text-muted mb-3" style="font-size:.7rem;">
-                Total de leituras concluídas por turma no período
+                Total de leituras concluídas no período
               </p>
-              <div style="position:relative;height:220px;"><canvas id="chartTurmasLivros"></canvas></div>
+              <div style="position:relative;height:260px;"><canvas id="chartTurmasLivros"></canvas></div>
             </div>
           </div>
         </div>
@@ -1035,9 +1023,8 @@ async function lerXlsx(file) {
 }
 
 // ── Modal da Escola ────────────────────────────────────────
-let _chartEngajRede  = null;
-let _chartTurmasEngaj = null;
-let _chartTurmasLivros= null;
+let _chartTurmasEngaj  = null;
+let _chartTurmasLivros = null;
 
 function abrirModalEscola(idx) {
   const e = S.escolas[idx];
@@ -1105,70 +1092,47 @@ function abrirModalEscola(idx) {
        </div>` : '';
 
   // ── Destrói gráficos anteriores ──────────────────────────
-  [_chartEngajRede, _chartTurmasEngaj, _chartTurmasLivros].forEach(c => c?.destroy());
+  [_chartTurmasEngaj, _chartTurmasLivros].forEach(c => c?.destroy());
 
   // Aguarda modal abrir antes de criar gráficos
   const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscola'));
   modal.show();
 
   setTimeout(() => {
-    // Gráfico 1: Engajamento vs Rede
-    const ctx1 = document.getElementById('chartEngajRede')?.getContext('2d');
-    if (ctx1) {
-      _chartEngajRede = new Chart(ctx1, {
-        type: 'bar',
-        data: {
-          labels: ['Esta escola', 'Média da rede', 'Melhor da rede'],
-          datasets: [{
-            data: [engajEsc, mediaRede, melhorRede],
-            backgroundColor: [
-              engajEsc >= mediaRede ? '#10B981' : '#FF007F',
-              '#F59E0B',
-              '#10B981',
-            ],
-            borderRadius: 8, borderSkipped: false,
-          }],
-        },
-        options: {
-          responsive:true, maintainAspectRatio:false,
-          plugins: {
-            legend: { display:false },
-            tooltip: { callbacks: { label: ctx => ' '+ctx.raw+'%' } },
-          },
-          scales: {
-            y: { beginAtZero:true, max:100, ticks:{ callback:v=>v+'%', font:{size:9} }, grid:{color:'#f1f5f9'} },
-            x: { ticks:{ font:{size:10, weight:'700'} } },
-          },
-        },
-      });
-    }
-
-    // Gráfico 2: Engajamento por turma
+    // ── Engajamento por turma: colunas verticais com linhas de referência ──
     const ctx2 = document.getElementById('chartTurmasEngaj')?.getContext('2d');
     if (ctx2) {
-      const turmasOrd = [...turmas].sort((a,b)=>(b.leitores/Math.max(b.estudantes,1))-(a.leitores/Math.max(a.estudantes,1)));
+      const turmasOrd = [...turmas].sort((a,b) => {
+        const pa = a.estudantes>0 ? a.leitores/a.estudantes : 0;
+        const pb = b.estudantes>0 ? b.leitores/b.estudantes : 0;
+        return pb - pa;
+      });
       const pcts = turmasOrd.map(t => t.estudantes>0 ? Math.round((t.leitores/t.estudantes)*100) : 0);
 
-      // Plugin inline para desenhar a linha da média
-      const pluginMediaLinha = {
-        id: 'mediaLinha',
+      const pluginLinhas = {
+        id: 'linhasRef',
         afterDraw(chart) {
           const { ctx: c, scales: { x, y } } = chart;
-          const xPos = x.getPixelForValue(engajEsc);
-          c.save();
-          c.beginPath();
-          c.setLineDash([6, 4]);
-          c.strokeStyle = '#EC4899';
-          c.lineWidth = 2;
-          c.moveTo(xPos, y.top);
-          c.lineTo(xPos, y.bottom);
-          c.stroke();
-          c.setLineDash([]);
-          // Label
-          c.fillStyle = '#EC4899';
-          c.font = 'bold 9px sans-serif';
-          c.fillText(`Média ${engajEsc}%`, xPos + 4, y.top + 12);
-          c.restore();
+          const desenhar = (val, cor, label) => {
+            const yPos = y.getPixelForValue(val);
+            c.save();
+            c.beginPath();
+            c.setLineDash([6,4]);
+            c.strokeStyle = cor;
+            c.lineWidth = 2;
+            c.moveTo(x.left, yPos);
+            c.lineTo(x.right, yPos);
+            c.stroke();
+            c.setLineDash([]);
+            c.fillStyle = cor;
+            c.font = 'bold 9px sans-serif';
+            c.textAlign = 'right';
+            c.fillText(label + ' ' + val + '%', x.right - 4, yPos - 4);
+            c.textAlign = 'left';
+            c.restore();
+          };
+          desenhar(engajEsc, '#EC4899', 'Escola');
+          desenhar(mediaRede, '#6366F1', 'Rede');
         }
       };
 
@@ -1179,47 +1143,60 @@ function abrirModalEscola(idx) {
           datasets: [{
             label: 'Engajamento',
             data:  pcts,
-            backgroundColor: pcts.map(p => p>=80?'#10B981' : p>=40?'#3B82F6' : p>0?'#F59E0B' : '#FF007F'),
-            borderRadius: 4,
+            backgroundColor: pcts.map(p =>
+              p >= 80 ? '#10B981' :
+              p >= 40 ? '#3B82F6' :
+              p >  0  ? '#F59E0B' : '#FF007F'
+            ),
+            borderRadius: 5,
+            borderSkipped: false,
           }],
         },
         options: {
-          indexAxis: 'y', responsive:true, maintainAspectRatio:false,
+          responsive: true, maintainAspectRatio: false,
           plugins: {
-            legend: { display:false },
-            tooltip: { callbacks: { label: ctx => ' ' + ctx.raw + '%' } },
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: ctx => ' ' + ctx.raw + '%',
+                afterLabel: () => [`Escola: ${engajEsc}%`, `Rede: ${mediaRede}%`],
+              },
+            },
           },
           scales: {
-            x: { beginAtZero:true, max:100, ticks:{ callback:v=>v+'%', font:{size:9} }, grid:{color:'#f1f5f9'} },
-            y: { ticks:{ font:{size:9} } },
+            y: { beginAtZero: true, max: 100,
+                 ticks: { callback: v => v+'%', font: {size:9} },
+                 grid: { color: '#f1f5f9' } },
+            x: { ticks: { font: {size:9}, maxRotation: 45 } },
           },
         },
-        plugins: [pluginMediaLinha],
+        plugins: [pluginLinhas],
       });
     }
 
-    // Gráfico 3: Livros por turma
+    // ── Livros lidos por turma ──────────────────────────────
     const ctx3 = document.getElementById('chartTurmasLivros')?.getContext('2d');
     if (ctx3) {
       const turmasOrd2 = [...turmas].sort((a,b) => (b.livros_lidos||0)-(a.livros_lidos||0));
-      const CORES_BARRA = ['#6366F1','#3B82F6','#10B981','#F59E0B','#EC4899','#8B5CF6','#06B6D4','#F97316'];
+      const CORES = ['#6366F1','#3B82F6','#10B981','#F59E0B','#EC4899','#8B5CF6','#06B6D4','#F97316'];
       _chartTurmasLivros = new Chart(ctx3, {
         type: 'bar',
         data: {
           labels: turmasOrd2.map(t => t.turma),
-          datasets:[{
+          datasets: [{
             label: 'Livros lidos',
             data:  turmasOrd2.map(t => t.livros_lidos||0),
-            backgroundColor: turmasOrd2.map((_,i) => CORES_BARRA[i % CORES_BARRA.length]),
+            backgroundColor: turmasOrd2.map((_,i) => CORES[i % CORES.length]),
             borderRadius: 5,
+            borderSkipped: false,
           }],
         },
         options: {
-          responsive:true, maintainAspectRatio:false,
-          plugins: { legend:{ display:false } },
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
           scales: {
-            x: { ticks:{ font:{size:9}, maxRotation:45 }, grid:{color:'#f1f5f9'} },
-            y: { beginAtZero:true },
+            y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+            x: { ticks: { font: {size:9}, maxRotation: 45 } },
           },
         },
       });
