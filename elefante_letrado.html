@@ -162,60 +162,63 @@
 ══════════════════════════════════════════════════════════ -->
 <main class="container-fluid p-3 p-md-4" style="max-width:1600px;margin:0 auto;">
 
-  <!-- KPIs -->
+  <!-- ── Barra de controles harmonizada ─────────────────── -->
+  <div class="filter-card mb-4 py-3 px-4">
+    <div class="d-flex flex-wrap align-items-center gap-3">
+
+      <!-- Seletor de mês -->
+      <div class="d-flex align-items-center gap-2">
+        <div style="width:32px;height:32px;background:#002b5e18;border-radius:8px;
+                    display:grid;place-items:center;flex-shrink:0;">
+          <i class="bi bi-calendar3" style="color:#002b5e;font-size:.9rem;"></i>
+        </div>
+        <div>
+          <div class="label-mini mb-1">Período</div>
+          <select id="elMesFiltro" class="form-select form-select-sm border-0 p-0 fw-bold"
+                  style="background:transparent;min-width:130px;font-size:.85rem;color:#002b5e;"
+                  onchange="trocarMes()">
+            <option>Carregando…</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="width:1px;height:32px;background:#e2e8f0;flex-shrink:0;"></div>
+
+      <!-- Busca -->
+      <div class="d-flex align-items-center gap-2 flex-grow-1" style="max-width:360px;">
+        <i class="bi bi-search text-muted" style="font-size:.85rem;"></i>
+        <input type="text" id="elBusca" class="form-control border-0 shadow-none p-0 fw-bold"
+               style="font-size:.85rem;color:#334155;background:transparent;"
+               placeholder="Pesquisar escola…" oninput="filtrar()">
+      </div>
+
+      <!-- Alerta zero (inline, compacto) -->
+      <div id="elAlertaInline" class="ms-auto"></div>
+    </div>
+  </div>
+
+  <!-- ── KPIs expandidos (6 cards) ──────────────────────── -->
   <div class="row g-3 mb-4" id="elKpis">
-    <div class="col-12 text-center py-5 text-muted loading-soft">
+    <div class="col-12 text-center py-5 text-muted">
       <div class="spinner-border spinner-border-sm mb-2"></div>
-      <div>Carregando dados…</div>
+      <div>Carregando…</div>
     </div>
   </div>
 
-  <!-- Controles -->
-  <div class="d-flex flex-wrap gap-3 align-items-center mb-4">
-
-    <div class="d-flex align-items-center gap-2">
-      <label class="fw-bold text-muted small text-uppercase" style="letter-spacing:.05em;white-space:nowrap;">
-        <i class="bi bi-calendar3 me-1"></i>Mês
-      </label>
-      <select id="elMesFiltro" class="form-select form-select-sm shadow-sm"
-              style="min-width:160px;" onchange="trocarMes()">
-        <option>Carregando…</option>
-      </select>
-    </div>
-
-    <input type="text" id="elBusca" class="form-control form-control-sm shadow-sm"
-           style="min-width:220px;" placeholder="Pesquisar escola…"
-           oninput="filtrar()">
-  </div>
-
-  <!-- ── Visão unificada ───────────────────────────────────── -->
+  <!-- ── Visão principal ────────────────────────────────── -->
   <div id="viewPrincipal">
 
-    <!-- Alertas rápidos -->
-    <div id="elAlertas" class="mb-4"></div>
-
-    <!-- Gráficos -->
-    <div class="row g-3 mb-4">
-      <div class="col-12 col-lg-5">
-        <div class="chart-container h-100">
+    <!-- Gráfico donut (largura reduzida, centrado) -->
+    <div class="row g-3 mb-4 justify-content-center">
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="chart-container text-center">
           <h6 class="fw-bold mb-1 text-muted">
             <i class="bi bi-pie-chart-fill me-2 text-primary"></i>Situação da Rede
           </h6>
-          <div class="text-muted small mb-3" style="font-size:.72rem;">
-            Escolas por nível de engajamento em relação à média
+          <div class="text-muted mb-3" style="font-size:.7rem;">
+            Clique em um setor para ver as escolas
           </div>
-          <div class="chart-canvas-wrapper" style="height:240px;"><canvas id="elPieChart"></canvas></div>
-        </div>
-      </div>
-      <div class="col-12 col-lg-7">
-        <div class="chart-container h-100">
-          <h6 class="fw-bold mb-1 text-muted">
-            <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Engajamento por Escola
-          </h6>
-          <div class="text-muted small mb-3" style="font-size:.72rem;">
-            % de estudantes que realizaram ao menos uma leitura
-          </div>
-          <div class="chart-canvas-wrapper" style="height:240px;"><canvas id="elBarChart"></canvas></div>
+          <div style="position:relative;height:240px;"><canvas id="elPieChart"></canvas></div>
         </div>
       </div>
     </div>
@@ -257,6 +260,28 @@
   </div>
 
 </main>
+
+<!-- ── Modal lista de escolas por faixa ───────────────── -->
+<div class="modal fade" id="modalFaixa" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width:540px;">
+    <div class="modal-content border-0 shadow-lg" style="border-radius:16px;overflow:hidden;">
+      <div class="modal-header border-0 p-0">
+        <div id="modalFaixaHeader" style="width:100%;padding:16px 22px 12px;border-bottom:3px solid;">
+          <div class="d-flex align-items-center justify-content-between">
+            <div>
+              <div id="modalFaixaTitulo" style="font-weight:900;font-size:1rem;"></div>
+              <div id="modalFaixaSub" style="font-size:.7rem;opacity:.75;margin-top:2px;"></div>
+            </div>
+            <button type="button" class="btn-close" id="modalFaixaClose" data-bs-dismiss="modal"></button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-body p-0">
+        <ul class="list-group list-group-flush" id="modalFaixaLista"></ul>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ══════════════════════════════════════════════════════════
      MODAL ESCOLA
@@ -591,303 +616,160 @@ function renderSeletorMes(meses) {
 }
 
 // ── KPIs ───────────────────────────────────────────────────
+// ── KPIs (6 cards) ─────────────────────────────────────────
 function renderKpis() {
-  const esc      = S.escolas;
-  const leituras = esc.reduce((s, e) => s + (e.leituras_concluidas || 0), 0);
-  const alunos   = esc.reduce((s, e) => s + (e.estudantes_leitura  || 0), 0);
-  const horas    = Math.round(esc.reduce((s, e) => s + (e.tempo_total_leitura_seg || 0), 0) / 3600);
-  const ativas   = esc.filter(e => (e.leituras_concluidas || 0) > 0).length;
+  const esc    = S.escolas;
+  const turmas = S.turmas;
+  const leituras = esc.reduce((s,e) => s+(e.leituras_concluidas||0), 0);
+  const alunos   = esc.reduce((s,e) => s+(e.estudantes_leitura||0), 0);
+  const horas    = Math.round(esc.reduce((s,e) => s+(e.tempo_total_leitura_seg||0), 0)/3600);
+  const ativas   = esc.filter(e => (e.leituras_concluidas||0) > 0).length;
+  const livros   = turmas.reduce((s,t) => s+(t.livros_lidos||0), 0);
+  const totalEstud = turmas.reduce((s,t) => s+(t.estudantes||0), 0);
+  const totalLeit  = turmas.reduce((s,t) => s+(t.leitores||0), 0);
+  const engajRede  = totalEstud > 0 ? Math.round((totalLeit/totalEstud)*100) : 0;
 
+  // Alerta zero inline
+  const tpe = {};
+  turmas.forEach(t => { if (!tpe[t.escola]) tpe[t.escola]={l:0}; tpe[t.escola].l+=t.leitores||0; });
+  const zero = esc.filter(e => !(tpe[e.nome_escola]?.l > 0)).length;
+  const alertaEl = document.getElementById('elAlertaInline');
+  if (alertaEl) {
+    alertaEl.innerHTML = zero > 0
+      ? `<span class="badge d-flex align-items-center gap-1 px-3 py-2"
+             style="background:#fee2e2;color:#991b1b;font-size:.72rem;border-radius:8px;cursor:pointer;"
+             onclick="abrirModalFaixa(0)">
+           <i class="bi bi-exclamation-triangle-fill"></i>
+           ${zero} escola${zero>1?'s':''} sem leituras
+         </span>` : '';
+  }
+
+  const eCor = engajRede>=50?'#10B981':engajRede>=30?'#F59E0B':'#FF007F';
   const items = [
-    { icon: 'bi-book-fill',      cor: '#002b5e', label: 'Leituras Concluídas', val: leituras.toLocaleString('pt-BR') },
-    { icon: 'bi-people-fill',    cor: '#0062ff', label: 'Estudantes Ativos',   val: alunos.toLocaleString('pt-BR') },
-    { icon: 'bi-clock-fill',     cor: '#7c3aed', label: 'Horas de Leitura',    val: `${horas.toLocaleString('pt-BR')}h` },
-    { icon: 'bi-building-check', cor: '#059669', label: 'Escolas Engajadas',   val: `${ativas} / ${esc.length}` },
+    { icon:'bi-book-fill',      cor:'#002b5e', label:'Leituras Concluídas', val:leituras.toLocaleString('pt-BR') },
+    { icon:'bi-journals',       cor:'#6366F1', label:'Livros Lidos',        val:livros.toLocaleString('pt-BR') },
+    { icon:'bi-people-fill',    cor:'#0062ff', label:'Estudantes Ativos',   val:alunos.toLocaleString('pt-BR') },
+    { icon:'bi-clock-fill',     cor:'#7c3aed', label:'Horas de Leitura',    val:`${horas.toLocaleString('pt-BR')}h` },
+    { icon:'bi-building-check', cor:'#059669', label:'Escolas Engajadas',   val:`${ativas} / ${esc.length}` },
+    { icon:'bi-percent',        cor:eCor,      label:'Engajamento da Rede', val:`${engajRede}%` },
   ];
 
   document.getElementById('elKpis').innerHTML = items.map(k => `
-    <div class="col-6 col-md-3">
+    <div class="col-6 col-md-4 col-lg-2">
       <div class="card-kpi d-flex align-items-center gap-3">
-        <div style="width:46px;height:46px;border-radius:12px;background:${k.cor}18;
+        <div style="width:42px;height:42px;border-radius:10px;background:${k.cor}18;
                     display:grid;place-items:center;flex-shrink:0;">
-          <i class="bi ${k.icon}" style="color:${k.cor};font-size:1.3rem;"></i>
+          <i class="bi ${k.icon}" style="color:${k.cor};font-size:1.2rem;"></i>
         </div>
         <div>
-          <div class="kpi-val" style="color:${k.cor};">${k.val}</div>
+          <div class="kpi-val" style="color:${k.cor};font-size:1.3rem;">${k.val}</div>
           <div class="label-mini">${k.label}</div>
         </div>
       </div>
     </div>`).join('');
 }
 
-// ── Tabela unificada (escola + turmas colapsadas) ───────────
-function renderTabela(busca) {
-  busca = (busca || '').toLowerCase().trim();
-
-  const escolas = busca
-    ? S.escolas.filter(e => e.nome_escola.toLowerCase().includes(busca))
-    : S.escolas;
-
-  const contador = document.getElementById('elContador');
-  if (contador) contador.textContent = `${escolas.length} escola${escolas.length !== 1 ? 's' : ''}`;
-
-  if (!escolas.length) {
-    document.getElementById('elTbPrincipal').innerHTML =
-      '<tr><td colspan="7" class="text-center text-muted py-4">Nenhum resultado encontrado.</td></tr>';
-    return;
-  }
-
-  // Indexa turmas por escola
-  const turmasPorEscola = {};
-  S.turmas.forEach(t => {
-    if (!turmasPorEscola[t.escola]) turmasPorEscola[t.escola] = [];
-    turmasPorEscola[t.escola].push(t);
-  });
-
-  // Ordena escolas por engajamento (% leitores / estudantes)
-  const escolasOrdenadas = [...escolas].sort((a, b) => {
-    const ta = turmasPorEscola[a.nome_escola] || [];
-    const tb = turmasPorEscola[b.nome_escola] || [];
-    const estA = ta.reduce((s,t) => s+(t.estudantes||0), 0);
-    const estB = tb.reduce((s,t) => s+(t.estudantes||0), 0);
-    const leiA = ta.reduce((s,t) => s+(t.leitores||0), 0);
-    const leiB = tb.reduce((s,t) => s+(t.leitores||0), 0);
-    const pctA = estA > 0 ? leiA/estA : 0;
-    const pctB = estB > 0 ? leiB/estB : 0;
-    return pctB - pctA;
-  });
-
-  const html = escolasOrdenadas.map((e, gi) => {
-    const grpId   = `grp_${gi}`;
-    const idxReal = S.escolas.indexOf(e);  // índice real em S.escolas
-    const turmas  = turmasPorEscola[e.nome_escola] || [];
-
-    // Totais da escola a partir das turmas
-    const totalEstud    = turmas.reduce((s,t) => s+(t.estudantes||0), 0);
-    const totalLeitores = turmas.reduce((s,t) => s+(t.leitores||0), 0);
-    const totalLivros   = turmas.reduce((s,t) => s+(t.livros_lidos||0), 0);
-    const totalSeg      = turmas.reduce((s,t) => s+(t.tempo_leitura_seg||0), 0);
-    const pctEsc        = totalEstud > 0 ? Math.round((totalLeitores/totalEstud)*100) : 0;
-    const engajCls      = pctEsc>=80?'el-chip-alto':pctEsc>=40?'el-chip-medio':pctEsc>0?'el-chip-baixo':'el-chip-zero';
-
-    const linhaEscola = `
-      <tr class="el-grp-header" data-escola-idx="${idxReal}">
-        <td style="font-weight:900;font-size:.83rem;color:#002b5e;padding-left:12px;">
-          <i class="bi bi-chevron-right el-grp-icon" id="icon_${grpId}"
-             style="font-size:.7rem;margin-right:6px;transition:transform .2s;cursor:pointer;"
-             onclick="event.stopPropagation();toggleGrupo('${grpId}')"></i>
-          <span style="cursor:pointer;"
-                onclick="event.stopPropagation();abrirModalEscola(${idxReal})"
-                title="Clique para ver detalhes da escola">
-            ${esc(e.nome_escola)}
-          </span>
-          <span class="badge ms-2" style="background:#e0e7ff;color:#3730a3;
-                font-size:.6rem;font-weight:800;vertical-align:middle;">
-            ${turmas.length} turma${turmas.length!==1?'s':''}
-          </span>
-          <i class="bi bi-box-arrow-up-right ms-2 text-primary"
-             style="font-size:.65rem;opacity:.5;cursor:pointer;"
-             onclick="event.stopPropagation();abrirModalEscola(${idxReal})"
-             title="Ver detalhes"></i>
-        </td>
-        <td class="text-center text-muted small">—</td>
-        <td class="text-muted small">—</td>
-        <td class="text-center fw-bold">${totalEstud.toLocaleString('pt-BR')}</td>
-        <td class="text-center">
-          <span style="color:#0062ff;font-weight:700;">${totalLeitores.toLocaleString('pt-BR')}</span>
-          <span class="text-muted"> / ${totalLivros.toLocaleString('pt-BR')}</span>
-        </td>
-        <td class="text-center text-muted small">${hms(totalSeg)}</td>
-        <td class="text-center"><span class="el-chip ${engajCls}">${pctEsc>0?pctEsc+'%':'—'}</span></td>
-      </tr>`;
-
-    // ── Linhas das turmas (mesmas 7 colunas, colapsadas) ──
-    const linhasTurma = turmas.map(t => {
-      const pct    = t.estudantes>0 ? Math.round((t.leitores/t.estudantes)*100) : 0;
-      const eCls   = pct>=80?'el-chip-alto':pct>=40?'el-chip-medio':pct>0?'el-chip-baixo':'el-chip-zero';
-      const turnoBg= t.turno==='MANHA'?'background:#dbeafe;color:#1e40af':'background:#fef9c3;color:#854d0e';
-      return `
-        <tr class="el-grp-row" data-grp="${grpId}" style="display:none;">
-          <td style="padding-left:32px;font-size:.78rem;">
-            <i class="bi bi-arrow-return-right me-1" style="font-size:.65rem;opacity:.3;"></i>
-            <span class="text-muted">${esc(t.ano_escolar)}</span>
-            <strong class="ms-2">${esc(t.turma)}</strong>
-          </td>
-          <td class="text-center">
-            <span class="badge" style="${turnoBg};font-size:.62rem;font-weight:800;">
-              ${t.turno==='MANHA'?'Manhã':t.turno==='TARDE'?'Tarde':esc(t.turno)}
-            </span>
-          </td>
-          <td style="font-size:.72rem;max-width:200px;overflow:hidden;
-                     text-overflow:ellipsis;white-space:nowrap;"
-              title="${esc(t.professores)}">${esc(t.professores)||'—'}</td>
-          <td class="text-center small">${t.estudantes||0}</td>
-          <td class="text-center small">
-            <span style="color:#0062ff;font-weight:700;">${t.leitores||0}</span>
-            <span class="text-muted"> / ${(t.livros_lidos||0).toLocaleString('pt-BR')}</span>
-          </td>
-          <td class="text-center text-muted small">${hms(t.tempo_leitura_seg)}</td>
-          <td class="text-center"><span class="el-chip ${eCls}">${pct>0?pct+'%':'—'}</span></td>
-        </tr>`;
-    }).join('');
-
-    return linhaEscola + linhasTurma;
-  }).join('');
-
-  document.getElementById('elTbPrincipal').innerHTML = html;
-}
-
-function toggleGrupo(grpId) {
-  const rows   = document.querySelectorAll(`[data-grp="${grpId}"]`);
-  const icon   = document.getElementById(`icon_${grpId}`);
-  const aberto = rows[0]?.style.display !== 'none';
-  rows.forEach(r => r.style.display = aberto ? 'none' : '');
-  if (icon) icon.style.transform = aberto ? 'rotate(0deg)' : 'rotate(90deg)';
-}
-
-// ── Gráficos ───────────────────────────────────────────────
+// ── Gráfico donut clicável ──────────────────────────────────
 function renderGraficos() {
-  if (S.barChart) { S.barChart.destroy(); S.barChart = null; }
   if (S.pieChart) { S.pieChart.destroy(); S.pieChart = null; }
+  if (S.barChart) { S.barChart.destroy(); S.barChart = null; }
 
   const escolas = S.escolas;
   if (!escolas.length) return;
 
-  // Calcula engajamento por escola (% leitores / estudantes)
-  const turmasPorEscola = {};
+  const tpe = {};
   S.turmas.forEach(t => {
-    if (!turmasPorEscola[t.escola]) turmasPorEscola[t.escola] = { leitores:0, estudantes:0 };
-    turmasPorEscola[t.escola].leitores   += t.leitores   || 0;
-    turmasPorEscola[t.escola].estudantes += t.estudantes || 0;
+    if (!tpe[t.escola]) tpe[t.escola] = { leitores:0, estudantes:0 };
+    tpe[t.escola].leitores   += t.leitores   || 0;
+    tpe[t.escola].estudantes += t.estudantes || 0;
   });
 
   const comEngaj = escolas.map(e => {
-    const tp  = turmasPorEscola[e.nome_escola] || { leitores:0, estudantes: e.estudantes_leitura||0 };
-    const pct = tp.estudantes > 0 ? Math.round((tp.leitores / tp.estudantes) * 100) : 0;
-    return { nome: e.nome_escola.replace(' EMEF','').replace(' PROF','').replace(' DR','').trim(), pct };
-  }).sort((a,b) => b.pct - a.pct);
+    const tp  = tpe[e.nome_escola] || { leitores:0, estudantes:0 };
+    const pct = tp.estudantes > 0 ? Math.round((tp.leitores/tp.estudantes)*100) : 0;
+    return { nome: e.nome_escola, pct };
+  });
 
-  const mediaEngaj = Math.round(comEngaj.reduce((s,e)=>s+e.pct,0) / comEngaj.length);
+  const mediaEngaj = Math.round(comEngaj.reduce((s,e)=>s+e.pct,0)/comEngaj.length);
 
-  // Classifica escolas
-  const zero      = comEngaj.filter(e => e.pct === 0).length;
-  const abaixo    = comEngaj.filter(e => e.pct > 0 && e.pct < mediaEngaj).length;
-  const naMedia   = comEngaj.filter(e => e.pct >= mediaEngaj && e.pct < mediaEngaj + 15).length;
-  const acima     = comEngaj.filter(e => e.pct >= mediaEngaj + 15).length;
+  const FAIXAS = [
+    { label:'Zero leituras',   cor:'#FF007F', escolas: comEngaj.filter(e=>e.pct===0) },
+    { label:'Abaixo da média', cor:'#F59E0B', escolas: comEngaj.filter(e=>e.pct>0 && e.pct<mediaEngaj) },
+    { label:'Na média',        cor:'#3B82F6', escolas: comEngaj.filter(e=>e.pct>=mediaEngaj && e.pct<mediaEngaj+15) },
+    { label:'Acima da média',  cor:'#10B981', escolas: comEngaj.filter(e=>e.pct>=mediaEngaj+15) },
+  ];
+  S._faixas     = FAIXAS;
+  S._mediaEngaj = mediaEngaj;
 
-  // Alerta de escolas com zero leitura
-  const elAlertas = document.getElementById('elAlertas');
-  if (elAlertas && zero > 0) {
-    const nomesZero = escolas
-      .filter(e => {
-        const tp = turmasPorEscola[e.nome_escola];
-        return !tp || tp.leitores === 0;
-      })
-      .map(e => e.nome_escola.replace(' EMEF','').trim())
-      .join(', ');
-    elAlertas.innerHTML = `
-      <div class="alert alert-danger d-flex align-items-start gap-3 mb-0" style="border-radius:12px;">
-        <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1"></i>
-        <div>
-          <strong>${zero} escola${zero>1?'s':''} com zero leituras</strong>
-          <div class="small mt-1 text-danger-emphasis">${nomesZero}</div>
-        </div>
-      </div>`;
-  } else if (elAlertas) {
-    elAlertas.innerHTML = '';
-  }
-
-  // ── Donut: situação da rede ────────────────────────────
   const ctxPie = document.getElementById('elPieChart')?.getContext('2d');
-  if (ctxPie) {
-    S.pieChart = new Chart(ctxPie, {
-      type: 'doughnut',
-      data: {
-        labels:   ['Zero leituras','Abaixo da média','Na média','Acima da média'],
-        datasets: [{
-          data:            [zero, abaixo, naMedia, acima],
-          backgroundColor: ['#FF007F','#F59E0B','#3B82F6','#10B981'],
-          borderColor:     ['#fff','#fff','#fff','#fff'],
-          borderWidth:     3,
-          hoverOffset:     8,
-        }],
-      },
-      options: {
-        responsive:true, maintainAspectRatio:false,
-        cutout: '55%',
-        plugins: {
-          legend: { position:'bottom', labels:{ font:{size:10, weight:'700'}, padding:12, color:'#334155' } },
-          tooltip: {
-            callbacks: {
-              label: ctx => ` ${ctx.label}: ${ctx.raw} escola${ctx.raw!==1?'s':''}`,
-              afterLabel: ctx => ctx.dataIndex === 1 || ctx.dataIndex === 3
-                ? ` (média da rede: ${mediaEngaj}%)` : '',
-            },
-          },
-        },
-      },
-    });
-  }
+  if (!ctxPie) return;
 
-  // ── Barras horizontais: engajamento por escola ─────────
-  const ctxBar = document.getElementById('elBarChart')?.getContext('2d');
-  if (ctxBar) {
-    const top20 = comEngaj.slice(0, 20);
-
-    const pluginMediaRede = {
-      id: 'mediaRede',
-      afterDraw(chart) {
-        const { ctx: c, scales: { x, y } } = chart;
-        const xPos = x.getPixelForValue(mediaEngaj);
-        c.save();
-        c.beginPath();
-        c.setLineDash([6, 4]);
-        c.strokeStyle = '#EC4899';
-        c.lineWidth = 2;
-        c.moveTo(xPos, y.top);
-        c.lineTo(xPos, y.bottom);
-        c.stroke();
-        c.setLineDash([]);
-        c.fillStyle = '#EC4899';
-        c.font = 'bold 9px sans-serif';
-        c.fillText(`Média ${mediaEngaj}%`, xPos + 4, y.top + 12);
-        c.restore();
-      }
-    };
-
-    S.barChart = new Chart(ctxBar, {
-      type: 'bar',
-      data: {
-        labels:   top20.map(e => e.nome),
-        datasets: [{
-          label: 'Engajamento (%)',
-          data:  top20.map(e => e.pct),
-          backgroundColor: top20.map(e =>
-            e.pct === 0           ? '#FF007F' :
-            e.pct < mediaEngaj    ? '#F59E0B' :
-            e.pct < mediaEngaj+15 ? '#3B82F6' : '#10B981'
-          ),
-          borderRadius: 5,
-        }],
+  S.pieChart = new Chart(ctxPie, {
+    type: 'doughnut',
+    data: {
+      labels:   FAIXAS.map(f => f.label),
+      datasets: [{
+        data:            FAIXAS.map(f => f.escolas.length),
+        backgroundColor: FAIXAS.map(f => f.cor),
+        borderColor:     '#fff',
+        borderWidth:     3,
+        hoverOffset:     10,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '58%',
+      plugins: {
+        legend: { position:'bottom', labels:{ font:{size:10,weight:'700'}, padding:12 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} escola${ctx.raw!==1?'s':''}` } },
       },
-      options: {
-        indexAxis: 'y',
-        responsive:true, maintainAspectRatio:false,
-        plugins: {
-          legend: { display:false },
-          tooltip: { callbacks: { label: ctx => ` ${ctx.raw}%` } },
-        },
-        scales: {
-          x: { beginAtZero:true, max:100,
-               ticks:{ callback: v => v+'%', font:{size:9} },
-               grid:{ color:'#f1f5f9' } },
-          y: { ticks:{ font:{size:9} } },
-        },
+      onClick: (_evt, elements) => {
+        if (elements.length) abrirModalFaixa(elements[0].index);
       },
-      plugins: [pluginMediaRede],
-    });
-  }
+    },
+  });
 }
+
+// ── Modal de faixa de escolas ──────────────────────────────
+function abrirModalFaixa(idx) {
+  const faixa = S._faixas?.[idx];
+  if (!faixa) return;
+
+  const CORES_BG = { '#FF007F':'#fff0f5', '#F59E0B':'#fffbeb', '#3B82F6':'#eff6ff', '#10B981':'#f0fdf4' };
+  const hdr = document.getElementById('modalFaixaHeader');
+  if (hdr) {
+    hdr.style.background    = CORES_BG[faixa.cor] || '#f8fafc';
+    hdr.style.borderColor   = faixa.cor;
+    hdr.style.color         = '#1e293b';
+  }
+  const closeBtn = document.getElementById('modalFaixaClose');
+  if (closeBtn) closeBtn.style.filter = 'none';
+
+  document.getElementById('modalFaixaTitulo').textContent = faixa.label;
+  document.getElementById('modalFaixaSub').textContent =
+    `${faixa.escolas.length} escola${faixa.escolas.length!==1?'s':''} · média da rede: ${S._mediaEngaj}%`;
+
+  const lista = document.getElementById('modalFaixaLista');
+  lista.innerHTML = faixa.escolas.length
+    ? faixa.escolas
+        .sort((a,b) => b.pct - a.pct)
+        .map(e => `
+          <li class="list-group-item d-flex justify-content-between align-items-center px-4 py-3"
+              style="cursor:pointer;border-left:3px solid ${faixa.cor};"
+              onclick="bootstrap.Modal.getInstance(document.getElementById('modalFaixa'))?.hide();
+                       setTimeout(()=>{ const idx=S.escolas.findIndex(x=>x.nome_escola===${JSON.stringify(e.nome)});
+                       if(idx>=0) abrirModalEscola(idx); },300);">
+            <span style="font-size:.82rem;font-weight:700;">${esc(e.nome)}</span>
+            <span class="el-chip ${e.pct>=80?'el-chip-alto':e.pct>=40?'el-chip-medio':e.pct>0?'el-chip-baixo':'el-chip-zero'}">
+              ${e.pct>0?e.pct+'%':'—'}
+            </span>
+          </li>`)
+        .join('')
+    : '<li class="list-group-item text-center text-muted py-4">Nenhuma escola nesta faixa.</li>';
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFaixa')).show();
+}
+
 
 // ── Importação ─────────────────────────────────────────────
 function abrirImport() {
@@ -1029,17 +911,15 @@ function abrirModalEscola(idx) {
 
   const turmas  = S.turmas.filter(t => t.escola === nomeEscola);
 
-  // ── Ranking por engajamento ──────────────────────────────
-  const ranking = [...S.escolas].map(e => {
-    const ts = S.turmas.filter(t => t.escola === e.nome_escola);
-    const estud = ts.reduce((s,t) => s+(t.estudantes||0), 0);
-    const leit  = ts.reduce((s,t) => s+(t.leitores||0), 0);
-    return { nome: e.nome_escola, pct: estud > 0 ? Math.round((leit/estud)*100) : 0 };
-  }).sort((a,b) => b.pct - a.pct);
-
-  const posicao    = ranking.findIndex(r => r.nome === nomeEscola) + 1;
-  const mediaRede  = Math.round(ranking.reduce((s,r)=>s+r.pct,0)/ranking.length);
-  const melhorRede = ranking[0].pct;
+  // Usa a média da rede já calculada em renderGraficos (ou recalcula)
+  const mediaRede = S._mediaEngaj || Math.round(
+    [...S.escolas].map(e => {
+      const ts = S.turmas.filter(t => t.escola === e.nome_escola);
+      const est = ts.reduce((s,t)=>s+(t.estudantes||0),0);
+      const lei = ts.reduce((s,t)=>s+(t.leitores||0),0);
+      return est>0 ? (lei/est)*100 : 0;
+    }).reduce((s,p,_,a)=>s+p/a.length, 0)
+  );
 
   const totalEstud = turmas.reduce((s,t)=>s+(t.estudantes||0),0);
   const totalLeit  = turmas.reduce((s,t)=>s+(t.leitores||0),0);
@@ -1055,15 +935,15 @@ function abrirModalEscola(idx) {
   // ── Header ────────────────────────────────────────────────
   document.getElementById('modalEscolaNome').textContent = nomeEscola;
   document.getElementById('modalEscolaSub').textContent  =
-    `${mesLabel} · ${turmas.length} turmas · ${ranking.length} escolas na rede`;
+    `${mesLabel} · ${turmas.length} turmas · média da rede: ${mediaRede}%`;
 
   // ── KPIs ─────────────────────────────────────────────────
-  const rankCls = posicao <= 5 ? '#059669' : posicao <= 15 ? '#d97706' : '#dc2626';
+  const engajCor = engajEsc >= mediaRede ? '#10B981' : engajEsc >= mediaRede*0.6 ? '#F59E0B' : '#FF007F';
   document.getElementById('escolaKpis').innerHTML = [
-    { icon:'bi-trophy-fill',    cor:rankCls,  label:'Ranking (engajamento)', val:`${posicao}º / ${ranking.length}` },
-    { icon:'bi-percent',        cor:'#0062ff',label:'Engajamento',           val:`${engajEsc}%` },
-    { icon:'bi-book-fill',      cor:'#002b5e',label:'Livros lidos',          val:totalLivros.toLocaleString('pt-BR') },
-    { icon:'bi-graph-up-arrow', cor:'#7c3aed',label:'Média livros/aluno',    val:mediaLivros },
+    { icon:'bi-percent',        cor:engajCor,  label:'Engajamento da escola', val:`${engajEsc}%` },
+    { icon:'bi-people-fill',    cor:'#0062ff', label:'Estudantes',            val:totalEstud.toLocaleString('pt-BR') },
+    { icon:'bi-book-fill',      cor:'#002b5e', label:'Livros lidos',          val:totalLivros.toLocaleString('pt-BR') },
+    { icon:'bi-graph-up-arrow', cor:'#7c3aed', label:'Média livros/aluno',    val:mediaLivros },
   ].map(k=>`
     <div class="col-6 col-md-3">
       <div class="card-kpi d-flex align-items-center gap-3">
