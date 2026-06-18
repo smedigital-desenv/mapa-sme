@@ -197,31 +197,37 @@
     </div>
   </div>
 
-  <!-- ── KPIs expandidos (6 cards) ──────────────────────── -->
-  <div class="row g-3 mb-4" id="elKpis">
-    <div class="col-12 text-center py-5 text-muted">
-      <div class="spinner-border spinner-border-sm mb-2"></div>
-      <div>Carregando…</div>
+  <!-- ── KPIs + Donut lado a lado ─────────────────────────── -->
+  <div class="row g-3 mb-4 align-items-stretch">
+
+    <!-- Donut -->
+    <div class="col-12 col-md-4">
+      <div class="chart-container h-100 text-center">
+        <h6 class="fw-bold mb-1 text-muted">
+          <i class="bi bi-pie-chart-fill me-2 text-primary"></i>Situação da Rede
+        </h6>
+        <div class="text-muted mb-3" style="font-size:.7rem;">
+          Clique em um setor para ver as escolas
+        </div>
+        <div style="position:relative;height:220px;"><canvas id="elPieChart"></canvas></div>
+      </div>
     </div>
+
+    <!-- KPIs -->
+    <div class="col-12 col-md-8">
+      <div class="row g-3 h-100" id="elKpis">
+        <div class="col-12 d-flex align-items-center justify-content-center">
+          <div class="spinner-border spinner-border-sm text-muted"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
   </div>
 
   <!-- ── Visão principal ────────────────────────────────── -->
   <div id="viewPrincipal">
-
-    <!-- Gráfico donut (largura reduzida, centrado) -->
-    <div class="row g-3 mb-4 justify-content-center">
-      <div class="col-12 col-md-6 col-lg-4">
-        <div class="chart-container text-center">
-          <h6 class="fw-bold mb-1 text-muted">
-            <i class="bi bi-pie-chart-fill me-2 text-primary"></i>Situação da Rede
-          </h6>
-          <div class="text-muted mb-3" style="font-size:.7rem;">
-            Clique em um setor para ver as escolas
-          </div>
-          <div style="position:relative;height:240px;"><canvas id="elPieChart"></canvas></div>
-        </div>
-      </div>
-    </div>
 
     <div class="table-container">
       <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -615,7 +621,118 @@ function renderSeletorMes(meses) {
     : '<option value="">Nenhum dado</option>';
 }
 
-// ── KPIs ───────────────────────────────────────────────────
+// ── Tabela principal ───────────────────────────────────────
+function renderTabela(busca) {
+  busca = (busca || '').toLowerCase().trim();
+
+  const escolas = busca
+    ? S.escolas.filter(e => e.nome_escola.toLowerCase().includes(busca))
+    : S.escolas;
+
+  const contador = document.getElementById('elContador');
+  if (contador) contador.textContent = `${escolas.length} escola${escolas.length!==1?'s':''}`;
+
+  if (!escolas.length) {
+    document.getElementById('elTbPrincipal').innerHTML =
+      '<tr><td colspan="7" class="text-center text-muted py-4">Nenhum resultado encontrado.</td></tr>';
+    return;
+  }
+
+  const turmasPorEscola = {};
+  S.turmas.forEach(t => {
+    if (!turmasPorEscola[t.escola]) turmasPorEscola[t.escola] = [];
+    turmasPorEscola[t.escola].push(t);
+  });
+
+  const escolasOrdenadas = [...escolas].sort((a, b) => {
+    const ta = turmasPorEscola[a.nome_escola] || [];
+    const tb = turmasPorEscola[b.nome_escola] || [];
+    const estA = ta.reduce((s,t)=>s+(t.estudantes||0),0), leiA = ta.reduce((s,t)=>s+(t.leitores||0),0);
+    const estB = tb.reduce((s,t)=>s+(t.estudantes||0),0), leiB = tb.reduce((s,t)=>s+(t.leitores||0),0);
+    return (estB>0?leiB/estB:0) - (estA>0?leiA/estA:0);
+  });
+
+  const html = escolasOrdenadas.map((e, gi) => {
+    const grpId   = `grp_${gi}`;
+    const idxReal = S.escolas.indexOf(e);
+    const turmas  = turmasPorEscola[e.nome_escola] || [];
+
+    const totalEstud    = turmas.reduce((s,t)=>s+(t.estudantes||0),0);
+    const totalLeitores = turmas.reduce((s,t)=>s+(t.leitores||0),0);
+    const totalLivros   = turmas.reduce((s,t)=>s+(t.livros_lidos||0),0);
+    const totalSeg      = turmas.reduce((s,t)=>s+(t.tempo_leitura_seg||0),0);
+    const pctEsc        = totalEstud>0 ? Math.round((totalLeitores/totalEstud)*100) : 0;
+    const engajCls      = pctEsc>=80?'el-chip-alto':pctEsc>=40?'el-chip-medio':pctEsc>0?'el-chip-baixo':'el-chip-zero';
+
+    const linhaEscola = `
+      <tr class="el-grp-header" data-escola-idx="${idxReal}">
+        <td style="font-weight:900;font-size:.83rem;color:#002b5e;padding-left:12px;">
+          <i class="bi bi-chevron-right el-grp-icon" id="icon_${grpId}"
+             style="font-size:.7rem;margin-right:6px;transition:transform .2s;cursor:pointer;"
+             onclick="event.stopPropagation();toggleGrupo('${grpId}')"></i>
+          <span style="cursor:pointer;"
+                onclick="event.stopPropagation();abrirModalEscola(${idxReal})"
+                title="Ver detalhes da escola">${esc(e.nome_escola)}</span>
+          <span class="badge ms-2" style="background:#e0e7ff;color:#3730a3;font-size:.6rem;font-weight:800;vertical-align:middle;">
+            ${turmas.length} turma${turmas.length!==1?'s':''}
+          </span>
+          <i class="bi bi-box-arrow-up-right ms-2 text-primary"
+             style="font-size:.65rem;opacity:.5;cursor:pointer;"
+             onclick="event.stopPropagation();abrirModalEscola(${idxReal})"></i>
+        </td>
+        <td class="text-center text-muted small">—</td>
+        <td class="text-muted small">—</td>
+        <td class="text-center fw-bold">${totalEstud.toLocaleString('pt-BR')}</td>
+        <td class="text-center">
+          <span style="color:#0062ff;font-weight:700;">${totalLeitores.toLocaleString('pt-BR')}</span>
+          <span class="text-muted"> / ${totalLivros.toLocaleString('pt-BR')}</span>
+        </td>
+        <td class="text-center text-muted small">${hms(totalSeg)}</td>
+        <td class="text-center"><span class="el-chip ${engajCls}">${pctEsc>0?pctEsc+'%':'—'}</span></td>
+      </tr>`;
+
+    const linhasTurma = turmas.map(t => {
+      const pct    = t.estudantes>0 ? Math.round((t.leitores/t.estudantes)*100) : 0;
+      const eCls   = pct>=80?'el-chip-alto':pct>=40?'el-chip-medio':pct>0?'el-chip-baixo':'el-chip-zero';
+      const turnoBg= t.turno==='MANHA'?'background:#dbeafe;color:#1e40af':'background:#fef9c3;color:#854d0e';
+      return `
+        <tr class="el-grp-row" data-grp="${grpId}" style="display:none;">
+          <td style="padding-left:32px;font-size:.78rem;">
+            <i class="bi bi-arrow-return-right me-1" style="font-size:.65rem;opacity:.3;"></i>
+            <span class="text-muted">${esc(t.ano_escolar)}</span>
+            <strong class="ms-2">${esc(t.turma)}</strong>
+          </td>
+          <td class="text-center">
+            <span class="badge" style="${turnoBg};font-size:.62rem;font-weight:800;">
+              ${t.turno==='MANHA'?'Manhã':t.turno==='TARDE'?'Tarde':esc(t.turno)}
+            </span>
+          </td>
+          <td style="font-size:.72rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+              title="${esc(t.professores)}">${esc(t.professores)||'—'}</td>
+          <td class="text-center small">${t.estudantes||0}</td>
+          <td class="text-center small">
+            <span style="color:#0062ff;font-weight:700;">${t.leitores||0}</span>
+            <span class="text-muted"> / ${(t.livros_lidos||0).toLocaleString('pt-BR')}</span>
+          </td>
+          <td class="text-center text-muted small">${hms(t.tempo_leitura_seg)}</td>
+          <td class="text-center"><span class="el-chip ${eCls}">${pct>0?pct+'%':'—'}</span></td>
+        </tr>`;
+    }).join('');
+
+    return linhaEscola + linhasTurma;
+  }).join('');
+
+  document.getElementById('elTbPrincipal').innerHTML = html;
+}
+
+function toggleGrupo(grpId) {
+  const rows   = document.querySelectorAll(`[data-grp="${grpId}"]`);
+  const icon   = document.getElementById(`icon_${grpId}`);
+  const aberto = rows[0]?.style.display !== 'none';
+  rows.forEach(r => r.style.display = aberto ? 'none' : '');
+  if (icon) icon.style.transform = aberto ? 'rotate(0deg)' : 'rotate(90deg)';
+}
+
 // ── KPIs (6 cards) ─────────────────────────────────────────
 function renderKpis() {
   const esc    = S.escolas;
@@ -655,14 +772,14 @@ function renderKpis() {
   ];
 
   document.getElementById('elKpis').innerHTML = items.map(k => `
-    <div class="col-6 col-md-4 col-lg-2">
-      <div class="card-kpi d-flex align-items-center gap-3">
-        <div style="width:42px;height:42px;border-radius:10px;background:${k.cor}18;
+    <div class="col-6">
+      <div class="card-kpi d-flex align-items-center gap-3 h-100">
+        <div style="width:40px;height:40px;border-radius:10px;background:${k.cor}18;
                     display:grid;place-items:center;flex-shrink:0;">
-          <i class="bi ${k.icon}" style="color:${k.cor};font-size:1.2rem;"></i>
+          <i class="bi ${k.icon}" style="color:${k.cor};font-size:1.1rem;"></i>
         </div>
         <div>
-          <div class="kpi-val" style="color:${k.cor};font-size:1.3rem;">${k.val}</div>
+          <div class="kpi-val" style="color:${k.cor};font-size:1.2rem;">${k.val}</div>
           <div class="label-mini">${k.label}</div>
         </div>
       </div>
