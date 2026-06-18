@@ -303,32 +303,28 @@
         <!-- Alerta turmas zero -->
         <div id="escolaAlertaZero"></div>
 
-        <!-- Gráfico unificado: engajamento por turma vs escola vs rede -->
-        <div class="row g-3 mb-2">
-          <div class="col-12 col-lg-8">
-            <div class="chart-container">
-              <h6 class="fw-bold mb-1" style="font-size:.8rem;color:#64748b;">
-                <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Engajamento por Turma
-              </h6>
-              <p class="text-muted mb-3" style="font-size:.7rem;">
-                % de estudantes leitores por turma ·
-                <span style="color:#EC4899;font-weight:700;">— — média da escola</span> ·
-                <span style="color:#6366F1;font-weight:700;">— — média da rede</span>
-              </p>
-              <div style="position:relative;height:260px;"><canvas id="chartTurmasEngaj"></canvas></div>
-            </div>
-          </div>
-          <div class="col-12 col-lg-4">
-            <div class="chart-container">
-              <h6 class="fw-bold mb-1" style="font-size:.8rem;color:#64748b;">
-                <i class="bi bi-book me-2 text-primary"></i>Livros Lidos por Turma
-              </h6>
-              <p class="text-muted mb-3" style="font-size:.7rem;">
-                Total de leituras concluídas no período
-              </p>
-              <div style="position:relative;height:260px;"><canvas id="chartTurmasLivros"></canvas></div>
-            </div>
-          </div>
+        <!-- Gráfico 1: engajamento por turma -->
+        <div class="chart-container mb-3">
+          <h6 class="fw-bold mb-1" style="font-size:.8rem;color:#64748b;">
+            <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Engajamento por Turma
+          </h6>
+          <p class="text-muted mb-3" style="font-size:.7rem;">
+            % de estudantes leitores por turma ·
+            <span style="color:#EC4899;font-weight:700;">— — média da escola</span> ·
+            <span style="color:#6366F1;font-weight:700;">— — média da rede</span>
+          </p>
+          <div style="position:relative;height:260px;"><canvas id="chartTurmasEngaj"></canvas></div>
+        </div>
+
+        <!-- Gráfico 2: livros lidos por turma -->
+        <div class="chart-container mb-2">
+          <h6 class="fw-bold mb-1" style="font-size:.8rem;color:#64748b;">
+            <i class="bi bi-book me-2 text-primary"></i>Livros Lidos por Turma
+          </h6>
+          <p class="text-muted mb-3" style="font-size:.7rem;">
+            Total de leituras concluídas no período
+          </p>
+          <div style="position:relative;height:260px;"><canvas id="chartTurmasLivros"></canvas></div>
         </div>
 
         <!-- Tabela de turmas -->
