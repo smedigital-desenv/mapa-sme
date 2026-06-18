@@ -787,9 +787,9 @@ function renderGraficos() {
 
   const FAIXAS = [
     { label:'Zero leituras',   cor:'#FF007F', escolas: comEngaj.filter(e=>e.pct===0) },
-    { label:'Abaixo da média', cor:'#F59E0B', escolas: comEngaj.filter(e=>e.pct>0 && e.pct<mediaEngaj) },
-    { label:'Na média',        cor:'#3B82F6', escolas: comEngaj.filter(e=>e.pct>=mediaEngaj && e.pct<mediaEngaj+15) },
-    { label:'Acima da média',  cor:'#10B981', escolas: comEngaj.filter(e=>e.pct>=mediaEngaj+15) },
+    { label:'Abaixo da média', cor:'#F59E0B', escolas: comEngaj.filter(e=>e.pct>0 && e.pct<mediaEngaj-3) },
+    { label:'Na média',        cor:'#3B82F6', escolas: comEngaj.filter(e=>e.pct>=mediaEngaj-3 && e.pct<=mediaEngaj+3) },
+    { label:'Acima da média',  cor:'#10B981', escolas: comEngaj.filter(e=>e.pct>mediaEngaj+3) },
   ];
   S._faixas     = FAIXAS;
   S._mediaEngaj = mediaEngaj;
