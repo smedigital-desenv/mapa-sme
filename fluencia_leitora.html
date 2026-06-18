@@ -181,6 +181,43 @@
   </div>
 </main>
 
+<!-- MODAL TURMA -->
+<div class="modal fade" id="modalTurma" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg" style="border-radius:18px;overflow:hidden;">
+
+      <div class="modal-header border-0 p-0">
+        <div style="background:#002b5e;color:white;width:100%;
+                    padding:16px 22px 13px;border-bottom:3px solid var(--neon-blue);">
+          <div class="d-flex align-items-start justify-content-between gap-3">
+            <div class="d-flex align-items-center gap-3">
+              <div style="width:40px;height:40px;background:rgba(0,229,255,.15);
+                          border-radius:10px;display:grid;place-items:center;flex-shrink:0;">
+                <i class="bi bi-people-fill" style="color:var(--neon-blue);font-size:1.2rem;"></i>
+              </div>
+              <div>
+                <div id="modalTurmaTitulo" style="font-weight:900;font-size:1rem;line-height:1.2;"></div>
+                <div id="modalTurmaSub"    style="font-size:.7rem;opacity:.7;font-weight:600;
+                                                  text-transform:uppercase;letter-spacing:.07em;margin-top:3px;"></div>
+              </div>
+            </div>
+            <button type="button" class="btn-close btn-close-white flex-shrink-0"
+                    data-bs-dismiss="modal"></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-body p-0" id="modalTurmaBody" style="max-height:70vh;overflow-y:auto;">
+        <div class="text-center py-5 text-muted">
+          <div class="spinner-border spinner-border-sm mb-2"></div>
+          <div>Carregando…</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <!-- MODAL IMPORTAÇÃO -->
 <div class="modal fade" id="modalImport" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered" style="max-width:480px;">
@@ -467,14 +504,17 @@ function renderTabela() {
       </tr>`;
 
     const linhasTurma = turmas
-      .sort((a,b) => (b.ano_escolar||'').localeCompare(a.ano_escolar||'') || (a.turma||'').localeCompare(b.turma||''))
-      .map(t => `
-        <tr class="grp-turma" data-grp="${grpId}" style="display:none;">
+      .sort((a,b) => (a.ano_escolar||'').localeCompare(b.ano_escolar||'') || (a.turma||'').localeCompare(b.turma||''))
+      .map((t, ti) => `
+        <tr class="grp-turma" data-grp="${grpId}" style="display:none;cursor:pointer;"
+            onclick="abrirModalTurma(${gi}, ${ti})"
+            title="Clique para ver os alunos da turma">
           <td style="padding-left:30px;font-size:.78rem;">
             <i class="bi bi-arrow-return-right me-1" style="font-size:.65rem;opacity:.3;"></i>
             <span class="text-muted">${esc(t.ano_escolar)}</span>
             <strong class="ms-1">${esc(t.turma)}</strong>
             ${t.tipo ? `<span class="badge ms-1" style="background:#f1f5f9;color:#64748b;font-size:.6rem;">${esc(t.tipo)}</span>` : ''}
+            <i class="bi bi-people-fill ms-2 text-primary" style="font-size:.65rem;opacity:.5;"></i>
           </td>
           <td class="text-center">
             <span class="badge" style="${t.periodo==='MANHA'?'background:#dbeafe;color:#1e40af':'background:#fef9c3;color:#854d0e'};font-size:.62rem;font-weight:800;">
@@ -520,6 +560,127 @@ function toggleGrp(grpId) {
   const open  = rows[0]?.style.display !== 'none';
   rows.forEach(r => r.style.display = open ? 'none' : '');
   if (icon) icon.style.transform = open ? 'rotate(0deg)' : 'rotate(90deg)';
+}
+
+// ── Modal de turma (lista de alunos) ───────────────────────
+async function abrirModalTurma(gi, ti) {
+  const av      = document.getElementById('selAvaliacao')?.value || '';
+  const escObj  = S.porEscola[av] || {};
+  const escolas = Object.keys(escObj).sort((a,b) => {
+    const fa = +escObj[a].totais.pct_fluentes || 0;
+    const fb = +escObj[b].totais.pct_fluentes || 0;
+    return fb - fa;
+  });
+  const escola  = escolas[gi];
+  const turmas  = [...(escObj[escola]?.turmas || [])]
+    .sort((a,b) => (a.ano_escolar||'').localeCompare(b.ano_escolar||'') || (a.turma||'').localeCompare(b.turma||''));
+  const turma   = turmas[ti];
+  if (!turma) return;
+
+  // Header do modal
+  document.getElementById('modalTurmaTitulo').textContent =
+    `${turma.ano_escolar} ${turma.turma} — ${escola}`;
+  document.getElementById('modalTurmaSub').textContent =
+    `${turma.periodo === 'MANHA' ? 'Manhã' : 'Tarde'} · ${turma.tipo || ''} · ${turma.avaliados || 0} avaliados · ${turma.ausentes || 0} ausentes`;
+
+  // Loading
+  document.getElementById('modalTurmaBody').innerHTML = `
+    <div class="text-center py-5 text-muted">
+      <div class="spinner-border spinner-border-sm mb-2"></div>
+      <div>Carregando alunos…</div>
+    </div>`;
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalTurma')).show();
+
+  try {
+    const alunos = await apiFetch(
+      `fluencia_estudantes?avaliacao=eq.${encodeURIComponent(av)}&escola=eq.${encodeURIComponent(escola)}&turma_raw=eq.${encodeURIComponent(turma.turma_raw)}&order=estudante.asc&select=estudante,participacao,perfil_leitor,palavras_canonicas,palavras_canonicas_max,palavras_global,palavras_global_max,palavras_desconhecidas,palavras_desconhecidas_max,texto_palavras,texto_precisao,texto_compreensao,texto_compreensao_max`
+    );
+
+    if (!alunos.length) {
+      document.getElementById('modalTurmaBody').innerHTML =
+        '<div class="text-center text-muted py-4">Nenhum aluno encontrado.</div>';
+      return;
+    }
+
+    // Ordena: avaliados primeiro (por perfil), depois ausentes
+    const ORDEM_PERFIL = ['Fluente','Iniciante','Pré-leitor - Nível 4','Pré-leitor - Nível 3','Pré-leitor - Nível 2','Pré-leitor - Nível 1','-'];
+    alunos.sort((a,b) => {
+      const pa = ORDEM_PERFIL.indexOf(a.perfil_leitor);
+      const pb = ORDEM_PERFIL.indexOf(b.perfil_leitor);
+      if (pa !== pb) return (pa < 0 ? 99 : pa) - (pb < 0 ? 99 : pb);
+      return (a.estudante||'').localeCompare(b.estudante||'');
+    });
+
+    document.getElementById('modalTurmaBody').innerHTML = `
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size:.78rem;">
+          <thead class="table-light" style="font-size:.68rem;color:#666;text-transform:uppercase;position:sticky;top:0;">
+            <tr>
+              <th style="min-width:220px;">Aluno</th>
+              <th class="text-center">Participação</th>
+              <th class="text-center">Perfil</th>
+              <th class="text-center" title="Palavras (Sílabas Canônicas)">Pal. Canôn.</th>
+              <th class="text-center" title="Palavras (Leitura Global)">Pal. Global</th>
+              <th class="text-center" title="Palavras Possivelmente Desconhecidas">Pal. Desc.</th>
+              <th class="text-center" title="Texto: Palavras Corretas">Txt. Palavras</th>
+              <th class="text-center" title="Texto: Precisão">Precisão</th>
+              <th class="text-center" title="Texto: Compreensão">Compreensão</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${alunos.map(a => {
+              const chipCls = perfilChipCls(a.perfil_leitor);
+              const partCls = a.participacao === 'Presente avaliado'
+                ? 'background:#dcfce7;color:#166534'
+                : a.participacao === 'Ausente'
+                ? 'background:#fee2e2;color:#991b1b'
+                : 'background:#f1f5f9;color:#64748b';
+
+              const fmtN = (v, max) => v != null ? `${v}/${max||'?'}` : '—';
+              const fmtPct = v => v != null ? `${(v*100).toFixed(0)}%` : '—';
+              const fmtC = (v, max) => v != null ? `${v}/${max||'?'}` : '—';
+
+              return `
+                <tr>
+                  <td style="font-weight:600;">${esc(a.estudante)}</td>
+                  <td class="text-center">
+                    <span class="chip" style="${partCls};font-size:.6rem;">
+                      ${a.participacao === 'Presente avaliado' ? 'Avaliado'
+                        : a.participacao === 'Ausente' ? 'Ausente'
+                        : a.participacao === 'Presente não avaliado' ? 'Pres. N.A.'
+                        : esc(a.participacao||'—')}
+                    </span>
+                  </td>
+                  <td class="text-center">
+                    <span class="chip ${chipCls}">${esc(a.perfil_leitor||'—')}</span>
+                  </td>
+                  <td class="text-center text-muted">${fmtN(a.palavras_canonicas, a.palavras_canonicas_max)}</td>
+                  <td class="text-center text-muted">${fmtN(a.palavras_global, a.palavras_global_max)}</td>
+                  <td class="text-center text-muted">${fmtN(a.palavras_desconhecidas, a.palavras_desconhecidas_max)}</td>
+                  <td class="text-center fw-bold" style="color:#002b5e;">${a.texto_palavras != null ? a.texto_palavras : '—'}</td>
+                  <td class="text-center">${fmtPct(a.texto_precisao)}</td>
+                  <td class="text-center">${fmtC(a.texto_compreensao, a.texto_compreensao_max)}</td>
+                </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  } catch(e) {
+    document.getElementById('modalTurmaBody').innerHTML =
+      `<div class="alert alert-danger m-3"><i class="bi bi-x-circle me-2"></i>${e.message}</div>`;
+  }
+}
+
+function perfilChipCls(perfil) {
+  if (!perfil || perfil === '-') return 'chip-ausente';
+  if (perfil === 'Fluente')      return 'chip-fluente';
+  if (perfil === 'Iniciante')    return 'chip-iniciante';
+  if (perfil.includes('Nível 4')) return 'chip-pre4';
+  if (perfil.includes('Nível 3')) return 'chip-pre3';
+  if (perfil.includes('Nível 2')) return 'chip-pre2';
+  if (perfil.includes('Nível 1')) return 'chip-pre1';
+  return 'chip-ausente';
 }
 
 function expandirTodos() {
