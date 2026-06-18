@@ -870,18 +870,19 @@ function abrirModalFaixa(idx) {
   lista.innerHTML = faixa.escolas.length
     ? faixa.escolas
         .sort((a,b) => b.pct - a.pct)
-        .map(e => `
-          <li class="list-group-item d-flex justify-content-between align-items-center px-4 py-3"
-              style="cursor:pointer;border-left:3px solid ${faixa.cor};"
-              onclick="bootstrap.Modal.getInstance(document.getElementById('modalFaixa'))?.hide();
-                       setTimeout(()=>{ const idx=S.escolas.findIndex(x=>x.nome_escola===${JSON.stringify(e.nome)});
-                       if(idx>=0) abrirModalEscola(idx); },300);">
-            <span style="font-size:.82rem;font-weight:700;">${esc(e.nome)}</span>
-            <span class="el-chip ${e.pct>=80?'el-chip-alto':e.pct>=40?'el-chip-medio':e.pct>0?'el-chip-baixo':'el-chip-zero'}">
-              ${e.pct>0?e.pct+'%':'—'}
-            </span>
-          </li>`)
-        .join('')
+        .map(e => {
+          const idxReal = S.escolas.findIndex(x => x.nome_escola === e.nome);
+          return `
+            <li class="list-group-item d-flex justify-content-between align-items-center px-4 py-3"
+                style="cursor:pointer;border-left:3px solid ${faixa.cor};"
+                onclick="bootstrap.Modal.getInstance(document.getElementById('modalFaixa'))?.hide();
+                         setTimeout(()=>abrirModalEscola(${idxReal}),300);">
+              <span style="font-size:.82rem;font-weight:700;">${esc(e.nome)}</span>
+              <span class="el-chip ${e.pct>=80?'el-chip-alto':e.pct>=40?'el-chip-medio':e.pct>0?'el-chip-baixo':'el-chip-zero'}">
+                ${e.pct>0?e.pct+'%':'—'}
+              </span>
+            </li>`;
+        }).join('')
     : '<li class="list-group-item text-center text-muted py-4">Nenhuma escola nesta faixa.</li>';
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFaixa')).show();
