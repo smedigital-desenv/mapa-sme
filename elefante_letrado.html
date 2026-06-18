@@ -653,7 +653,7 @@ function renderTabela(busca) {
     const totalLivros   = turmas.reduce((s,t)=>s+(t.livros_lidos||0),0);
     const totalSeg      = turmas.reduce((s,t)=>s+(t.tempo_leitura_seg||0),0);
     const pctEsc        = totalEstud>0 ? Math.round((totalLeitores/totalEstud)*100) : 0;
-    const engajCls      = pctEsc>=80?'el-chip-alto':pctEsc>=40?'el-chip-medio':pctEsc>0?'el-chip-baixo':'el-chip-zero';
+    const engajCls = engajChip(pctEsc);
 
     const linhaEscola = `
       <tr class="el-grp-header" data-escola-idx="${idxReal}">
@@ -684,7 +684,7 @@ function renderTabela(busca) {
 
     const linhasTurma = turmas.map(t => {
       const pct    = t.estudantes>0 ? Math.round((t.leitores/t.estudantes)*100) : 0;
-      const eCls   = pct>=80?'el-chip-alto':pct>=40?'el-chip-medio':pct>0?'el-chip-baixo':'el-chip-zero';
+      const eCls   = engajChip(pct);
       const turnoBg= t.turno==='MANHA'?'background:#dbeafe;color:#1e40af':'background:#fef9c3;color:#854d0e';
       return `
         <tr class="el-grp-row" data-grp="${grpId}" style="display:none;">
@@ -854,7 +854,7 @@ function abrirModalFaixa(idx) {
                 onclick="bootstrap.Modal.getInstance(document.getElementById('modalFaixa'))?.hide();
                          setTimeout(()=>abrirModalEscola(${idxReal}),300);">
               <span style="font-size:.82rem;font-weight:700;">${esc(e.nome)}</span>
-              <span class="el-chip ${e.pct>=80?'el-chip-alto':e.pct>=40?'el-chip-medio':e.pct>0?'el-chip-baixo':'el-chip-zero'}">
+              <span class="el-chip ${engajChip(e.pct)}">
                 ${e.pct>0?e.pct+'%':'—'}
               </span>
             </li>`;
@@ -1181,7 +1181,7 @@ function abrirModalEscola(idx) {
   });
   document.getElementById('escolaTbTurmas').innerHTML = turmasOrdTabela.map(t=>{
     const pct = t.estudantes>0?Math.round((t.leitores/t.estudantes)*100):0;
-    const cls = pct>=80?'el-chip-alto':pct>=40?'el-chip-medio':pct>0?'el-chip-baixo':'el-chip-zero';
+    const cls = engajChip(pct);
     const tbg = t.turno==='MANHA'?'background:#dbeafe;color:#1e40af':'background:#fef9c3;color:#854d0e';
     return `
       <tr>
@@ -1304,6 +1304,20 @@ function t(v) {
 function esc(s) {
   return String(s??'').replace(/[&<>"']/g,
     c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function engajChip(pct) {
+  if (!pct || pct === 0) return 'el-chip-zero';
+  const m = S._mediaEngaj || 0;
+  if (m > 0) {
+    if (pct > m + 3)  return 'el-chip-alto';
+    if (pct >= m - 3) return 'el-chip-medio';
+    return 'el-chip-baixo';
+  }
+  // Fallback se a média ainda não foi calculada
+  if (pct >= 80) return 'el-chip-alto';
+  if (pct >= 40) return 'el-chip-medio';
+  return 'el-chip-baixo';
 }
 </script>
 </body>
