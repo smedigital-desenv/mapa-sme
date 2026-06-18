@@ -177,12 +177,12 @@
     <!-- Legenda -->
     <div class="legenda-perfis mb-3 px-1">
       <span class="label-mini me-1">Perfis:</span>
-      <span class="chip chip-fluente">Fluente</span>
       <span class="chip chip-iniciante">Iniciante</span>
-      <span class="chip chip-pre4">Pré-leitor N4</span>
-      <span class="chip chip-pre3">Pré-leitor N3</span>
-      <span class="chip chip-pre2">Pré-leitor N2</span>
       <span class="chip chip-pre1">Pré-leitor N1</span>
+      <span class="chip chip-pre2">Pré-leitor N2</span>
+      <span class="chip chip-pre3">Pré-leitor N3</span>
+      <span class="chip chip-pre4">Pré-leitor N4</span>
+      <span class="chip chip-fluente">Fluente</span>
       <span class="chip chip-ausente">Ausente/N.A.</span>
     </div>
 
@@ -190,12 +190,12 @@
       <table class="table align-middle table-hover mb-0">
         <thead class="table-light" style="font-size:.72rem;color:#666;text-transform:uppercase;">
           <tr>
-            <th style="min-width:280px;">Escola / Turma</th>
-            <th class="text-center" style="width:80px;">Matriculados</th>
-            <th class="text-center" style="width:80px;">Avaliados</th>
-            <th class="text-center" style="width:70px;">Ausentes</th>
-            <th style="min-width:300px;">Distribuição de Perfis</th>
-            <th class="text-center" style="width:90px;">% Fluentes</th>
+            <th style="min-width:200px;">Escola / Turma</th>
+            <th class="text-center" style="width:90px;">Matriculados</th>
+            <th class="text-center" style="width:85px;">Avaliados</th>
+            <th class="text-center" style="width:75px;">Ausentes</th>
+            <th class="text-center" style="min-width:380px;">Distribuição de Perfis</th>
+            <th class="text-center" style="width:85px;">% Fluentes</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -323,13 +323,13 @@ const S = {
 
 // ── Perfis ─────────────────────────────────────────────────
 const PERFIS = [
-  { key:'fluentes',   label:'Fluente',         cls:'chip-fluente'   },
-  { key:'iniciantes', label:'Iniciante',        cls:'chip-iniciante' },
-  { key:'pre_n4',     label:'Pré N4',           cls:'chip-pre4'      },
-  { key:'pre_n3',     label:'Pré N3',           cls:'chip-pre3'      },
-  { key:'pre_n2',     label:'Pré N2',           cls:'chip-pre2'      },
-  { key:'pre_n1',     label:'Pré N1',           cls:'chip-pre1'      },
-  { key:'ausentes',   label:'Aus/NA',           cls:'chip-ausente'   },
+  { key:'iniciantes', label:'Iniciante',  cls:'chip-iniciante' },
+  { key:'pre_n1',     label:'Pré N1',     cls:'chip-pre1'      },
+  { key:'pre_n2',     label:'Pré N2',     cls:'chip-pre2'      },
+  { key:'pre_n3',     label:'Pré N3',     cls:'chip-pre3'      },
+  { key:'pre_n4',     label:'Pré N4',     cls:'chip-pre4'      },
+  { key:'fluentes',   label:'Fluente',    cls:'chip-fluente'   },
+  { key:'ausentes',   label:'Aus/NA',     cls:'chip-ausente'   },
 ];
 
 // ── Init ───────────────────────────────────────────────────
@@ -441,37 +441,54 @@ function renderKpis() {
   const todas = Object.values(esc).flatMap(e => e.turmas);
 
   const soma = k => todas.reduce((s,t) => s+(+t[k]||0), 0);
-  const total     = soma('total_estudantes');
-  const avaliados = soma('avaliados');
-  const ausentes  = soma('ausentes');
-  const fluentes  = soma('fluentes');
-  const pre1      = soma('pre_n1');
-  const pctPart   = total > 0 ? (avaliados/total*100).toFixed(1) : '—';
-  const pctFlu    = avaliados > 0 ? (fluentes/avaliados*100).toFixed(1) : '—';
-  const pctPre1   = avaliados > 0 ? (pre1/avaliados*100).toFixed(1) : '—';
+  const total      = soma('total_estudantes');
+  const avaliados  = soma('avaliados');
+  const ausentes   = soma('ausentes');
+  const fluentes   = soma('fluentes');
+  const iniciantes = soma('iniciantes');
+  const pre1       = soma('pre_n1');
+  const pre2       = soma('pre_n2');
+  const pre3       = soma('pre_n3');
+  const pre4       = soma('pre_n4');
 
-  const items = [
-    { icon:'bi-people-fill',      cor:'#002b5e', label:'Matriculados',      val:total.toLocaleString('pt-BR') },
-    { icon:'bi-clipboard-check',  cor:'#0062ff', label:'Avaliados',         val:`${avaliados.toLocaleString('pt-BR')} (${pctPart}%)` },
-    { icon:'bi-person-x',         cor:'#94a3b8', label:'Ausentes',          val:ausentes.toLocaleString('pt-BR') },
-    { icon:'bi-star-fill',        cor:'#10B981', label:'Fluentes',          val:`${fluentes.toLocaleString('pt-BR')} (${pctFlu}%)` },
-    { icon:'bi-exclamation-circle',cor:'#dc2626',label:'Pré-leitor N1',     val:`${pre1.toLocaleString('pt-BR')} (${pctPre1}%)` },
-    { icon:'bi-building',         cor:'#6366F1', label:'Escolas',           val:Object.keys(esc).length },
+  const pct = (n) => avaliados > 0 ? `${(n/avaliados*100).toFixed(1)}%` : '—';
+  const pctPart = total > 0 ? `${(avaliados/total*100).toFixed(1)}%` : '—';
+
+  const linha1 = [
+    { icon:'bi-people-fill',     cor:'#002b5e', label:'Matriculados',  val: total.toLocaleString('pt-BR') },
+    { icon:'bi-clipboard-check', cor:'#0062ff', label:'Avaliados',     val: `${avaliados.toLocaleString('pt-BR')} (${pctPart})` },
+    { icon:'bi-person-x',        cor:'#94a3b8', label:'Ausentes',      val: ausentes.toLocaleString('pt-BR') },
+    { icon:'bi-building',        cor:'#6366F1', label:'Escolas',       val: Object.keys(esc).length },
+    { icon:'bi-people',          cor:'#0891b2', label:'Iniciante',     val: `${iniciantes.toLocaleString('pt-BR')} (${pct(iniciantes)})` },
+    { icon:'bi-reception-1',     cor:'#dc2626', label:'Pré-leitor N1', val: `${pre1.toLocaleString('pt-BR')} (${pct(pre1)})` },
   ];
 
-  document.getElementById('kpis').innerHTML = items.map(k => `
+  const linha2 = [
+    { icon:'bi-reception-2',     cor:'#FF007F', label:'Pré-leitor N2', val: `${pre2.toLocaleString('pt-BR')} (${pct(pre2)})` },
+    { icon:'bi-reception-3',     cor:'#F59E0B', label:'Pré-leitor N3', val: `${pre3.toLocaleString('pt-BR')} (${pct(pre3)})` },
+    { icon:'bi-reception-4',     cor:'#8B5CF6', label:'Pré-leitor N4', val: `${pre4.toLocaleString('pt-BR')} (${pct(pre4)})` },
+    { icon:'bi-star-fill',       cor:'#10B981', label:'Fluente',       val: `${fluentes.toLocaleString('pt-BR')} (${pct(fluentes)})` },
+    { icon:'bi-bar-chart-fill',  cor:'#059669', label:'% Fluentes',    val: pct(fluentes) },
+    { icon:'bi-graph-up-arrow',  cor:'#002b5e', label:'% Não fluentes',val: avaliados > 0 ? `${((avaliados-fluentes)/avaliados*100).toFixed(1)}%` : '—' },
+  ];
+
+  const renderLinha = items => items.map(k => `
     <div class="col-6 col-md-4 col-lg-2">
       <div class="card-kpi d-flex align-items-center gap-3">
-        <div style="width:40px;height:40px;border-radius:10px;background:${k.cor}18;
+        <div style="width:38px;height:38px;border-radius:10px;background:${k.cor}18;
                     display:grid;place-items:center;flex-shrink:0;">
-          <i class="bi ${k.icon}" style="color:${k.cor};font-size:1.1rem;"></i>
+          <i class="bi ${k.icon}" style="color:${k.cor};font-size:1rem;"></i>
         </div>
         <div>
-          <div class="kpi-val" style="color:${k.cor};font-size:1.15rem;">${k.val}</div>
+          <div class="kpi-val" style="color:${k.cor};font-size:1.05rem;">${k.val}</div>
           <div class="label-mini">${k.label}</div>
         </div>
       </div>
     </div>`).join('');
+
+  document.getElementById('kpis').innerHTML =
+    `<div class="col-12"><div class="row g-3">${renderLinha(linha1)}</div></div>
+     <div class="col-12"><div class="row g-3">${renderLinha(linha2)}</div></div>`;
 }
 
 // ── Tabela ─────────────────────────────────────────────────
@@ -562,12 +579,12 @@ function renderBarra(d) {
   if (!avaliados) return '<span class="text-muted small">—</span>';
 
   const SEGS = [
-    { key:'fluentes',   cor:'#10B981', label:'Fluente'   },
     { key:'iniciantes', cor:'#3B82F6', label:'Iniciante' },
-    { key:'pre_n4',     cor:'#6366F1', label:'Pré N4'    },
-    { key:'pre_n3',     cor:'#F59E0B', label:'Pré N3'    },
-    { key:'pre_n2',     cor:'#FF007F', label:'Pré N2'    },
     { key:'pre_n1',     cor:'#dc2626', label:'Pré N1'    },
+    { key:'pre_n2',     cor:'#FF007F', label:'Pré N2'    },
+    { key:'pre_n3',     cor:'#F59E0B', label:'Pré N3'    },
+    { key:'pre_n4',     cor:'#8B5CF6', label:'Pré N4'    },
+    { key:'fluentes',   cor:'#10B981', label:'Fluente'   },
   ];
 
   const segs = SEGS.map(s => {
