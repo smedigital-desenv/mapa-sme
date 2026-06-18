@@ -1,0 +1,949 @@
+<script>
+let _totalPrefetchArvoreKey = '';
+let pacoteTotalAtual = null;
+let pacoteTotalAnoAtual = 'TODOS';
+let _totalPacoteIndex = null;
+let _totalPacoteIndexPkgRef = null;
+const TPKG = { U:0, A:1, T:2, D:3, E:4, P:5, S:6, Q:7 };
+
+
+// ===========================================================
+// ÍNDICE LOCAL DO TOTAL — acelera clique em Unidade/Turma
+// ===========================================================
+function _totalFiltroKey(ano, unidade, turma) {
+  return [
+    ano || 'TODOS',
+    unidade || 'TODAS',
+    turma || 'TODAS'
+  ].join('||');
+}
+
+function _criarAcumuladorTotal() {
+  return {};
+}
+
+function _addLinhaIndiceTotal(cache, key, disc, eixo, campo, soma, qtd) {
+  if (!disc || !eixo || !campo || !qtd) return;
+
+  if (!cache[key]) cache[key] = _criarAcumuladorTotal();
+
+  const k = disc + '||' + eixo;
+  if (!cache[key][k]) {
+    cache[key][k] = {
+      disciplina: disc,
+      tipo: eixo,
+      diag: { s: 0, q: 0 },
+      b1: { s: 0, q: 0 },
+      b2: { s: 0, q: 0 },
+      b3: { s: 0, q: 0 },
+      b4: { s: 0, q: 0 }
+    };
+  }
+
+  if (!cache[key][k][campo]) cache[key][k][campo] = { s: 0, q: 0 };
+
+  cache[key][k][campo].s += soma;
+  cache[key][k][campo].q += qtd;
+}
+
+function _addArvoreTotalIndex(arvores, vistos, anoKey, unidade, turma) {
+  const keyVisto = unidade + '||' + turma;
+
+  if (!vistos[anoKey]) vistos[anoKey] = new Set();
+  if (vistos[anoKey].has(keyVisto)) return;
+
+  vistos[anoKey].add(keyVisto);
+
+  if (!arvores[anoKey]) arvores[anoKey] = {};
+  if (!arvores[anoKey][unidade]) arvores[anoKey][unidade] = {};
+
+  arvores[anoKey][unidade][turma] = (arvores[anoKey][unidade][turma] || 0) + 1;
+}
+
+function _garantirIndicePacoteTotal(pkg) {
+  if (!pkg || !pkg.ok || !Array.isArray(pkg.linhas)) {
+    _totalPacoteIndex = null;
+    _totalPacoteIndexPkgRef = null;
+    return null;
+  }
+
+  if (_totalPacoteIndex && _totalPacoteIndexPkgRef === pkg) {
+    return _totalPacoteIndex;
+  }
+
+  const cache = {};
+  const arvores = {};
+  const vistosArvore = {};
+  const linhas = pkg.linhas || [];
+
+  linhas.forEach(row => {
+    if (!row) return;
+
+    const unidade = row[TPKG.U] || 'Sem unidade';
+    const ano = normalizarAnoFiltroFront(row[TPKG.A] || 'TODOS');
+    const turma = String(row[TPKG.T] || 'Sem turma').trim().toUpperCase();
+    const disc = _normalizarDisciplinaTotalFront(row[TPKG.D]);
+    const eixo = _normalizarEixoTotalFront(row[TPKG.E]);
+    const campo = row[TPKG.P];
+    const soma = Number(row[TPKG.S] || 0);
+    const qtd = Number(row[TPKG.Q] || 0);
+
+    if (!unidade || !turma) return;
+
+    // Filtro de unidade escolar (acesso restrito por escola).
+    if (typeof _unidadeMatchFiltro === 'function' && !_unidadeMatchFiltro(unidade)) return;
+
+    // Arvore lateral: pronta para TODOS e para cada ano.
+    _addArvoreTotalIndex(arvores, vistosArvore, 'TODOS', unidade, turma);
+    if (ano && ano !== 'TODOS') _addArvoreTotalIndex(arvores, vistosArvore, ano, unidade, turma);
+
+    if (!disc || !eixo || !campo || !qtd) return;
+
+    // Índices pré-agregados: rede, ano, unidade e turma.
+    // Assim o clique em unidade/turma não precisa percorrer todas as linhas novamente.
+    _addLinhaIndiceTotal(cache, _totalFiltroKey('TODOS', 'TODAS', 'TODAS'), disc, eixo, campo, soma, qtd);
+    if (ano && ano !== 'TODOS') {
+      _addLinhaIndiceTotal(cache, _totalFiltroKey(ano, 'TODAS', 'TODAS'), disc, eixo, campo, soma, qtd);
+    }
+
+    _addLinhaIndiceTotal(cache, _totalFiltroKey('TODOS', unidade, 'TODAS'), disc, eixo, campo, soma, qtd);
+    if (ano && ano !== 'TODOS') {
+      _addLinhaIndiceTotal(cache, _totalFiltroKey(ano, unidade, 'TODAS'), disc, eixo, campo, soma, qtd);
+    }
+
+    _addLinhaIndiceTotal(cache, _totalFiltroKey('TODOS', unidade, turma), disc, eixo, campo, soma, qtd);
+    if (ano && ano !== 'TODOS') {
+      _addLinhaIndiceTotal(cache, _totalFiltroKey(ano, unidade, turma), disc, eixo, campo, soma, qtd);
+    }
+  });
+
+  _totalPacoteIndex = {
+    cache,
+    arvores,
+    arrays: {},
+    criadoEm: Date.now()
+  };
+  _totalPacoteIndexPkgRef = pkg;
+
+  return _totalPacoteIndex;
+}
+
+function _linhasTotalDoIndice(pkg, filtros) {
+  const idx = _garantirIndicePacoteTotal(pkg);
+  if (!idx) return [];
+
+  const ano = filtros.ano || 'TODOS';
+  const unidade = filtros.unidade || 'TODAS';
+  const turma = filtros.turma || 'TODAS';
+  const key = _totalFiltroKey(ano, unidade, turma);
+
+  if (idx.arrays[key]) return idx.arrays[key];
+
+  const ag = idx.cache[key] || {};
+
+  idx.arrays[key] = Object.keys(ag).map(k => {
+    const it = ag[k];
+    const out = {
+      disciplina: it.disciplina,
+      tipo: it.tipo
+    };
+
+    CAMPOS_TOTAL.forEach(c => {
+      out[c] = it[c] && it[c].q
+        ? Math.round((it[c].s / it[c].q) * 100) / 100
+        : null;
+    });
+
+    return out;
+  }).sort((a, b) =>
+    a.disciplina.localeCompare(b.disciplina) || a.tipo.localeCompare(b.tipo)
+  );
+
+  return idx.arrays[key];
+}
+
+function _arvoreTotalDoIndice(pkg, ano) {
+  const idx = _garantirIndicePacoteTotal(pkg);
+  if (!idx) return {};
+
+  const anoNorm = ano || 'TODOS';
+  return idx.arvores[anoNorm] || {};
+}
+
+function _normalizarEixoTotalFront(eixo) {
+  const raw = String(eixo || '').trim();
+  if (!raw) return '';
+
+  const n = raw.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  if (n.includes('PRODUCAO') || n.includes('TEXTUAL')) return 'PRODUÇÃO TEXTUAL';
+  if (n.includes('LEITURA')) return 'LEITURA';
+  if (n.includes('ESCRITA')) return 'ESCRITA';
+  if (n.includes('ORALIDADE')) return 'ORALIDADE';
+  if (n.includes('COMPLEMENTAR')) return 'COMPLEMENTAR';
+
+  return raw.toUpperCase();
+}
+
+function _normalizarDisciplinaTotalFront(disc) {
+  const raw = String(disc || '').trim();
+  const n = raw.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  if (n.includes('LINGUA PORTUGUESA') || n.includes('PORTUGUES')) return 'Língua Portuguesa';
+  if (n.includes('MATEMATICA')) return 'Matemática';
+  if (n.includes('CIENCIAS')) return 'Ciências';
+  if (n.includes('HISTORIA')) return 'História';
+  if (n.includes('GEOGRAFIA')) return 'Geografia';
+  if (n.includes('EDUCACAO FISICA')) return 'Educação Física';
+  if (n.includes('LINGUA INGLESA') || n.includes('INGLES')) return 'Língua Inglesa';
+  if (n.includes('ATENDIMENTO EDUCACIONAL')) return 'Atendimento Educacional Especializado';
+  if (n === 'ARTE' || n.includes('ARTES')) return 'Arte';
+
+  return raw;
+}
+
+function _consolidarLinhasTotalNormalizadas(linhas) {
+  const ag = {};
+
+  (linhas || []).forEach(l => {
+    if (!l || Array.isArray(l)) return;
+
+    const disc = _normalizarDisciplinaTotalFront(l.disciplina);
+    const tipo = _normalizarEixoTotalFront(l.tipo);
+    if (!disc || !tipo) return;
+
+    const k = disc + '||' + tipo;
+    if (!ag[k]) ag[k] = { disciplina: disc, tipo };
+
+    CAMPOS_TOTAL.forEach(c => {
+      const v = l[c];
+      if (v === null || v === undefined || v === '') return;
+      const num = Number(v);
+      if (isNaN(num)) return;
+
+      if (ag[k][c] === null || ag[k][c] === undefined) ag[k][c] = num;
+      else ag[k][c] = Math.round(((Number(ag[k][c]) + num) / 2) * 100) / 100;
+    });
+  });
+
+  return Object.values(ag).sort((a, b) =>
+    a.disciplina.localeCompare(b.disciplina) || a.tipo.localeCompare(b.tipo)
+  );
+}
+
+// ===========================================================
+// JS_Total.html — Aba Total: Diag → B1 → B2 → B3 → B4
+// Versão final: cria sidebar se o Index não tiver + filtros unidade/turma
+// ===========================================================
+
+function prepararLayoutTotalSeNecessario() {
+  const view = document.getElementById('viewTotal');
+  if (!view) return;
+
+  if (document.getElementById('hierarquiaContainerTotal') && document.getElementById('totalFiltroAtivo')) return;
+
+  view.innerHTML = `
+    <div class="total-layout">
+      <aside class="total-side">
+        <div class="bg-white border rounded-3 shadow-sm p-0">
+          <div class="p-3 border-bottom d-flex justify-content-between align-items-center" style="background:#002b5e;border-radius:10px 10px 0 0;">
+            <span class="text-white fw-bold" style="font-size:.8rem;">
+              <i class="bi bi-building me-2"></i>Unidade / Turma
+            </span>
+            <button type="button" class="btn btn-sm text-white p-0" style="font-size:.7rem;opacity:.8;" onclick="limparHierarquiaTotal()" title="Ver toda a rede">
+              <i class="bi bi-x-circle me-1"></i>Todos
+            </button>
+          </div>
+          <div id="hierarquiaContainerTotal" style="max-height:65vh;overflow-y:auto;font-size:.78rem;">
+            <div class="text-center text-muted p-4">
+              <div class="spinner-border spinner-border-sm mb-2"></div><br>Carregando…
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="total-main">
+        <div class="avaliacao-header-card filter-card mb-3 py-2 px-3">
+          <div class="row g-3 align-items-center">
+            <div class="col-12 col-md-4">
+              <div class="mini-label mb-1">Avaliação</div>
+              <h5 class="fw-bold text-primary m-0">Total — Evolução</h5>
+            </div>
+            <div class="col-12 col-md-8">
+              <div class="mini-label mb-1">Filtro ativo</div>
+              <div id="totalFiltroAtivo" class="small text-muted fst-italic">Toda a rede</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="pillsTotalDisciplina" class="pills-container mb-3"></div>
+        <div id="totalHeroBar"></div>
+        <div id="pillsTotalEixo" class="pills-container mb-3"></div>
+        <div id="totalMainChartContainer"></div>
+
+        <div class="table-container shadow-sm mt-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="fw-bold text-primary m-0"><i class="bi bi-graph-up-arrow me-2"></i>Resumo por eixo</h5>
+          </div>
+          <div class="table-responsive">
+            <table class="table align-middle">
+              <thead class="table-light" id="totalTableHead"></thead>
+              <tbody id="totalTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>`;
+}
+
+function iniciarTotalAvaliacoes() {
+  prepararLayoutTotalSeNecessario();
+
+  totalDisciplinaSelecionada = '';
+  totalEixoAtual = 'TODOS';
+  totalTipoGrafico = totalTipoGrafico || 'bar';
+  _hierUnidadeAtiva = 'TODAS';
+  _hierTurmaAtiva = 'TODAS';
+  _hierArvoreTotal = {};
+
+  const pills = document.getElementById('pillsTotalDisciplina');
+  if (pills) {
+    pills.innerHTML = `
+      <div class="d-flex align-items-center gap-2 p-2 text-muted">
+        <div class="spinner-border spinner-border-sm"></div>
+        <span style="font-size:.85rem;">Carregando dados consolidados…</span>
+      </div>`;
+  }
+
+  ['totalHeroBar', 'pillsTotalEixo', 'totalMainChartContainer', 'totalTableHead', 'totalTableBody'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+
+  carregarHierarquiaTotal();
+  atualizarBreadcrumbTotal();
+  carregarTotalRapido(false);
+}
+
+function _filtrosTotal() {
+  return {
+    unidade: _hierUnidadeAtiva || 'TODAS',
+    turma: _hierTurmaAtiva || 'TODAS',
+    ano: (typeof _anoFiltroAtualSeguro === 'function' ? _anoFiltroAtualSeguro() : (anoFiltroAtual || 'TODOS'))
+  };
+}
+
+function _isPacoteTotalValido(pkg) {
+  return !!(pkg && pkg.ok && Array.isArray(pkg.linhas) && (!pkg.linhas.length || Array.isArray(pkg.linhas[0])));
+}
+
+function _isTotalAntigoValido(pkg) {
+  return !!(pkg && pkg.ok && Array.isArray(pkg.linhas) && (pkg.linhas.length === 0 || !Array.isArray(pkg.linhas[0])));
+}
+
+function _cachePacoteTotalPreferencial(ano) {
+  const anoNorm = ano || 'TODOS';
+  const chaveAno = _chavePacoteTotal({ ano: anoNorm });
+  const chaveMaster = _chavePacoteTotal({ ano: 'TODOS' });
+
+  return _cacheGet(chaveAno) || _cacheGet(chaveMaster) || null;
+}
+
+function _aplicarPacoteTotalCache(pkg, ano) {
+  pacoteTotalAtual = pkg;
+  pacoteTotalAnoAtual = ano || 'TODOS';
+
+  // Cria o índice local uma única vez. Depois disso, unidade/turma/ano são filtrados instantaneamente.
+  _garantirIndicePacoteTotal(pkg);
+
+  _hierArvoreTotal = _arvoreTotalDoIndice(pkg, _filtrosTotal().ano || 'TODOS');
+  renderHierarquiaTotal(_hierArvoreTotal);
+}
+
+function carregarHierarquiaTotal() {
+  prepararLayoutTotalSeNecessario();
+
+  const container = document.getElementById('hierarquiaContainerTotal');
+  const ano = _filtrosTotal().ano || 'TODOS';
+
+  if (pacoteTotalAtual && pacoteTotalAtual.ok) {
+    _hierArvoreTotal = _montarArvoreTotalDoPacote(pacoteTotalAtual, ano);
+    renderHierarquiaTotal(_hierArvoreTotal);
+    return;
+  }
+
+  const cachedPkg = _cachePacoteTotalPreferencial(ano);
+  if (_isPacoteTotalValido(cachedPkg)) {
+    _aplicarPacoteTotalCache(cachedPkg, ano);
+    return;
+  }
+
+  if (container) {
+    container.innerHTML = `
+      <div class="text-center text-muted p-4">
+        <div class="spinner-border spinner-border-sm mb-2"></div><br>Carregando…
+      </div>`;
+  }
+
+  // Começa a aquecer o pacote mestre no fundo; quando terminar, o callback da fila atualiza a tela.
+  const chavePkg = _chavePacoteTotal({ ano });
+  _withCache(
+    chavePkg,
+    cb => google.script.run
+      .withSuccessHandler(r => cb(r))
+      .withFailureHandler(err => {
+        console.error('Erro getTotalAvaliacoesRapido pacote hierarquia:', err);
+        cb({ ok: false, linhas: [] });
+      })
+      .getTotalAvaliacoesRapido({ __pacote: true, ano }),
+    res => {
+      if (_isPacoteTotalValido(res)) {
+        _aplicarPacoteTotalCache(res, ano);
+      } else {
+        // Fallback seguro: usa a hierarquia antiga se o pacote compacto não vier.
+        _withCache(
+          _chaveHierarquiaTotal(ano),
+          cb2 => google.script.run
+            .withSuccessHandler(r => cb2(r))
+            .withFailureHandler(err => {
+              console.error('Erro getHierarquiaTotal fallback:', err);
+              cb2({ ok: false, arvore: {} });
+            })
+            .getHierarquiaTotal({ ano }),
+          hres => {
+            if (hres && hres.ok) {
+              _hierArvoreTotal = hres.arvore || {};
+              renderHierarquiaTotal(_hierArvoreTotal);
+            } else if (container) {
+              container.innerHTML = `<div class="text-center text-muted p-3 small">Sem dados para o filtro atual.</div>`;
+            }
+          }
+        );
+      }
+    }
+  );
+}
+
+function renderHierarquiaTotal(arvore) {
+  _hierArvoreTotal = arvore || {};
+  const container = document.getElementById('hierarquiaContainerTotal');
+  if (!container) return;
+
+  const unidades = Object.keys(_hierArvoreTotal).sort();
+  if (!unidades.length) {
+    container.innerHTML = `<div class="text-center text-muted p-3 small">Sem dados para o filtro atual.</div>`;
+    return;
+  }
+
+  container.innerHTML = unidades.map(u => {
+    const turmas = Object.keys(_hierArvoreTotal[u]).sort();
+    const totalU = Object.values(_hierArvoreTotal[u]).reduce((a, b) => a + b, 0);
+    const ativaU = _hierUnidadeAtiva === u;
+
+    return `
+      <div class="hier-unidade${ativaU ? ' ativa' : ''}"
+           onmouseenter="preAquecerFiltroTotal('${escapeJs(u)}','TODAS')"
+           onclick="selecionarUnidadeTotal('${escapeJs(u)}')">
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(u)}">${escapeHtml(u)}</span>
+        <span class="hier-count ms-2">${totalU}</span>
+      </div>
+      <div class="hier-turmas" style="${ativaU ? 'display:block' : 'display:none'}">
+        ${turmas.map(t => `
+          <div class="hier-turma${(_hierTurmaAtiva === t && ativaU) ? ' ativa' : ''}"
+               onmouseenter="preAquecerFiltroTotal('${escapeJs(u)}','${escapeJs(t)}')"
+               onclick="selecionarTurmaTotal('${escapeJs(u)}','${escapeJs(t)}',event)">
+            <span><i class="bi bi-people-fill me-2" style="font-size:.65rem;"></i>Turma ${escapeHtml(t)}</span>
+            <span class="hier-count">${_hierArvoreTotal[u][t]}</span>
+          </div>`).join('')}
+      </div>`;
+  }).join('');
+
+  const preKey = (_filtrosTotal().ano || 'TODOS') + '|' + unidades.join('||');
+  if (_totalPrefetchArvoreKey !== preKey) {
+    _totalPrefetchArvoreKey = preKey;
+    const runPrefetch = () => {
+      if (typeof preAquecerTotalDaArvore === 'function') {
+        preAquecerTotalDaArvore(_hierArvoreTotal, 35);
+      }
+    };
+    if (window.requestIdleCallback) requestIdleCallback(runPrefetch, { timeout: 1200 });
+    else setTimeout(runPrefetch, 250);
+  }
+}
+
+function selecionarUnidadeTotal(unidade) {
+  const jaSelecionada = _hierUnidadeAtiva === unidade;
+
+  _hierUnidadeAtiva = jaSelecionada ? 'TODAS' : unidade;
+  _hierTurmaAtiva = 'TODAS';
+  totalDisciplinaSelecionada = '';
+  totalEixoAtual = 'TODOS';
+
+  renderHierarquiaTotal(_hierArvoreTotal);
+  atualizarBreadcrumbTotal();
+
+  if (_hierUnidadeAtiva !== 'TODAS') {
+    if (typeof preAquecerFiltroTotal === 'function') {
+      preAquecerFiltroTotal(_hierUnidadeAtiva, 'TODAS');
+    }
+    if (typeof _prefetchTotalTurmasUnidade === 'function') {
+      _prefetchTotalTurmasUnidade(_hierUnidadeAtiva, 2);
+    }
+  }
+
+  carregarTotalRapido(false);
+}
+
+
+function selecionarTurmaTotal(unidade, turma, ev) {
+  if (ev) ev.stopPropagation();
+
+  const jaSelecionada = _hierUnidadeAtiva === unidade && _hierTurmaAtiva === turma;
+
+  _hierUnidadeAtiva = unidade;
+  _hierTurmaAtiva = jaSelecionada ? 'TODAS' : turma;
+  totalDisciplinaSelecionada = '';
+  totalEixoAtual = 'TODOS';
+
+  renderHierarquiaTotal(_hierArvoreTotal);
+  atualizarBreadcrumbTotal();
+
+  if (_hierUnidadeAtiva !== 'TODAS') {
+    if (typeof _prefetchTotalTurmasUnidade === 'function') {
+      _prefetchTotalTurmasUnidade(_hierUnidadeAtiva, 1);
+    }
+  }
+
+  carregarTotalRapido(false);
+}
+
+
+function limparHierarquiaTotal() {
+  _hierUnidadeAtiva = 'TODAS';
+  _hierTurmaAtiva = 'TODAS';
+  totalDisciplinaSelecionada = '';
+  totalEixoAtual = 'TODOS';
+  renderHierarquiaTotal(_hierArvoreTotal);
+  atualizarBreadcrumbTotal();
+  carregarTotalRapido(false);
+}
+
+function atualizarBreadcrumbTotal() {
+  const el = document.getElementById('totalFiltroAtivo');
+  if (!el) return;
+
+  const anoAtual = _filtrosTotal().ano || 'TODOS';
+  const ano = anoAtual && anoAtual !== 'TODOS' ? ` · ${anoAtual}` : '';
+
+  if (_hierUnidadeAtiva === 'TODAS') {
+    el.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-globe me-1"></i>Toda a rede${ano}</span>`;
+  } else if (_hierTurmaAtiva === 'TODAS') {
+    el.innerHTML = `<i class="bi bi-building me-1 text-primary"></i><b class="text-primary">${escapeHtml(_hierUnidadeAtiva)}</b>${ano}`;
+  } else {
+    el.innerHTML = `<i class="bi bi-building me-1 text-primary"></i><b class="text-primary">${escapeHtml(_hierUnidadeAtiva)}</b><i class="bi bi-chevron-right mx-1 text-muted"></i><i class="bi bi-people-fill me-1 text-info"></i><b class="text-info">Turma ${escapeHtml(_hierTurmaAtiva)}</b>${ano}`;
+  }
+}
+
+function _mostrarLoadingTotalFiltro(pills, filtros) {
+  if (!pills) return;
+
+  const labelFiltro = filtros.turma && filtros.turma !== 'TODAS'
+    ? `Carregando turma ${escapeHtml(filtros.turma)}…`
+    : filtros.unidade && filtros.unidade !== 'TODAS'
+      ? `Carregando ${escapeHtml(String(filtros.unidade).split(',')[0])}…`
+      : 'Carregando dados consolidados…';
+
+  pills.innerHTML = `
+    <div class="d-flex align-items-center gap-2 p-2 text-muted">
+      <div class="spinner-border spinner-border-sm"></div>
+      <span style="font-size:.85rem;">${labelFiltro}</span>
+    </div>`;
+}
+
+function _buscarTotalBackend(filtros, chave, pills) {
+  _withCache(
+    chave,
+    cb => google.script.run
+      .withSuccessHandler(r => cb(r))
+      .withFailureHandler(err => {
+        console.error('Erro getTotalAvaliacoesRapido:', err);
+        cb({ ok: false, linhas: [] });
+      })
+      .getTotalAvaliacoesRapido(filtros),
+    res => {
+      if (!res || !res.ok) {
+        if (pills) pills.innerHTML = `<div class="alert alert-warning w-100 m-0">Erro ao carregar dados.</div>`;
+        return;
+      }
+
+      totalAvaliacoesCache = res.linhas || [];
+      renderTotalRapido();
+    }
+  );
+}
+
+function carregarTotalRapido(forcarAtualizar) {
+  prepararLayoutTotalSeNecessario();
+
+  const filtros = _filtrosTotal();
+  const ano = filtros.ano || 'TODOS';
+  const chaveAno = _chavePacoteTotal({ ano });
+  const chaveMaster = _chavePacoteTotal({ ano: 'TODOS' });
+  const pills = document.getElementById('pillsTotalDisciplina');
+
+  if (forcarAtualizar) {
+    delete _cache[chaveAno];
+    if (ano === 'TODOS') delete _cache[chaveMaster];
+  }
+
+  const cached = !forcarAtualizar ? (_cacheGet(chaveAno) || _cacheGet(chaveMaster)) : null;
+  if (_isPacoteTotalValido(cached)) {
+    _aplicarPacoteTotalCache(cached, ano);
+    renderTotalPacoteLocal();
+    return;
+  }
+  if (_isTotalAntigoValido(cached)) {
+    totalAvaliacoesCache = cached.linhas || [];
+    renderTotalRapido();
+    return;
+  }
+
+  _mostrarLoadingTotalFiltro(pills, filtros);
+
+  _withCache(
+    chaveAno,
+    cb => google.script.run
+      .withSuccessHandler(r => cb(r))
+      .withFailureHandler(err => {
+        console.error('Erro getTotalAvaliacoesRapido pacote:', err);
+        cb({ ok: false, linhas: [] });
+      })
+      .getTotalAvaliacoesRapido({ __pacote: true, ano }),
+    res => {
+      if (_isPacoteTotalValido(res)) {
+        _aplicarPacoteTotalCache(res, ano);
+        renderTotalPacoteLocal();
+        return;
+      }
+
+      if (_isTotalAntigoValido(res)) {
+        totalAvaliacoesCache = res.linhas || [];
+        renderTotalRapido();
+        return;
+      }
+
+      const master = _cacheGet(chaveMaster);
+      if (_isPacoteTotalValido(master)) {
+        _aplicarPacoteTotalCache(master, ano);
+        renderTotalPacoteLocal();
+        return;
+      }
+
+      // Último fallback: API antiga.
+      _buscarTotalBackend(filtros, _chaveTotal(filtros), pills);
+    }
+  );
+}
+
+function _passaFiltroLinhaTotal(row, filtros) {
+  if (!row) return false;
+  const u = row[TPKG.U] || '';
+  const a = normalizarAnoFiltroFront(row[TPKG.A] || 'TODOS');
+  const t = String(row[TPKG.T] || '').trim().toUpperCase();
+
+  if (filtros.ano && filtros.ano !== 'TODOS' && a !== filtros.ano) return false;
+  if (filtros.unidade && filtros.unidade !== 'TODAS' && u !== filtros.unidade) return false;
+  if (filtros.turma && filtros.turma !== 'TODAS' && t !== filtros.turma) return false;
+  return true;
+}
+
+function _montarArvoreTotalDoPacote(pkg, ano) {
+  const arvIndexada = _arvoreTotalDoIndice(pkg, ano || 'TODOS');
+  if (arvIndexada && Object.keys(arvIndexada).length) return arvIndexada;
+
+  // Fallback seguro para pacotes antigos.
+  const arv = {};
+  const linhas = (pkg && pkg.linhas) || [];
+  const anoFiltro = ano || 'TODOS';
+  const vistos = new Set();
+
+  linhas.forEach(row => {
+    const u = row[TPKG.U] || 'Sem unidade';
+    const a = normalizarAnoFiltroFront(row[TPKG.A] || 'TODOS');
+    const t = String(row[TPKG.T] || 'Sem turma').trim().toUpperCase();
+    if (anoFiltro !== 'TODOS' && a !== anoFiltro) return;
+    if (!arv[u]) arv[u] = {};
+    const k = u + '||' + t;
+    if (!vistos.has(k)) {
+      arv[u][t] = (arv[u][t] || 0) + 1;
+      vistos.add(k);
+    }
+  });
+
+  return arv;
+}
+
+function renderTotalPacoteLocal() {
+  const filtros = _filtrosTotal();
+  atualizarBreadcrumbTotal();
+
+  if (!pacoteTotalAtual || !pacoteTotalAtual.ok) {
+    totalAvaliacoesCache = [];
+    renderTotalRapido();
+    return;
+  }
+
+  // Antes: a cada clique percorria todas as linhas do pacote.
+  // Agora: busca uma agregação pré-indexada para ano/unidade/turma.
+  totalAvaliacoesCache = _linhasTotalDoIndice(pacoteTotalAtual, filtros);
+  renderTotalRapido();
+}
+
+function renderTotalRapido() {
+  totalAvaliacoesCache = _consolidarLinhasTotalNormalizadas(totalAvaliacoesCache || []);
+  const linhas = totalAvaliacoesCache || [];
+  const pills = document.getElementById('pillsTotalDisciplina');
+
+  if (!linhas.length) {
+    if (pills) pills.innerHTML = `<div class="alert alert-info w-100 m-0">Nenhum dado consolidado disponível para o filtro atual.</div>`;
+    ['totalHeroBar', 'pillsTotalEixo', 'totalMainChartContainer', 'totalTableHead', 'totalTableBody'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+    return;
+  }
+
+  const disciplinas = [...new Set(linhas.map(l => l.disciplina).filter(Boolean))].sort();
+  if (!disciplinas.includes(totalDisciplinaSelecionada)) totalDisciplinaSelecionada = disciplinas[0] || '';
+
+  pills.innerHTML = disciplinas.map(d => `
+    <button class="pill-disciplina shadow-sm ${d === totalDisciplinaSelecionada ? 'active' : ''}" onclick="selecionarDisciplinaTotal('${escapeJs(d)}')">${escapeHtml(d)}</button>`).join('');
+
+  _renderTotalDisciplina();
+}
+
+function selecionarDisciplinaTotal(disc) {
+  totalDisciplinaSelecionada = disc;
+  totalEixoAtual = 'TODOS';
+  document.querySelectorAll('#pillsTotalDisciplina .pill-disciplina').forEach(b => b.classList.toggle('active', b.innerText.trim() === disc));
+  _renderTotalDisciplina();
+}
+
+function _renderTotalDisciplina() {
+  const linhas = (totalAvaliacoesCache || []).filter(l => l.disciplina === totalDisciplinaSelecionada);
+  const tipos = [...new Set(linhas.map(l => l.tipo).filter(Boolean))].sort();
+
+  const mediaDisc = [];
+  linhas.forEach(l => {
+    const vals = CAMPOS_TOTAL.map(c => l[c]).filter(v => v !== null && v !== undefined);
+    if (vals.length) mediaDisc.push(vals.reduce((a, b) => a + b, 0) / vals.length);
+  });
+
+  const mediaGeral = mediaDisc.length ? (mediaDisc.reduce((a, b) => a + b, 0) / mediaDisc.length).toFixed(2) : '–';
+
+  function mediaCampo(campo) {
+    const vals = linhas.map(l => l[campo]).filter(v => v !== null && v !== undefined);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  }
+
+  const mDiag = mediaCampo('diag'), mB1 = mediaCampo('b1'), mB4 = mediaCampo('b4');
+  let evolucaoTxt = '–', evolucaoColor = 'rgba(255,255,255,.65)';
+  const primeiro = mDiag !== null ? mDiag : mB1;
+  if (primeiro !== null && mB4 !== null) {
+    const delta = +(mB4 - primeiro).toFixed(2);
+    evolucaoTxt = (delta >= 0 ? '▲ +' : '▼ ') + delta;
+    evolucaoColor = delta >= 0.05 ? '#00C853' : delta <= -0.05 ? '#FF4757' : '#FFB300';
+  }
+
+  let filtroLabel = 'Toda a rede';
+  if (_hierUnidadeAtiva !== 'TODAS') {
+    filtroLabel = _hierUnidadeAtiva.split(',')[0];
+    if (_hierTurmaAtiva !== 'TODAS') filtroLabel += ' · Turma ' + _hierTurmaAtiva;
+  }
+  const anoAtualHero = _filtrosTotal().ano;
+  const anoLabel = anoAtualHero && anoAtualHero !== 'TODOS' ? anoAtualHero : 'Todos';
+
+  document.getElementById('totalHeroBar').innerHTML = `
+    <div class="total-hero-bar">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <div><div class="hero-label">Disciplina</div><div class="hero-num" style="font-size:1.3rem;">${escapeHtml(totalDisciplinaSelecionada)}</div></div>
+        <div><div class="hero-label">Eixos</div><div class="hero-num">${tipos.length}</div></div>
+        <div><div class="hero-label">Média Atual</div><div class="hero-num">${mediaGeral}</div></div>
+        <div><div class="hero-label">Evolução Geral</div><div class="hero-num" style="color:${evolucaoColor};">${evolucaoTxt}</div></div>
+        <div><div class="hero-label">Filtro</div><div class="hero-num" style="font-size:.9rem;">${escapeHtml(filtroLabel)}</div></div>
+        <div><div class="hero-label">Ano</div><div class="hero-num" style="font-size:1rem;">${escapeHtml(anoLabel)}</div></div>
+      </div>
+    </div>`;
+
+  document.getElementById('pillsTotalEixo').innerHTML = `
+    <button class="pill-disciplina shadow-sm ${totalEixoAtual === 'TODOS' ? 'active' : ''}" onclick="selecionarEixoTotal('TODOS')">Todos os eixos</button>
+    ${tipos.map(t => `<button class="pill-disciplina shadow-sm ${totalEixoAtual === t ? 'active' : ''}" onclick="selecionarEixoTotal('${escapeJs(t)}')">${escapeHtml(t)}</button>`).join('')}`;
+
+  _renderGraficoTotal(linhas, tipos);
+  _renderTabelaTotal(linhas);
+}
+
+function selecionarEixoTotal(eixo) {
+  totalEixoAtual = eixo;
+  document.querySelectorAll('#pillsTotalEixo .pill-disciplina').forEach(b => {
+    const txt = b.innerText.trim();
+    b.classList.toggle('active', (eixo === 'TODOS' && txt === 'Todos os eixos') || txt === eixo);
+  });
+  const linhas = (totalAvaliacoesCache || []).filter(l => l.disciplina === totalDisciplinaSelecionada);
+  const tipos = [...new Set(linhas.map(l => l.tipo).filter(Boolean))].sort();
+  _renderGraficoTotal(linhas, tipos);
+}
+
+function trocarTipoGraficoTotal(tipo) {
+  totalTipoGrafico = tipo;
+  document.querySelectorAll('#btnsTipoGraficoTotal button').forEach(b => b.classList.toggle('active', b.dataset.tipo === tipo));
+  const linhas = (totalAvaliacoesCache || []).filter(l => l.disciplina === totalDisciplinaSelecionada);
+  const tipos = [...new Set(linhas.map(l => l.tipo).filter(Boolean))].sort();
+  _renderGraficoTotal(linhas, tipos);
+}
+
+function _renderGraficoTotal(linhas, tipos) {
+  const container = document.getElementById('totalMainChartContainer');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (!tipos.length) {
+    container.innerHTML = `<div class="alert alert-info m-0">Nenhum dado para esta disciplina.</div>`;
+    if (totalMainChartInst) { totalMainChartInst.destroy(); totalMainChartInst = null; }
+    return;
+  }
+
+  const eixoUnico = totalEixoAtual !== 'TODOS';
+
+  container.innerHTML = `
+    <div class="chart-container mb-0">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h6 class="fw-bold text-primary m-0">${escapeHtml(totalDisciplinaSelecionada)}${eixoUnico ? ' — ' + escapeHtml(totalEixoAtual) : ' — Todos os eixos'}</h6>
+        <div id="btnsTipoGraficoTotal" class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary ${totalTipoGrafico === 'bar' ? 'active' : ''}" data-tipo="bar" onclick="trocarTipoGraficoTotal('bar')"><i class="bi bi-bar-chart-fill me-1"></i>Barras</button>
+          <button class="btn btn-outline-primary ${totalTipoGrafico === 'line' ? 'active' : ''}" data-tipo="line" onclick="trocarTipoGraficoTotal('line')"><i class="bi bi-graph-up me-1"></i>Linha</button>
+        </div>
+      </div>
+      <div style="position:relative;height:420px;"><canvas id="totalMainChartCanvas"></canvas></div>
+    </div>`;
+
+  if (totalMainChartInst) { totalMainChartInst.destroy(); totalMainChartInst = null; }
+
+  const ctx = document.getElementById('totalMainChartCanvas');
+  const coresPeriodo = ['#6366F1', '#F59E0B', '#10B981', '#3B82F6', '#EC4899'];
+  const tipoGrafico = totalTipoGrafico === 'line' ? 'line' : 'bar';
+
+  if (!eixoUnico) {
+    const datasets = CAMPOS_TOTAL.map((campo, i) => ({
+      label: LABELS_TOTAL[i],
+      data: tipos.map(t => { const l = linhas.find(x => x.tipo === t); return l && l[campo] != null ? l[campo] : null; }),
+      backgroundColor: tipoGrafico === 'bar' ? coresPeriodo[i] : coresPeriodo[i] + '22',
+      borderColor: coresPeriodo[i],
+      borderWidth: tipoGrafico === 'line' ? 3 : 1,
+      borderRadius: tipoGrafico === 'bar' ? 6 : 0,
+      tension: .35,
+      fill: false,
+      spanGaps: true,
+      pointRadius: tipoGrafico === 'line' ? 4 : 0,
+      pointHoverRadius: 7
+    }));
+
+    totalMainChartInst = new Chart(ctx, {
+      type: tipoGrafico,
+      data: { labels: tipos.map(t => t.length > 22 ? t.substring(0, 22) + '…' : t), datasets },
+      options: {
+        maintainAspectRatio: false,
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 11, weight: '700' }, padding: 10 } },
+          datalabels: { display: false },
+          tooltip: { callbacks: { title: items => tipos[items[0].dataIndex] || '', label: c => `${c.dataset.label}: ${c.raw == null ? '—' : Number(c.raw).toFixed(2)}` } }
+        },
+        scales: { y: { beginAtZero: true, title: { display: true, text: 'Média', font: { weight: '700' } } }, x: { ticks: { font: { size: 10 } } } }
+      }
+    });
+    return;
+  }
+
+  const lin = linhas.find(l => l.tipo === totalEixoAtual);
+  if (!lin) {
+    container.innerHTML = `<div class="alert alert-warning m-0">Eixo "${escapeHtml(totalEixoAtual)}" sem dados.</div>`;
+    return;
+  }
+
+  const data = CAMPOS_TOTAL.map(c => lin[c] != null ? lin[c] : null);
+
+  totalMainChartInst = new Chart(ctx, {
+    type: tipoGrafico,
+    data: {
+      labels: LABELS_TOTAL,
+      datasets: [{
+        label: totalEixoAtual,
+        data,
+        backgroundColor: tipoGrafico === 'bar' ? coresPeriodo : 'rgba(0,43,94,.12)',
+        borderColor: '#002b5e',
+        borderWidth: tipoGrafico === 'line' ? 3 : 1,
+        borderRadius: tipoGrafico === 'bar' ? 8 : 0,
+        tension: .35,
+        fill: false,
+        spanGaps: true,
+        pointBackgroundColor: coresPeriodo,
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        pointRadius: tipoGrafico === 'line' ? 6 : 0,
+        pointHoverRadius: 9
+      }]
+    },
+    options: {
+      maintainAspectRatio: false,
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        datalabels: { display: tipoGrafico === 'bar', color: '#002b5e', font: { weight: 'bold', size: 12 }, align: 'top', anchor: 'end', formatter: v => v != null ? Number(v).toFixed(2) : '' },
+        tooltip: { callbacks: { label: c => `${c.label}: ${c.raw == null ? '—' : Number(c.raw).toFixed(2)}` } }
+      },
+      scales: { y: { beginAtZero: true, title: { display: true, text: 'Média', font: { weight: '700' } } } }
+    }
+  });
+}
+
+function _renderTabelaTotal(linhas) {
+  const head = document.getElementById('totalTableHead');
+  const body = document.getElementById('totalTableBody');
+  if (!head || !body) return;
+
+  head.innerHTML = `
+    <tr style="font-size:.75rem;color:#666;text-transform:uppercase;">
+      <th>Eixo</th>
+      <th class="text-center"><span class="periodo-badge diag">Diag.</span></th>
+      <th class="text-center"><span class="periodo-badge b1">1º Bim.</span></th>
+      <th class="text-center"><span class="periodo-badge b2">2º Bim.</span></th>
+      <th class="text-center"><span class="periodo-badge b3">3º Bim.</span></th>
+      <th class="text-center"><span class="periodo-badge b4">4º Bim.</span></th>
+      <th class="text-center">Evolução</th>
+    </tr>`;
+
+  const linhasFiltradas = totalEixoAtual === 'TODOS' ? linhas : linhas.filter(l => l.tipo === totalEixoAtual);
+
+  function cel(l, campo) {
+    const v = l[campo];
+    return v == null ? `<td class="text-center text-muted">–</td>` : `<td class="text-center fw-bold">${Number(v).toFixed(2)}</td>`;
+  }
+
+  body.innerHTML = linhasFiltradas.map(l => {
+    const validos = CAMPOS_TOTAL.map(c => l[c]).filter(v => v != null);
+    let chip = `<span class="evolucao-chip sem-dado">–</span>`;
+    if (validos.length >= 2) {
+      const delta = +(validos[validos.length - 1] - validos[0]).toFixed(2);
+      const cls = delta >= 0.05 ? 'melhora' : delta <= -0.05 ? 'piora' : 'estavel';
+      const ico = delta >= 0.05 ? '▲ +' : delta <= -0.05 ? '▼ ' : '■ ';
+      chip = `<span class="evolucao-chip ${cls}">${ico}${delta}</span>`;
+    }
+    return `
+      <tr>
+        <td class="fw-bold text-primary" style="max-width:260px;word-break:break-word;">${escapeHtml(l.tipo)}</td>
+        ${cel(l, 'diag')}${cel(l, 'b1')}${cel(l, 'b2')}${cel(l, 'b3')}${cel(l, 'b4')}
+        <td class="text-center">${chip}</td>
+      </tr>`;
+  }).join('') || `<tr><td colspan="7" class="text-center p-3">Nenhum dado.</td></tr>`;
+}
+</script>

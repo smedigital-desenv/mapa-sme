@@ -1,0 +1,70 @@
+/* ============================================================
+   RESPONSIVE.CSS - Media Queries (Mobile / Tablet)
+   ============================================================ */
+
+/* Tablet */
+@media (max-width: 992px) {
+  .nav-pills .nav-link {
+    padding: 0.4rem 0.9rem;
+    font-size: 0.9rem;
+  }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .navbar-brand h5 {
+    font-size: 1.1rem;
+  }
+
+  .nav-pills {
+    gap: 0.4rem !important;
+  }
+
+  .nav-pills .nav-link {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.8rem;
+  }
+
+  .nav-pills .nav-link i {
+    display: none; /* Esconde ícones em telas pequenas */
+  }
+
+  #subNavAvaliacoes .btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.7rem;
+  }
+
+  .table {
+    font-size: 0.85rem;
+  }
+
+  .table th,
+  .table td {
+    padding: 0.5rem;
+  }
+
+  .card-body {
+    padding: 1rem;
+  }
+
+  .alert h3 {
+    font-size: 1.5rem;
+  }
+
+  /* Sub-nav: posição sticky ajustada */
+  #subNavAvaliacoes {
+    top: 100px !important;
+  }
+}
+
+/* Mobile pequeno */
+@media (max-width: 480px) {
+  main.container-fluid {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .card-header {
+    font-size: 0.9rem;
+  }
+}
