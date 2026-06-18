@@ -162,41 +162,6 @@
 ══════════════════════════════════════════════════════════ -->
 <main class="container-fluid p-3 p-md-4" style="max-width:1600px;margin:0 auto;">
 
-  <!-- ── Barra de controles harmonizada ─────────────────── -->
-  <div class="filter-card mb-4 py-3 px-4">
-    <div class="d-flex flex-wrap align-items-center gap-3">
-
-      <!-- Seletor de mês -->
-      <div class="d-flex align-items-center gap-2">
-        <div style="width:32px;height:32px;background:#002b5e18;border-radius:8px;
-                    display:grid;place-items:center;flex-shrink:0;">
-          <i class="bi bi-calendar3" style="color:#002b5e;font-size:.9rem;"></i>
-        </div>
-        <div>
-          <div class="label-mini mb-1">Período</div>
-          <select id="elMesFiltro" class="form-select form-select-sm border-0 p-0 fw-bold"
-                  style="background:transparent;min-width:130px;font-size:.85rem;color:#002b5e;"
-                  onchange="trocarMes()">
-            <option>Carregando…</option>
-          </select>
-        </div>
-      </div>
-
-      <div style="width:1px;height:32px;background:#e2e8f0;flex-shrink:0;"></div>
-
-      <!-- Busca -->
-      <div class="d-flex align-items-center gap-2 flex-grow-1" style="max-width:360px;">
-        <i class="bi bi-search text-muted" style="font-size:.85rem;"></i>
-        <input type="text" id="elBusca" class="form-control border-0 shadow-none p-0 fw-bold"
-               style="font-size:.85rem;color:#334155;background:transparent;"
-               placeholder="Pesquisar escola…" oninput="filtrar()">
-      </div>
-
-      <!-- Alerta zero (inline, compacto) -->
-      <div id="elAlertaInline" class="ms-auto"></div>
-    </div>
-  </div>
-
   <!-- ── KPIs + Donut lado a lado ─────────────────────────── -->
   <div class="row g-3 mb-4 align-items-stretch">
 
@@ -224,27 +189,53 @@
 
   </div>
 
-  </div>
-
   <!-- ── Visão principal ────────────────────────────────── -->
   <div id="viewPrincipal">
 
     <div class="table-container">
-      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+
+      <!-- Linha 1: título + mês + botões -->
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
         <h5 class="fw-bold m-0 text-primary">
           <i class="bi bi-list-task me-2"></i>Escolas e Turmas
         </h5>
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-3">
           <span id="elContador"
                 class="badge bg-primary bg-opacity-10 text-primary fw-bold px-3 py-2"></span>
-          <button class="btn btn-sm btn-outline-secondary" onclick="expandirTodos()" title="Expandir tudo">
-            <i class="bi bi-arrows-expand"></i>
-          </button>
-          <button class="btn btn-sm btn-outline-secondary" onclick="colapsarTodos()" title="Colapsar tudo">
-            <i class="bi bi-arrows-collapse"></i>
-          </button>
+
+          <!-- Seletor de mês -->
+          <div class="d-flex align-items-center gap-2"
+               style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:5px 12px;">
+            <i class="bi bi-calendar3 text-muted" style="font-size:.8rem;"></i>
+            <select id="elMesFiltro" class="border-0 bg-transparent fw-bold p-0"
+                    style="font-size:.82rem;color:#002b5e;outline:none;cursor:pointer;"
+                    onchange="trocarMes()">
+              <option>Carregando…</option>
+            </select>
+          </div>
+
+          <!-- Expandir / Colapsar -->
+          <div class="d-flex gap-1">
+            <button class="btn btn-sm btn-outline-secondary" onclick="expandirTodos()" title="Expandir tudo">
+              <i class="bi bi-arrows-expand"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="colapsarTodos()" title="Colapsar tudo">
+              <i class="bi bi-arrows-collapse"></i>
+            </button>
+          </div>
         </div>
       </div>
+
+      <!-- Linha 2: campo de busca -->
+      <div class="d-flex align-items-center gap-2 mb-3 px-1"
+           style="border-bottom:1.5px solid #e2e8f0;padding-bottom:10px;">
+        <i class="bi bi-search text-muted" style="font-size:.85rem;flex-shrink:0;"></i>
+        <input type="text" id="elBusca"
+               class="form-control border-0 shadow-none p-0"
+               style="font-size:.85rem;color:#334155;background:transparent;"
+               placeholder="Pesquisar escola…" oninput="filtrar()">
+      </div>
+
       <div class="table-responsive">
         <table class="table align-middle table-hover">
           <thead class="table-light"
@@ -745,21 +736,6 @@ function renderKpis() {
   const totalEstud = turmas.reduce((s,t) => s+(t.estudantes||0), 0);
   const totalLeit  = turmas.reduce((s,t) => s+(t.leitores||0), 0);
   const engajRede  = totalEstud > 0 ? Math.round((totalLeit/totalEstud)*100) : 0;
-
-  // Alerta zero inline
-  const tpe = {};
-  turmas.forEach(t => { if (!tpe[t.escola]) tpe[t.escola]={l:0}; tpe[t.escola].l+=t.leitores||0; });
-  const zero = esc.filter(e => !(tpe[e.nome_escola]?.l > 0)).length;
-  const alertaEl = document.getElementById('elAlertaInline');
-  if (alertaEl) {
-    alertaEl.innerHTML = zero > 0
-      ? `<span class="badge d-flex align-items-center gap-1 px-3 py-2"
-             style="background:#fee2e2;color:#991b1b;font-size:.72rem;border-radius:8px;cursor:pointer;"
-             onclick="abrirModalFaixa(0)">
-           <i class="bi bi-exclamation-triangle-fill"></i>
-           ${zero} escola${zero>1?'s':''} sem leituras
-         </span>` : '';
-  }
 
   const eCor = engajRede>=50?'#10B981':engajRede>=30?'#F59E0B':'#FF007F';
   const items = [
