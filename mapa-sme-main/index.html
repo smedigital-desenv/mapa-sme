@@ -1777,7 +1777,7 @@ function _cfgCarregarUsuarios() {
   const carregarSelect = () => {
     if (_cfg.listaUnidadesSelect.length) return Promise.resolve();
     return new Promise(resolve => {
-      google.script.run
+      MAPA_API
         .withSuccessHandler(r => {
           _cfg.listaUnidadesSelect = (r && r.unidades) ? r.unidades : [];
           resolve();
@@ -1788,7 +1788,7 @@ function _cfgCarregarUsuarios() {
   };
 
   carregarSelect().then(() => {
-    google.script.run
+    MAPA_API
       .withSuccessHandler(r => {
         if (!r || !r.ok) { _cfgSetConteudo(_cfgErro(r?.erro || 'Erro ao carregar.')); return; }
         _cfg.usuarios = r.usuarios || [];
@@ -1933,11 +1933,11 @@ function _cfgSalvarUsuario() {
   const onFail = err => { _cfgSetBotaoSalvar(false); _cfgToast(String(err), 'erro'); };
 
   if (_cfg.editandoLinha) {
-    google.script.run
+    MAPA_API
       .withSuccessHandler(onSuccess).withFailureHandler(onFail)
       .editarUsuario(_cfg.editandoLinha, email, unidade, obs);
   } else {
-    google.script.run
+    MAPA_API
       .withSuccessHandler(onSuccess).withFailureHandler(onFail)
       .adicionarUsuario(email, unidade, obs);
   }
@@ -1945,7 +1945,7 @@ function _cfgSalvarUsuario() {
 
 function _cfgRemoverUsuario(linha, emailLabel) {
   if (!confirm(`Remover o acesso de "${emailLabel}"?`)) return;
-  google.script.run
+  MAPA_API
     .withSuccessHandler(r => {
       if (!r || !r.ok) { _cfgToast(r?.erro || 'Erro ao remover.', 'erro'); return; }
       _cfgToast('Usuário removido.', 'ok');
@@ -1970,7 +1970,7 @@ function _cfgSetBotaoSalvar(loading) {
 // ===========================================================
 function _cfgCarregarUnidades() {
   _cfgSetConteudo(_cfgSpinner('Carregando unidades…'));
-  google.script.run
+  MAPA_API
     .withSuccessHandler(r => {
       if (!r || !r.ok) { _cfgSetConteudo(_cfgErro(r?.erro || 'Erro ao carregar.')); return; }
       _cfg.unidades = r.unidades || [];
@@ -2045,7 +2045,7 @@ function _cfgSalvarEmailUnidade(linha, nomeLabel) {
 
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
 
-  google.script.run
+  MAPA_API
     .withSuccessHandler(r => {
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i>'; }
       if (!r || !r.ok) { _cfgToast(r?.erro || 'Erro ao salvar.', 'erro'); return; }
@@ -2095,7 +2095,7 @@ function _cfgVerificarAcesso() {
 
   resultado.innerHTML = _cfgSpinner('Verificando…');
 
-  google.script.run
+  MAPA_API
     .withSuccessHandler(r => {
       if (!r || !r.ok) { resultado.innerHTML = _cfgErro(r?.erro || 'Erro.'); return; }
 
@@ -3290,7 +3290,7 @@ function _prefetchPacoteBimestre(key, filtrosBase, prioridade) {
   filtrosBase = filtrosBase || { ano: 'TODOS' };
   _preload(
     _chavePacoteBimestre(key, filtrosBase),
-    cb => google.script.run
+    cb => MAPA_API
       .withSuccessHandler(r => cb(r))
       .withFailureHandler(err => {
         console.error('Prefetch pacote bimestre:', key, filtrosBase, err);
@@ -3309,7 +3309,7 @@ function _prefetchBimestreCompleto(key, prioridade) {
 function _prefetchBimestreFiltro(key, filtros, prioridade) {
   _preload(
     _chaveBimestre(key, filtros),
-    cb => google.script.run
+    cb => MAPA_API
       .withSuccessHandler(r => cb(r))
       .withFailureHandler(err => { console.error('Prefetch bimestre:', key, err); cb({ ok: false, disciplinas: [], resumo: {} }); })
       .getAvaliacaoBimestreRapida(key, filtros),
@@ -3320,7 +3320,7 @@ function _prefetchBimestreFiltro(key, filtros, prioridade) {
 function _prefetchHierarquiaBimestre(key, prioridade) {
   _preload(
     _chaveHier(key),
-    cb => google.script.run
+    cb => MAPA_API
       .withSuccessHandler(r => cb(r))
       .withFailureHandler(err => { console.error('Prefetch hierarquia:', key, err); cb({ ok: false, arvore: {} }); })
       .getHierarquiaBimestre(key, {}),
@@ -3331,7 +3331,7 @@ function _prefetchHierarquiaBimestre(key, prioridade) {
 function _prefetchTotalFiltro(filtros, prioridade) {
   _preload(
     _chaveTotal(filtros),
-    cb => google.script.run
+    cb => MAPA_API
       .withSuccessHandler(r => cb(r))
       .withFailureHandler(err => { console.error('Prefetch total:', err); cb({ ok: false, linhas: [] }); })
       .getTotalAvaliacoesRapido(filtros),
@@ -3343,7 +3343,7 @@ function _prefetchHierarquiaTotal(ano, prioridade) {
   const anoNorm = ano || 'TODOS';
   _preload(
     _chaveHierarquiaTotal(anoNorm),
-    cb => google.script.run
+    cb => MAPA_API
       .withSuccessHandler(r => cb(r))
       .withFailureHandler(err => { console.error('Prefetch hier total:', err); cb({ ok: false, arvore: {} }); })
       .getHierarquiaTotal({ ano: anoNorm }),
@@ -3434,7 +3434,7 @@ function _chavePacoteTotal(filtrosBase) {
 }
 
 function _backendTemPacoteTotal() {
-  // Em Apps Script, a lista de funções do google.script.run pode variar por implantação.
+  // Em Apps Script, a lista de funções do MAPA_API pode variar por implantação.
   // Para produção, NÃO dependemos mais de getPacoteTotalRapido no front.
   // O pacote do Total é solicitado pela função estável getTotalAvaliacoesRapido({__pacote:true}).
   return false;
@@ -3448,7 +3448,7 @@ function _prefetchPacoteTotal(filtrosBase, prioridade) {
 
   _preload(
     _chavePacoteTotal({ ano }),
-    cb => google.script.run
+    cb => MAPA_API
       .withSuccessHandler(r => cb(r))
       .withFailureHandler(err => {
         console.error('Prefetch Total via getTotalAvaliacoesRapido:', err);
@@ -4114,7 +4114,7 @@ function preAquecerDetalhesTurmas(idx) {
   const chave = _chaveDetalheTurmas(idx);
   _preload(
     chave,
-    cb => google.script.run
+    cb => MAPA_API
       .withSuccessHandler(r => cb(r))
       .withFailureHandler(err => { console.error('Detalhes turmas:', err); cb({ ok: false, details: [] }); })
       .getDetalhesTurmasDisciplina(_disciplinaDoProjeto(currentProject), row.unit, row.period),
@@ -4138,7 +4138,7 @@ function carregarDetalhesTurmasDisciplina(idx) {
 
   _withCache(
     chave,
-    cb => google.script.run
+    cb => MAPA_API
       .withSuccessHandler(r => cb(r))
       .withFailureHandler(err => { console.error('Detalhes turmas:', err); cb({ ok: false, details: [] }); })
       .getDetalhesTurmasDisciplina(_disciplinaDoProjeto(currentProject), row.unit, row.period),
@@ -4237,7 +4237,7 @@ function confirmarCriacaoNovaTurmaPPA() {
     btnSalvar.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Salvando...';
   }
 
-  google.script.run
+  MAPA_API
     .withSuccessHandler((res) => {
       if (btnSalvar) {
         btnSalvar.disabled = false;
@@ -4292,7 +4292,7 @@ function carregarTurmasPPASemProfessorModal() {
     </div>
   `;
 
-  google.script.run
+  MAPA_API
     .withSuccessHandler(function(res) {
       if (!res || !res.ok || !res.turmas || !res.turmas.length) {
         window._turmasPPASemProfessorCache = [];
@@ -4396,7 +4396,7 @@ function confirmarAtribuicaoPPAExistente() {
     btnSalvar.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Salvando...';
   }
 
-  google.script.run
+  MAPA_API
     .withSuccessHandler(function(res) {
       if (btnSalvar) {
         btnSalvar.disabled = false;
@@ -5190,7 +5190,7 @@ function carregarResumoBimestreRapido() {
     if (!_cacheIsFresh(chave)) {
       _withCache(
         chave,
-        cb => google.script.run
+        cb => MAPA_API
           .withSuccessHandler(r => cb(r))
           .withFailureHandler(err => {
             console.error('Erro ao atualizar pacote do bimestre em segundo plano:', err);
@@ -5224,7 +5224,7 @@ function carregarResumoBimestreRapido() {
     if ((filtrosBase.ano || 'TODOS') !== 'TODOS') {
       _withCache(
         chave,
-        cb => google.script.run
+        cb => MAPA_API
           .withSuccessHandler(r => cb(r))
           .withFailureHandler(err => {
             console.warn('Pacote específico do ano falhou; mantendo pacote mestre:', err);
@@ -5248,7 +5248,7 @@ function carregarResumoBimestreRapido() {
 
   _withCache(
     chave,
-    cb => google.script.run
+    cb => MAPA_API
       .withSuccessHandler(r => cb(r))
       .withFailureHandler(err => {
         console.error('Erro ao carregar pacote do bimestre:', err);
@@ -5548,7 +5548,7 @@ function abrirDetalheEixo(disciplina, eixo) {
   filtros.eixo = eixo;
 
   _withCache(_chaveDetalhe(bimestreAtualKey, filtros),
-    cb => google.script.run.withSuccessHandler(r => cb(r)).getDetalheEixo(bimestreAtualKey, filtros),
+    cb => MAPA_API.withSuccessHandler(r => cb(r)).getDetalheEixo(bimestreAtualKey, filtros),
     res => {
       if (!res?.ok || !Object.keys(res.perguntas || {}).length) {
         area.innerHTML = `<div class="col-12"><div class="alert alert-info m-0">Não há perguntas detalhadas para este eixo.</div></div>`;
@@ -5676,7 +5676,7 @@ function abrirModalBimestreRapido(disciplina, tipo, resposta) {
   document.getElementById('tbodyChartDetails').innerHTML = `<tr><td class="text-center p-4">Carregando…</td></tr>`;
   new bootstrap.Modal(document.getElementById('modalChartDetails')).show();
 
-  google.script.run.withSuccessHandler(res => {
+  MAPA_API.withSuccessHandler(res => {
     const alunos = res.alunos || [];
     const tituloR = resposta ? ` → ${escapeHtml(resposta)}` : ' (todos)';
     document.getElementById('modalChartTitle').innerHTML =
@@ -6091,7 +6091,7 @@ function carregarHierarquiaTotal() {
   const chavePkg = _chavePacoteTotal({ ano });
   _withCache(
     chavePkg,
-    cb => google.script.run
+    cb => MAPA_API
       .withSuccessHandler(r => cb(r))
       .withFailureHandler(err => {
         console.error('Erro getTotalAvaliacoesRapido pacote hierarquia:', err);
@@ -6105,7 +6105,7 @@ function carregarHierarquiaTotal() {
         // Fallback seguro: usa a hierarquia antiga se o pacote compacto não vier.
         _withCache(
           _chaveHierarquiaTotal(ano),
-          cb2 => google.script.run
+          cb2 => MAPA_API
             .withSuccessHandler(r => cb2(r))
             .withFailureHandler(err => {
               console.error('Erro getHierarquiaTotal fallback:', err);
@@ -6265,7 +6265,7 @@ function _mostrarLoadingTotalFiltro(pills, filtros) {
 function _buscarTotalBackend(filtros, chave, pills) {
   _withCache(
     chave,
-    cb => google.script.run
+    cb => MAPA_API
       .withSuccessHandler(r => cb(r))
       .withFailureHandler(err => {
         console.error('Erro getTotalAvaliacoesRapido:', err);
@@ -6314,7 +6314,7 @@ function carregarTotalRapido(forcarAtualizar) {
 
   _withCache(
     chaveAno,
-    cb => google.script.run
+    cb => MAPA_API
       .withSuccessHandler(r => cb(r))
       .withFailureHandler(err => {
         console.error('Erro getTotalAvaliacoesRapido pacote:', err);
@@ -6652,8 +6652,8 @@ function _renderTabelaTotal(linhas) {
   
 <script>
 // ===========================================================
-// ADAPTADOR SUPABASE — MAPA SME V3
-// Substitui google.script.run no GitHub Pages usando as tabelas:
+// MAPA_API SUPABASE — MAPA SME V11
+// API interna do MAPA no GitHub Pages usando as tabelas:
 // turmas, base_mapa, alunos, bimestres e usuarios.
 // ===========================================================
 (function () {
@@ -6733,6 +6733,17 @@ function _renderTabelaTotal(linhas) {
   ];
 
   let _seriesExcluidasCache = null;
+  const _tableCache = new Map();
+
+  function limparCacheTabelaMapa(table) {
+    if (!table) {
+      _tableCache.clear();
+      return;
+    }
+    Array.from(_tableCache.keys()).forEach(k => {
+      if (k.startsWith(table + '|')) _tableCache.delete(k);
+    });
+  }
 
   function normalizar(txt) {
     return String(txt || '')
@@ -6987,13 +6998,22 @@ function _renderTabelaTotal(linhas) {
 
   async function fetchAll(table, select = '*', applyFilter) {
     if (!supa) throw new Error('Supabase não inicializado.');
+
+    // Fase 1: cache em memória por sessão para evitar baixar a mesma tabela
+    // várias vezes durante a navegação. Não altera cálculo nem visualização.
+    const hasDynamicFilter = typeof applyFilter === 'function';
+    const cacheKey = hasDynamicFilter ? null : `${table}|${select}`;
+    if (cacheKey && _tableCache.has(cacheKey)) {
+      return _tableCache.get(cacheKey).slice();
+    }
+
     const pageSize = 1000;
     let from = 0;
     let rows = [];
 
     while (true) {
       let q = supa.from(table).select(select).range(from, from + pageSize - 1);
-      if (typeof applyFilter === 'function') q = applyFilter(q);
+      if (hasDynamicFilter) q = applyFilter(q);
       const { data, error } = await q;
       if (error) throw error;
       const batch = data || [];
@@ -7003,6 +7023,7 @@ function _renderTabelaTotal(linhas) {
       if (from > 300000) break;
     }
 
+    if (cacheKey) _tableCache.set(cacheKey, rows.slice());
     return rows;
   }
 
@@ -7055,7 +7076,7 @@ function _renderTabelaTotal(linhas) {
         getSeriesExcluidasSet(false)
       ]);
 
-      console.info('[MAPA Supabase v6 MatchAppScript] adaptador ativo');
+      console.info('[MAPA_API Supabase v11 Fase 1] adaptador ativo');
       console.info('[MAPA Supabase] turmas carregadas:', turmas.length, 'base_mapa:', (baseMapa || []).length);
 
       const ppaSummary = {};
@@ -7501,6 +7522,7 @@ function _renderTabelaTotal(linhas) {
 
       const { error } = await supa.from('usuarios').upsert(row, { onConflict: 'email_usuario' });
       if (error) throw error;
+      limparCacheTabelaMapa('usuarios');
       return { ok: true, message: 'Usuário salvo.' };
     },
 
@@ -7509,6 +7531,7 @@ function _renderTabelaTotal(linhas) {
       if (!email) return { ok: false, message: 'E-mail não informado.' };
       const { error } = await supa.from('usuarios').delete().eq('email_usuario', email);
       if (error) throw error;
+      limparCacheTabelaMapa('usuarios');
       return { ok: true };
     },
 
@@ -7523,6 +7546,7 @@ function _renderTabelaTotal(linhas) {
       }
 
       _seriesExcluidasCache = null;
+      limparCacheTabelaMapa('config_series_excluidas');
       return { ok: true, total: rows.length };
     },
 
@@ -7554,6 +7578,10 @@ function _renderTabelaTotal(linhas) {
       getTotalAvaliacoesRapido(filtros) { return this._exec(api.getTotalAvaliacoesRapido(filtros)); },
       getHierarquiaTotal(filtros) { return this._exec(api.getHierarquiaTotal(filtros)); },
       getDetalhesTurmasDisciplina(disciplina, unidade, periodo) { return this._exec(api.getDetalhesTurmasDisciplina(disciplina, unidade, periodo)); },
+      getConfiguracoesMapa() { return this._exec(api.getConfiguracoesMapa()); },
+      salvarUsuarioConfiguracao(payload) { return this._exec(api.salvarUsuarioConfiguracao(payload)); },
+      removerUsuarioConfiguracao(email) { return this._exec(api.removerUsuarioConfiguracao(email)); },
+      salvarSeriesExcluidas(seriesMarcadas) { return this._exec(api.salvarSeriesExcluidas(seriesMarcadas)); },
       getTurmasPPASemProfessor() { return this._exec(api.getTurmasPPASemProfessor()); },
       salvarNovaAtribuicaoPPA() { return this._exec(api.salvarNovaAtribuicaoPPA()); },
       salvarAtribuicaoPPAExistente() { return this._exec(api.salvarAtribuicaoPPAExistente()); }
@@ -7561,9 +7589,14 @@ function _renderTabelaTotal(linhas) {
   }
 
   window.MAPA_SUPABASE_CLIENT = supa;
+  const mapaApiRunner = createRunner(null, null);
+  window.MAPA_API = mapaApiRunner;
+
+  // Compatibilidade temporária com funções antigas que ainda possam existir
+  // fora deste arquivo. O MAPA principal passa a chamar MAPA_API diretamente.
   window.google = window.google || {};
   window.google.script = window.google.script || {};
-  window.google.script.run = createRunner(null, null);
+  window.google.script.run = mapaApiRunner;
 })();
 </script>
 
@@ -7669,7 +7702,7 @@ function atualizarDados() {
     _carregarAlunosDiagnosticaBackground(iniciarPreloadDepoisDosAlunos);
 
     // Atualiza o cache em silêncio com os dados completos (sem filtro), para reutilizar.
-    google.script.run
+    MAPA_API
       .withSuccessHandler(res => {
         if (res) _cacheSet(chDash, res);
       })
@@ -7679,7 +7712,7 @@ function atualizarDados() {
     return;
   }
 
-  google.script.run
+  MAPA_API
     .withSuccessHandler(res => {
       _cacheSet(chDash, res); // grava sem filtro para reutilizar no refresh
       aplicarDashboard(res, 'server');
@@ -7688,7 +7721,7 @@ function atualizarDados() {
     })
     .withFailureHandler(err => {
       console.error('getDashboardLeve falhou; tentando getDashboardData:', err);
-      google.script.run.withSuccessHandler(res => {
+      MAPA_API.withSuccessHandler(res => {
         _cacheSet(chDash, res);
         aplicarDashboard(res, 'serverFallback');
         setTimeout(_preCarregarPrimeiroBimInicial, 120);
@@ -7711,7 +7744,7 @@ function _carregarAlunosDiagnosticaBackground(onReady) {
     return;
   }
 
-  google.script.run
+  MAPA_API
     .withSuccessHandler(alunos => {
       const lista = alunos || [];
       _cacheSet(chAlunos, lista); // grava sem filtro para reutilizar no refresh
@@ -8001,7 +8034,7 @@ function _preAquecerAvaliacao(tipo) {
 
   _preload(
     _chavePacoteBimestre(tipo, { ano: anoBaseBimestre }),
-    cb => google.script.run
+    cb => MAPA_API
       .withSuccessHandler(r => cb(r))
       .withFailureHandler(err => {
         console.error('Erro preaquecer pacote bimestre:', tipo, err);
@@ -8029,7 +8062,7 @@ function limparAreaAvaliacao() {
       if (areaSeries) areaSeries.innerHTML = '<div class="text-muted">Carregando séries…</div>';
       if (tabUsuarios) tabUsuarios.innerHTML = '<tr><td colspan="5" class="text-muted">Carregando…</td></tr>';
 
-      google.script.run
+      MAPA_API
         .withSuccessHandler(res => {
           _configMapaCache = res || { usuarios: [], unidades: [], series: [] };
           renderConfiguracoesMapa();
@@ -8110,12 +8143,12 @@ function limparAreaAvaliacao() {
         acesso_configuracoes: document.getElementById('cfgAcessoConfig').checked,
         observacao: document.getElementById('cfgObsUsuario').value
       };
-      google.script.run.withSuccessHandler(() => { limparFormularioUsuarioConfig(); carregarConfiguracoesMapa(true); }).salvarUsuarioConfiguracao(payload);
+      MAPA_API.withSuccessHandler(() => { limparFormularioUsuarioConfig(); carregarConfiguracoesMapa(true); }).salvarUsuarioConfiguracao(payload);
     }
 
     function removerUsuarioConfig(email) {
       if (!confirm('Remover este usuário?')) return;
-      google.script.run.withSuccessHandler(() => carregarConfiguracoesMapa(true)).removerUsuarioConfiguracao(email);
+      MAPA_API.withSuccessHandler(() => carregarConfiguracoesMapa(true)).removerUsuarioConfiguracao(email);
     }
 
     function marcarTodasSeriesConfig(valor) {
@@ -8131,7 +8164,7 @@ function limparAreaAvaliacao() {
 
     function salvarSeriesExcluidasConfig() {
       const series = Array.from(document.querySelectorAll('.cfg-serie-check:checked')).map(ch => ch.value);
-      google.script.run.withSuccessHandler(() => {
+      MAPA_API.withSuccessHandler(() => {
         if (typeof limparTodoCacheFront === 'function') limparTodoCacheFront();
         alert('Séries excluídas salvas. Os relatórios serão recarregados.');
         atualizarDados();
