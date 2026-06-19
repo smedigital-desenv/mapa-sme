@@ -233,7 +233,7 @@
             <th class="text-center" style="width:85px;">Avaliados</th>
             <th class="text-center" style="width:75px;">Ausentes</th>
             <th class="text-center" style="min-width:420px;">Distribuição de Perfis</th>
-            <th class="text-center" style="width:85px;">% Fluentes</th>
+            <th class="text-center" style="width:85px;">Leitores</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -530,62 +530,101 @@ function renderKpis() {
      <div class="col-12"><div class="row g-3">${renderLinha(linha2)}</div></div>`;
 }
 
-// ── Análises: Ranking, Turno, Alerta N1 ─────────────────────
-function renderAnalises() {
-  const av  = document.getElementById('selAvaliacao')?.value || S.avaliacoes[0] || '';
-  const esc = S.porEscola[av] || {};
+// ── Panorama da rede para atingir 70% ──────────────────────
+function renderPanoramaRede(turmas) {
+  const comAv = turmas.filter(t => (+t.avaliados||0) > 0);
+  const totalAvaliados = comAv.reduce((s,t) => s+(+t.avaliados||0), 0);
+  const totalLeitores  = comAv.reduce((s,t) => s+(+t.iniciantes||0)+(+t.fluentes||0), 0);
+  const totalN4        = comAv.reduce((s,t) => s+(+t.pre_n4||0), 0);
+  const totalN3        = comAv.reduce((s,t) => s+(+t.pre_n3||0), 0);
+  const totalN2        = comAv.reduce((s,t) => s+(+t.pre_n2||0), 0);
+  const totalN1        = comAv.reduce((s,t) => s+(+t.pre_n1||0), 0);
 
-  // Monta lista flat de turmas com nome completo + cálculo de meta
-  const turmasFlat = [];
-  Object.keys(esc).forEach(escola => {
-    esc[escola].turmas.forEach(t => {
-      const meta = calcularMeta(t);
-      turmasFlat.push({ ...t, escola, meta });
-    });
-  });
+  const pctAtual   = totalAvaliados > 0 ? (totalLeitores/totalAvaliados*100) : 0;
+  const metaAbs    = Math.ceil(totalAvaliados * 0.70);
+  const faltamRede = Math.max(0, metaAbs - totalLeitores);
 
-  renderRankingMeta(turmasFlat);
-  renderComparativoTurno(turmasFlat);
-  renderAlertaN1(turmasFlat);
-}
+  // Turmas que ainda não atingiram a meta, ordenadas por distância
+  const turmasSemMeta = comAv
+    .filter(t => !t.meta.atingiu)
+    .sort((a,b) => a.meta.pctAtual - b.meta.pctAtual);
 
-// ── 1. Ranking de turmas por distância da meta ──────────────
-function renderRankingMeta(turmas) {
-  const comAvaliados = turmas.filter(t => (+t.avaliados||0) > 0);
-  const ordenadas = [...comAvaliados].sort((a,b) => a.meta.pctAtual - b.meta.pctAtual);
+  // Quantos alunos N4 estão em turmas sem meta (foco de intensificação)
+  const n4SemMeta = turmasSemMeta.reduce((s,t) => s+(+t.pre_n4||0), 0);
 
-  const piores = ordenadas.slice(0, 5);
-  const melhores = [...ordenadas].reverse().slice(0, 5);
-
-  const linhaRank = (t, idx, destaqueCor) => `
-    <div class="d-flex align-items-center justify-content-between py-2"
-         style="border-bottom:1px solid #f1f5f9;font-size:.76rem;">
-      <div style="min-width:0;">
-        <div class="fw-bold text-truncate" style="max-width:230px;">${esc(t.ano_escolar)} ${esc(t.turma)}</div>
-        <div class="text-muted text-truncate" style="font-size:.68rem;max-width:230px;">${esc(t.escola)}</div>
-      </div>
-      <span class="chip" style="background:${destaqueCor};color:#fff;flex-shrink:0;">
-        ${t.meta.pctAtual.toFixed(0)}%
-      </span>
-    </div>`;
+  // Cor do status geral
+  const corGeral = pctAtual >= 70 ? '#10B981' : pctAtual >= 50 ? '#d97706' : '#dc2626';
 
   const html = `
-    <div class="col-12 col-lg-6">
-      <div class="card-kpi h-100">
-        <h6 class="fw-bold mb-3 text-muted" style="font-size:.85rem;">
-          <i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>Turmas mais distantes da meta
-        </h6>
-        ${piores.length ? piores.map(t => linhaRank(t, 0, t.meta.pctAtual<40?'#dc2626':'#F59E0B')).join('')
-                         : '<div class="text-muted small py-3 text-center">Sem dados</div>'}
-      </div>
-    </div>
-    <div class="col-12 col-lg-6">
-      <div class="card-kpi h-100">
-        <h6 class="fw-bold mb-3 text-muted" style="font-size:.85rem;">
-          <i class="bi bi-trophy-fill me-2 text-success"></i>Turmas mais próximas/acima da meta
-        </h6>
-        ${melhores.length ? melhores.map(t => linhaRank(t, 0, t.meta.pctAtual>=70?'#10B981':'#3B82F6')).join('')
-                          : '<div class="text-muted small py-3 text-center">Sem dados</div>'}
+    <div class="col-12">
+      <div class="card-kpi" style="border-left:4px solid ${corGeral};">
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <i class="bi bi-bullseye" style="color:${corGeral};font-size:1.2rem;"></i>
+          <h6 class="fw-bold m-0" style="font-size:.9rem;">
+            Panorama da Rede — Meta 70% Iniciante + Fluente
+          </h6>
+        </div>
+        <div class="row g-3">
+
+          <!-- Status atual -->
+          <div class="col-6 col-md-3">
+            <div style="background:#f8fafc;border-radius:10px;padding:12px;">
+              <div style="font-size:1.8rem;font-weight:900;color:${corGeral};line-height:1;">${pctAtual.toFixed(1)}%</div>
+              <div class="label-mini mt-1">Situação atual da rede</div>
+              <div style="font-size:.7rem;color:#64748b;margin-top:4px;">
+                ${totalLeitores.toLocaleString('pt-BR')} de ${totalAvaliados.toLocaleString('pt-BR')} avaliados
+              </div>
+            </div>
+          </div>
+
+          <!-- Faltam para a meta -->
+          <div class="col-6 col-md-3">
+            <div style="background:#fef2f2;border-radius:10px;padding:12px;">
+              <div style="font-size:1.8rem;font-weight:900;color:#dc2626;line-height:1;">
+                ${faltamRede > 0 ? faltamRede.toLocaleString('pt-BR') : '✓'}
+              </div>
+              <div class="label-mini mt-1" style="color:#dc2626;">
+                ${faltamRede > 0 ? 'Alunos faltando para 70%' : 'Meta atingida!'}
+              </div>
+              <div style="font-size:.7rem;color:#64748b;margin-top:4px;">
+                ${turmasSemMeta.length} turma${turmasSemMeta.length!==1?'s':''} abaixo da meta
+              </div>
+            </div>
+          </div>
+
+          <!-- N4 disponíveis (mais fáceis de mover) -->
+          <div class="col-6 col-md-3">
+            <div style="background:#f5f3ff;border-radius:10px;padding:12px;">
+              <div style="font-size:1.8rem;font-weight:900;color:#8B5CF6;line-height:1;">
+                ${n4SemMeta.toLocaleString('pt-BR')}
+              </div>
+              <div class="label-mini mt-1" style="color:#8B5CF6;">N4 em turmas abaixo da meta</div>
+              <div style="font-size:.7rem;color:#64748b;margin-top:4px;">
+                Foco prioritário de intensificação
+              </div>
+            </div>
+          </div>
+
+          <!-- Esforço: se mover todos N4 para iniciante -->
+          <div class="col-6 col-md-3">
+            <div style="background:#f0fdf4;border-radius:10px;padding:12px;">
+              ${(() => {
+                const aposN4 = totalLeitores + Math.min(totalN4, faltamRede);
+                const pctAposN4 = totalAvaliados > 0 ? (aposN4/totalAvaliados*100) : 0;
+                const cor2 = pctAposN4 >= 70 ? '#10B981' : '#d97706';
+                return `
+                  <div style="font-size:1.8rem;font-weight:900;color:${cor2};line-height:1;">
+                    ${pctAposN4.toFixed(1)}%
+                  </div>
+                  <div class="label-mini mt-1" style="color:${cor2};">Se todos N4 evoluírem</div>
+                  <div style="font-size:.7rem;color:#64748b;margin-top:4px;">
+                    ${pctAposN4 >= 70 ? '✓ Meta seria atingida' : `Ainda faltariam ${Math.ceil(totalAvaliados*0.7)-(aposN4)} alunos`}
+                  </div>`;
+              })()}
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>`;
 
@@ -649,7 +688,39 @@ function renderComparativoTurno(turmas) {
   document.getElementById('analisesRow').insertAdjacentHTML('beforeend', card);
 }
 
-// ── 8. Alerta de turmas críticas (alta concentração N1) ─────
+// ── Turmas com maior concentração de N4 ─────────────────────
+function renderAlertaN4(turmas) {
+  const comN4 = turmas
+    .filter(t => (+t.pre_n4||0) > 0)
+    .map(t => ({ ...t, pctN4: (+t.avaliados||0) > 0 ? (+t.pre_n4/t.avaliados*100) : 0 }))
+    .sort((a,b) => b.pre_n4 - a.pre_n4)
+    .slice(0, 8);
+
+  const alertaEl = document.getElementById('alertaN1');
+  if (!comN4.length) return;
+
+  alertaEl.insertAdjacentHTML('beforeend', `
+    <div class="card-kpi mb-4">
+      <h6 class="fw-bold mb-3 text-muted" style="font-size:.85rem;">
+        <i class="bi bi-arrow-up-circle-fill me-2" style="color:#8B5CF6;"></i>
+        Turmas com maior concentração de Pré-leitor N4
+        <span class="text-muted fw-normal" style="font-size:.7rem;">— foco prioritário de intensificação (mais próximos de Iniciante)</span>
+      </h6>
+      <div class="d-flex flex-wrap gap-2">
+        ${comN4.map(t => `
+          <div class="d-flex align-items-center gap-2 px-3 py-2"
+               style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;">
+            <span class="chip chip-pre4">${t.pre_n4} alunos</span>
+            <div style="font-size:.74rem;">
+              <div class="fw-bold">${esc(t.ano_escolar)} ${esc(t.turma)}</div>
+              <div class="text-muted" style="font-size:.66rem;">${esc(t.escola)} · ${t.pctN4.toFixed(0)}% da turma</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`);
+}
+
+// ── Turmas com N1 (mais crítico) ────────────────────────────
 function renderAlertaN1(turmas) {
   const comN1 = turmas
     .filter(t => (+t.pre_n1||0) > 0)
@@ -658,9 +729,9 @@ function renderAlertaN1(turmas) {
     .slice(0, 8);
 
   const alertaEl = document.getElementById('alertaN1');
-  if (!comN1.length) { alertaEl.innerHTML = ''; return; }
+  if (!comN1.length) return;
 
-  alertaEl.innerHTML = `
+  alertaEl.insertAdjacentHTML('beforeend', `
     <div class="card-kpi mb-4">
       <h6 class="fw-bold mb-3 text-muted" style="font-size:.85rem;">
         <i class="bi bi-exclamation-octagon-fill me-2" style="color:#dc2626;"></i>
@@ -677,7 +748,7 @@ function renderAlertaN1(turmas) {
             </div>
           </div>`).join('')}
       </div>
-    </div>`;
+    </div>`);
 }
 
 // ── Tabela ─────────────────────────────────────────────────
@@ -729,7 +800,7 @@ function renderTabela() {
         <td class="text-center">${tot.avaliados}</td>
         <td class="text-center text-muted">${tot.ausentes}</td>
         <td>${renderBarra(tot)}</td>
-        <td class="text-center">${renderPctFluente(tot.pct_fluentes)}</td>
+        <td class="text-center">${renderLeitores(tot)}</td>
       </tr>`;
 
     const linhasTurma = turmas
@@ -754,7 +825,7 @@ function renderTabela() {
           <td class="text-center small">${t.avaliados||0}</td>
           <td class="text-center small text-muted">${t.ausentes||0}</td>
           <td>${renderBarra(t)}</td>
-          <td class="text-center">${renderPctFluente(t.pct_fluentes)}</td>
+          <td class="text-center">${renderLeitores(t)}</td>
         </tr>`;
       }).join('');
 
@@ -781,16 +852,19 @@ function renderBarra(d) {
     const n   = +d[s.key] || 0;
     if (!n) return '';
     const pct = (n / avaliados * 100);
-    const label = pct >= 8 ? `${n}` : '';
+    // Mostra n e % se tiver espaço suficiente (>=10%), só n se >=6%
+    const label = pct >= 10 ? `${n} ${pct.toFixed(0)}%` : pct >= 6 ? `${n}` : '';
     return `<div class="barra-seg" style="width:${pct.toFixed(1)}%;background:${s.cor};"
                  title="${s.label}: ${n} (${pct.toFixed(0)}%)">${label}</div>`;
   }).join('');
 
-  // ── Meta: 70% em Iniciante + Fluente ──────────────────────
+  // ── Meta 70%: linha da DIREITA para a esquerda ─────────────
+  // A barra vai de 0→100%. Os "leitores" (iniciante+fluente) ficam nos segmentos
+  // mais à direita. A linha de meta fica a 30% da direita (= 70% dos avaliados).
   const metaInfo = calcularMeta(d);
-  const metaPct  = 70;
+  // Posição da linha = 100% - 30% = 70% da esquerda (onde começa a zona de meta)
   const linhaMetaHtml = `
-    <div class="barra-meta-linha" style="left:${metaPct}%;" title="Meta: 70%"></div>`;
+    <div class="barra-meta-linha" style="left:70%;" title="Meta: 70% Iniciante + Fluente"></div>`;
 
   const corStatus = metaInfo.atingiu ? '#059669' : metaInfo.faltam <= 3 ? '#d97706' : '#dc2626';
   const statusHtml = metaInfo.atingiu
@@ -852,11 +926,43 @@ function renderChips(d) {
   return renderBarra(d);
 }
 
+function renderLeitores(d) {
+  const avaliados = +d.avaliados || 0;
+  const leitores  = (+d.iniciantes||0) + (+d.fluentes||0);
+  if (!avaliados) return '<span class="text-muted">—</span>';
+  const pct = (leitores/avaliados*100).toFixed(0);
+  const cor = leitores/avaliados >= 0.70 ? '#10B981' : leitores/avaliados >= 0.50 ? '#F59E0B' : '#FF007F';
+  return `<div style="font-weight:900;color:${cor};font-size:.85rem;">${leitores}</div>
+          <div style="font-size:.65rem;color:${cor};font-weight:700;">${pct}%</div>`;
+}
+
+// mantida para compatibilidade com modal da turma
 function renderPctFluente(pct) {
   if (!pct || pct === '—') return '<span class="text-muted">—</span>';
   const v = parseFloat(pct);
   const cor = v >= 50 ? '#10B981' : v >= 25 ? '#F59E0B' : '#FF007F';
   return `<span class="chip" style="background:${cor};color:#fff;font-size:.72rem;">${v}%</span>`;
+}
+
+// ── Análises: Panorama rede + Turno + N1 + N4 ──────────────
+function renderAnalises() {
+  const av  = document.getElementById('selAvaliacao')?.value || S.avaliacoes[0] || '';
+  const esc = S.porEscola[av] || {};
+
+  const turmasFlat = [];
+  Object.keys(esc).forEach(escola => {
+    esc[escola].turmas.forEach(t => {
+      const meta = calcularMeta(t);
+      turmasFlat.push({ ...t, escola, meta });
+    });
+  });
+
+  renderPanoramaRede(turmasFlat);
+  renderComparativoTurno(turmasFlat);
+  // Limpa alertaN1 antes de renderizar os dois cards
+  document.getElementById('alertaN1').innerHTML = '';
+  renderAlertaN1(turmasFlat);
+  renderAlertaN4(turmasFlat);
 }
 
 function toggleGrp(grpId) {
