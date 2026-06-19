@@ -909,6 +909,8 @@ function renderCharts() {
 }
 
 // ── TABELA PRINCIPAL ──────────────────────────────────────────────
+let _tabelaEscolasAbertas = new Set(); // chaves de escola abertas
+
 function renderTable() {
   const isPPA  = (modo === 'PPA');
   const data   = isPPA ? D.ppa : (modo === 'PRA') ? D.pra : (D.disciplinas[discAtiva] || []);
@@ -922,7 +924,7 @@ function renderTable() {
     escapeHtml(discAtiva)}`;
 
   head.innerHTML = `
-    <th>Unidade / Turno</th>
+    <th>Unidade</th>
     <th class="text-center">${isPPA ? 'Salas' : 'Turmas'}</th>
     <th>Progresso</th>
     <th class="text-center">Status</th>`;
@@ -932,39 +934,70 @@ function renderTable() {
     return;
   }
 
-  body.innerHTML = data.map((r, idx) => {
-    const perc = isPPA
-      ? Number(r.percAtribuido || 0)
-      : (r.criadas > 0 ? Math.min(r.atribuidas / r.criadas * 100, 100) : 0);
-    const atriLabel = isPPA ? `${r.cargaAtribuida}h` : r.atribuidas;
-    const pendLabel = isPPA ? `${r.faltaAtribuir}h` : Math.max(0, (r.criadas || 0) - (r.atribuidas || 0));
-    const valMain   = isPPA ? r.magisterio : r.criadas;
-    const barCor    = perc >= 100 ? 'var(--neon-green)' : perc >= 50 ? 'var(--neon-yellow)' : 'var(--neon-pink)';
-    const stText    = perc >= 100 ? 'IDEAL' : perc >= 50 ? 'MÍNIMO' : 'CRÍTICO';
-    const stClass   = perc >= 100 ? 'bg-success-subtle text-success' : perc >= 50 ? 'bg-warning-subtle text-warning' : 'bg-danger-subtle text-danger';
-    const detId     = `det-${modo}-${idx}`;
-    const detBodyId = `detb-${modo}-${idx}`;
+  // Agrupa por unidade preservando ordem
+  const porUnidade = {};
+  const ordemUnidades = [];
+  data.forEach(r => {
+    if (!porUnidade[r.unit]) { porUnidade[r.unit] = []; ordemUnidades.push(r.unit); }
+    porUnidade[r.unit].push(r);
+  });
 
-    const detHtml = _renderDetalhes(r.details || []);
+  const html = ordemUnidades.map(unit => {
+    const rows   = porUnidade[unit];
+    const isOpen = _tabelaEscolasAbertas.has(unit);
 
-    return `
-      <tr class="main-row" onclick="toggleRow('${detId}')">
-        <td><div class="unit-name">${escapeHtml(r.unit)}</div><span class="badge bg-light text-dark border mt-1">${escapeHtml(r.period)}</span></td>
-        <td class="text-center align-middle"><span class="fs-4 fw-bold text-primary">${valMain}</span></td>
+    // Totais agregados
+    let totMain = 0, totAtri = 0, totFalta = 0;
+    rows.forEach(r => {
+      totMain  += isPPA ? (r.magisterio || 0) : (r.criadas || 0);
+      totAtri  += isPPA ? (r.cargaAtribuida || 0) : (r.atribuidas || 0);
+      totFalta += isPPA ? (r.faltaAtribuir || 0) : Math.max(0, (r.criadas||0) - (r.atribuidas||0));
+    });
+    const totBase = isPPA ? (totAtri + totFalta) : totMain;
+    const percTot = totBase > 0 ? Math.min(totAtri / totBase * 100, 100) : 0;
+    const barCorT = percTot >= 100 ? 'var(--neon-green)' : percTot >= 50 ? 'var(--neon-yellow)' : 'var(--neon-pink)';
+    const stTextT = percTot >= 100 ? 'IDEAL' : percTot >= 50 ? 'MÍNIMO' : 'CRÍTICO';
+    const stClassT = percTot >= 100 ? 'bg-success-subtle text-success' : percTot >= 50 ? 'bg-warning-subtle text-warning' : 'bg-danger-subtle text-danger';
+    const atriLblT = isPPA ? `${totAtri}h` : totAtri;
+    const faltaLblT = isPPA ? `${totFalta}h` : totFalta;
+    const safeUnit = unit.replace(/[^a-z0-9]/gi, '_');
+    const multiPer = rows.length > 1;
+
+    // Linhas de período (sub-linhas)
+    const subLinhas = rows.map((r, ridx) => {
+      const perc = isPPA
+        ? Number(r.percAtribuido || 0)
+        : (r.criadas > 0 ? Math.min(r.atribuidas / r.criadas * 100, 100) : 0);
+      const atriLabel  = isPPA ? `${r.cargaAtribuida}h` : r.atribuidas;
+      const pendLabel  = isPPA ? `${r.faltaAtribuir}h` : Math.max(0, (r.criadas||0) - (r.atribuidas||0));
+      const valMain    = isPPA ? r.magisterio : r.criadas;
+      const barCor     = perc >= 100 ? 'var(--neon-green)' : perc >= 50 ? 'var(--neon-yellow)' : 'var(--neon-pink)';
+      const stText     = perc >= 100 ? 'IDEAL' : perc >= 50 ? 'MÍNIMO' : 'CRÍTICO';
+      const stClass    = perc >= 100 ? 'bg-success-subtle text-success' : perc >= 50 ? 'bg-warning-subtle text-warning' : 'bg-danger-subtle text-danger';
+      const detId      = `det-${safeUnit}-${ridx}`;
+      const detHtml    = _renderDetalhes(r.details || []);
+
+      return `
+      <tr class="period-row escola-${safeUnit}" style="display:${isOpen?'table-row':'none'};background:#fafafa;cursor:pointer;"
+          onclick="toggleRow('${detId}')">
+        <td style="padding-left:2rem;">
+          <span class="badge bg-white text-dark border" style="font-size:.78rem;">${escapeHtml(r.period)}</span>
+        </td>
+        <td class="text-center align-middle"><span class="fw-bold text-primary">${valMain}</span></td>
         <td class="align-middle">
-          <div class="d-flex justify-content-between mb-1" style="font-size:.78rem;">
+          <div class="d-flex justify-content-between mb-1" style="font-size:.75rem;">
             <span>Atribuído: <b>${atriLabel}</b></span>
             <span style="color:var(--neon-pink);">Faltam: <b>${pendLabel}</b></span>
           </div>
-          <div class="progress" style="height:6px;">
+          <div class="progress" style="height:5px;">
             <div class="progress-bar" style="width:${Math.min(perc,100)}%;background:${barCor}!important;"></div>
           </div>
         </td>
         <td class="text-center align-middle">
-          <div class="p-1 border rounded ${stClass} fw-bold" style="font-size:.72rem;">${stText}</div>
+          <div class="p-1 border rounded ${stClass} fw-bold" style="font-size:.68rem;">${stText}</div>
         </td>
       </tr>
-      <tr id="${detId}" class="d-none">
+      <tr id="${detId}" class="escola-${safeUnit}-det d-none" style="display:none!important;">
         <td colspan="4" class="p-3">
           <div class="detail-box table-responsive">
             <table class="table table-sm small m-0">
@@ -975,12 +1008,88 @@ function renderTable() {
                   <th class="text-center">Situação</th><th class="text-center">Carga</th>
                 </tr>
               </thead>
-              <tbody id="${detBodyId}">${detHtml}</tbody>
+              <tbody>${detHtml}</tbody>
             </table>
           </div>
         </td>
       </tr>`;
+    }).join('');
+
+    // Escola com único turno: header clica direto para detalhes
+    const singleDetId = !multiPer ? `det-${safeUnit}-0` : '';
+    const headerOnclick = multiPer
+      ? `toggleEscola('${safeUnit}')`
+      : `toggleRow('${singleDetId}')`;
+
+    return `
+    <tr class="main-row escola-header" data-unit="${escapeHtml(unit)}" data-safe="${safeUnit}"
+        onclick="${headerOnclick}" style="cursor:pointer;border-bottom:2px solid #e2e8f0;">
+      <td>
+        <div class="d-flex align-items-center gap-2">
+          ${multiPer
+            ? `<i class="bi bi-chevron-${isOpen?'down':'right'} text-muted" id="chevUnit-${safeUnit}" style="font-size:.75rem;flex-shrink:0;"></i>`
+            : `<i class="bi bi-chevron-right text-muted" style="font-size:.75rem;flex-shrink:0;"></i>`}
+          <div class="unit-name">${escapeHtml(unit)}</div>
+          ${multiPer
+            ? `<span class="badge bg-light text-muted border ms-1" style="font-size:.62rem;">${rows.length} turnos</span>`
+            : `<span class="badge bg-light text-dark border ms-1">${escapeHtml(rows[0].period)}</span>`}
+        </div>
+      </td>
+      <td class="text-center align-middle"><span class="fs-4 fw-bold text-primary">${totMain}</span></td>
+      <td class="align-middle">
+        <div class="d-flex justify-content-between mb-1" style="font-size:.78rem;">
+          <span>Atribuído: <b>${atriLblT}</b></span>
+          <span style="color:var(--neon-pink);">Faltam: <b>${faltaLblT}</b></span>
+        </div>
+        <div class="progress" style="height:6px;">
+          <div class="progress-bar" style="width:${Math.min(percTot,100)}%;background:${barCorT}!important;"></div>
+        </div>
+      </td>
+      <td class="text-center align-middle">
+        <div class="p-1 border rounded ${stClassT} fw-bold" style="font-size:.72rem;">${stTextT}</div>
+      </td>
+    </tr>
+    ${multiPer ? subLinhas : _renderDetalhesDireto(safeUnit, rows[0])}`;
   }).join('');
+
+  body.innerHTML = html;
+}
+
+function toggleEscola(safeUnit) {
+  const isOpen = _tabelaEscolasAbertas.has(safeUnit);
+  const chev   = document.getElementById(`chevUnit-${safeUnit}`);
+  if (isOpen) {
+    _tabelaEscolasAbertas.delete(safeUnit);
+    document.querySelectorAll(`.period-row.escola-${safeUnit}`).forEach(tr => tr.style.display = 'none');
+    document.querySelectorAll(`.escola-${safeUnit}-det`).forEach(tr => { tr.style.display='none'; tr.style.setProperty('display','none','important'); });
+    if (chev) { chev.classList.remove('bi-chevron-down'); chev.classList.add('bi-chevron-right'); }
+  } else {
+    _tabelaEscolasAbertas.add(safeUnit);
+    document.querySelectorAll(`.period-row.escola-${safeUnit}`).forEach(tr => tr.style.display = 'table-row');
+    if (chev) { chev.classList.remove('bi-chevron-right'); chev.classList.add('bi-chevron-down'); }
+  }
+}
+
+function _renderDetalhesDireto(safeUnit, r) {
+  const detId   = `det-${safeUnit}-0`;
+  const detHtml = _renderDetalhes(r.details || []);
+  return `
+  <tr id="${detId}" style="display:none;">
+    <td colspan="4" class="p-3">
+      <div class="detail-box table-responsive">
+        <table class="table table-sm small m-0">
+          <thead class="table-light">
+            <tr>
+              <th>Disciplina</th><th class="text-center">Turma</th>
+              <th>Professor</th><th class="text-center">Código</th>
+              <th class="text-center">Situação</th><th class="text-center">Carga</th>
+            </tr>
+          </thead>
+          <tbody>${detHtml}</tbody>
+        </table>
+      </div>
+    </td>
+  </tr>`;
 }
 
 function _renderDetalhes(details) {
@@ -997,16 +1106,23 @@ function _renderDetalhes(details) {
 }
 
 function toggleRow(id) {
-  document.getElementById(id)?.classList.toggle('d-none');
+  const tr = document.getElementById(id);
+  if (!tr) return;
+  const showing = tr.style.display !== 'none' && !tr.classList.contains('d-none');
+  tr.style.setProperty('display', showing ? 'none' : 'table-row', 'important');
 }
 
 function filtrarTabela() {
   const termo = (document.getElementById('buscaTabela')?.value || '').toLowerCase().trim();
-  document.querySelectorAll('#mainBody > tr.main-row').forEach(tr => {
+  document.querySelectorAll('#mainBody > tr.escola-header').forEach(tr => {
     const vis = !termo || tr.innerText.toLowerCase().includes(termo);
-    tr.classList.toggle('d-none', !vis);
-    const match = (tr.getAttribute('onclick') || '').match(/toggleRow\('(.+?)'\)/);
-    if (match && !vis) document.getElementById(match[1])?.classList.add('d-none');
+    tr.style.display = vis ? '' : 'none';
+    const safe = tr.dataset.safe;
+    if (safe) {
+      document.querySelectorAll(`.period-row.escola-${safe}`).forEach(p => {
+        p.style.display = vis && _tabelaEscolasAbertas.has(safe) ? 'table-row' : 'none';
+      });
+    }
   });
 }
 
@@ -1600,9 +1716,10 @@ async function exportarPendentesExcel() {
 // ── MODO / SUBNAV ─────────────────────────────────────────────────
 function switchModo(novoModo) {
   modo = novoModo;
-  abertosGrade      = new Set();
-  _pendentesAbertos = new Set();
-  _pendDiscAbertos  = new Set();
+  abertosGrade         = new Set();
+  _pendentesAbertos    = new Set();
+  _pendDiscAbertos     = new Set();
+  _tabelaEscolasAbertas = new Set();
 
   const isGrade     = (modo === 'GRADE');
   const isPendentes = (modo === 'PENDENTES');
