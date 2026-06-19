@@ -113,10 +113,10 @@
     }
     .chip-fluente   { background:#10B981; color:#fff; }
     .chip-iniciante { background:#3B82F6; color:#fff; }
-    .chip-pre4      { background:#6366F1; color:#fff; }
-    .chip-pre3      { background:#F59E0B; color:#fff; }
-    .chip-pre2      { background:#FF007F; color:#fff; }
-    .chip-pre1      { background:#dc2626; color:#fff; }
+    .chip-pre4      { background:#C4B5FD; color:#1e293b; }
+    .chip-pre3      { background:#FCD34D; color:#1e293b; }
+    .chip-pre2      { background:#F9A8D4; color:#1e293b; }
+    .chip-pre1      { background:#FCA5A5; color:#1e293b; }
     .chip-ausente   { background:#94a3b8; color:#fff; }
 
     /* Dropzone */
@@ -866,10 +866,10 @@ function renderBarra(d, avaliacao, escola, turmaRaw) {
   if (!avaliados) return '<span class="text-muted small">—</span>';
 
   const SEGS = [
-    { key:'pre_n1',     cor:'#dc2626', label:'Pré-leitor N1'    },
-    { key:'pre_n2',     cor:'#FF007F', label:'Pré-leitor N2'    },
-    { key:'pre_n3',     cor:'#F59E0B', label:'Pré-leitor N3'    },
-    { key:'pre_n4',     cor:'#8B5CF6', label:'Pré-leitor N4'    },
+    { key:'pre_n1',     cor:'#FCA5A5', label:'Pré-leitor N1'    },
+    { key:'pre_n2',     cor:'#F9A8D4', label:'Pré-leitor N2'    },
+    { key:'pre_n3',     cor:'#FCD34D', label:'Pré-leitor N3'    },
+    { key:'pre_n4',     cor:'#C4B5FD', label:'Pré-leitor N4'    },
     { key:'iniciantes', cor:'#3B82F6', label:'Iniciante'        },
     { key:'fluentes',   cor:'#10B981', label:'Fluente'          },
   ];
@@ -890,9 +890,11 @@ function renderBarra(d, avaliacao, escola, turmaRaw) {
     const pct = (n / avaliados * 100);
     const label = pct >= 6 ? `${pct.toFixed(0)}%` : '';
     const tooltip = `${s.label}: ${n} aluno${n!==1?'s':''} (${pct.toFixed(1)}%) — clique para listar`;
+    // Iniciante e Fluente são vibrantes → texto branco; N1–N4 são pastéis → texto escuro
+    const corTexto = (s.key === 'iniciantes' || s.key === 'fluentes') ? '#fff' : '#1e293b';
     const clickAttr = temClique
-      ? `onclick="event.stopPropagation();_abrirPerfilPorCtx('${dataKey.replace(/'/g,"\\'")}','${s.key}')" style="width:${pct.toFixed(1)}%;background:${s.cor};cursor:pointer;"`
-      : `style="width:${pct.toFixed(1)}%;background:${s.cor};"`;
+      ? `onclick="event.stopPropagation();_abrirPerfilPorCtx('${dataKey.replace(/'/g,"\\'")}','${s.key}')" style="width:${pct.toFixed(1)}%;background:${s.cor};color:${corTexto};cursor:pointer;"`
+      : `style="width:${pct.toFixed(1)}%;background:${s.cor};color:${corTexto};"`;
     return `<div class="barra-seg" ${clickAttr} title="${tooltip}">${label}</div>`;
   }).join('');
 
