@@ -411,36 +411,32 @@
           </div>
         </div>
 
-        <!-- Disciplina: dropdown com checkboxes + busca -->
-        <div class="dropdown" id="dropPendDisc">
-          <button type="button" class="btn btn-sm btn-outline-secondary shadow-sm dropdown-toggle"
-                  data-bs-toggle="dropdown" data-bs-auto-close="outside"
-                  id="btnPendDiscLabel" style="min-width:170px;text-align:left;">
-            <i class="bi bi-book me-1"></i><span id="pendDiscLabelText">Todas as disciplinas</span>
-          </button>
-          <div class="dropdown-menu shadow-lg p-0" style="min-width:300px;">
-            <div style="display:flex;flex-direction:column;max-height:360px;overflow:hidden;">
-              <div class="p-2 border-bottom d-flex gap-1" style="flex-shrink:0;">
-                <div class="input-group input-group-sm flex-grow-1">
-                  <span class="input-group-text"><i class="bi bi-search"></i></span>
-                  <input type="text" id="buscaPendDiscDrop" class="form-control"
-                         placeholder="Buscar disciplina…" autocomplete="off"
-                         onclick="event.stopPropagation()" oninput="filtrarPendDiscDrop(this.value)">
-                </div>
-                <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();toggleTodasDisc(true)"  title="Marcar todas">
-                  <i class="bi bi-check-all"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();toggleTodasDisc(false)" title="Desmarcar todas">
-                  <i class="bi bi-x-lg"></i>
-                </button>
-              </div>
-              <div id="pendDiscList" onclick="event.stopPropagation()"
-                   style="overflow-y:auto;flex:1;padding:.25rem .5rem;"></div>
-            </div>
-          </div>
-        </div>
+        <!-- Disciplina: botão abre painel inline -->
+        <button type="button" id="btnPendDiscLabel"
+                class="btn btn-sm btn-outline-secondary shadow-sm"
+                style="min-width:170px;text-align:left;"
+                onclick="togglePendDiscPanel()">
+          <i class="bi bi-book me-1"></i><span id="pendDiscLabelText">Todas as disciplinas</span>
+          <i class="bi bi-chevron-down ms-1" id="pendDiscPanelChev" style="font-size:.7rem;"></i>
+        </button>
 
       </div><!-- /filtros -->
+
+      <!-- Painel de disciplinas (inline, colapsável) -->
+      <div id="pendDiscPanel" class="mt-2 border rounded p-2 bg-white shadow-sm" style="display:none;">
+        <div class="d-flex gap-1 mb-2">
+          <div class="input-group input-group-sm flex-grow-1" style="max-width:260px;">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" id="buscaPendDiscDrop" class="form-control"
+                   placeholder="Buscar disciplina…" autocomplete="off"
+                   oninput="filtrarPendDiscDrop(this.value)">
+          </div>
+          <button class="btn btn-sm btn-outline-secondary" onclick="toggleTodasDisc(true)"  title="Marcar todas"><i class="bi bi-check-all"></i></button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="toggleTodasDisc(false)" title="Desmarcar todas"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div id="pendDiscList"
+             style="display:flex;flex-wrap:wrap;gap:2px 8px;max-height:200px;overflow-y:auto;"></div>
+      </div>
     </div>
 
     <div id="pendentesEscolas"></div>
@@ -1411,6 +1407,15 @@ function _atualizarBotaoDisc() {
   label.textContent = (marcadas === 0 || marcadas === total)
     ? 'Todas as disciplinas'
     : `${marcadas} de ${total} disciplinas`;
+}
+
+function togglePendDiscPanel() {
+  const panel = document.getElementById('pendDiscPanel');
+  const chev  = document.getElementById('pendDiscPanelChev');
+  if (!panel) return;
+  const abrindo = panel.style.display === 'none';
+  panel.style.display = abrindo ? 'block' : 'none';
+  chev?.classList.toggle('aberto', abrindo);
 }
 
 function filtrarPendDiscDrop(termo) {
