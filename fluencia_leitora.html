@@ -43,11 +43,11 @@
     /* Barra de distribuição de perfis */
     .barra-perfis {
       display: flex;
-      height: 20px;
+      height: 22px;
       border-radius: 6px;
       overflow: hidden;
-      min-width: 200px;
-      gap: 1px;
+      width: 100%;
+      background: #e2e8f0; /* fundo cinza para ausentes/não contabilizados */
     }
     .barra-seg {
       height: 100%;
@@ -65,14 +65,18 @@
     .barra-seg:last-child  { border-radius: 0 6px 6px 0; }
 
     .barra-wrap { min-width: 280px; }
-    .barra-perfis-rel { position: relative; }
+    .barra-perfis-rel {
+      position: relative;
+      width: 100%;
+    }
     .barra-meta-linha {
       position: absolute;
       top: -3px;
       bottom: -3px;
       width: 0;
-      border-left: 2px dashed #002b5e;
+      border-left: 2.5px dashed #002b5e;
       z-index: 2;
+      right: 30%; /* sempre 30% da direita = marca os 70% de leitores */
     }
     .barra-meta-linha::after {
       content: '← 70%';
@@ -791,11 +795,7 @@ function renderTabela() {
 
   let escolas = Object.keys(escObj);
   if (busca) escolas = escolas.filter(e => e.toLowerCase().includes(busca));
-  escolas.sort((a,b) => {
-    const fa = +escObj[a].totais.pct_fluentes || 0;
-    const fb = +escObj[b].totais.pct_fluentes || 0;
-    return fb - fa;
-  });
+  escolas.sort((a,b) => a.localeCompare(b, 'pt-BR'));
 
   const c = document.getElementById('contador');
   if (c) c.textContent = `${escolas.length} escola${escolas.length!==1?'s':''}`;
@@ -897,8 +897,7 @@ function renderBarra(d, avaliacao, escola, turmaRaw) {
   }).join('');
 
   const metaInfo = calcularMeta(d);
-  const linhaMetaHtml = `
-    <div class="barra-meta-linha" style="right:30%;" title="Meta: 70% Iniciante + Fluente"></div>`;
+  const linhaMetaHtml = `<div class="barra-meta-linha" title="Meta: 70% Iniciante + Fluente"></div>`;
 
   const corStatus = metaInfo.atingiu ? '#059669' : metaInfo.faltam <= 3 ? '#d97706' : '#dc2626';
   const statusHtml = metaInfo.atingiu
