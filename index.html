@@ -1178,6 +1178,11 @@
             <i class="bi bi-book-fill me-2"></i>Elefante Letrado
           </label>
 
+          <input type="radio" class="btn-check" name="mainNav" id="navFluencia" autocomplete="off" onclick="switchMainView('Fluencia')">
+          <label class="btn btn-outline-light nav-btn-main" for="navFluencia">
+            <i class="bi bi-book-half me-2"></i>Fluência Leitora
+          </label>
+
           <input type="radio" class="btn-check" name="mainNav" id="navConfiguracoes" autocomplete="off" onclick="switchMainView('Configuracoes')">
           <label class="btn btn-outline-light nav-btn-main" for="navConfiguracoes">
             <i class="bi bi-gear-fill me-2"></i>Configurações
@@ -1461,6 +1466,36 @@
           </a>
         </div>
         <iframe id="frameElefanteLetrado" class="elefante-frame" src="elefante_letrado.html" title="Elefante Letrado"></iframe>
+      </div>
+    </section>
+
+    <!-- ═════════════════════════════════════════════════════
+         VIEW FLUÊNCIA LEITORA
+         ═════════════════════════════════════════════════════ -->
+    <section id="viewFluencia" class="d-none">
+      <div class="avaliacao-header-card">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div>
+            <div class="mini-label mb-1">Módulo integrado</div>
+            <h5 class="avaliacao-title m-0"><i class="bi bi-book-half me-2"></i>Fluência Leitora</h5>
+          </div>
+          <button class="btn btn-outline-primary fw-bold" onclick="recarregarFluenciaLeitora()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Recarregar módulo
+          </button>
+        </div>
+      </div>
+
+      <div class="elefante-shell">
+        <div class="elefante-toolbar">
+          <div>
+            <div class="fw-bold text-primary">Painel Fluência Leitora</div>
+            <div class="small text-muted">Avaliação diagnóstica de fluência leitora carregada dentro do MAPA.</div>
+          </div>
+          <a class="btn btn-sm btn-success fw-bold" href="fluencia_leitora.html" target="_blank" rel="noopener">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Abrir em nova aba
+          </a>
+        </div>
+        <iframe id="frameFluenciaLeitora" class="elefante-frame" src="fluencia_leitora.html" title="Fluência Leitora"></iframe>
       </div>
     </section>
 
@@ -7881,9 +7916,10 @@ function switchMainView(view) {
   const vTotal = document.getElementById('viewTotal');
   const vConfig = document.getElementById('viewConfiguracoes');
   const vElefante = document.getElementById('viewElefante');
+  const vFluencia = document.getElementById('viewFluencia');
 
   [subNavTurmas, subNavAvaliacoes].forEach(el => el && el.classList.add('d-none'));
-  [vTurmas, vAlunos, vBimestre, vTotal, vConfig, vElefante].forEach(el => el && el.classList.add('d-none'));
+  [vTurmas, vAlunos, vBimestre, vTotal, vConfig, vElefante, vFluencia].forEach(el => el && el.classList.add('d-none'));
   mostrarAnoFilterBar(false);
 
   if (view === 'Turmas') {
@@ -7897,6 +7933,11 @@ function switchMainView(view) {
 
   if (view === 'Elefante') {
     if (vElefante) vElefante.classList.remove('d-none');
+    return;
+  }
+
+  if (view === 'Fluencia') {
+    if (vFluencia) vFluencia.classList.remove('d-none');
     return;
   }
 
@@ -7951,7 +7992,7 @@ function abrirAvaliacao(tipo, btn) {
   _preAquecerAvaliacao(tipo);
   marcarSubAvaliacao(tipo, btn);
 
-  ['viewTurmas','viewAlunos','viewBimestre1','viewTotal','viewConfiguracoes','viewElefante'].forEach(id => {
+  ['viewTurmas','viewAlunos','viewBimestre1','viewTotal','viewConfiguracoes','viewElefante','viewFluencia'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.add('d-none');
   });
@@ -8145,6 +8186,11 @@ function limparAreaAvaliacao() {
     function recarregarElefanteLetrado() {
       const frame = document.getElementById('frameElefanteLetrado');
       if (frame) frame.src = 'elefante_letrado.html?ts=' + Date.now();
+    }
+
+    function recarregarFluenciaLeitora() {
+      const frame = document.getElementById('frameFluenciaLeitora');
+      if (frame) frame.src = 'fluencia_leitora.html?ts=' + Date.now();
     }
   </script>
 
