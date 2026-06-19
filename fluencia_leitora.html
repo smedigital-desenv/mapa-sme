@@ -806,12 +806,25 @@ function renderAlertaN4(turmas) {
           <div class="turma-card" style="background:#f5f3ff;border:1px solid #ddd6fe;">
             <div class="turma-badge" style="background:#8B5CF6;">${t.pre_n4}</div>
             <div class="turma-info">
-              <div class="t-titulo">${esc(t.ano_escolar)} ${esc(t.turma)}</div>
+              <div class="t-titulo">${labelTurma(t)}</div>
               <div class="t-sub">${esc(t.escola)} · ${t.pctN4.toFixed(0)}% da turma</div>
             </div>
           </div>`).join('')}
       </div>
     </div>`);
+}
+
+// Formata "ano + turma", reparseando de turma_raw quando ano_escolar vier vazio
+// (registros antigos importados antes da correção do parser de turma).
+function labelTurma(t) {
+  let ano = (t.ano_escolar || '').trim();
+  let turma = (t.turma || '').trim();
+  if (!ano && t.turma_raw) {
+    const p = parseTurma(t.turma_raw);
+    ano = p.anoEscolar;
+    turma = p.turma || turma;
+  }
+  return `${esc(ano)} ${esc(turma)}`.trim();
 }
 
 // ── Turmas com N1 (mais crítico) ────────────────────────────
@@ -836,7 +849,7 @@ function renderAlertaN1(turmas) {
           <div class="turma-card" style="background:#fef2f2;border:1px solid #fecaca;">
             <div class="turma-badge" style="background:#dc2626;">${t.pre_n1}</div>
             <div class="turma-info">
-              <div class="t-titulo">${esc(t.ano_escolar)} ${esc(t.turma)}</div>
+              <div class="t-titulo">${labelTurma(t)}</div>
               <div class="t-sub">${esc(t.escola)} · ${t.pctN1.toFixed(0)}% da turma</div>
             </div>
           </div>`).join('')}
@@ -904,8 +917,7 @@ function renderTabela() {
             title="Clique para ver os alunos da turma">
           <td style="padding-left:30px;font-size:.78rem;">
             <i class="bi bi-arrow-return-right me-1" style="font-size:.65rem;opacity:.3;"></i>
-            <span class="text-muted">${esc(t.ano_escolar)}</span>
-            <strong class="ms-1">${esc(t.turma)}</strong>
+            <strong>${labelTurma(t)}</strong>
             <span class="badge ms-2" style="background:${periodoBg};color:${periodoCor};font-size:.6rem;font-weight:800;">${periodoLabel}</span>
             ${t.tipo ? `<span class="badge ms-1" style="background:#f1f5f9;color:#64748b;font-size:.6rem;">${esc(t.tipo)}</span>` : ''}
             <i class="bi bi-people-fill ms-2 text-primary" style="font-size:.65rem;opacity:.45;"></i>
@@ -1206,8 +1218,15 @@ async function abrirModalTurma(gi, ti) {
   if (!turma) return;
 
   // Header do modal
+  let _ano = (turma.ano_escolar || '').trim();
+  let _turma = (turma.turma || '').trim();
+  if (!_ano && turma.turma_raw) {
+    const _p = parseTurma(turma.turma_raw);
+    _ano = _p.anoEscolar;
+    _turma = _p.turma || _turma;
+  }
   document.getElementById('modalTurmaTitulo').textContent =
-    `${turma.ano_escolar} ${turma.turma} — ${escola}`;
+    `${_ano} ${_turma} — ${escola}`;
   document.getElementById('modalTurmaSub').textContent =
     `${turma.periodo === 'MANHA' ? 'Manhã' : 'Tarde'} · ${turma.tipo || ''} · ${turma.avaliados || 0} avaliados · ${turma.ausentes || 0} ausentes`;
 
@@ -1427,12 +1446,20 @@ async function lerXlsx(file) {
 
 // "2º ANO A TARDE ANUAL" → { anoEscolar, turma, periodo, tipo }
 function parseTurma(s) {
-  const p = s.trim().split(' ');
-  // Detecta padrão: "Xº ANO L PERIODO TIPO"
-  // Exemplo: "2º ANO A TARDE ANUAL"
-  const anoMatch = s.match(/(\d+º\s*ANO)/i);
-  const anoEscolar = anoMatch ? anoMatch[1].replace(/\s+/,' ').trim() : '';
-  const resto = s.replace(anoEscolar, '').trim().split(/\s+/);
+  s = String(s || '').trim();
+  // Detecta o "ano escolar" aceitando variações do ordinal:
+  //   º (U+00BA), ° (U+00B0, grau), ª, ou apenas "2 ANO" / "2o ANO".
+  // Captura também o número e normaliza a saída para "Xº ANO".
+  const anoMatch = s.match(/(\d+)\s*(?:º|°|ª|o|a)?\s*ANO/i);
+  let anoEscolar = '';
+  let resto;
+  if (anoMatch) {
+    anoEscolar = `${anoMatch[1]}º ANO`;
+    // Remove o trecho casado (todo o "X[º] ANO") da string
+    resto = s.slice(anoMatch.index + anoMatch[0].length).trim().split(/\s+/).filter(Boolean);
+  } else {
+    resto = s.split(/\s+/).filter(Boolean);
+  }
   const turma   = resto[0] || '';
   const periodo = resto[1] || '';
   const tipo    = resto[2] || '';
