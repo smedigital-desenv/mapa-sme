@@ -64,6 +64,35 @@
     .barra-seg:first-child { border-radius: 6px 0 0 6px; }
     .barra-seg:last-child  { border-radius: 0 6px 6px 0; }
 
+    .barra-wrap { min-width: 280px; }
+    .barra-perfis-rel { position: relative; }
+    .barra-meta-linha {
+      position: absolute;
+      top: -3px;
+      bottom: -3px;
+      width: 0;
+      border-left: 2px dashed #002b5e;
+      z-index: 2;
+    }
+    .barra-meta-linha::after {
+      content: '70%';
+      position: absolute;
+      top: -16px;
+      left: -14px;
+      font-size: .58rem;
+      font-weight: 900;
+      color: #002b5e;
+      background: white;
+      padding: 0 3px;
+      border-radius: 3px;
+    }
+    .meta-status {
+      font-size: .65rem;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+    }
+
     /* Grupos */
     .grp-escola { background:#f0f4ff; border-left:4px solid var(--primary); cursor:pointer; }
     .grp-escola:hover { background:#e6ecff !important; }
@@ -134,6 +163,12 @@
     </div>
   </div>
 
+  <!-- Análises: Ranking + Turno -->
+  <div class="row g-3 mb-4" id="analisesRow"></div>
+
+  <!-- Alerta de turmas críticas (N1) -->
+  <div id="alertaN1"></div>
+
   <!-- Controles da tabela -->
   <div class="table-container">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-2">
@@ -177,13 +212,16 @@
     <!-- Legenda -->
     <div class="legenda-perfis mb-3 px-1">
       <span class="label-mini me-1">Perfis:</span>
-      <span class="chip chip-iniciante">Iniciante</span>
       <span class="chip chip-pre1">Pré-leitor N1</span>
       <span class="chip chip-pre2">Pré-leitor N2</span>
       <span class="chip chip-pre3">Pré-leitor N3</span>
       <span class="chip chip-pre4">Pré-leitor N4</span>
+      <span class="chip chip-iniciante">Iniciante</span>
       <span class="chip chip-fluente">Fluente</span>
       <span class="chip chip-ausente">Ausente/N.A.</span>
+      <span class="ms-3 small fw-bold" style="color:#059669;">
+        <i class="bi bi-flag-fill me-1"></i>Meta: 70% Iniciante + Fluente
+      </span>
     </div>
 
     <div class="table-responsive">
@@ -194,7 +232,7 @@
             <th class="text-center" style="width:90px;">Matriculados</th>
             <th class="text-center" style="width:85px;">Avaliados</th>
             <th class="text-center" style="width:75px;">Ausentes</th>
-            <th class="text-center" style="min-width:380px;">Distribuição de Perfis</th>
+            <th class="text-center" style="min-width:420px;">Distribuição de Perfis</th>
             <th class="text-center" style="width:85px;">% Fluentes</th>
           </tr>
         </thead>
@@ -323,11 +361,11 @@ const S = {
 
 // ── Perfis ─────────────────────────────────────────────────
 const PERFIS = [
-  { key:'iniciantes', label:'Iniciante',  cls:'chip-iniciante' },
   { key:'pre_n1',     label:'Pré N1',     cls:'chip-pre1'      },
   { key:'pre_n2',     label:'Pré N2',     cls:'chip-pre2'      },
   { key:'pre_n3',     label:'Pré N3',     cls:'chip-pre3'      },
   { key:'pre_n4',     label:'Pré N4',     cls:'chip-pre4'      },
+  { key:'iniciantes', label:'Iniciante',  cls:'chip-iniciante' },
   { key:'fluentes',   label:'Fluente',    cls:'chip-fluente'   },
   { key:'ausentes',   label:'Aus/NA',     cls:'chip-ausente'   },
 ];
@@ -414,6 +452,7 @@ async function carregarDados() {
     ).join('');
 
     renderKpis();
+    renderAnalises();
     renderTabela();
   } catch(e) {
     document.getElementById('kpis').innerHTML =
@@ -491,9 +530,160 @@ function renderKpis() {
      <div class="col-12"><div class="row g-3">${renderLinha(linha2)}</div></div>`;
 }
 
+// ── Análises: Ranking, Turno, Alerta N1 ─────────────────────
+function renderAnalises() {
+  const av  = document.getElementById('selAvaliacao')?.value || S.avaliacoes[0] || '';
+  const esc = S.porEscola[av] || {};
+
+  // Monta lista flat de turmas com nome completo + cálculo de meta
+  const turmasFlat = [];
+  Object.keys(esc).forEach(escola => {
+    esc[escola].turmas.forEach(t => {
+      const meta = calcularMeta(t);
+      turmasFlat.push({ ...t, escola, meta });
+    });
+  });
+
+  renderRankingMeta(turmasFlat);
+  renderComparativoTurno(turmasFlat);
+  renderAlertaN1(turmasFlat);
+}
+
+// ── 1. Ranking de turmas por distância da meta ──────────────
+function renderRankingMeta(turmas) {
+  const comAvaliados = turmas.filter(t => (+t.avaliados||0) > 0);
+  const ordenadas = [...comAvaliados].sort((a,b) => a.meta.pctAtual - b.meta.pctAtual);
+
+  const piores = ordenadas.slice(0, 5);
+  const melhores = [...ordenadas].reverse().slice(0, 5);
+
+  const linhaRank = (t, idx, destaqueCor) => `
+    <div class="d-flex align-items-center justify-content-between py-2"
+         style="border-bottom:1px solid #f1f5f9;font-size:.76rem;">
+      <div style="min-width:0;">
+        <div class="fw-bold text-truncate" style="max-width:230px;">${esc(t.ano_escolar)} ${esc(t.turma)}</div>
+        <div class="text-muted text-truncate" style="font-size:.68rem;max-width:230px;">${esc(t.escola)}</div>
+      </div>
+      <span class="chip" style="background:${destaqueCor};color:#fff;flex-shrink:0;">
+        ${t.meta.pctAtual.toFixed(0)}%
+      </span>
+    </div>`;
+
+  const html = `
+    <div class="col-12 col-lg-6">
+      <div class="card-kpi h-100">
+        <h6 class="fw-bold mb-3 text-muted" style="font-size:.85rem;">
+          <i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>Turmas mais distantes da meta
+        </h6>
+        ${piores.length ? piores.map(t => linhaRank(t, 0, t.meta.pctAtual<40?'#dc2626':'#F59E0B')).join('')
+                         : '<div class="text-muted small py-3 text-center">Sem dados</div>'}
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card-kpi h-100">
+        <h6 class="fw-bold mb-3 text-muted" style="font-size:.85rem;">
+          <i class="bi bi-trophy-fill me-2 text-success"></i>Turmas mais próximas/acima da meta
+        </h6>
+        ${melhores.length ? melhores.map(t => linhaRank(t, 0, t.meta.pctAtual>=70?'#10B981':'#3B82F6')).join('')
+                          : '<div class="text-muted small py-3 text-center">Sem dados</div>'}
+      </div>
+    </div>`;
+
+  document.getElementById('analisesRow').innerHTML = html;
+}
+
+// ── 4. Comparação por turno ──────────────────────────────────
+function renderComparativoTurno(turmas) {
+  const porTurno = { MANHA: { aval:0, ok:0 }, TARDE: { aval:0, ok:0 } };
+
+  turmas.forEach(t => {
+    const p = t.periodo === 'MANHA' ? 'MANHA' : t.periodo === 'TARDE' ? 'TARDE' : null;
+    if (!p) return;
+    porTurno[p].aval += (+t.avaliados||0);
+    porTurno[p].ok   += (+t.iniciantes||0) + (+t.fluentes||0);
+  });
+
+  const pctManha = porTurno.MANHA.aval > 0 ? (porTurno.MANHA.ok/porTurno.MANHA.aval*100) : 0;
+  const pctTarde = porTurno.TARDE.aval > 0 ? (porTurno.TARDE.ok/porTurno.TARDE.aval*100) : 0;
+
+  const card = `
+    <div class="col-12">
+      <div class="card-kpi">
+        <h6 class="fw-bold mb-3 text-muted" style="font-size:.85rem;">
+          <i class="bi bi-sun-fill me-2 text-warning"></i>Comparativo por Turno
+          <span class="text-muted fw-normal" style="font-size:.68rem;">— % Iniciante + Fluente</span>
+        </h6>
+        <div class="row g-3">
+          <div class="col-6">
+            <div class="d-flex align-items-center gap-3">
+              <div style="width:44px;height:44px;border-radius:10px;background:#dbeafe;
+                          display:grid;place-items:center;flex-shrink:0;">
+                <i class="bi bi-brightness-high-fill" style="color:#1e40af;font-size:1.1rem;"></i>
+              </div>
+              <div>
+                <div class="kpi-val" style="color:${pctManha>=70?'#10B981':'#1e40af'};font-size:1.3rem;">
+                  ${pctManha.toFixed(1)}%
+                </div>
+                <div class="label-mini">Manhã (${porTurno.MANHA.aval} alunos)</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="d-flex align-items-center gap-3">
+              <div style="width:44px;height:44px;border-radius:10px;background:#fef9c3;
+                          display:grid;place-items:center;flex-shrink:0;">
+                <i class="bi bi-sunset-fill" style="color:#854d0e;font-size:1.1rem;"></i>
+              </div>
+              <div>
+                <div class="kpi-val" style="color:${pctTarde>=70?'#10B981':'#854d0e'};font-size:1.3rem;">
+                  ${pctTarde.toFixed(1)}%
+                </div>
+                <div class="label-mini">Tarde (${porTurno.TARDE.aval} alunos)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('analisesRow').insertAdjacentHTML('beforeend', card);
+}
+
+// ── 8. Alerta de turmas críticas (alta concentração N1) ─────
+function renderAlertaN1(turmas) {
+  const comN1 = turmas
+    .filter(t => (+t.pre_n1||0) > 0)
+    .map(t => ({ ...t, pctN1: (+t.avaliados||0) > 0 ? (+t.pre_n1/t.avaliados*100) : 0 }))
+    .sort((a,b) => b.pctN1 - a.pctN1)
+    .slice(0, 8);
+
+  const alertaEl = document.getElementById('alertaN1');
+  if (!comN1.length) { alertaEl.innerHTML = ''; return; }
+
+  alertaEl.innerHTML = `
+    <div class="card-kpi mb-4">
+      <h6 class="fw-bold mb-3 text-muted" style="font-size:.85rem;">
+        <i class="bi bi-exclamation-octagon-fill me-2" style="color:#dc2626;"></i>
+        Turmas com maior concentração de Pré-leitor N1 (nível mais crítico)
+      </h6>
+      <div class="d-flex flex-wrap gap-2">
+        ${comN1.map(t => `
+          <div class="d-flex align-items-center gap-2 px-3 py-2"
+               style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;">
+            <span class="chip chip-pre1">${t.pre_n1}</span>
+            <div style="font-size:.74rem;">
+              <div class="fw-bold">${esc(t.ano_escolar)} ${esc(t.turma)}</div>
+              <div class="text-muted" style="font-size:.66rem;">${esc(t.escola)} · ${t.pctN1.toFixed(0)}% da turma</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
 // ── Tabela ─────────────────────────────────────────────────
 function filtrarTabela() {
   renderKpis();
+  renderAnalises();
   renderTabela();
 }
 
@@ -579,11 +769,11 @@ function renderBarra(d) {
   if (!avaliados) return '<span class="text-muted small">—</span>';
 
   const SEGS = [
-    { key:'iniciantes', cor:'#3B82F6', label:'Iniciante' },
     { key:'pre_n1',     cor:'#dc2626', label:'Pré N1'    },
     { key:'pre_n2',     cor:'#FF007F', label:'Pré N2'    },
     { key:'pre_n3',     cor:'#F59E0B', label:'Pré N3'    },
     { key:'pre_n4',     cor:'#8B5CF6', label:'Pré N4'    },
+    { key:'iniciantes', cor:'#3B82F6', label:'Iniciante' },
     { key:'fluentes',   cor:'#10B981', label:'Fluente'   },
   ];
 
@@ -591,13 +781,70 @@ function renderBarra(d) {
     const n   = +d[s.key] || 0;
     if (!n) return '';
     const pct = (n / avaliados * 100);
-    // Mostra label só se segmento tiver espaço (>= 8%)
     const label = pct >= 8 ? `${n}` : '';
     return `<div class="barra-seg" style="width:${pct.toFixed(1)}%;background:${s.cor};"
                  title="${s.label}: ${n} (${pct.toFixed(0)}%)">${label}</div>`;
   }).join('');
 
-  return `<div class="barra-perfis">${segs}</div>`;
+  // ── Meta: 70% em Iniciante + Fluente ──────────────────────
+  const metaInfo = calcularMeta(d);
+  const metaPct  = 70;
+  const linhaMetaHtml = `
+    <div class="barra-meta-linha" style="left:${metaPct}%;" title="Meta: 70%"></div>`;
+
+  const corStatus = metaInfo.atingiu ? '#059669' : metaInfo.faltam <= 3 ? '#d97706' : '#dc2626';
+  const statusHtml = metaInfo.atingiu
+    ? `<span class="meta-status" style="color:#059669;">
+         <i class="bi bi-check-circle-fill me-1"></i>Meta atingida (${metaInfo.pctAtual.toFixed(0)}%)
+       </span>`
+    : `<span class="meta-status" style="color:${corStatus};">
+         <i class="bi bi-arrow-up-circle-fill me-1"></i>
+         Faltam ${metaInfo.faltam} aluno${metaInfo.faltam!==1?'s':''} (${metaInfo.pctAtual.toFixed(0)}% → 70%)
+       </span>`;
+
+  return `
+    <div class="barra-wrap">
+      <div class="barra-perfis-rel">
+        <div class="barra-perfis">${segs}</div>
+        ${linhaMetaHtml}
+      </div>
+      <div class="mt-1">${statusHtml}</div>
+    </div>`;
+}
+
+// ── Calcula quantos alunos faltam para 70% Iniciante+Fluente ──
+// Prioriza mover N4 primeiro (mais fácil), depois N3, N2, N1 (mais difícil)
+function calcularMeta(d) {
+  const avaliados = +d.avaliados || 0;
+  if (!avaliados) return { atingiu:false, faltam:0, pctAtual:0, esforco:0 };
+
+  const okAtual = (+d.iniciantes||0) + (+d.fluentes||0);
+  const pctAtual = (okAtual / avaliados) * 100;
+
+  if (pctAtual >= 70) return { atingiu:true, faltam:0, pctAtual, esforco:0 };
+
+  // Quantos alunos preciso mover para "Iniciante" para atingir 70%
+  const metaAbsoluta = Math.ceil(avaliados * 0.70);
+  const faltam = metaAbsoluta - okAtual;
+
+  // Esforço ponderado: pega N4 (peso 1) → N3 (peso 2) → N2 (peso 3) → N1 (peso 4)
+  const ORDEM = [
+    { key:'pre_n4', peso:1 },
+    { key:'pre_n3', peso:2 },
+    { key:'pre_n2', peso:3 },
+    { key:'pre_n1', peso:4 },
+  ];
+  let restante = faltam;
+  let esforco  = 0;
+  for (const o of ORDEM) {
+    if (restante <= 0) break;
+    const disponivel = +d[o.key] || 0;
+    const usar = Math.min(disponivel, restante);
+    esforco   += usar * o.peso;
+    restante  -= usar;
+  }
+
+  return { atingiu:false, faltam, pctAtual, esforco };
 }
 
 function renderChips(d) {
