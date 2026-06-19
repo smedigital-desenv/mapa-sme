@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
   <style>
     :root {
       --primary:    #002b5e;
@@ -92,6 +93,121 @@
     .chevron.aberto { transform:rotate(180deg); }
     .escola-body .table-responsive { max-height:480px; overflow-y:auto; }
     .escola-body thead th { position:sticky; top:0; z-index:2; background:#fff; }
+
+    /* ── CABEÇALHO DE TIPO DE ESCOLA ── */
+    .tipo-escola-header {
+      display:flex; align-items:center; gap:10px;
+      padding:.65rem 1.2rem; margin-top:1.2rem; margin-bottom:.4rem;
+      border-left:4px solid var(--cor); background:var(--bg);
+      border-radius:0 10px 10px 0; cursor:pointer; user-select:none;
+      transition:filter .15s;
+    }
+    .tipo-escola-header:hover { filter:brightness(.96); }
+    .tipo-escola-header .tipo-label {
+      font-size:.82rem; font-weight:900; color:var(--cor); text-transform:uppercase; letter-spacing:.06em; flex:1;
+    }
+    .tipo-escola-header .tipo-count {
+      font-size:.7rem; font-weight:700; color:#64748b;
+    }
+    .tipo-escola-header .tipo-chevron { transition:transform .2s; color:#94a3b8; }
+    .tipo-escola-header .tipo-chevron.aberto { transform:rotate(180deg); }
+
+    /* ── GRUPOS DENTRO DA ESCOLA ── */
+    .grade-grupo-header {
+      display:flex; align-items:center; gap:8px;
+      padding:.45rem 1rem; background:#f0f4ff;
+      border-top:1px solid #e0e7ff; border-bottom:1px solid #e0e7ff;
+      font-size:.72rem; font-weight:900; color:#3730a3;
+      text-transform:uppercase; letter-spacing:.06em;
+    }
+    .grade-grupo-header .grade-grupo-badge {
+      display:inline-flex; align-items:center; justify-content:center;
+      min-width:42px; padding:1px 8px; border-radius:999px;
+      font-size:.65rem; font-weight:900;
+      border:1px solid transparent;
+    }
+    .grade-grupo-chips {
+      padding:.4rem .85rem .5rem; background:#fafbff;
+      border-bottom:1px solid #e8eef8; display:flex; flex-wrap:wrap; gap:4px;
+    }
+
+    /* ── DROPDOWN DE PROJETO/DISCIPLINA ── */
+    .turmas-disc-dropdown { position:relative; flex:0 1 400px; min-width:260px; max-width:480px; }
+    .turmas-menu-select-btn {
+      width:100%; min-height:42px; display:flex; align-items:center;
+      justify-content:flex-start; gap:10px; padding:6px 14px;
+      border-radius:14px; background:rgba(255,255,255,.08);
+      border:2px solid rgba(0,229,255,.9); color:#fff; cursor:pointer;
+      transition:.15s; box-shadow:inset 0 0 18px rgba(0,229,255,.04);
+    }
+    .turmas-menu-select-btn:hover,.turmas-menu-select-btn.show {
+      background:rgba(0,229,255,.16); border-color:var(--neon-blue);
+      box-shadow:0 0 18px rgba(0,229,255,.32);
+    }
+    .turmas-select-icon {
+      width:28px; height:28px; border-radius:10px; background:var(--neon-blue);
+      color:var(--primary); display:inline-flex; align-items:center;
+      justify-content:center; flex:0 0 28px; box-shadow:0 0 12px rgba(0,229,255,.35);
+    }
+    .turmas-select-copy { display:flex; flex-direction:column; align-items:flex-start; flex:1; line-height:1.05; min-width:0; }
+    .turmas-select-label { color:rgba(255,255,255,.62); font-size:.58rem; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
+    .turmas-select-copy strong { color:#fff; font-size:.84rem; font-weight:900; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+    .turmas-count {
+      display:inline-flex; align-items:center; justify-content:center;
+      min-width:21px; height:19px; padding:0 6px; border-radius:999px;
+      background:rgba(255,255,255,.18); font-size:.68rem; font-weight:900;
+    }
+    .turmas-dropdown-menu {
+      width:min(430px,calc(100vw - 24px)); max-height:min(560px,72vh);
+      overflow:hidden; border:1px solid #dbe5ef; border-radius:16px;
+      padding:0; margin-top:10px!important; z-index:3000;
+    }
+    .turmas-dropdown-head {
+      background:linear-gradient(135deg,#002b5e 0%,#0a3a7a 100%);
+      color:#fff; padding:13px 15px; border-bottom:3px solid var(--neon-blue);
+    }
+    .turmas-dropdown-title { font-weight:900; font-size:.88rem; }
+    .turmas-dropdown-subtitle { color:rgba(255,255,255,.72); font-size:.66rem; font-weight:700; margin-top:3px; }
+    .turmas-dropdown-search {
+      margin:11px; height:38px; border-radius:12px; border:1px solid #dbe5ef;
+      background:#f8fafc; display:flex; align-items:center; gap:8px; padding:0 11px;
+    }
+    .turmas-dropdown-search i { color:#64748b; }
+    .turmas-dropdown-search input { width:100%; border:0; outline:0; background:transparent; font-size:.82rem; font-weight:700; color:#0f172a; }
+    .turmas-dropdown-list { max-height:380px; overflow-y:auto; padding:0 8px 10px; }
+    .turmas-dropdown-list::-webkit-scrollbar { width:7px; }
+    .turmas-dropdown-list::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
+    .turmas-dropdown-section { padding:2px 0 8px; }
+    .turmas-dropdown-section + .turmas-dropdown-section { border-top:1px solid #e8eef6; margin-top:4px; padding-top:8px; }
+    .turmas-dropdown-section-title { padding:6px 10px 5px; color:#64748b; font-size:.64rem; font-weight:900; text-transform:uppercase; letter-spacing:.08em; }
+    .turmas-disciplina-item {
+      width:100%; min-height:38px; border:0; border-radius:10px; background:transparent;
+      color:#0f172a; display:flex; align-items:center; justify-content:space-between;
+      gap:10px; text-align:left; padding:8px 10px; font-size:.78rem; font-weight:800; cursor:pointer; transition:.14s;
+    }
+    .turmas-disciplina-item:hover { background:#eef6ff; color:var(--primary); }
+    .turmas-disciplina-item.active { background:var(--primary); color:#fff; box-shadow:0 5px 14px rgba(0,43,94,.2); }
+    .turmas-disciplina-item.active .turmas-item-icon { background:rgba(255,255,255,.18); color:#fff; }
+    .turmas-disciplina-item.active .turmas-item-text small { color:rgba(255,255,255,.78); }
+    .turmas-item-left { display:flex; align-items:center; gap:10px; min-width:0; }
+    .turmas-item-icon { width:28px; height:28px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center; flex:0 0 28px; background:#eef6ff; color:var(--primary); }
+    .turmas-item-text { display:flex; flex-direction:column; min-width:0; line-height:1.15; }
+    .turmas-disciplina-nome { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .turmas-item-text small { color:#64748b; font-size:.66rem; font-weight:750; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .turmas-item-check { flex:0 0 auto; font-size:1rem; }
+
+    /* ── NÃO ATRIBUÍDAS ── */
+    .pend-escola-header {
+      background:#fff5f5; cursor:pointer; user-select:none;
+      padding:.6rem 1rem; border-bottom:1px solid #fecaca;
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    .pend-escola-header:hover { background:#fee2e2; }
+    .pend-tipo-badge {
+      display:inline-block; border-radius:999px;
+      padding:1px 8px; font-size:.62rem; font-weight:800;
+      border:1px solid transparent; margin-left:6px;
+    }
   </style>
 </head>
 <body>
@@ -115,25 +231,46 @@
 </header>
 
 <!-- ── SUBNAV ── -->
-<div class="sub-nav-bar">
-  <button class="btn-modo active" id="btn-PPA" onclick="switchModo('PPA')">
-    <i class="bi bi-journal-check me-1"></i>PPA
-  </button>
-  <button class="btn-modo" id="btn-PRA" onclick="switchModo('PRA')">
-    <i class="bi bi-arrow-repeat me-1"></i>PRA
-  </button>
-
-  <!-- Select de disciplinas individuais -->
-  <div class="d-flex align-items-center gap-1 ms-1">
-    <select id="selDisc" class="form-select form-select-sm" style="min-width:220px;font-size:.78rem;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(0,229,255,.3);"
-            onchange="switchModo('DISC')">
-      <option value="">— Disciplina individual —</option>
-    </select>
+<div class="sub-nav-bar" style="gap:.75rem;">
+  <!-- Dropdown unificado Projetos + Disciplinas -->
+  <div class="dropdown turmas-disc-dropdown">
+    <button type="button" class="turmas-menu-select-btn dropdown-toggle"
+            data-bs-toggle="dropdown" data-bs-auto-close="outside" id="btnModoDropdown">
+      <span class="turmas-select-icon"><i class="bi bi-journal-check" id="dropIconAtual"></i></span>
+      <span class="turmas-select-copy">
+        <span class="turmas-select-label">Visualizando</span>
+        <strong id="dropLabelAtual">PPA</strong>
+      </span>
+      <span class="turmas-count" id="dropCountTotal">—</span>
+    </button>
+    <div class="dropdown-menu turmas-dropdown-menu shadow-lg">
+      <div class="turmas-dropdown-head">
+        <div class="turmas-dropdown-title">Selecionar projeto ou disciplina</div>
+        <div class="turmas-dropdown-subtitle">Projetos e disciplinas da coluna P da aba Turmas</div>
+      </div>
+      <div class="turmas-dropdown-search" onclick="event.stopPropagation()">
+        <i class="bi bi-search"></i>
+        <input type="text" id="buscaDropdown" placeholder="Pesquisar projeto ou disciplina…"
+               autocomplete="off" oninput="filtrarDropdown(this.value)">
+      </div>
+      <div class="turmas-dropdown-list" id="dropdownList">
+        <div class="text-muted small p-3 text-center">Carregando…</div>
+      </div>
+    </div>
   </div>
 
-  <div class="ms-auto">
+  <div class="ms-auto d-flex align-items-center gap-2">
+    <button class="btn-modo" id="btn-PENDENTES" onclick="switchModo('PENDENTES')"
+            style="border-color:rgba(239,68,68,.6);color:rgba(255,255,255,.85);">
+      <i class="bi bi-exclamation-circle me-1"></i>Não Atribuídas
+    </button>
     <button class="btn-modo" id="btn-GRADE" onclick="switchModo('GRADE')">
       <i class="bi bi-grid-3x3-gap-fill me-1"></i>Por Escola / Disciplina
+    </button>
+    <button class="btn-modo d-none" id="btn-SaldoPPA"
+            onclick="abrirRelatorioSaldo()"
+            style="background:#198754;border-color:#198754;color:#fff;">
+      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Saldo PPA
     </button>
   </div>
 </div>
@@ -170,8 +307,13 @@
       <h5 class="fw-bold m-0 text-primary" id="tabelaTitulo">
         <i class="bi bi-list-task me-2"></i>Detalhamento
       </h5>
-      <input type="text" id="buscaTabela" class="form-control shadow-sm" style="max-width:260px;"
-             placeholder="Pesquisar unidade…" oninput="filtrarTabela()">
+      <div class="d-flex gap-2 align-items-center">
+        <input type="text" id="buscaTabela" class="form-control shadow-sm" style="max-width:220px;"
+               placeholder="Pesquisar unidade…" oninput="filtrarTabela()">
+        <button class="btn btn-outline-success btn-sm fw-bold text-nowrap" onclick="exportarTabelaExcel()" title="Exportar para Excel">
+          <i class="bi bi-download me-1"></i>Excel
+        </button>
+      </div>
     </div>
     <div class="table-responsive">
       <table class="table align-middle" id="mainTable">
@@ -185,6 +327,37 @@
         </tbody>
       </table>
     </div>
+  </div>
+
+  <!-- Não Atribuídas -->
+  <div id="pendentesContainer" class="d-none">
+    <div class="table-container mb-3">
+      <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
+        <h5 class="fw-bold m-0" style="color:#ef4444;">
+          <i class="bi bi-exclamation-circle-fill me-2"></i>Aulas Não Atribuídas
+          <span id="pendentesTotal" class="badge bg-danger ms-2" style="font-size:.75rem;"></span>
+        </h5>
+        <div class="d-flex gap-2 flex-wrap">
+          <input type="text" id="buscaPendEscola" class="form-control form-control-sm shadow-sm"
+                 style="max-width:200px;" placeholder="Pesquisar escola…" oninput="renderPendentes()">
+          <select id="filtroPendDisc" class="form-select form-select-sm shadow-sm" style="max-width:200px;"
+                  onchange="renderPendentes()">
+            <option value="">Todas as disciplinas</option>
+          </select>
+          <select id="filtroPendTipo" class="form-select form-select-sm shadow-sm" style="max-width:150px;"
+                  onchange="renderPendentes()">
+            <option value="">Todos os tipos</option>
+            <option value="CEI">CEI</option>
+            <option value="EMEI">EMEI</option>
+            <option value="EMEF">EMEF</option>
+          </select>
+          <button class="btn btn-sm btn-outline-success fw-bold" onclick="exportarPendentesExcel()">
+            <i class="bi bi-download me-1"></i>Excel
+          </button>
+        </div>
+      </div>
+    </div>
+    <div id="pendentesEscolas"></div>
   </div>
 
   <!-- Grade matricial (Por Escola / Disciplina) -->
@@ -218,10 +391,97 @@
 
 </main>
 
+<!-- ── MODAL: SALDO PPA ── -->
+<div class="modal fade" id="modalRelatorioSaldo" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header border-0 p-3" style="background:#198754;color:white;">
+        <h5 class="modal-title fw-bold">
+          <i class="bi bi-file-earmark-spreadsheet me-2"></i>RELATÓRIO DE SALDO — PPA
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0 table-responsive">
+        <table class="table table-hover m-0 text-nowrap" style="font-size:.8rem;">
+          <thead class="table-light">
+            <tr>
+              <th>Unidade Escolar</th>
+              <th class="text-center">Período</th>
+              <th>Disciplina</th>
+              <th class="text-center">Turmas a Criar</th>
+              <th class="text-center">Carga</th>
+              <th class="text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyRelatorioSaldo"></tbody>
+        </table>
+      </div>
+      <div class="modal-footer border-0 bg-light d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+        <div class="d-flex gap-2 w-100 w-md-auto">
+          <button class="btn btn-outline-success btn-sm fw-bold" onclick="copiarRelatorio()">
+            <i class="bi bi-clipboard me-1"></i>Copiar Relatório
+          </button>
+          <button class="btn btn-success btn-sm fw-bold" onclick="baixarRelatorioExcel()">
+            <i class="bi bi-download me-1"></i>Baixar Excel
+          </button>
+        </div>
+        <span id="totalSaldoTexto" class="small fw-bold text-muted"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── CONFIG ──────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk';
+
+// ── SÉRIES EXCLUÍDAS (padrão — substituído pelo Supabase se disponível) ─────
+const SERIES_EXCLUIDAS_PADRAO = [
+  'PROJETO PROFESSOR ALFABETIZADOR - 13H/A',
+  'PROFESSOR APOIO PEDAGOGICO-10H/A',
+  'PROFESSOR APOIO PEDAGOGICO 3H/A',
+  'PROFESSOR APOIO PEDAGOGICO-5H/A',
+  'PROFESSOR APOIO PEDAGOGICO-1H/A',
+  'PROFESSOR APOIO PEDAGOGICO-11H/A',
+  'PROFESSOR APOIO PEDAGOGICO-8H/A',
+  'PROFESSOR APOIO PEDAGOGICO 6H',
+  'AULA EVENTUAL SL REC. A.E.E. 12H/A',
+  'AULA EVENTUAL SL REC. A.E.E. 6H/A',
+  'AULA EVENTUAL SL REC. A.E.E. 11H/A',
+  'AULA EVENTUAL SL REC. A.E.E. 7H/A',
+  'AULA EVENTUAL SL REC. A.E.E. 10H/A',
+  'ARTESANATO','TÉC. AGRÍCOLA','CULINÁRIA','GUARDAR CARROS',
+  'LAVAR CARROS','COSTURA','PADEIRO/CONFEITEIRO','ELÉTRICA','PEDREIRO',
+  'INFORMÁTICA','MECÂNICA'
+];
+
+let _seriesExcluidasSet = null;
+function serieNormConf(v) { return normalizar(v).replace(/[^A-Z0-9]+/g,' ').trim(); }
+function serieExcluida(anoEscolar) {
+  if (!_seriesExcluidasSet || !_seriesExcluidasSet.size) return false;
+  return _seriesExcluidasSet.has(serieNormConf(anoEscolar));
+}
+async function fetchSeriesExcluidas() {
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/config_series_excluidas?select=serie,excluido`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    if (r.ok) {
+      const linhas = await r.json();
+      if (linhas && linhas.length) {
+        const set = new Set();
+        linhas.filter(x => x.excluido !== false).forEach(x => set.add(serieNormConf(x.serie)));
+        _seriesExcluidasSet = set;
+        return;
+      }
+    }
+  } catch (_) {}
+  const set = new Set();
+  SERIES_EXCLUIDAS_PADRAO.forEach(s => set.add(serieNormConf(s)));
+  _seriesExcluidasSet = set;
+}
 
 // ── ESTADO ──────────────────────────────────────────────────────
 let D = null;              // dados processados
@@ -229,7 +489,8 @@ let modo = 'PPA';          // modo ativo: 'PPA' | 'PRA' | 'DISC' | 'GRADE'
 let discAtiva = '';        // disciplina selecionada no modo DISC
 let grafBar = null;
 let grafPie = null;
-let abertosGrade = new Set();
+let abertosGrade    = new Set();
+let abertosGradeTipo = new Set(['CEI','EMEI','EMEF','Outros']); // todos abertos por padrão
 
 // ── API ──────────────────────────────────────────────────────────
 async function fetchTurmas() {
@@ -330,6 +591,7 @@ function montarDados(rows) {
   const matrice  = {};  // escola → turma → disc → {profName, atribuido}
 
   rows.forEach(row => {
+    if (serieExcluida(row.ano_escolar)) return;
     const unit  = cleanUnit(row.nome_unidade || 'Sem unidade');
     const disc  = normalizarDisciplina(row.descricao_disciplina || '');
     if (!disc) return;
@@ -342,6 +604,9 @@ function montarDados(rows) {
     const sub    = isSubstituto(row);
     const magII  = isMagisterioII(disc);
     const pra    = isPRADisc(disc);
+    const discNorm = normalizar(disc);
+    // Linha de atribuição PPA (PROJ. PROF. ALFABETIZADOR) — conta horas, não salas
+    const isPPARow = discNorm.includes('ALFABETIZADOR') || discNorm.includes(' PPA') || discNorm === 'PPA';
 
     const profName   = atrib ? ((sub ? row.nome_professor_sub : row.nome_professor_prop) || '—').trim() : 'S/ Atribuição';
     const profCode   = atrib ? ((sub ? row.codigo_professor_sub : row.codigo_professor_prop) || '—').trim() : '—';
@@ -351,11 +616,13 @@ function montarDados(rows) {
 
     const det = { disc, turma: turmaKey, profName, profCode, profStatus, workload: carga };
 
-    // PPA — Magistério II no 2º Ano
-    if (magII && isSegundoAnoPPA(ano)) {
+    // PPA:
+    //   - Linhas MAGISTÉRIO II no 2º Ano → contam salas (magisterio), NÃO somam carga atribuída
+    //   - Linhas com 'ALFABETIZADOR'/'PPA' → somam horas atribuídas, NÃO contam sala
+    if ((magII && isSegundoAnoPPA(ano)) || isPPARow) {
       if (!ppaSumm[key]) ppaSumm[key] = { unit, period: per, magisterio: 0, cargaAtribuida: 0, details: [] };
-      ppaSumm[key].magisterio += 1;
-      if (atrib) ppaSumm[key].cargaAtribuida += carga;
+      if (magII) ppaSumm[key].magisterio += 1;
+      if (atrib && isPPARow) ppaSumm[key].cargaAtribuida += carga;
       ppaSumm[key].details.push(det);
     }
 
@@ -459,7 +726,6 @@ function renderKPIs() {
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Pendentes</div><div class="kpi-val" style="color:#ef4444">${pend}</div></div></div>
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Carga Atribuída</div><div class="kpi-val" style="color:${cor}">${Math.round(carga)}h</div><div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:${pct}%;background:${cor};"></div></div></div></div>`;
   } else if (modo === 'GRADE') {
-    // KPIs globais da grade
     const matrice = D.matrice;
     const escolas = D.escolasLista;
     let tot = 0, atr = 0;
@@ -478,6 +744,16 @@ function renderKPIs() {
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Turmas</div><div class="kpi-val text-primary">${turmasSet.size}</div></div></div>
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Disciplinas</div><div class="kpi-val text-primary">${discSet.size}</div></div></div>
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Atribuição Geral</div><div class="kpi-val" style="color:${cor}">${pct}%</div><div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:${pct}%;background:${cor};"></div></div></div></div>`;
+  } else if (modo === 'PENDENTES') {
+    const pends = _getPendentes();
+    const escSet = new Set(pends.map(p => p.unit));
+    const discSetP = new Set(pends.map(p => p.disc));
+    const cargaTotal = pends.reduce((s, p) => s + (p.workload || 0), 0);
+    html = `
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Aulas Pendentes</div><div class="kpi-val" style="color:#ef4444;">${pends.length}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Escolas Afetadas</div><div class="kpi-val text-primary">${escSet.size}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Disciplinas</div><div class="kpi-val text-primary">${discSetP.size}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Carga Descoberta</div><div class="kpi-val" style="color:#ef4444;">${cargaTotal}h</div></div></div>`;
   }
   row.innerHTML = html;
 }
@@ -656,7 +932,81 @@ function filtrarTabela() {
   });
 }
 
+// ── TIPO DE ESCOLA ───────────────────────────────────────────────
+const TIPOS_ESCOLA = [
+  { key:'CEI',   label:'CEI — Centro de Educação Infantil',     cor:'#7c3aed', bg:'#f5f3ff' },
+  { key:'EMEI',  label:'EMEI — Escola Mun. de Educ. Infantil',  cor:'#0284c7', bg:'#f0f9ff' },
+  { key:'EMEF',  label:'EMEF — Escola Mun. de Educ. Fundamental', cor:'#059669', bg:'#f0fdf4' },
+  { key:'Outros',label:'Outras Unidades',                        cor:'#64748b', bg:'#f8fafc' },
+];
+
+function getTipoEscola(nome) {
+  const n = normalizar(nome);
+  if (n.includes('CEI') || n.includes('CENTRO DE EDUC') && n.includes('INFANTIL')) return 'CEI';
+  if (n.includes('EMEI')) return 'EMEI';
+  if (n.includes('EMEF') || n.includes('EGYDIO')) return 'EMEF';
+  return 'Outros';
+}
+
 // ── GRADE MATRICIAL ───────────────────────────────────────────────
+const GRUPOS_GRADE = [
+  { key:'Etapas',      label:'Etapas',       icon:'bi-flower1',         cor:'#7c3aed', bg:'#ede9fe' },
+  { key:'Ciclos',      label:'Ciclos',        icon:'bi-arrow-repeat',    cor:'#0284c7', bg:'#e0f2fe' },
+  { key:'1º ao 5º Ano',label:'1º ao 5º Ano', icon:'bi-1-circle',        cor:'#059669', bg:'#d1fae5' },
+  { key:'6º ao 9º Ano',label:'6º ao 9º Ano', icon:'bi-6-circle',        cor:'#d97706', bg:'#fef3c7' },
+  { key:'Outros',      label:'Outros',        icon:'bi-three-dots',      cor:'#64748b', bg:'#f1f5f9' },
+];
+
+function getGrupoTurma(turmaKey) {
+  const k = normalizar(turmaKey);
+  if (k.includes('ETAPA')) return 'Etapas';
+  if (k.includes('CICLO')) return 'Ciclos';
+  const m = k.match(/^(\d+)/);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (n >= 1 && n <= 5) return '1º ao 5º Ano';
+    if (n >= 6 && n <= 9) return '6º ao 9º Ano';
+  }
+  return 'Outros';
+}
+
+function _renderGrupoTabela(turmasObj, turmasGrupo, discsGrupo) {
+  const chipsHtml = discsGrupo.map(d => {
+    let dt = 0, da = 0;
+    turmasGrupo.forEach(t => { if (turmasObj[t][d]) { dt++; if (turmasObj[t][d].atribuido) da++; } });
+    const dp = dt > 0 ? Math.round(da / dt * 100) : 0;
+    const [dc, db] = dp >= 90 ? ['#10b981','#d1fae5'] : dp >= 60 ? ['#f59e0b','#fef3c7'] : ['#ef4444','#fee2e2'];
+    return `<span class="chip-disc" style="background:${db};color:${dc};border-color:${dc}40;"
+      title="${escapeHtml(d)}: ${da}/${dt}">${d.length > 20 ? d.substring(0,18)+'…' : escapeHtml(d)} ${dp}%</span>`;
+  }).join(' ');
+
+  const linhasHtml = turmasGrupo.map(turma => `
+    <tr>
+      <td class="cell-turma">${escapeHtml(turma)}</td>
+      ${discsGrupo.map(d => {
+        const c = turmasObj[turma][d];
+        if (!c) return `<td class="cell-na">—</td>`;
+        return c.atribuido
+          ? `<td class="cell-ok" title="${escapeHtml(c.profName)}"><i class="bi bi-check-circle-fill" style="color:#10b981;font-size:.9rem;"></i></td>`
+          : `<td class="cell-nok" title="S/ Atribuição"><i class="bi bi-x-circle-fill" style="color:#ef4444;font-size:.9rem;"></i></td>`;
+      }).join('')}
+    </tr>`).join('');
+
+  return `
+    <div class="grade-grupo-chips">${chipsHtml}</div>
+    <div class="table-responsive" style="max-height:400px;overflow-y:auto;">
+      <table class="table table-bordered table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th style="min-width:88px;font-size:.7rem;background:#fff;position:sticky;top:0;z-index:2;">Turma</th>
+            ${discsGrupo.map(d => `<th class="col-disc" style="position:sticky;top:0;z-index:2;background:#fff;">${escapeHtml(d)}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>${linhasHtml}</tbody>
+      </table>
+    </div>`;
+}
+
 function renderGrade() {
   const container = document.getElementById('gradeEscolas');
   const matrice   = D?.matrice;
@@ -668,32 +1018,88 @@ function renderGrade() {
 
   if (!escolas.length) { container.innerHTML = '<div class="alert alert-warning">Nenhuma escola encontrada.</div>'; return; }
 
+  // Agrupa escolas por tipo
+  const porTipo = {};
+  escolas.forEach(e => {
+    const t = getTipoEscola(e);
+    if (!porTipo[t]) porTipo[t] = [];
+    porTipo[t].push(e);
+  });
+
   let html = '';
-  escolas.forEach((escola, idx) => {
+  let idx = 0; // contador global para IDs únicos
+
+  TIPOS_ESCOLA.forEach(tipo => {
+    const escolasTipo = porTipo[tipo.key] || [];
+    if (!escolasTipo.length) return;
+
+    // Cabeçalho de tipo de escola (colapsável)
+    const tipoAberto = abertosGradeTipo.has(tipo.key);
+    html += `
+    <div class="tipo-escola-header" style="--cor:${tipo.cor};--bg:${tipo.bg};"
+         onclick="toggleGradeTipo('${escapeJs(tipo.key)}')">
+      <i class="bi bi-building" style="color:${tipo.cor};font-size:1rem;"></i>
+      <span class="tipo-label">${escapeHtml(tipo.label)}</span>
+      <span class="tipo-count">${escolasTipo.length} unidade${escolasTipo.length !== 1 ? 's' : ''}</span>
+      <i class="bi bi-chevron-down tipo-chevron ${tipoAberto ? 'aberto' : ''}"></i>
+    </div>
+    <div id="tipoBody-${escapeHtml(tipo.key)}" style="display:${tipoAberto ? 'block' : 'none'};">`;
+
+  escolasTipo.forEach(escola => {
     const turmasObj = matrice[escola];
-    const turmas    = ordenarTurmas(Object.keys(turmasObj));
+    const turmasTodas = ordenarTurmas(Object.keys(turmasObj));
 
-    const discSet = new Set();
-    turmas.forEach(t => Object.keys(turmasObj[t]).forEach(d => discSet.add(d)));
-    const discs = [...discSet].sort().filter(d => !termDisc || d.toUpperCase().includes(termDisc));
-    if (!discs.length) return;
+    // Agrupa turmas pelos 4 quadros
+    const grupos = {};
+    turmasTodas.forEach(t => {
+      const g = getGrupoTurma(t);
+      if (!grupos[g]) grupos[g] = [];
+      grupos[g].push(t);
+    });
 
+    // Calcula totais globais da escola (ignora filtro de disciplina para o % do cabeçalho)
     let tot = 0, atr = 0;
-    turmas.forEach(t => discs.forEach(d => { if (turmasObj[t][d]) { tot++; if (turmasObj[t][d].atribuido) atr++; } }));
+    turmasTodas.forEach(t => Object.values(turmasObj[t]).forEach(c => { tot++; if (c.atribuido) atr++; }));
     const pct = tot > 0 ? Math.round(atr / tot * 100) : 0;
     const [corP, bgP] = pct >= 90 ? ['#10b981','#d1fae5'] : pct >= 60 ? ['#f59e0b','#fef3c7'] : ['#ef4444','#fee2e2'];
 
-    const chipsHtml = discs.map(d => {
-      let dt = 0, da = 0;
-      turmas.forEach(t => { if (turmasObj[t][d]) { dt++; if (turmasObj[t][d].atribuido) da++; } });
-      const dp = dt > 0 ? Math.round(da / dt * 100) : 0;
-      const [dc, db] = dp >= 90 ? ['#10b981','#d1fae5'] : dp >= 60 ? ['#f59e0b','#fef3c7'] : ['#ef4444','#fee2e2'];
-      return `<span class="chip-disc" style="background:${db};color:${dc};border-color:${dc}40;" title="${escapeHtml(d)}: ${da}/${dt}">${d.length > 20 ? d.substring(0,18)+'…' : escapeHtml(d)} ${dp}%</span>`;
-    }).join(' ');
+    // Monta HTML dos grupos
+    let gruposHtml = '';
+    let temConteudo = false;
+    GRUPOS_GRADE.forEach(g => {
+      const turmasG = grupos[g.key] || [];
+      if (!turmasG.length) return;
+
+      // Disciplinas presentes neste grupo
+      const discSetG = new Set();
+      turmasG.forEach(t => Object.keys(turmasObj[t]).forEach(d => discSetG.add(d)));
+      const discsG = [...discSetG].sort().filter(d => !termDisc || d.toUpperCase().includes(termDisc));
+      if (!discsG.length) return;
+
+      temConteudo = true;
+
+      // Badge de status do grupo
+      let gTot = 0, gAtr = 0;
+      turmasG.forEach(t => discsG.forEach(d => { if (turmasObj[t][d]) { gTot++; if (turmasObj[t][d].atribuido) gAtr++; } }));
+      const gPct = gTot > 0 ? Math.round(gAtr / gTot * 100) : 0;
+      const [gc, gb] = gPct >= 90 ? ['#10b981','#d1fae5'] : gPct >= 60 ? ['#f59e0b','#fef3c7'] : ['#ef4444','#fee2e2'];
+
+      gruposHtml += `
+        <div class="grade-grupo-header">
+          <i class="bi ${g.icon}" style="color:${g.cor};font-size:.85rem;"></i>
+          <span>${g.label}</span>
+          <span class="grade-grupo-badge" style="background:${gb};color:${gc};border-color:${gc}40;">
+            ${gAtr}/${gTot} · ${gPct}%
+          </span>
+        </div>
+        ${_renderGrupoTabela(turmasObj, turmasG, discsG)}`;
+    });
+
+    if (!temConteudo) { idx++; return; }
 
     const abert = abertosGrade.has(idx);
     html += `
-    <div class="table-container mb-3 p-0 overflow-hidden shadow-sm" id="gradeCard-${idx}">
+    <div class="table-container mb-2 p-0 overflow-hidden shadow-sm" id="gradeCard-${idx}">
       <div class="escola-header" onclick="toggleGradeEscola(${idx})">
         <div>
           <span class="fw-bold" style="font-size:.85rem;">${escapeHtml(escola)}</span>
@@ -702,37 +1108,25 @@ function renderGrade() {
         <i class="bi bi-chevron-down chevron ${abert ? 'aberto' : ''}" id="gradeChev-${idx}"></i>
       </div>
       <div id="gradeBody-${idx}" class="escola-body" style="display:${abert ? 'block' : 'none'};">
-        <div class="px-3 py-2 border-bottom" style="background:#fafbff;">
-          <div style="display:flex;flex-wrap:wrap;gap:5px;">${chipsHtml}</div>
-        </div>
-        <div class="table-responsive" style="max-height:460px;overflow-y:auto;">
-          <table class="table table-bordered table-sm align-middle mb-0">
-            <thead>
-              <tr>
-                <th style="min-width:90px;font-size:.7rem;background:#fff;">Turma</th>
-                ${discs.map(d => `<th class="col-disc">${escapeHtml(d)}</th>`).join('')}
-              </tr>
-            </thead>
-            <tbody>
-              ${turmas.map(turma => `
-                <tr>
-                  <td class="cell-turma">${escapeHtml(turma)}</td>
-                  ${discs.map(d => {
-                    const c = turmasObj[turma][d];
-                    if (!c) return `<td class="cell-na">—</td>`;
-                    return c.atribuido
-                      ? `<td class="cell-ok" title="${escapeHtml(c.profName)}"><i class="bi bi-check-circle-fill" style="color:#10b981;font-size:.9rem;"></i></td>`
-                      : `<td class="cell-nok" title="S/ Atribuição"><i class="bi bi-x-circle-fill" style="color:#ef4444;font-size:.9rem;"></i></td>`;
-                  }).join('')}
-                </tr>`).join('')}
-            </tbody>
-          </table>
-        </div>
+        ${gruposHtml}
       </div>
     </div>`;
-  });
+    idx++;
+  }); // fim escolasTipo.forEach
+  html += `</div>`; // fecha tipoBody
+  }); // fim TIPOS_ESCOLA.forEach
 
   container.innerHTML = html || '<div class="alert alert-warning">Nenhum resultado para os filtros atuais.</div>';
+}
+
+function toggleGradeTipo(key) {
+  const b = document.getElementById(`tipoBody-${key}`);
+  if (!b) return;
+  const abrindo = b.style.display === 'none';
+  b.style.display = abrindo ? 'block' : 'none';
+  abrindo ? abertosGradeTipo.add(key) : abertosGradeTipo.delete(key);
+  document.querySelectorAll(`.tipo-escola-header[onclick*="'${key}'"] .tipo-chevron`)
+    .forEach(el => el.classList.toggle('aberto', abrindo));
 }
 
 function toggleGradeEscola(idx) {
@@ -753,48 +1147,368 @@ function ordenarTurmas(lista) {
   });
 }
 
+// ── DROPDOWN DE PROJETO / DISCIPLINA ─────────────────────────────
+const PROJETOS_MENU = [
+  { type:'PPA', label:'PPA', titulo:'Projeto Professor Alfabetizador', subtitulo:'Magistério II no 2.º Ano', icon:'bi-journal-check' },
+  { type:'PRA', label:'PRA', titulo:'Projeto Recuperação da Aprendizagem', subtitulo:'Recuperação anos iniciais', icon:'bi-arrow-repeat' }
+];
+
+function escapeJs(s) { return String(s ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+function renderDropdown() {
+  const list = document.getElementById('dropdownList');
+  if (!list || !D) return;
+
+  const discs = D.disciplinasLista || [];
+  document.getElementById('dropCountTotal').textContent = PROJETOS_MENU.length + discs.length;
+
+  const renderItem = (type, label, subtitulo, icon, ativo) => {
+    const busca = [label, subtitulo].join(' ').toUpperCase();
+    return `<button type="button" class="turmas-disciplina-item${ativo?' active':''}"
+      data-disciplina-label="${escapeHtml(busca)}" data-menu-option="true"
+      onclick="selecionarDropdown('${escapeJs(type)}','${escapeJs(label)}')">
+      <span class="turmas-item-left">
+        <span class="turmas-item-icon"><i class="bi ${escapeHtml(icon)}"></i></span>
+        <span class="turmas-item-text">
+          <span class="turmas-disciplina-nome">${escapeHtml(label)}</span>
+          <small>${escapeHtml(subtitulo)}</small>
+        </span>
+      </span>
+      ${ativo ? '<i class="bi bi-check2-circle turmas-item-check"></i>' : ''}
+    </button>`;
+  };
+
+  const projHtml = PROJETOS_MENU.map(p =>
+    renderItem(p.type, p.label, p.subtitulo, p.icon, modo === p.type)
+  ).join('');
+
+  const discHtml = discs.map(d => {
+    const cnt = (D.disciplinas[d] || []).reduce((s,r) => s + (r.criadas||0), 0);
+    const ativo = modo === 'DISC' && discAtiva === d;
+    return renderItem('DISC', d, `${cnt} turma${cnt!==1?'s':''}`, 'bi-book', ativo);
+  }).join('');
+
+  list.innerHTML = `
+    <div class="turmas-dropdown-section">
+      <div class="turmas-dropdown-section-title">Projetos</div>
+      ${projHtml}
+    </div>
+    <div class="turmas-dropdown-section">
+      <div class="turmas-dropdown-section-title">Disciplinas</div>
+      ${discHtml}
+    </div>`;
+
+  atualizarBotaoDropdown();
+}
+
+function atualizarBotaoDropdown() {
+  const iconEl  = document.getElementById('dropIconAtual');
+  const labelEl = document.getElementById('dropLabelAtual');
+  const proj = PROJETOS_MENU.find(p => p.type === modo);
+  if (proj) {
+    iconEl.className = 'bi ' + proj.icon;
+    labelEl.textContent = proj.label;
+  } else if (modo === 'DISC') {
+    iconEl.className = 'bi bi-book';
+    labelEl.textContent = discAtiva.length > 32 ? discAtiva.substring(0,30)+'…' : discAtiva;
+  } else if (modo === 'PENDENTES') {
+    iconEl.className = 'bi bi-exclamation-circle';
+    labelEl.textContent = 'Não Atribuídas';
+  } else {
+    iconEl.className = 'bi bi-grid-3x3-gap-fill';
+    labelEl.textContent = 'Por Escola / Disciplina';
+  }
+}
+
+function filtrarDropdown(termo) {
+  const list = document.getElementById('dropdownList');
+  if (!list) return;
+  const q = String(termo||'').trim().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  let vis = 0;
+  list.querySelectorAll('[data-menu-option="true"]').forEach(btn => {
+    const label = String(btn.dataset.disciplinaLabel||'').normalize('NFD').replace(/[̀-ͯ]/g,'');
+    const show = !q || label.includes(q);
+    btn.classList.toggle('d-none', !show);
+    if (show) vis++;
+  });
+  list.querySelectorAll('.turmas-dropdown-section').forEach(sec => {
+    sec.classList.toggle('d-none', !sec.querySelector('[data-menu-option="true"]:not(.d-none)'));
+  });
+}
+
+function selecionarDropdown(tipo, disc) {
+  const btn = document.getElementById('btnModoDropdown');
+  if (btn) bootstrap.Dropdown.getInstance(btn)?.hide();
+  if (tipo === 'DISC') discAtiva = disc;
+  switchModo(tipo);
+}
+
+// ── NÃO ATRIBUÍDAS ───────────────────────────────────────────────
+let _pendentesAbertos = new Set();
+
+function _getPendentes() {
+  const lista = [];
+  const seen  = new Set();
+  Object.keys(D.disciplinas || {}).forEach(disc => {
+    (D.disciplinas[disc] || []).forEach(row => {
+      (row.details || []).forEach(det => {
+        if (det.profName !== 'S/ Atribuição') return;
+        const chave = `${row.unit}|${row.period}|${det.disc}|${det.turma}`;
+        if (seen.has(chave)) return;
+        seen.add(chave);
+        lista.push({ unit: row.unit, period: row.period, tipo: getTipoEscola(row.unit),
+                     disc: det.disc, turma: det.turma, workload: det.workload });
+      });
+    });
+  });
+  return lista;
+}
+
+function renderPendentes() {
+  const container = document.getElementById('pendentesEscolas');
+  if (!D) return;
+
+  const termEscola = (document.getElementById('buscaPendEscola')?.value || '').toUpperCase().trim();
+  const filtDisc   = (document.getElementById('filtroPendDisc')?.value  || '');
+  const filtTipo   = (document.getElementById('filtroPendTipo')?.value  || '');
+
+  const todas = _getPendentes();
+
+  // Popula select de disciplinas na primeira chamada
+  const selDisc = document.getElementById('filtroPendDisc');
+  if (selDisc && selDisc.options.length <= 1) {
+    const discs = [...new Set(todas.map(p => p.disc))].sort();
+    discs.forEach(d => {
+      const op = document.createElement('option');
+      op.value = d; op.textContent = d;
+      selDisc.appendChild(op);
+    });
+  }
+
+  const filtradas = todas.filter(p =>
+    (!termEscola || p.unit.toUpperCase().includes(termEscola)) &&
+    (!filtDisc   || p.disc === filtDisc) &&
+    (!filtTipo   || p.tipo === filtTipo)
+  );
+
+  document.getElementById('pendentesTotal').textContent = filtradas.length;
+
+  // Agrupa por escola
+  const porEscola = {};
+  filtradas.forEach(p => {
+    if (!porEscola[p.unit]) porEscola[p.unit] = { period: p.period, tipo: p.tipo, itens: [] };
+    porEscola[p.unit].itens.push(p);
+  });
+
+  const escolas = Object.keys(porEscola).sort();
+  if (!escolas.length) {
+    container.innerHTML = '<div class="alert alert-success mt-2"><i class="bi bi-check-circle-fill me-2"></i>Nenhuma aula pendente para os filtros selecionados.</div>';
+    return;
+  }
+
+  const TIPO_CORES = { CEI:['#7c3aed','#ede9fe'], EMEI:['#0284c7','#e0f2fe'], EMEF:['#059669','#d1fae5'], Outros:['#64748b','#f1f5f9'] };
+
+  let html = '';
+  escolas.forEach((escola, idx) => {
+    const { tipo, itens } = porEscola[escola];
+    const [tc, tb] = TIPO_CORES[tipo] || TIPO_CORES['Outros'];
+    const abert = _pendentesAbertos.has(idx);
+
+    const linhas = itens.sort((a,b) => a.disc.localeCompare(b.disc) || a.turma.localeCompare(b.turma));
+
+    html += `
+    <div class="table-container mb-2 p-0 overflow-hidden shadow-sm">
+      <div class="pend-escola-header" onclick="togglePendEscola(${idx})">
+        <div class="d-flex align-items-center gap-2">
+          <span class="fw-bold" style="font-size:.84rem;">${escapeHtml(escola)}</span>
+          <span class="pend-tipo-badge" style="background:${tb};color:${tc};border-color:${tc}40;">${escapeHtml(tipo)}</span>
+          <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1">${itens.length} pendente${itens.length!==1?'s':''}</span>
+        </div>
+        <i class="bi bi-chevron-down chevron ${abert?'aberto':''}" id="pendChev-${idx}"></i>
+      </div>
+      <div id="pendBody-${idx}" style="display:${abert?'block':'none'};">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0" style="font-size:.8rem;">
+            <thead class="table-light">
+              <tr>
+                <th>Disciplina</th>
+                <th class="text-center">Turma</th>
+                <th class="text-center">Turno</th>
+                <th class="text-center">Carga</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${linhas.map(p => `
+              <tr>
+                <td><span class="badge bg-primary-subtle text-primary border">${escapeHtml(p.disc)}</span></td>
+                <td class="text-center fw-bold">${escapeHtml(p.turma)}</td>
+                <td class="text-center"><span class="badge bg-light text-dark border">${escapeHtml(p.period)}</span></td>
+                <td class="text-center fw-bold text-danger">${p.workload}h</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function togglePendEscola(idx) {
+  const b = document.getElementById(`pendBody-${idx}`);
+  const c = document.getElementById(`pendChev-${idx}`);
+  if (!b) return;
+  const abrindo = b.style.display === 'none';
+  b.style.display = abrindo ? 'block' : 'none';
+  abrindo ? _pendentesAbertos.add(idx) : _pendentesAbertos.delete(idx);
+  c?.classList.toggle('aberto', abrindo);
+}
+
+async function exportarPendentesExcel() {
+  if (typeof ExcelJS === 'undefined') { alert('Biblioteca Excel não carregada.'); return; }
+  const todas = _getPendentes();
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Não Atribuídas');
+  ws.addRow(['Unidade','Tipo','Turno','Disciplina','Turma','Carga (h)']);
+  ws.getRow(1).fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFEF4444' } };
+  ws.getRow(1).font = { bold:true, color:{ argb:'FFFFFFFF' } };
+  todas.forEach(p => ws.addRow([p.unit, p.tipo, p.period, p.disc, p.turma, p.workload]));
+  ws.columns.forEach(c => { c.width = 26; });
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = `NaoAtribuidas_${new Date().toISOString().slice(0,10)}.xlsx`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
 // ── MODO / SUBNAV ─────────────────────────────────────────────────
 function switchModo(novoModo) {
-  if (novoModo === 'DISC') {
-    const sel = document.getElementById('selDisc');
-    if (!sel.value) return;
-    discAtiva = sel.value;
-  }
   modo = novoModo;
-  abertosGrade = new Set();
+  abertosGrade    = new Set();
+  _pendentesAbertos = new Set();
 
-  // Atualiza botões
-  ['PPA','PRA','GRADE'].forEach(m => {
-    document.getElementById(`btn-${m}`)?.classList.toggle('active', m === modo);
-  });
-  // Select de disciplina: não tem classe active nos botões, mas highlight visual
-  if (modo === 'DISC') {
-    ['PPA','PRA','GRADE'].forEach(m => document.getElementById(`btn-${m}`)?.classList.remove('active'));
+  const isGrade     = (modo === 'GRADE');
+  const isPendentes = (modo === 'PENDENTES');
+  const isTabela    = !isGrade && !isPendentes;
+
+  document.getElementById('chartsRow').classList.toggle('d-none', !isTabela);
+  document.getElementById('tableContainer').classList.toggle('d-none', !isTabela);
+  document.getElementById('gradeContainer').classList.toggle('d-none', !isGrade);
+  document.getElementById('pendentesContainer').classList.toggle('d-none', !isPendentes);
+
+  document.getElementById('btn-GRADE').classList.toggle('active', isGrade);
+  document.getElementById('btn-PENDENTES').classList.toggle('active', isPendentes);
+  document.getElementById('btn-SaldoPPA').classList.toggle('d-none', modo !== 'PPA');
+
+  atualizarBotaoDropdown();
+  renderDropdown();
+  renderKPIs();
+
+  if (isTabela)    { renderCharts(); renderTable(); }
+  else if (isGrade) renderGrade();
+  else              renderPendentes();
+}
+
+// ── SALDO PPA ────────────────────────────────────────────────────
+function abrirRelatorioSaldo() {
+  const lista = (D?.ppa || []).filter(r => Number(r.faltaAtribuir || 0) > 0);
+  const tbody = document.getElementById('tbodyRelatorioSaldo');
+  if (!tbody) return;
+
+  if (!lista.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4">Todas as unidades estão completas.</td></tr>`;
+  } else {
+    tbody.innerHTML = lista.map(r => `
+      <tr>
+        <td>${escapeHtml(r.unit)}</td>
+        <td class="text-center"><span class="badge bg-primary">${escapeHtml(r.period)}</span></td>
+        <td>PROJ. PROF. ALFABETIZADOR</td>
+        <td class="text-center fw-bold">${Math.max(0, Number(r.magisterio||0) - Math.floor(Number(r.cargaAtribuida||0)/12))}</td>
+        <td class="text-center fw-bold text-danger">${escapeHtml(String(r.faltaAtribuir))}h</td>
+        <td class="text-center"><span class="badge bg-danger">PENDENTE</span></td>
+      </tr>`).join('');
   }
 
-  const isGrade  = (modo === 'GRADE');
-  document.getElementById('chartsRow').classList.toggle('d-none', isGrade);
-  document.getElementById('tableContainer').classList.toggle('d-none', isGrade);
-  document.getElementById('gradeContainer').classList.toggle('d-none', !isGrade);
+  const total = lista.reduce((s, r) => s + Number(r.faltaAtribuir || 0), 0);
+  document.getElementById('totalSaldoTexto').textContent =
+    `Total a atribuir: ${total}h em ${lista.length} unidade${lista.length !== 1 ? 's' : ''}`;
+  new bootstrap.Modal(document.getElementById('modalRelatorioSaldo')).show();
+}
 
-  renderKPIs();
-  if (!isGrade) { renderCharts(); renderTable(); }
-  else renderGrade();
+function copiarRelatorio() {
+  const linhas = [...document.querySelectorAll('#tbodyRelatorioSaldo tr')].map(tr =>
+    [...tr.children].map(td => td.innerText.trim()).join('\t')
+  ).join('\n');
+  navigator.clipboard.writeText('Unidade\tPeríodo\tDisciplina\tTurmas\tCarga\tStatus\n' + linhas)
+    .then(() => alert('Relatório copiado para a área de transferência.'))
+    .catch(() => alert('Não foi possível copiar automaticamente.'));
+}
+
+async function baixarRelatorioExcel() {
+  if (typeof ExcelJS === 'undefined') { alert('Biblioteca Excel não carregada.'); return; }
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Saldo PPA');
+  ws.addRow(['Unidade', 'Período', 'Disciplina', 'Turmas a Criar', 'Carga', 'Status']);
+  ws.getRow(1).fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF002B5E' } };
+  ws.getRow(1).font = { bold:true, color:{ argb:'FFFFFFFF' } };
+  [...document.querySelectorAll('#tbodyRelatorioSaldo tr')].forEach(tr => {
+    ws.addRow([...tr.children].map(td => td.innerText.trim()));
+  });
+  ws.columns.forEach(col => { col.width = 24; });
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = 'Saldo_PPA_' + new Date().toISOString().slice(0,10) + '.xlsx';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+async function exportarTabelaExcel() {
+  if (typeof ExcelJS === 'undefined') { alert('Biblioteca Excel não carregada.'); return; }
+  const isPPA  = (modo === 'PPA');
+  const data   = isPPA ? D.ppa : (modo === 'PRA') ? D.pra : (D?.disciplinas[discAtiva] || []);
+  const titulo = isPPA ? 'PPA' : modo === 'PRA' ? 'PRA' : discAtiva.replace(/[^\w]/g,'_');
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(titulo.substring(0,30));
+
+  const cols = isPPA
+    ? ['Unidade','Período','Salas','Meta (h)','Atribuído (h)','Déficit (h)','% Atribuído','Status']
+    : ['Unidade','Período','Turmas','Atribuídas','Pendentes','% Atribuição','Status'];
+
+  ws.addRow(cols);
+  ws.getRow(1).fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF002B5E' } };
+  ws.getRow(1).font = { bold:true, color:{ argb:'FFFFFFFF' } };
+
+  data.forEach(r => {
+    const perc = isPPA
+      ? Math.round(Number(r.percAtribuido||0))
+      : (Number(r.criadas||0) > 0 ? Math.round(Number(r.atribuidas||0)/Number(r.criadas)*100) : 0);
+    const status = perc >= 100 ? 'IDEAL' : perc >= 50 ? 'MÍNIMO' : 'CRÍTICO';
+    if (isPPA) {
+      ws.addRow([r.unit, r.period, r.magisterio, r.meta, r.cargaAtribuida, r.faltaAtribuir, perc+'%', status]);
+    } else {
+      const pend = Math.max(0, Number(r.criadas||0) - Number(r.atribuidas||0));
+      ws.addRow([r.unit, r.period, r.criadas, r.atribuidas, pend, perc+'%', status]);
+    }
+  });
+
+  ws.columns.forEach(col => { col.width = 22; });
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = `Atribuicao_${titulo}_${new Date().toISOString().slice(0,10)}.xlsx`;
+  a.click(); URL.revokeObjectURL(url);
 }
 
 // ── INICIALIZAÇÃO ─────────────────────────────────────────────────
 async function init() {
   try {
-    const rows = await fetchTurmas();
+    const [rows] = await Promise.all([fetchTurmas(), fetchSeriesExcluidas()]);
     D = montarDados(rows);
-
-    // Popula select de disciplinas
-    const sel = document.getElementById('selDisc');
-    D.disciplinasLista.forEach(d => {
-      const op = document.createElement('option');
-      op.value = d; op.textContent = d;
-      sel.appendChild(op);
-    });
 
     // Status
     document.getElementById('statusLoad').style.display = 'none';
