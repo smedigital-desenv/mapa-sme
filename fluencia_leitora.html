@@ -156,6 +156,48 @@
     .legenda-perfis {
       display:flex; flex-wrap:wrap; gap:6px; align-items:center;
     }
+
+    /* Grade uniforme de turmas (alertas N1 / N4) */
+    .turmas-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 10px;
+    }
+    .turma-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      min-width: 0;
+    }
+    .turma-badge {
+      flex-shrink: 0;
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+      font-size: .82rem;
+      color: #fff;
+      line-height: 1;
+    }
+    .turma-info { min-width: 0; font-size: .76rem; }
+    .turma-info .t-titulo {
+      font-weight: 800;
+      color: #1e293b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .turma-info .t-sub {
+      font-size: .66rem;
+      color: #64748b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   </style>
 </head>
 <body>
@@ -759,14 +801,13 @@ function renderAlertaN4(turmas) {
         Turmas com maior concentração de Pré-leitor N4
         <span class="text-muted fw-normal" style="font-size:.7rem;">— foco prioritário de intensificação (mais próximos de Iniciante)</span>
       </h6>
-      <div class="d-flex flex-wrap gap-2">
+      <div class="turmas-grid">
         ${comN4.map(t => `
-          <div class="d-flex align-items-center gap-2 px-3 py-2"
-               style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;">
-            <span class="chip chip-pre4">${t.pre_n4} alunos</span>
-            <div style="font-size:.74rem;">
-              <div class="fw-bold">${esc(t.ano_escolar)} ${esc(t.turma)}</div>
-              <div class="text-muted" style="font-size:.66rem;">${esc(t.escola)} · ${t.pctN4.toFixed(0)}% da turma</div>
+          <div class="turma-card" style="background:#f5f3ff;border:1px solid #ddd6fe;">
+            <div class="turma-badge" style="background:#8B5CF6;">${t.pre_n4}</div>
+            <div class="turma-info">
+              <div class="t-titulo">${esc(t.ano_escolar)} ${esc(t.turma)}</div>
+              <div class="t-sub">${esc(t.escola)} · ${t.pctN4.toFixed(0)}% da turma</div>
             </div>
           </div>`).join('')}
       </div>
@@ -790,14 +831,13 @@ function renderAlertaN1(turmas) {
         <i class="bi bi-exclamation-octagon-fill me-2" style="color:#dc2626;"></i>
         Turmas com maior concentração de Pré-leitor N1 (nível mais crítico)
       </h6>
-      <div class="d-flex flex-wrap gap-2">
+      <div class="turmas-grid">
         ${comN1.map(t => `
-          <div class="d-flex align-items-center gap-2 px-3 py-2"
-               style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;">
-            <span class="chip chip-pre1">${t.pre_n1}</span>
-            <div style="font-size:.74rem;">
-              <div class="fw-bold">${esc(t.ano_escolar)} ${esc(t.turma)}</div>
-              <div class="text-muted" style="font-size:.66rem;">${esc(t.escola)} · ${t.pctN1.toFixed(0)}% da turma</div>
+          <div class="turma-card" style="background:#fef2f2;border:1px solid #fecaca;">
+            <div class="turma-badge" style="background:#dc2626;">${t.pre_n1}</div>
+            <div class="turma-info">
+              <div class="t-titulo">${esc(t.ano_escolar)} ${esc(t.turma)}</div>
+              <div class="t-sub">${esc(t.escola)} · ${t.pctN1.toFixed(0)}% da turma</div>
             </div>
           </div>`).join('')}
       </div>
