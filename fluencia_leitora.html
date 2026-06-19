@@ -304,6 +304,7 @@
             <th class="text-center" style="width:75px;">Ausentes</th>
             <th class="text-center" style="min-width:420px;">Distribuição de Perfis</th>
             <th class="text-center" style="width:85px;">Leitores</th>
+            <th class="text-center" style="width:95px;" title="% de alunos da turma usando o Elefante Letrado para leitura">Engajamento<br><span style="font-weight:400;font-size:.6rem;text-transform:none;">Elefante</span></th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -497,9 +498,66 @@ async function apiUpsert(registros) {
   }
 }
 
+// ── Engajamento do Elefante Letrado ────────────────────────
+// Chave de cruzamento normalizada: escola + ano + turma.
+S.engajamento = {};   // { chave: pctEngajamento }
+
+// Normaliza texto: maiúsculas, sem acento, espaços colapsados
+function _norm(s) {
+  return String(s || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/\s+/g, ' ').trim();
+}
+// Extrai só o dígito do ano (de "2º Ano", "2º ANO", "2", etc.)
+function _normAno(s) {
+  const m = String(s || '').match(/(\d+)/);
+  return m ? m[1] : '';
+}
+// Letra/identificador da turma (de "A", "TURMA A", "2", etc.) — só o token útil
+function _normTurma(s) {
+  return _norm(s).replace(/^TURMA\s+/, '');
+}
+function _chaveTurma(escola, ano, turma) {
+  return `${_norm(escola)}|${_normAno(ano)}|${_normTurma(turma)}`;
+}
+
+async function carregarEngajamento() {
+  try {
+    // Descobre o mês mais recente disponível no Elefante
+    const meses = await apiFetch('elefante_turmas?select=mes_referencia&order=mes_referencia.desc&limit=1');
+    if (!meses.length) return;
+    const mesRef = meses[0].mes_referencia;
+
+    const turmas = await apiFetch(
+      `elefante_turmas?mes_referencia=eq.${mesRef}&select=escola,ano_escolar,turma,estudantes,leitores`
+    );
+    const idx = {};
+    turmas.forEach(t => {
+      const est = +t.estudantes || 0;
+      const lei = +t.leitores || 0;
+      if (est <= 0) return;
+      const chave = _chaveTurma(t.escola, t.ano_escolar, t.turma);
+      // Se houver duplicidade na mesma chave, soma os totais
+      if (!idx[chave]) idx[chave] = { est: 0, lei: 0 };
+      idx[chave].est += est;
+      idx[chave].lei += lei;
+    });
+    Object.keys(idx).forEach(k => {
+      S.engajamento[k] = (idx[k].lei / idx[k].est) * 100;
+    });
+    S.engajamentoMes = mesRef;
+  } catch (e) {
+    // Falha silenciosa: se o Elefante não estiver acessível, a coluna mostra "—"
+    console.warn('Engajamento do Elefante indisponível:', e.message);
+  }
+}
+
 // ── Carregamento ───────────────────────────────────────────
 async function carregarDados() {
   try {
+    // Busca engajamento do Elefante em paralelo (não bloqueia se falhar)
+    await carregarEngajamento();
+
     // Busca resumo por turma (view)
     const dados = await apiFetch(
       'v_fluencia_por_turma?select=avaliacao,escola,ano_escolar,turma,periodo,tipo,turma_raw,total_estudantes,avaliados,ausentes,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1,pct_fluentes&order=avaliacao.asc,escola.asc,ano_escolar.asc,turma.asc'
@@ -560,7 +618,7 @@ async function carregarDados() {
 function semDados() {
   document.getElementById('kpis').innerHTML = '';
   document.getElementById('tbody').innerHTML =
-    `<tr><td colspan="7" class="text-center text-muted py-5">
+    `<tr><td colspan="8" class="text-center text-muted py-5">
       <i class="bi bi-inbox fs-1 d-block mb-2 opacity-25"></i>
       Nenhum dado importado ainda.<br>
       <small>Use o botão <strong>Importar planilha</strong> para começar.</small>
@@ -878,7 +936,7 @@ function renderTabela() {
 
   if (!escolas.length) {
     document.getElementById('tbody').innerHTML =
-      '<tr><td colspan="7" class="text-center text-muted py-4">Nenhum resultado.</td></tr>';
+      '<tr><td colspan="8" class="text-center text-muted py-4">Nenhum resultado.</td></tr>';
     return;
   }
 
@@ -903,6 +961,7 @@ function renderTabela() {
         <td class="text-center text-muted">${tot.ausentes}</td>
         <td>${renderBarra(tot, av, escola, null)}</td>
         <td class="text-center">${renderLeitores(tot)}</td>
+        <td class="text-center">${renderEngajamentoEscola(turmas)}</td>
       </tr>`;
 
     const linhasTurma = turmas
@@ -927,6 +986,11 @@ function renderTabela() {
           <td class="text-center small text-muted">${t.ausentes||0}</td>
           <td>${renderBarra(t, av, escola, t.turma_raw)}</td>
           <td class="text-center">${renderLeitores(t)}</td>
+          <td class="text-center">${(() => {
+            let a = (t.ano_escolar||'').trim(), tu = (t.turma||'').trim();
+            if ((!a || !tu) && t.turma_raw) { const p = parseTurma(t.turma_raw); a = a || p.anoEscolar; tu = tu || p.turma; }
+            return renderEngajamento(escola, a, tu);
+          })()}</td>
         </tr>`;
       }).join('');
 
@@ -1062,6 +1126,42 @@ function renderLeitores(d) {
   return `<div style="font-weight:900;color:${cor};font-size:.85rem;">${leitores}</div>
           <div style="font-size:.65rem;color:${cor};font-weight:700;">${pct}%</div>`;
 }
+
+// Engajamento do Elefante Letrado para uma turma (escola+ano+turma)
+// ou somatório de várias turmas (linha de total da escola).
+function renderEngajamento(escola, ano, turma) {
+  // Caso turma específica
+  if (turma != null) {
+    const chave = _chaveTurma(escola, ano, turma);
+    const v = S.engajamento[chave];
+    if (v == null) return '<span class="text-muted small">—</span>';
+    const cor = v >= 50 ? '#10B981' : v >= 30 ? '#F59E0B' : '#FF007F';
+    return `<div style="font-weight:900;color:${cor};font-size:.85rem;">${v.toFixed(0)}%</div>`;
+  }
+  return '<span class="text-muted small">—</span>';
+}
+
+// Engajamento médio da escola: média ponderada das turmas que casaram
+function renderEngajamentoEscola(turmas) {
+  let est = 0, lei = 0, casou = false;
+  turmas.forEach(t => {
+    const chave = _chaveTurma(t.escola, t.ano_escolar, t.turma);
+    const v = S.engajamento[chave];
+    if (v == null) return;
+    // reconstrói estudantes/leitores aproximados a partir da fluência avaliados
+    // (usamos a própria % do Elefante ponderada pelos avaliados da turma)
+    const peso = +t.avaliados || 0;
+    if (peso <= 0) return;
+    est += peso;
+    lei += (v / 100) * peso;
+    casou = true;
+  });
+  if (!casou || est <= 0) return '<span class="text-muted small">—</span>';
+  const pct = (lei / est) * 100;
+  const cor = pct >= 50 ? '#10B981' : pct >= 30 ? '#F59E0B' : '#FF007F';
+  return `<div style="font-weight:900;color:${cor};font-size:.85rem;">${pct.toFixed(0)}%</div>`;
+}
+
 
 // mantida para compatibilidade com modal da turma
 function renderPctFluente(pct) {
