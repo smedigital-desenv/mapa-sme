@@ -336,7 +336,13 @@
       </div>
     </div>
     <div class="table-responsive">
-      <table class="table align-middle" id="mainTable">
+      <table class="table align-middle" id="mainTable" style="table-layout:fixed;">
+        <colgroup>
+          <col style="width:48%;">
+          <col style="width:9%;">
+          <col style="width:32%;">
+          <col style="width:11%;">
+        </colgroup>
         <thead class="table-light">
           <tr id="tableHead" style="font-size:.75rem;color:#666;text-transform:uppercase;"></tr>
         </thead>
@@ -978,23 +984,26 @@ function renderTable() {
       const detHtml    = _renderDetalhes(r.details || []);
 
       return `
-      <tr class="period-row escola-${safeUnit}" style="display:${isOpen?'table-row':'none'};background:#fafafa;cursor:pointer;"
+      <tr class="period-row escola-${safeUnit}" style="display:${isOpen?'table-row':'none'};background:#fff;cursor:pointer;border-left:3px solid #bfdbfe;"
           onclick="toggleRow('${detId}')">
-        <td style="padding-left:2rem;">
-          <span class="badge bg-white text-dark border" style="font-size:.78rem;">${escapeHtml(r.period)}</span>
-        </td>
-        <td class="text-center align-middle"><span class="fw-bold text-primary">${valMain}</span></td>
-        <td class="align-middle">
-          <div class="d-flex justify-content-between mb-1" style="font-size:.75rem;">
-            <span>Atribuído: <b>${atriLabel}</b></span>
-            <span style="color:var(--neon-pink);">Faltam: <b>${pendLabel}</b></span>
-          </div>
-          <div class="progress" style="height:5px;">
-            <div class="progress-bar" style="width:${Math.min(perc,100)}%;background:${barCor}!important;"></div>
+        <td style="padding:.45rem .75rem .45rem 2rem;">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-chevron-right text-muted" style="font-size:.7rem;"></i>
+            <span class="badge bg-primary-subtle text-primary border" style="font-size:.72rem;">${escapeHtml(r.period)}</span>
           </div>
         </td>
-        <td class="text-center align-middle">
-          <div class="p-1 border rounded ${stClass} fw-bold" style="font-size:.68rem;">${stText}</div>
+        <td class="text-center" style="padding:.45rem .75rem;"><span class="fw-bold text-primary">${valMain}</span></td>
+        <td style="padding:.45rem .75rem;">
+          <div style="font-size:.72rem;margin-bottom:3px;display:flex;gap:10px;">
+            <span style="color:#16a34a;font-weight:600;">✓ ${atriLabel}</span>
+            <span style="color:#dc2626;font-weight:600;">✗ ${pendLabel}</span>
+          </div>
+          <div class="progress" style="height:5px;border-radius:3px;">
+            <div class="progress-bar" style="width:${Math.min(perc,100)}%;background:${barCor}!important;border-radius:3px;"></div>
+          </div>
+        </td>
+        <td class="text-center" style="padding:.45rem .75rem;">
+          <span class="badge border fw-bold ${stClass}" style="font-size:.66rem;">${stText}</span>
         </td>
       </tr>
       <tr id="${detId}" class="escola-${safeUnit}-det d-none" style="display:none!important;">
@@ -1023,30 +1032,31 @@ function renderTable() {
 
     return `
     <tr class="main-row escola-header" data-unit="${escapeHtml(unit)}" data-safe="${safeUnit}"
-        onclick="${headerOnclick}" style="cursor:pointer;border-bottom:2px solid #e2e8f0;">
-      <td>
+        onclick="${headerOnclick}"
+        style="cursor:pointer;background:#f1f5f9;border-top:2px solid #e2e8f0;">
+      <td style="padding:.6rem .75rem;">
         <div class="d-flex align-items-center gap-2">
           ${multiPer
-            ? `<i class="bi bi-chevron-${isOpen?'down':'right'} text-muted" id="chevUnit-${safeUnit}" style="font-size:.75rem;flex-shrink:0;"></i>`
-            : `<i class="bi bi-chevron-right text-muted" style="font-size:.75rem;flex-shrink:0;"></i>`}
-          <div class="unit-name">${escapeHtml(unit)}</div>
+            ? `<i class="bi bi-chevron-${isOpen?'down':'right'} text-muted" id="chevUnit-${safeUnit}" style="font-size:.78rem;flex-shrink:0;transition:transform .2s;"></i>`
+            : `<i class="bi bi-chevron-right text-muted" style="font-size:.78rem;flex-shrink:0;"></i>`}
+          <span class="fw-bold" style="font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(unit)}</span>
           ${multiPer
-            ? `<span class="badge bg-light text-muted border ms-1" style="font-size:.62rem;">${rows.length} turnos</span>`
-            : `<span class="badge bg-light text-dark border ms-1">${escapeHtml(rows[0].period)}</span>`}
+            ? `<span class="badge bg-secondary-subtle text-secondary border ms-1" style="font-size:.6rem;flex-shrink:0;">${rows.length} turnos</span>`
+            : `<span class="badge bg-white text-dark border ms-1" style="font-size:.68rem;flex-shrink:0;">${escapeHtml(rows[0].period)}</span>`}
         </div>
       </td>
-      <td class="text-center align-middle"><span class="fs-4 fw-bold text-primary">${totMain}</span></td>
-      <td class="align-middle">
-        <div class="d-flex justify-content-between mb-1" style="font-size:.78rem;">
-          <span>Atribuído: <b>${atriLblT}</b></span>
-          <span style="color:var(--neon-pink);">Faltam: <b>${faltaLblT}</b></span>
+      <td class="text-center" style="padding:.6rem .75rem;"><span class="fs-5 fw-bold text-primary">${totMain}</span></td>
+      <td style="padding:.6rem .75rem;">
+        <div style="font-size:.74rem;margin-bottom:4px;display:flex;gap:10px;">
+          <span style="color:#16a34a;font-weight:600;">✓ ${atriLblT}</span>
+          <span style="color:#dc2626;font-weight:600;">✗ ${faltaLblT}</span>
         </div>
-        <div class="progress" style="height:6px;">
-          <div class="progress-bar" style="width:${Math.min(percTot,100)}%;background:${barCorT}!important;"></div>
+        <div class="progress" style="height:6px;border-radius:3px;">
+          <div class="progress-bar" style="width:${Math.min(percTot,100)}%;background:${barCorT}!important;border-radius:3px;"></div>
         </div>
       </td>
-      <td class="text-center align-middle">
-        <div class="p-1 border rounded ${stClassT} fw-bold" style="font-size:.72rem;">${stTextT}</div>
+      <td class="text-center" style="padding:.6rem .75rem;">
+        <span class="badge border fw-bold ${stClassT}" style="font-size:.7rem;">${stTextT}</span>
       </td>
     </tr>
     ${multiPer ? subLinhas : _renderDetalhesDireto(safeUnit, rows[0])}`;
