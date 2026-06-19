@@ -513,12 +513,48 @@ function _normAno(s) {
   const m = String(s || '').match(/(\d+)/);
   return m ? m[1] : '';
 }
-// Letra/identificador da turma (de "A", "TURMA A", "2", etc.) — só o token útil
+// Identificador da turma: nas duas bases o último token é a letra/identificador
+// ("2 ANO A" → "A", "A" → "A", "TURMA A" → "A").
 function _normTurma(s) {
-  return _norm(s).replace(/^TURMA\s+/, '');
+  const t = _norm(s).replace(/^TURMA\s+/, '');
+  const toks = t.split(' ');
+  return toks[toks.length - 1] || t;
 }
+
+// Normaliza nome de escola para o cruzamento Fluência × Elefante.
+// As duas bases divergem no mesmo cadastro: ordinais ("PROF." vs "PROFº.",
+// "PROFA" vs "PROFª", "DRA" vs "DRª"), pontuação, travessões e sufixos de
+// unidade ("EMEF – UNID I"). Removemos ordinais e pontuação e descartamos os
+// tokens de título (PROF/PROFA/DR/DRA…), que não distinguem nenhuma escola.
+const _TITULOS = new Set(['PROF','PROFA','PROFO','DR','DRA','DRO',
+                          'PROFESSOR','PROFESSORA','DOUTOR','DOUTORA']);
+
+// Apelidos para escolas cujo NOME diverge entre as bases (mesma escola, cadastro
+// diferente — não resolvível por regra geral). Chave e valor já normalizados:
+// mapeia a forma da Fluência para a forma do Elefante.
+//   Fluência: "ENEIDA PEREIRA DOS SANTOS DE AGUIAR, PROFA. DRA. EMEF"
+//   Elefante: "ENEIDA PEREIRA DOS SANTOS, EMEF"
+const _ESCOLA_ALIAS = {
+  'ENEIDA PEREIRA DOS SANTOS DE AGUIAR EMEF': 'ENEIDA PEREIRA DOS SANTOS EMEF',
+};
+
+function _normEscola(s) {
+  const limpo = _norm(s)
+    .replace(/[º°ª]/g, '')           // ordinais masculino/feminino/grau
+    .replace(/[.,–—-]/g, ' ')        // pontuação e travessões → espaço
+    .replace(/\s+/g, ' ').trim();
+  const out = [];
+  for (const w of limpo.split(' ')) {
+    if (_TITULOS.has(w)) continue;   // descarta títulos
+    if (w === 'UNID') break;         // corta sufixo "UNID I/II…"
+    out.push(w);
+  }
+  const nome = out.join(' ');
+  return _ESCOLA_ALIAS[nome] || nome;
+}
+
 function _chaveTurma(escola, ano, turma) {
-  return `${_norm(escola)}|${_normAno(ano)}|${_normTurma(turma)}`;
+  return `${_normEscola(escola)}|${_normAno(ano)}|${_normTurma(turma)}`;
 }
 
 async function carregarEngajamento() {
