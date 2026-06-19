@@ -589,21 +589,21 @@ function renderKpis() {
   const pctPart = total > 0 ? `${(avaliados/total*100).toFixed(1)}%` : '—';
 
   const linha1 = [
-    { icon:'bi-people-fill',     cor:'#002b5e', label:'Matriculados',  val: total.toLocaleString('pt-BR') },
-    { icon:'bi-clipboard-check', cor:'#0062ff', label:'Avaliados',     val: `${avaliados.toLocaleString('pt-BR')} (${pctPart})` },
-    { icon:'bi-person-x',        cor:'#94a3b8', label:'Ausentes',      val: ausentes.toLocaleString('pt-BR') },
-    { icon:'bi-building',        cor:'#6366F1', label:'Escolas',       val: Object.keys(esc).length },
-    { icon:'bi-people',          cor:'#0891b2', label:'Iniciante',     val: `${iniciantes.toLocaleString('pt-BR')} (${pct(iniciantes)})` },
-    { icon:'bi-reception-1',     cor:'#dc2626', label:'Pré-leitor N1', val: `${pre1.toLocaleString('pt-BR')} (${pct(pre1)})` },
+    { icon:'bi-people-fill',     cor:'#002b5e', label:'Matriculados',   val: total.toLocaleString('pt-BR') },
+    { icon:'bi-clipboard-check', cor:'#0062ff', label:'Avaliados',      val: `${avaliados.toLocaleString('pt-BR')} (${pctPart})` },
+    { icon:'bi-person-x',        cor:'#94a3b8', label:'Ausentes',       val: ausentes.toLocaleString('pt-BR') },
+    { icon:'bi-building',        cor:'#6366F1', label:'Escolas',        val: Object.keys(esc).length },
+    { icon:'bi-bar-chart-fill',  cor:'#059669', label:'% Fluentes',     val: pct(fluentes) },
+    { icon:'bi-graph-up-arrow',  cor:'#002b5e', label:'% Não fluentes', val: avaliados > 0 ? `${((avaliados-fluentes)/avaliados*100).toFixed(1)}%` : '—' },
   ];
 
   const linha2 = [
+    { icon:'bi-reception-1',     cor:'#dc2626', label:'Pré-leitor N1', val: `${pre1.toLocaleString('pt-BR')} (${pct(pre1)})` },
     { icon:'bi-reception-2',     cor:'#FF007F', label:'Pré-leitor N2', val: `${pre2.toLocaleString('pt-BR')} (${pct(pre2)})` },
     { icon:'bi-reception-3',     cor:'#F59E0B', label:'Pré-leitor N3', val: `${pre3.toLocaleString('pt-BR')} (${pct(pre3)})` },
     { icon:'bi-reception-4',     cor:'#8B5CF6', label:'Pré-leitor N4', val: `${pre4.toLocaleString('pt-BR')} (${pct(pre4)})` },
+    { icon:'bi-people',          cor:'#3B82F6', label:'Iniciante',     val: `${iniciantes.toLocaleString('pt-BR')} (${pct(iniciantes)})` },
     { icon:'bi-star-fill',       cor:'#10B981', label:'Fluente',       val: `${fluentes.toLocaleString('pt-BR')} (${pct(fluentes)})` },
-    { icon:'bi-bar-chart-fill',  cor:'#059669', label:'% Fluentes',    val: pct(fluentes) },
-    { icon:'bi-graph-up-arrow',  cor:'#002b5e', label:'% Não fluentes',val: avaliados > 0 ? `${((avaliados-fluentes)/avaliados*100).toFixed(1)}%` : '—' },
   ];
 
   const renderLinha = items => items.map(k => `
