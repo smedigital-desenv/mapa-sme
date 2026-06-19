@@ -91,6 +91,28 @@
       border-radius: 3px;
       white-space: nowrap;
     }
+    /* Linha divisória dinâmica entre N4 (pré-leitores) e Iniciante (leitores) */
+    .barra-divisa-linha {
+      position: absolute;
+      top: -3px;
+      bottom: -3px;
+      width: 0;
+      border-left: 2px dotted #64748b;
+      z-index: 2;
+    }
+    .barra-divisa-linha::before {
+      content: 'PRÉ → LEITOR';
+      position: absolute;
+      bottom: -15px;
+      left: -28px;
+      font-size: .52rem;
+      font-weight: 800;
+      color: #64748b;
+      background: white;
+      padding: 0 3px;
+      border-radius: 3px;
+      white-space: nowrap;
+    }
     .meta-status {
       font-size: .65rem;
       font-weight: 800;
@@ -113,10 +135,10 @@
     }
     .chip-fluente   { background:#10B981; color:#fff; }
     .chip-iniciante { background:#3B82F6; color:#fff; }
-    .chip-pre4      { background:#C4B5FD; color:#1e293b; }
-    .chip-pre3      { background:#FCD34D; color:#1e293b; }
-    .chip-pre2      { background:#F9A8D4; color:#1e293b; }
-    .chip-pre1      { background:#FCA5A5; color:#1e293b; }
+    .chip-pre4      { background:#6366F1; color:#fff; }
+    .chip-pre3      { background:#F59E0B; color:#fff; }
+    .chip-pre2      { background:#FF007F; color:#fff; }
+    .chip-pre1      { background:#dc2626; color:#fff; }
     .chip-ausente   { background:#94a3b8; color:#fff; }
 
     /* Dropzone */
@@ -866,10 +888,10 @@ function renderBarra(d, avaliacao, escola, turmaRaw) {
   if (!avaliados) return '<span class="text-muted small">—</span>';
 
   const SEGS = [
-    { key:'pre_n1',     cor:'#FCA5A5', label:'Pré-leitor N1'    },
-    { key:'pre_n2',     cor:'#F9A8D4', label:'Pré-leitor N2'    },
-    { key:'pre_n3',     cor:'#FCD34D', label:'Pré-leitor N3'    },
-    { key:'pre_n4',     cor:'#C4B5FD', label:'Pré-leitor N4'    },
+    { key:'pre_n1',     cor:'#dc2626', label:'Pré-leitor N1'    },
+    { key:'pre_n2',     cor:'#FF007F', label:'Pré-leitor N2'    },
+    { key:'pre_n3',     cor:'#F59E0B', label:'Pré-leitor N3'    },
+    { key:'pre_n4',     cor:'#8B5CF6', label:'Pré-leitor N4'    },
     { key:'iniciantes', cor:'#3B82F6', label:'Iniciante'        },
     { key:'fluentes',   cor:'#10B981', label:'Fluente'          },
   ];
@@ -890,11 +912,9 @@ function renderBarra(d, avaliacao, escola, turmaRaw) {
     const pct = (n / avaliados * 100);
     const label = pct >= 6 ? `${pct.toFixed(0)}%` : '';
     const tooltip = `${s.label}: ${n} aluno${n!==1?'s':''} (${pct.toFixed(1)}%) — clique para listar`;
-    // Iniciante e Fluente são vibrantes → texto branco; N1–N4 são pastéis → texto escuro
-    const corTexto = (s.key === 'iniciantes' || s.key === 'fluentes') ? '#fff' : '#1e293b';
     const clickAttr = temClique
-      ? `onclick="event.stopPropagation();_abrirPerfilPorCtx('${dataKey.replace(/'/g,"\\'")}','${s.key}')" style="width:${pct.toFixed(1)}%;background:${s.cor};color:${corTexto};cursor:pointer;"`
-      : `style="width:${pct.toFixed(1)}%;background:${s.cor};color:${corTexto};"`;
+      ? `onclick="event.stopPropagation();_abrirPerfilPorCtx('${dataKey.replace(/'/g,"\\'")}','${s.key}')" style="width:${pct.toFixed(1)}%;background:${s.cor};cursor:pointer;"`
+      : `style="width:${pct.toFixed(1)}%;background:${s.cor};"`;
     return `<div class="barra-seg" ${clickAttr} title="${tooltip}">${label}</div>`;
   }).join('');
 
@@ -907,6 +927,15 @@ function renderBarra(d, avaliacao, escola, turmaRaw) {
   // da linha até a borda direita (≥ 30% da largura total).
   const metaInfo = calcularMeta(d);
   const linhaMetaHtml = `<div class="barra-meta-linha" title="Meta: 70% Iniciante + Fluente"></div>`;
+
+  // ── Linha divisória dinâmica: divisa entre N4 e Iniciante ──
+  // Posição = soma proporcional dos pré-leitores (N1+N2+N3+N4),
+  // que é exatamente onde termina o último segmento de pré-leitor.
+  const preLeitores = (+d.pre_n1||0) + (+d.pre_n2||0) + (+d.pre_n3||0) + (+d.pre_n4||0);
+  const pctDivisa = (preLeitores / avaliados * 100);
+  const linhaDivisaHtml = (preLeitores > 0)
+    ? `<div class="barra-divisa-linha" style="left:${pctDivisa.toFixed(1)}%;" title="Divisa Pré-leitores → Leitores (${pctDivisa.toFixed(1)}%)"></div>`
+    : '';
 
   const corStatus = metaInfo.atingiu ? '#059669' : metaInfo.faltam <= 3 ? '#d97706' : '#dc2626';
   const statusHtml = metaInfo.atingiu
@@ -922,6 +951,7 @@ function renderBarra(d, avaliacao, escola, turmaRaw) {
     <div class="barra-wrap">
       <div class="barra-perfis-rel">
         <div class="barra-perfis">${segs}</div>
+        ${linhaDivisaHtml}
         ${linhaMetaHtml}
       </div>
       <div class="mt-1">${statusHtml}</div>
