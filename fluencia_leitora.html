@@ -76,13 +76,13 @@
       width: 0;
       border-left: 2.5px dashed #002b5e;
       z-index: 2;
-      right: 30%; /* sempre 30% da direita = marca os 70% de leitores */
+      left: 70%; /* 70% da esquerda = onde os leitores precisam começar para atingir meta */
     }
-    .barra-meta-linha::after {
-      content: '← 70%';
+    .barra-meta-linha::before {
+      content: '70%';
       position: absolute;
       top: -16px;
-      left: -24px;
+      left: -14px;
       font-size: .58rem;
       font-weight: 900;
       color: #002b5e;
@@ -896,6 +896,13 @@ function renderBarra(d, avaliacao, escola, turmaRaw) {
     return `<div class="barra-seg" ${clickAttr} title="${tooltip}">${label}</div>`;
   }).join('');
 
+  // ── Linha de meta ──────────────────────────────────────────
+  // A barra tem width:100% e representa 100% dos avaliados.
+  // Os segmentos preenchem proporcionalmente (podem não somar 100%
+  // se houver alunos sem perfil definido).
+  // A linha deve ficar em left:70% — pois os leitores (Iniciante+Fluente)
+  // estão nos segmentos mais à direita, e a meta é que eles cubram
+  // da linha até a borda direita (≥ 30% da largura total).
   const metaInfo = calcularMeta(d);
   const linhaMetaHtml = `<div class="barra-meta-linha" title="Meta: 70% Iniciante + Fluente"></div>`;
 
