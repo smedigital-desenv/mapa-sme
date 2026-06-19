@@ -593,8 +593,8 @@ function renderKpis() {
     { icon:'bi-clipboard-check', cor:'#0062ff', label:'Avaliados',      val: `${avaliados.toLocaleString('pt-BR')} (${pctPart})` },
     { icon:'bi-person-x',        cor:'#94a3b8', label:'Ausentes',       val: ausentes.toLocaleString('pt-BR') },
     { icon:'bi-building',        cor:'#6366F1', label:'Escolas',        val: Object.keys(esc).length },
-    { icon:'bi-bar-chart-fill',  cor:'#059669', label:'% Fluentes',     val: pct(fluentes) },
-    { icon:'bi-graph-up-arrow',  cor:'#002b5e', label:'% Não fluentes', val: avaliados > 0 ? `${((avaliados-fluentes)/avaliados*100).toFixed(1)}%` : '—' },
+    { icon:'bi-bar-chart-fill',  cor:'#059669', label:'% Leitores',     val: pct(iniciantes + fluentes) },
+    { icon:'bi-graph-up-arrow',  cor:'#002b5e', label:'% Não leitores', val: avaliados > 0 ? `${((avaliados-iniciantes-fluentes)/avaliados*100).toFixed(1)}%` : '—' },
   ];
 
   const linha2 = [
