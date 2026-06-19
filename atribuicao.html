@@ -203,11 +203,31 @@
       display:flex; justify-content:space-between; align-items:center;
     }
     .pend-escola-header:hover { background:#fee2e2; }
+    .pend-disc-header {
+      background:#fafafa; cursor:pointer; user-select:none;
+      padding:.6rem 1rem; border-bottom:1px solid #e2e8f0;
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    .pend-disc-header:hover { background:#f1f5f9; }
     .pend-tipo-badge {
       display:inline-block; border-radius:999px;
       padding:1px 8px; font-size:.62rem; font-weight:800;
       border:1px solid transparent; margin-left:6px;
     }
+    /* checkbox-chip de tipo */
+    .pend-check-chip { cursor:pointer; display:inline-flex; align-items:center; gap:4px;
+      padding:2px 10px 2px 6px; border-radius:999px; font-size:.72rem; font-weight:700;
+      border:1.5px solid var(--chip-cor); background:#fff; color:var(--chip-cor);
+      transition:background .15s,color .15s; }
+    .pend-check-chip input[type=checkbox] { display:none; }
+    .pend-check-chip:has(input:checked) { background:var(--chip-bg); }
+    .pend-check-chip:has(input:not(:checked)) { opacity:.45; }
+    /* checkbox itens da lista de disciplinas */
+    .pend-disc-item { display:flex; align-items:center; gap:6px; padding:3px 4px;
+      border-radius:4px; font-size:.78rem; cursor:pointer; }
+    .pend-disc-item:hover { background:#f1f5f9; }
+    .pend-disc-item input[type=checkbox] { accent-color:#ef4444; width:14px;height:14px; flex-shrink:0; }
+    .pend-visuBtn.active { background:#fff0f0!important; border-color:#ef4444!important; color:#ef4444!important; }
   </style>
 </head>
 <body>
@@ -332,31 +352,95 @@
   <!-- Não Atribuídas -->
   <div id="pendentesContainer" class="d-none">
     <div class="table-container mb-3">
+
+      <!-- Título + total -->
       <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
         <h5 class="fw-bold m-0" style="color:#ef4444;">
           <i class="bi bi-exclamation-circle-fill me-2"></i>Aulas Não Atribuídas
           <span id="pendentesTotal" class="badge bg-danger ms-2" style="font-size:.75rem;"></span>
         </h5>
-        <div class="d-flex gap-2 flex-wrap">
-          <input type="text" id="buscaPendEscola" class="form-control form-control-sm shadow-sm"
-                 style="max-width:200px;" placeholder="Pesquisar escola…" oninput="renderPendentes()">
-          <select id="filtroPendDisc" class="form-select form-select-sm shadow-sm" style="max-width:200px;"
-                  onchange="renderPendentes()">
-            <option value="">Todas as disciplinas</option>
-          </select>
-          <select id="filtroPendTipo" class="form-select form-select-sm shadow-sm" style="max-width:150px;"
-                  onchange="renderPendentes()">
-            <option value="">Todos os tipos</option>
-            <option value="CEI">CEI</option>
-            <option value="EMEI">EMEI</option>
-            <option value="EMEF">EMEF</option>
-          </select>
-          <button class="btn btn-sm btn-outline-success fw-bold" onclick="exportarPendentesExcel()">
-            <i class="bi bi-download me-1"></i>Excel
-          </button>
-        </div>
+        <button class="btn btn-sm btn-outline-success fw-bold" onclick="exportarPendentesExcel()">
+          <i class="bi bi-download me-1"></i>Excel
+        </button>
       </div>
+
+      <!-- Toggle de sub-vista -->
+      <div class="d-flex gap-2 mb-3">
+        <button id="btnPendEscola" class="btn btn-sm fw-bold active"
+                style="background:#fff0f0;border:1.5px solid #ef4444;color:#ef4444;"
+                onclick="setPendVisuMode('escola')">
+          <i class="bi bi-building me-1"></i>Por Escola
+        </button>
+        <button id="btnPendDisc" class="btn btn-sm fw-bold"
+                style="background:#fff;border:1.5px solid #cbd5e1;color:#64748b;"
+                onclick="setPendVisuMode('disc')">
+          <i class="bi bi-book me-1"></i>Por Disciplina
+        </button>
+      </div>
+
+      <!-- Filtros -->
+      <div class="d-flex flex-wrap gap-3 align-items-start">
+
+        <!-- Pesquisa livre -->
+        <div class="input-group input-group-sm shadow-sm" style="max-width:220px;">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="text" id="buscaPendEscola" class="form-control"
+                 placeholder="Pesquisar escola…" oninput="renderPendentes()">
+        </div>
+
+        <!-- Tipo: checkboxes inline -->
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="text-muted small fw-bold">Tipo:</span>
+          <div class="d-flex gap-2 flex-wrap" id="filtroPendTipoGroup">
+            <label class="pend-check-chip" style="--chip-cor:#7c3aed;--chip-bg:#ede9fe;">
+              <input type="checkbox" value="CEI"   checked onchange="renderPendentes()">
+              <span>CEI</span>
+            </label>
+            <label class="pend-check-chip" style="--chip-cor:#0284c7;--chip-bg:#e0f2fe;">
+              <input type="checkbox" value="EMEI"  checked onchange="renderPendentes()">
+              <span>EMEI</span>
+            </label>
+            <label class="pend-check-chip" style="--chip-cor:#059669;--chip-bg:#d1fae5;">
+              <input type="checkbox" value="EMEF"  checked onchange="renderPendentes()">
+              <span>EMEF</span>
+            </label>
+            <label class="pend-check-chip" style="--chip-cor:#64748b;--chip-bg:#f1f5f9;">
+              <input type="checkbox" value="Outros" checked onchange="renderPendentes()">
+              <span>Outros</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Disciplina: dropdown com checkboxes + busca -->
+        <div class="dropdown" id="dropPendDisc">
+          <button type="button" class="btn btn-sm btn-outline-secondary shadow-sm dropdown-toggle"
+                  data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                  id="btnPendDiscLabel" style="min-width:170px;text-align:left;">
+            <i class="bi bi-book me-1"></i><span id="pendDiscLabelText">Todas as disciplinas</span>
+          </button>
+          <div class="dropdown-menu shadow-lg p-0" style="min-width:300px;max-height:360px;overflow:hidden;display:flex;flex-direction:column;">
+            <div class="p-2 border-bottom d-flex gap-1">
+              <div class="input-group input-group-sm flex-grow-1">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text" id="buscaPendDiscDrop" class="form-control"
+                       placeholder="Buscar disciplina…" autocomplete="off"
+                       onclick="event.stopPropagation()" oninput="filtrarPendDiscDrop(this.value)">
+              </div>
+              <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();toggleTodasDisc(true)"  title="Marcar todas">
+                <i class="bi bi-check-all"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();toggleTodasDisc(false)" title="Desmarcar todas">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+            <div id="pendDiscList" onclick="event.stopPropagation()"
+                 style="overflow-y:auto;max-height:280px;padding:.25rem .5rem;"></div>
+          </div>
+        </div>
+
+      </div><!-- /filtros -->
     </div>
+
     <div id="pendentesEscolas"></div>
   </div>
 
@@ -1264,82 +1348,147 @@ function _getPendentes() {
   return lista;
 }
 
+// ── estado filtros pendentes
+let _pendVisuMode  = 'escola';   // 'escola' | 'disc'
+let _pendDiscSel   = null;       // null = todas; Set = selecionadas
+let _pendDiscAbertos = new Set();
+
+function _pendGetTiposSel() {
+  const checks = document.querySelectorAll('#filtroPendTipoGroup input[type=checkbox]');
+  const sel = new Set();
+  checks.forEach(c => { if (c.checked) sel.add(c.value); });
+  return sel;
+}
+
+function _pendGetDiscSel() { return _pendDiscSel; }
+
+function _pendGetFiltradas() {
+  const term  = (document.getElementById('buscaPendEscola')?.value || '').toUpperCase().trim();
+  const tipos = _pendGetTiposSel();
+  const discs = _pendGetDiscSel();
+  return _getPendentes().filter(p =>
+    (!term  || p.unit.toUpperCase().includes(term)) &&
+    (!tipos.size || tipos.has(p.tipo)) &&
+    (!discs || discs.has(p.disc))
+  );
+}
+
+function _pendPopularDiscList() {
+  const list = document.getElementById('pendDiscList');
+  if (!list || list.children.length > 0) return;  // já populado
+  const todas = _getPendentes();
+  const discs = [...new Set(todas.map(p => p.disc))].sort();
+  _pendDiscSel = null;  // null = todas marcadas
+  list.innerHTML = discs.map(d => `
+    <label class="pend-disc-item">
+      <input type="checkbox" value="${escapeHtml(d)}" checked
+             onchange="_pendOnDiscChange()">
+      <span>${escapeHtml(d)}</span>
+    </label>`).join('');
+  _atualizarBotaoDisc();
+}
+
+function _pendOnDiscChange() {
+  const checks = document.querySelectorAll('#pendDiscList input[type=checkbox]');
+  const marcadas = [...checks].filter(c => c.checked).map(c => c.value);
+  if (marcadas.length === checks.length) {
+    _pendDiscSel = null;  // todas = sem filtro
+  } else {
+    _pendDiscSel = new Set(marcadas);
+  }
+  _atualizarBotaoDisc();
+  renderPendentes();
+}
+
+function _atualizarBotaoDisc() {
+  const checks  = document.querySelectorAll('#pendDiscList input[type=checkbox]');
+  const marcadas = [...checks].filter(c => c.checked).length;
+  const total    = checks.length;
+  const label    = document.getElementById('pendDiscLabelText');
+  if (!label) return;
+  label.textContent = (marcadas === 0 || marcadas === total)
+    ? 'Todas as disciplinas'
+    : `${marcadas} de ${total} disciplinas`;
+}
+
+function filtrarPendDiscDrop(termo) {
+  const q = termo.trim().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  document.querySelectorAll('#pendDiscList .pend-disc-item').forEach(el => {
+    const txt = el.querySelector('span')?.textContent.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'') || '';
+    el.style.display = txt.includes(q) ? '' : 'none';
+  });
+}
+
+function toggleTodasDisc(marcar) {
+  document.querySelectorAll('#pendDiscList input[type=checkbox]').forEach(c => { c.checked = marcar; });
+  _pendDiscSel = marcar ? null : new Set();
+  _atualizarBotaoDisc();
+  renderPendentes();
+}
+
+function setPendVisuMode(modo) {
+  _pendVisuMode = modo;
+  _pendDiscAbertos = new Set();
+  const btnE = document.getElementById('btnPendEscola');
+  const btnD = document.getElementById('btnPendDisc');
+  const ativo   = 'background:#fff0f0;border:1.5px solid #ef4444;color:#ef4444;';
+  const inativo = 'background:#fff;border:1.5px solid #cbd5e1;color:#64748b;';
+  if (btnE) btnE.style.cssText = (modo === 'escola' ? ativo : inativo);
+  if (btnD) btnD.style.cssText = (modo === 'disc'   ? ativo : inativo);
+  renderPendentes();
+}
+
+const PEND_TIPO_CORES = { CEI:['#7c3aed','#ede9fe'], EMEI:['#0284c7','#e0f2fe'], EMEF:['#059669','#d1fae5'], Outros:['#64748b','#f1f5f9'] };
+
 function renderPendentes() {
   const container = document.getElementById('pendentesEscolas');
   if (!D) return;
+  _pendPopularDiscList();
 
-  const termEscola = (document.getElementById('buscaPendEscola')?.value || '').toUpperCase().trim();
-  const filtDisc   = (document.getElementById('filtroPendDisc')?.value  || '');
-  const filtTipo   = (document.getElementById('filtroPendTipo')?.value  || '');
-
-  const todas = _getPendentes();
-
-  // Popula select de disciplinas na primeira chamada
-  const selDisc = document.getElementById('filtroPendDisc');
-  if (selDisc && selDisc.options.length <= 1) {
-    const discs = [...new Set(todas.map(p => p.disc))].sort();
-    discs.forEach(d => {
-      const op = document.createElement('option');
-      op.value = d; op.textContent = d;
-      selDisc.appendChild(op);
-    });
-  }
-
-  const filtradas = todas.filter(p =>
-    (!termEscola || p.unit.toUpperCase().includes(termEscola)) &&
-    (!filtDisc   || p.disc === filtDisc) &&
-    (!filtTipo   || p.tipo === filtTipo)
-  );
-
+  const filtradas = _pendGetFiltradas();
   document.getElementById('pendentesTotal').textContent = filtradas.length;
 
-  // Agrupa por escola
-  const porEscola = {};
-  filtradas.forEach(p => {
-    if (!porEscola[p.unit]) porEscola[p.unit] = { period: p.period, tipo: p.tipo, itens: [] };
-    porEscola[p.unit].itens.push(p);
-  });
-
-  const escolas = Object.keys(porEscola).sort();
-  if (!escolas.length) {
+  if (!filtradas.length) {
     container.innerHTML = '<div class="alert alert-success mt-2"><i class="bi bi-check-circle-fill me-2"></i>Nenhuma aula pendente para os filtros selecionados.</div>';
     return;
   }
 
-  const TIPO_CORES = { CEI:['#7c3aed','#ede9fe'], EMEI:['#0284c7','#e0f2fe'], EMEF:['#059669','#d1fae5'], Outros:['#64748b','#f1f5f9'] };
+  if (_pendVisuMode === 'disc') _renderPendDisc(container, filtradas);
+  else                          _renderPendEscola(container, filtradas);
+}
 
+function _renderPendEscola(container, filtradas) {
+  const porEscola = {};
+  filtradas.forEach(p => {
+    if (!porEscola[p.unit]) porEscola[p.unit] = { tipo: p.tipo, itens: [] };
+    porEscola[p.unit].itens.push(p);
+  });
+  const escolas = Object.keys(porEscola).sort();
   let html = '';
   escolas.forEach((escola, idx) => {
     const { tipo, itens } = porEscola[escola];
-    const [tc, tb] = TIPO_CORES[tipo] || TIPO_CORES['Outros'];
+    const [tc, tb] = PEND_TIPO_CORES[tipo] || PEND_TIPO_CORES['Outros'];
     const abert = _pendentesAbertos.has(idx);
-
-    const linhas = itens.sort((a,b) => a.disc.localeCompare(b.disc) || a.turma.localeCompare(b.turma));
-
+    const linhas = [...itens].sort((a,b) => a.disc.localeCompare(b.disc) || a.turma.localeCompare(b.turma));
     html += `
     <div class="table-container mb-2 p-0 overflow-hidden shadow-sm">
       <div class="pend-escola-header" onclick="togglePendEscola(${idx})">
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
           <span class="fw-bold" style="font-size:.84rem;">${escapeHtml(escola)}</span>
           <span class="pend-tipo-badge" style="background:${tb};color:${tc};border-color:${tc}40;">${escapeHtml(tipo)}</span>
-          <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1">${itens.length} pendente${itens.length!==1?'s':''}</span>
+          <span class="badge bg-danger-subtle text-danger border border-danger-subtle">${itens.length} pendente${itens.length!==1?'s':''}</span>
         </div>
         <i class="bi bi-chevron-down chevron ${abert?'aberto':''}" id="pendChev-${idx}"></i>
       </div>
       <div id="pendBody-${idx}" style="display:${abert?'block':'none'};">
         <div class="table-responsive">
           <table class="table table-sm align-middle mb-0" style="font-size:.8rem;">
-            <thead class="table-light">
-              <tr>
-                <th>Disciplina</th>
-                <th class="text-center">Turma</th>
-                <th class="text-center">Turno</th>
-                <th class="text-center">Carga</th>
-              </tr>
-            </thead>
+            <thead class="table-light"><tr>
+              <th>Disciplina</th><th class="text-center">Turma</th>
+              <th class="text-center">Turno</th><th class="text-center">Carga</th>
+            </tr></thead>
             <tbody>
-              ${linhas.map(p => `
-              <tr>
+              ${linhas.map(p => `<tr>
                 <td><span class="badge bg-primary-subtle text-primary border">${escapeHtml(p.disc)}</span></td>
                 <td class="text-center fw-bold">${escapeHtml(p.turma)}</td>
                 <td class="text-center"><span class="badge bg-light text-dark border">${escapeHtml(p.period)}</span></td>
@@ -1351,7 +1500,58 @@ function renderPendentes() {
       </div>
     </div>`;
   });
+  container.innerHTML = html;
+}
 
+function _renderPendDisc(container, filtradas) {
+  const porDisc = {};
+  filtradas.forEach(p => {
+    if (!porDisc[p.disc]) porDisc[p.disc] = [];
+    porDisc[p.disc].push(p);
+  });
+  const discs = Object.keys(porDisc).sort();
+  let html = '';
+  discs.forEach((disc, idx) => {
+    const itens  = porDisc[disc];
+    const abert  = _pendDiscAbertos.has(idx);
+    const total  = itens.length;
+    const carga  = itens.reduce((s,p) => s + (p.workload||0), 0);
+    const linhas = [...itens].sort((a,b) => a.unit.localeCompare(b.unit) || a.turma.localeCompare(b.turma));
+    html += `
+    <div class="table-container mb-2 p-0 overflow-hidden shadow-sm">
+      <div class="pend-disc-header" onclick="togglePendDisc(${idx})">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="fw-bold" style="font-size:.84rem;">${escapeHtml(disc)}</span>
+          <span class="badge bg-danger-subtle text-danger border border-danger-subtle">${total} turma${total!==1?'s':''}</span>
+          <span class="badge bg-warning-subtle text-warning border border-warning-subtle">${carga}h descobertas</span>
+        </div>
+        <i class="bi bi-chevron-down chevron ${abert?'aberto':''}" id="pendDiscChev-${idx}"></i>
+      </div>
+      <div id="pendDiscBody-${idx}" style="display:${abert?'block':'none'};">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0" style="font-size:.8rem;">
+            <thead class="table-light"><tr>
+              <th>Escola</th><th class="text-center">Tipo</th>
+              <th class="text-center">Turma</th><th class="text-center">Turno</th>
+              <th class="text-center">Carga</th>
+            </tr></thead>
+            <tbody>
+              ${linhas.map(p => {
+                const [tc,tb] = PEND_TIPO_CORES[p.tipo] || PEND_TIPO_CORES['Outros'];
+                return `<tr>
+                  <td style="font-size:.75rem;">${escapeHtml(p.unit)}</td>
+                  <td class="text-center"><span class="pend-tipo-badge" style="background:${tb};color:${tc};border-color:${tc}40;">${escapeHtml(p.tipo)}</span></td>
+                  <td class="text-center fw-bold">${escapeHtml(p.turma)}</td>
+                  <td class="text-center"><span class="badge bg-light text-dark border">${escapeHtml(p.period)}</span></td>
+                  <td class="text-center fw-bold text-danger">${p.workload}h</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+  });
   container.innerHTML = html;
 }
 
@@ -1365,15 +1565,26 @@ function togglePendEscola(idx) {
   c?.classList.toggle('aberto', abrindo);
 }
 
+function togglePendDisc(idx) {
+  const b = document.getElementById(`pendDiscBody-${idx}`);
+  const c = document.getElementById(`pendDiscChev-${idx}`);
+  if (!b) return;
+  const abrindo = b.style.display === 'none';
+  b.style.display = abrindo ? 'block' : 'none';
+  abrindo ? _pendDiscAbertos.add(idx) : _pendDiscAbertos.delete(idx);
+  c?.classList.toggle('aberto', abrindo);
+}
+
 async function exportarPendentesExcel() {
   if (typeof ExcelJS === 'undefined') { alert('Biblioteca Excel não carregada.'); return; }
-  const todas = _getPendentes();
+  const filtradas = _pendGetFiltradas();
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Não Atribuídas');
-  ws.addRow(['Unidade','Tipo','Turno','Disciplina','Turma','Carga (h)']);
+  ws.addRow(['Disciplina','Unidade','Tipo','Turno','Turma','Carga (h)']);
   ws.getRow(1).fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFEF4444' } };
   ws.getRow(1).font = { bold:true, color:{ argb:'FFFFFFFF' } };
-  todas.forEach(p => ws.addRow([p.unit, p.tipo, p.period, p.disc, p.turma, p.workload]));
+  const sorted = [...filtradas].sort((a,b) => a.disc.localeCompare(b.disc) || a.unit.localeCompare(b.unit));
+  sorted.forEach(p => ws.addRow([p.disc, p.unit, p.tipo, p.period, p.turma, p.workload]));
   ws.columns.forEach(c => { c.width = 26; });
   const buf = await wb.xlsx.writeBuffer();
   const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -1386,8 +1597,9 @@ async function exportarPendentesExcel() {
 // ── MODO / SUBNAV ─────────────────────────────────────────────────
 function switchModo(novoModo) {
   modo = novoModo;
-  abertosGrade    = new Set();
+  abertosGrade      = new Set();
   _pendentesAbertos = new Set();
+  _pendDiscAbertos  = new Set();
 
   const isGrade     = (modo === 'GRADE');
   const isPendentes = (modo === 'PENDENTES');
