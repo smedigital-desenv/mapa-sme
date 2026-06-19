@@ -336,13 +336,7 @@
       </div>
     </div>
     <div class="table-responsive">
-      <table class="table align-middle" id="mainTable" style="table-layout:fixed;">
-        <colgroup>
-          <col style="width:48%;">
-          <col style="width:9%;">
-          <col style="width:32%;">
-          <col style="width:11%;">
-        </colgroup>
+      <table class="table align-middle" id="mainTable">
         <thead class="table-light">
           <tr id="tableHead" style="font-size:.75rem;color:#666;text-transform:uppercase;"></tr>
         </thead>
@@ -930,10 +924,10 @@ function renderTable() {
     escapeHtml(discAtiva)}`;
 
   head.innerHTML = `
-    <th>Unidade</th>
-    <th class="text-center">${isPPA ? 'Salas' : 'Turmas'}</th>
-    <th>Progresso</th>
-    <th class="text-center">Status</th>`;
+    <th style="width:48%">Unidade</th>
+    <th class="text-center" style="width:9%">${isPPA ? 'Salas' : 'Turmas'}</th>
+    <th style="width:32%">Progresso</th>
+    <th class="text-center" style="width:11%">Status</th>`;
 
   if (!data.length) {
     body.innerHTML = `<tr><td colspan="4" class="text-center text-muted p-4">Nenhum dado encontrado.</td></tr>`;
