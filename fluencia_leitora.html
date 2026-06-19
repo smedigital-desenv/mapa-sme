@@ -443,6 +443,40 @@
   </div>
 </div>
 
+<!-- MODAL RELATÓRIO DA ESCOLA -->
+<div class="modal fade" id="modalRelatorio" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg" style="border-radius:18px;overflow:hidden;">
+      <div class="modal-header border-0 p-0">
+        <div style="background:#002b5e;color:white;width:100%;
+                    padding:16px 22px 13px;border-bottom:3px solid var(--neon-blue);">
+          <div class="d-flex align-items-start justify-content-between gap-3">
+            <div class="d-flex align-items-center gap-3">
+              <div style="width:40px;height:40px;background:rgba(0,229,255,.15);
+                          border-radius:10px;display:grid;place-items:center;flex-shrink:0;">
+                <i class="bi bi-file-earmark-text" style="color:var(--neon-blue);font-size:1.2rem;"></i>
+              </div>
+              <div>
+                <div id="modalRelatorioTitulo" style="font-weight:900;font-size:1rem;line-height:1.2;"></div>
+                <div id="modalRelatorioSub" style="font-size:.7rem;opacity:.7;font-weight:600;
+                                                   text-transform:uppercase;letter-spacing:.07em;margin-top:3px;"></div>
+              </div>
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-shrink-0">
+              <button type="button" class="btn btn-sm btn-light fw-bold"
+                      onclick="imprimirRelatorio()" title="Imprimir / Salvar PDF">
+                <i class="bi bi-printer-fill me-1"></i>Imprimir / PDF
+              </button>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-body p-0" id="modalRelatorioBody" style="max-height:75vh;overflow-y:auto;"></div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── Config ─────────────────────────────────────────────────
 const SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
@@ -991,6 +1025,12 @@ function renderTabela() {
                 font-size:.6rem;font-weight:800;vertical-align:middle;">
             ${turmas.length} turma${turmas.length!==1?'s':''}
           </span>
+          <button class="btn btn-sm btn-outline-primary py-0 px-2 ms-2"
+                  style="font-size:.6rem;font-weight:800;vertical-align:middle;"
+                  onclick="event.stopPropagation();abrirRelatorioEscola('${escola.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')"
+                  title="Gerar relatório da escola">
+            <i class="bi bi-file-earmark-text me-1"></i>Relatório
+          </button>
         </td>
         <td class="text-center fw-bold">${tot.total_estudantes}</td>
         <td class="text-center">${tot.avaliados}</td>
@@ -1177,27 +1217,311 @@ function renderEngajamento(escola, ano, turma) {
   return '<span class="text-muted small">—</span>';
 }
 
-// Engajamento médio da escola: média ponderada das turmas que casaram
-function renderEngajamentoEscola(turmas) {
+// Engajamento médio da escola: média ponderada (pelos avaliados) das turmas que
+// casaram com o Elefante. Retorna number ou null se nenhuma turma cruzou.
+function _engajEscolaPct(turmas) {
   let est = 0, lei = 0, casou = false;
   turmas.forEach(t => {
     const chave = _chaveTurma(t.escola, t.ano_escolar, t.turma);
     const v = S.engajamento[chave];
     if (v == null) return;
-    // reconstrói estudantes/leitores aproximados a partir da fluência avaliados
-    // (usamos a própria % do Elefante ponderada pelos avaliados da turma)
     const peso = +t.avaliados || 0;
     if (peso <= 0) return;
     est += peso;
     lei += (v / 100) * peso;
     casou = true;
   });
-  if (!casou || est <= 0) return '<span class="text-muted small">—</span>';
-  const pct = (lei / est) * 100;
+  return (!casou || est <= 0) ? null : (lei / est) * 100;
+}
+
+function renderEngajamentoEscola(turmas) {
+  const pct = _engajEscolaPct(turmas);
+  if (pct == null) return '<span class="text-muted small">—</span>';
   const cor = pct >= 50 ? '#10B981' : pct >= 30 ? '#F59E0B' : '#FF007F';
   return `<div style="font-weight:900;color:${cor};font-size:.85rem;">${pct.toFixed(0)}%</div>`;
 }
 
+
+// ── Relatório executivo da escola ──────────────────────────
+function abrirRelatorioEscola(escola) {
+  const av = document.getElementById('selAvaliacao')?.value || '';
+  const dadosEsc = S.porEscola[av]?.[escola];
+  if (!dadosEsc) return;
+
+  const tot    = dadosEsc.totais;
+  const turmas = [...dadosEsc.turmas].sort((a,b) =>
+    (a.ano_escolar||'').localeCompare(b.ano_escolar||'') || (a.turma||'').localeCompare(b.turma||''));
+
+  const avaliados = +tot.avaliados || 0;
+  const total     = +tot.total_estudantes || 0;
+  const leitores  = (+tot.iniciantes||0) + (+tot.fluentes||0);
+  const naoLeit   = Math.max(0, avaliados - leitores);
+  const pct     = n => avaliados > 0 ? `${(n/avaliados*100).toFixed(1)}%` : '—';
+  const pctPart = total > 0 ? `${(avaliados/total*100).toFixed(1)}%` : '—';
+  const meta    = calcularMeta(tot);
+  const ep      = _engajEscolaPct(turmas);
+
+  S._relatorioEscola = escola;
+
+  // ── período(s) atendidos ──
+  const periodos = [...new Set(turmas.map(t => t.periodo).filter(Boolean))]
+    .map(p => p==='MANHA'?'Manhã':p==='TARDE'?'Tarde':p).join(' · ') || '—';
+
+  // identificador "ano + turma" reparseando turma_raw quando necessário
+  const fmtTurma = t => {
+    let a=(t.ano_escolar||'').trim(), tu=(t.turma||'').trim();
+    if ((!a||!tu) && t.turma_raw) { const p=parseTurma(t.turma_raw); a=a||p.anoEscolar; tu=tu||p.turma; }
+    return `${a} ${tu}`.trim();
+  };
+
+  // ── KPIs ──
+  const corLeit = avaliados>0 && leitores/avaliados>=0.7 ? '#10B981'
+                : avaliados>0 && leitores/avaliados>=0.5 ? '#F59E0B' : '#dc2626';
+  const kpi = (label,val,cor) => `
+    <div class="col-6 col-md-4 col-lg">
+      <div style="background:#f8fafc;border-radius:10px;padding:10px 12px;height:100%;">
+        <div style="font-size:1.2rem;font-weight:900;color:${cor};line-height:1.1;">${val}</div>
+        <div class="label-mini mt-1">${label}</div>
+      </div>
+    </div>`;
+  const kpisHtml = `
+    <div class="row g-2 mb-4">
+      ${kpi('Matriculados', total.toLocaleString('pt-BR'), '#002b5e')}
+      ${kpi('Avaliados', `${avaliados.toLocaleString('pt-BR')} <span style="font-size:.7rem;font-weight:700;">(${pctPart})</span>`, '#0062ff')}
+      ${kpi('Ausentes', (+tot.ausentes||0).toLocaleString('pt-BR'), '#94a3b8')}
+      ${kpi('Leitores', `${leitores.toLocaleString('pt-BR')} <span style="font-size:.7rem;font-weight:700;">(${pct(leitores)})</span>`, corLeit)}
+      ${kpi('Não leitores', `${naoLeit.toLocaleString('pt-BR')} <span style="font-size:.7rem;font-weight:700;">(${pct(naoLeit)})</span>`, '#dc2626')}
+      ${kpi('Engaj. Elefante', ep==null?'—':`${ep.toFixed(0)}%`, '#7c3aed')}
+    </div>`;
+
+  // ── Distribuição de perfis ──
+  const PERFIS_REL = ['pre_n1','pre_n2','pre_n3','pre_n4','iniciantes','fluentes'];
+  const perfilRows = PERFIS_REL.map(k => {
+    const m = PERFIL_MAP[k], n = +tot[k]||0;
+    return `<tr>
+      <td><span class="chip ${m.cls}">${m.label}</span></td>
+      <td class="text-center fw-bold">${n}</td>
+      <td class="text-center">${pct(n)}</td>
+    </tr>`;
+  }).join('');
+  const distHtml = `
+    <h6 class="fw-bold text-primary mb-2"><i class="bi bi-bar-chart-steps me-2"></i>Distribuição de perfis</h6>
+    ${renderBarra(tot)}
+    <div class="table-responsive mt-2">
+      <table class="table table-sm align-middle mb-0" style="font-size:.78rem;">
+        <thead class="table-light"><tr>
+          <th>Perfil</th><th class="text-center">Alunos</th><th class="text-center">% dos avaliados</th>
+        </tr></thead>
+        <tbody>${perfilRows}</tbody>
+      </table>
+    </div>`;
+
+  // ── Meta 70% ──
+  const corMeta = meta.atingiu ? '#059669' : meta.faltam<=3 ? '#d97706' : '#dc2626';
+  const metaHtml = `
+    <div class="card-kpi my-4" style="border-left:4px solid ${corMeta};">
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <i class="bi bi-bullseye" style="color:${corMeta};"></i>
+        <h6 class="fw-bold m-0" style="font-size:.9rem;">Meta — 70% Iniciante + Fluente</h6>
+      </div>
+      <div style="font-size:.85rem;color:#334155;">
+        ${meta.atingiu
+          ? `<span style="color:#059669;font-weight:800;">✓ Meta atingida</span> — ${meta.pctAtual.toFixed(1)}% de leitores.`
+          : `Atualmente <strong>${meta.pctAtual.toFixed(1)}%</strong> de leitores. Faltam <strong style="color:${corMeta};">${meta.faltam} aluno${meta.faltam!==1?'s':''}</strong> para atingir 70%.`}
+      </div>
+    </div>`;
+
+  // ── Quadro por turma ──
+  const turmaRows = turmas.map(t => {
+    let a=(t.ano_escolar||'').trim(), tu=(t.turma||'').trim();
+    if ((!a||!tu) && t.turma_raw) { const p=parseTurma(t.turma_raw); a=a||p.anoEscolar; tu=tu||p.turma; }
+    const m   = calcularMeta(t);
+    const av2 = +t.avaliados||0;
+    const leit= (+t.iniciantes||0)+(+t.fluentes||0);
+    const pctL= av2>0 ? `${(leit/av2*100).toFixed(0)}%` : '—';
+    const corL= av2>0 && leit/av2>=0.7 ? '#10B981' : av2>0 && leit/av2>=0.5 ? '#F59E0B' : '#dc2626';
+    const statusMeta = m.atingiu
+      ? '<span style="color:#059669;font-weight:800;">✓ Meta</span>'
+      : `<span style="color:${m.faltam<=3?'#d97706':'#dc2626'};font-weight:700;">Faltam ${m.faltam}</span>`;
+    const periodoLabel = t.periodo==='MANHA'?'Manhã':t.periodo==='TARDE'?'Tarde':(t.periodo||'—');
+    return `<tr>
+      <td class="fw-bold">${esc(a)} ${esc(tu)}</td>
+      <td class="text-center small">${periodoLabel}</td>
+      <td class="text-center">${av2}</td>
+      <td class="text-center fw-bold" style="color:${corL};">${pctL}</td>
+      <td class="text-center">${renderEngajamento(escola, a, tu)}</td>
+      <td class="text-center">${statusMeta}</td>
+    </tr>`;
+  }).join('');
+  const turmasHtml = `
+    <h6 class="fw-bold text-primary mb-2"><i class="bi bi-grid-3x3-gap me-2"></i>Quadro por turma</h6>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0" style="font-size:.78rem;">
+        <thead class="table-light"><tr>
+          <th>Turma</th><th class="text-center">Turno</th><th class="text-center">Avaliados</th>
+          <th class="text-center">% Leitores</th><th class="text-center">Engaj. Elefante</th><th class="text-center">Meta</th>
+        </tr></thead>
+        <tbody>${turmaRows}</tbody>
+      </table>
+    </div>`;
+
+  // ── Destaques ──
+  const topN1   = turmas.filter(t => (+t.pre_n1||0)>0).sort((a,b)=>b.pre_n1-a.pre_n1).slice(0,5);
+  const topN4   = turmas.filter(t => (+t.pre_n4||0)>0).sort((a,b)=>b.pre_n4-a.pre_n4).slice(0,5);
+  const metaOk  = turmas.filter(t => calcularMeta(t).atingiu);
+  const badges = (arr, campo, cor) => arr.length
+    ? arr.map(t => `<span class="badge me-1 mb-1" style="background:${cor}1a;color:${cor};font-weight:700;">${esc(fmtTurma(t))}${campo?': '+t[campo]:''}</span>`).join('')
+    : '<span class="text-muted small">Nenhuma.</span>';
+  const destaquesHtml = `
+    <h6 class="fw-bold text-primary mt-4 mb-2"><i class="bi bi-flag-fill me-2"></i>Destaques</h6>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div class="label-mini mb-1" style="color:#dc2626;">⚠ Mais Pré-leitor N1 (crítico)</div>
+        ${badges(topN1,'pre_n1','#dc2626')}
+      </div>
+      <div class="col-md-4">
+        <div class="label-mini mb-1" style="color:#8B5CF6;">↑ Mais Pré-leitor N4 (foco fácil)</div>
+        ${badges(topN4,'pre_n4','#8B5CF6')}
+      </div>
+      <div class="col-md-4">
+        <div class="label-mini mb-1" style="color:#059669;">✓ Turmas com meta atingida</div>
+        ${badges(metaOk,null,'#059669')}
+      </div>
+    </div>`;
+
+  // ── Alunos necessários para atingir a meta (carregados depois, async) ──
+  const alunosMetaHtml = `
+    <h6 class="fw-bold text-primary mt-4 mb-2">
+      <i class="bi bi-person-check-fill me-2"></i>Alunos para atingir a meta
+      <span class="fw-normal text-muted" style="font-size:.72rem;">— prioridade N4 → N3 → N2 → N1, por turma</span>
+    </h6>
+    <div id="relAlunosMeta">
+      <div class="text-muted small py-2">
+        <span class="spinner-border spinner-border-sm me-2"></span>Carregando alunos…
+      </div>
+    </div>`;
+
+  // ── Monta o modal ──
+  document.getElementById('modalRelatorioTitulo').textContent = escola;
+  document.getElementById('modalRelatorioSub').textContent =
+    `${av.trim()} · ${turmas.length} turma${turmas.length!==1?'s':''} · ${periodos}`;
+  document.getElementById('modalRelatorioBody').innerHTML = `
+    <div class="p-4">
+      <div class="d-none d-print-block mb-3">
+        <h4 class="fw-bold mb-0">${esc(escola)}</h4>
+        <div class="text-muted">Relatório de Fluência Leitora · ${esc(av.trim())}</div>
+      </div>
+      ${kpisHtml}${distHtml}${metaHtml}${turmasHtml}${alunosMetaHtml}${destaquesHtml}
+    </div>`;
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalRelatorio')).show();
+
+  // Busca os alunos da escola e preenche a lista de "alunos para a meta"
+  _preencherAlunosMeta(av, escola, turmas);
+}
+
+// Para cada turma abaixo da meta, lista nominalmente os alunos a priorizar para
+// atingir 70% de leitores — na ordem N4 → N3 → N2 → N1 (e, dentro do nível, os de
+// melhor desempenho primeiro, por estarem mais próximos de virar Iniciante).
+async function _preencherAlunosMeta(av, escola, turmas) {
+  const cont = document.getElementById('relAlunosMeta');
+  if (!cont) return;
+
+  const pendentes = turmas
+    .map(t => ({ t, meta: calcularMeta(t) }))
+    .filter(x => !x.meta.atingiu && x.meta.faltam > 0);
+
+  if (!pendentes.length) {
+    cont.innerHTML = `<div class="alert alert-success mb-0 py-2">
+      <i class="bi bi-check-circle-fill me-2"></i>Todas as turmas avaliadas já atingiram a meta de 70%.
+    </div>`;
+    return;
+  }
+
+  const PRIO = ['Pré-leitor - Nível 4','Pré-leitor - Nível 3','Pré-leitor - Nível 2','Pré-leitor - Nível 1'];
+  const NIVEL = {
+    'Pré-leitor - Nível 4': { lbl:'N4', cls:'chip-pre4' },
+    'Pré-leitor - Nível 3': { lbl:'N3', cls:'chip-pre3' },
+    'Pré-leitor - Nível 2': { lbl:'N2', cls:'chip-pre2' },
+    'Pré-leitor - Nível 1': { lbl:'N1', cls:'chip-pre1' },
+  };
+
+  try {
+    const alunos = await apiFetch(
+      `fluencia_estudantes?avaliacao=eq.${encodeURIComponent(av)}&escola=eq.${encodeURIComponent(escola)}` +
+      `&select=estudante,turma_raw,perfil_leitor,texto_palavras,palavras_global,palavras_canonicas&order=estudante.asc`
+    );
+
+    const porTurma = {};
+    alunos.forEach(a => { (porTurma[a.turma_raw] = porTurma[a.turma_raw] || []).push(a); });
+
+    const score = a => (+a.texto_palavras||0) + (+a.palavras_global||0) + (+a.palavras_canonicas||0);
+
+    const blocos = pendentes.map(({ t, meta }) => {
+      const candidatos = (porTurma[t.turma_raw] || [])
+        .filter(a => PRIO.includes(a.perfil_leitor))
+        .sort((a,b) =>
+          PRIO.indexOf(a.perfil_leitor) - PRIO.indexOf(b.perfil_leitor)
+          || score(b) - score(a)
+          || (a.estudante||'').localeCompare(b.estudante||''));
+      const escolhidos = candidatos.slice(0, meta.faltam);
+
+      const linhas = escolhidos.map((a,i) => {
+        const nv = NIVEL[a.perfil_leitor] || { lbl:'?', cls:'chip-ausente' };
+        return `<tr>
+          <td class="text-center text-muted small">${i+1}</td>
+          <td>${esc(a.estudante)}</td>
+          <td class="text-center"><span class="chip ${nv.cls}">${nv.lbl}</span></td>
+        </tr>`;
+      }).join('');
+
+      const aviso = escolhidos.length < meta.faltam
+        ? `<div class="small text-muted mt-1">Obs.: a turma tem só ${escolhidos.length} pré-leitor(es) listável(is) — faltam ${meta.faltam} para a meta.</div>`
+        : '';
+
+      return `
+        <div class="mb-3" style="break-inside:avoid;">
+          <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+            <span class="fw-bold" style="color:#002b5e;">${esc(labelTurma(t))}</span>
+            <span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700;">Faltam ${meta.faltam}</span>
+            <span class="small text-muted">${meta.pctAtual.toFixed(0)}% → 70%</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0" style="font-size:.78rem;">
+              <thead class="table-light"><tr>
+                <th style="width:36px;">#</th><th>Aluno</th><th class="text-center" style="width:70px;">Nível</th>
+              </tr></thead>
+              <tbody>${linhas || '<tr><td colspan="3" class="text-muted small">Sem pré-leitores listáveis.</td></tr>'}</tbody>
+            </table>
+          </div>
+          ${aviso}
+        </div>`;
+    }).join('');
+
+    cont.innerHTML = blocos;
+  } catch (e) {
+    cont.innerHTML = `<div class="alert alert-danger mb-0">${e.message}</div>`;
+  }
+}
+
+// Abre o conteúdo do relatório em nova janela com os mesmos estilos da página
+// (Bootstrap + <style> próprio) e dispara a impressão → vira PDF.
+function imprimirRelatorio() {
+  const conteudo = document.getElementById('modalRelatorioBody').innerHTML;
+  const estilos  = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+    .map(n => n.outerHTML).join('\n');
+  const titulo = `Relatório — ${S._relatorioEscola || 'Escola'}`;
+  const w = window.open('', '_blank');
+  if (!w) { alert('Permita pop-ups para imprimir o relatório.'); return; }
+  w.document.write(
+    `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">` +
+    `<title>${titulo}</title>${estilos}</head>` +
+    `<body style="background:#fff;">${conteudo}</body></html>`
+  );
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 500);   // aguarda o CSS do CDN carregar
+}
 
 // mantida para compatibilidade com modal da turma
 function renderPctFluente(pct) {
