@@ -74,8 +74,8 @@
       top: -3px;
       bottom: -3px;
       width: 0;
-      border-left: 2.5px dashed #002b5e;
-      z-index: 2;
+      border-left: 2.5px dashed #059669;
+      z-index: 3;
       left: 30%;
     }
     .barra-meta-linha::before {
@@ -85,9 +85,9 @@
       left: -16px;
       font-size: .58rem;
       font-weight: 900;
-      color: #002b5e;
-      background: white;
-      padding: 0 3px;
+      color: #fff;
+      background: #059669;
+      padding: 1px 5px;
       border-radius: 3px;
       white-space: nowrap;
     }
@@ -97,19 +97,19 @@
       top: -3px;
       bottom: -3px;
       width: 0;
-      border-left: 2.5px dashed #002b5e;
+      border-left: 2.5px dashed var(--divisa-cor, #dc2626);
       z-index: 2;
     }
     .barra-divisa-linha::before {
       content: 'PRÉ → LEITOR';
       position: absolute;
-      bottom: -15px;
+      bottom: -16px;
       left: -28px;
       font-size: .52rem;
       font-weight: 800;
-      color: #002b5e;
-      background: white;
-      padding: 0 3px;
+      color: #fff;
+      background: var(--divisa-cor, #dc2626);
+      padding: 1px 5px;
       border-radius: 3px;
       white-space: nowrap;
     }
@@ -931,10 +931,12 @@ function renderBarra(d, avaliacao, escola, turmaRaw) {
   // ── Linha divisória dinâmica: divisa entre N4 e Iniciante ──
   // Posição = soma proporcional dos pré-leitores (N1+N2+N3+N4),
   // que é exatamente onde termina o último segmento de pré-leitor.
+  // Cor: vermelha se pré-leitores ≥ 30% (acima da meta), azul se < 30% (situação boa).
   const preLeitores = (+d.pre_n1||0) + (+d.pre_n2||0) + (+d.pre_n3||0) + (+d.pre_n4||0);
   const pctDivisa = (preLeitores / avaliados * 100);
+  const corDivisa = pctDivisa < 30 ? '#2563eb' : '#dc2626';
   const linhaDivisaHtml = (preLeitores > 0)
-    ? `<div class="barra-divisa-linha" style="left:${pctDivisa.toFixed(1)}%;" title="Divisa Pré-leitores → Leitores (${pctDivisa.toFixed(1)}%)"></div>`
+    ? `<div class="barra-divisa-linha" style="left:${pctDivisa.toFixed(1)}%;--divisa-cor:${corDivisa};" title="Divisa Pré-leitores → Leitores (${pctDivisa.toFixed(1)}%)"></div>`
     : '';
 
   const corStatus = metaInfo.atingiu ? '#059669' : metaInfo.faltam <= 3 ? '#d97706' : '#dc2626';
