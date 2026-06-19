@@ -64,7 +64,7 @@
     .barra-seg:first-child { border-radius: 6px 0 0 6px; }
     .barra-seg:last-child  { border-radius: 0 6px 6px 0; }
 
-    .barra-wrap { min-width: 280px; }
+    .barra-wrap { min-width: 280px; padding: 16px 0 18px; }
     .barra-perfis-rel {
       position: relative;
       width: 100%;
@@ -81,15 +81,16 @@
     .barra-meta-linha::before {
       content: 'META';
       position: absolute;
-      top: -16px;
+      top: -14px;
       left: -16px;
-      font-size: .58rem;
+      font-size: .54rem;
       font-weight: 900;
       color: #fff;
       background: #059669;
-      padding: 1px 5px;
+      padding: 0px 4px;
       border-radius: 3px;
       white-space: nowrap;
+      line-height: 1.2;
     }
     /* Linha divisória dinâmica entre N4 (pré-leitores) e Iniciante (leitores) */
     .barra-divisa-linha {
@@ -956,7 +957,7 @@ function renderBarra(d, avaliacao, escola, turmaRaw) {
         ${linhaDivisaHtml}
         ${linhaMetaHtml}
       </div>
-      <div class="mt-1">${statusHtml}</div>
+      <div style="margin-top:14px;">${statusHtml}</div>
     </div>`;
 }
 
