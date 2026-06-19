@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atribuição de Aulas | SME Ribeirão Preto</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --primary:    #002b5e;
+      --neon-blue:  #00e5ff;
+      --neon-green: #39FF14;
+      --neon-yellow:#FFE600;
+      --neon-pink:  #FF007F;
+    }
+    body { background:#f0f4f8; font-family:'Segoe UI',sans-serif; padding-bottom:60px; }
+
+    /* ── HEADER ── */
+    .nav-header {
+      background:var(--primary); color:white;
+      border-bottom:4px solid var(--neon-blue);
+      padding:.9rem 1.6rem; position:sticky; top:0; z-index:1020;
+      box-shadow:0 6px 18px rgba(0,43,94,.18);
+    }
+
+    /* ── SUBNAV ── */
+    .sub-nav-bar {
+      background:rgba(0,43,94,.95); border-bottom:1px solid rgba(0,229,255,.2);
+      padding:.4rem 1.6rem; display:flex; align-items:center; gap:.5rem;
+      flex-wrap:wrap; position:sticky; top:61px; z-index:1010;
+    }
+    .btn-modo {
+      background:transparent; border:1px solid rgba(0,229,255,.4); color:rgba(255,255,255,.8);
+      border-radius:6px; padding:.25rem .75rem; font-size:.78rem; font-weight:600; cursor:pointer;
+      transition:all .15s;
+    }
+    .btn-modo:hover { background:rgba(0,229,255,.12); color:#fff; }
+    .btn-modo.active { background:var(--neon-blue); color:#002b5e; border-color:var(--neon-blue); }
+
+    /* ── CARDS KPI ── */
+    .card-kpi {
+      background:white; border-radius:12px; padding:1.1rem;
+      box-shadow:0 4px 15px rgba(0,0,0,.05); height:100%;
+    }
+    .kpi-val { font-size:1.5rem; font-weight:900; line-height:1.1; }
+    .kpi-lbl { font-size:.68rem; font-weight:800; color:#64748b;
+               text-transform:uppercase; letter-spacing:.05em; }
+    .prog-bar-wrap { background:#e2e8f0; border-radius:999px; height:5px; overflow:hidden; margin-top:4px; }
+    .prog-bar-fill { height:100%; border-radius:999px; transition:width .4s; }
+
+    /* ── TABLE CONTAINER ── */
+    .table-container {
+      background:white; border-radius:15px; padding:1.4rem;
+      box-shadow:0 4px 15px rgba(0,0,0,.05);
+    }
+    .chart-container {
+      background:white; border-radius:15px; padding:1.2rem;
+      box-shadow:0 4px 15px rgba(0,0,0,.05); height:100%;
+    }
+    .unit-name { font-weight:700; font-size:.88rem; }
+    .main-row { cursor:pointer; transition:background .1s; }
+    .main-row:hover { background:#f8faff; }
+    .detail-row .detail-box { background:#f8f9fa; border-radius:8px; padding:.6rem; }
+
+    /* ── GRADE MATRICIAL ── */
+    .escola-header {
+      background:#f0f4ff; cursor:pointer; user-select:none;
+      padding:.65rem 1rem; border-bottom:1px solid #e0e7ff;
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    .escola-header:hover { background:#e5edff; }
+    .chip-disc {
+      display:inline-block; border-radius:999px;
+      padding:2px 9px; font-size:.63rem; font-weight:700;
+      white-space:nowrap; border:1px solid transparent;
+    }
+    .badge-pct {
+      display:inline-block; border-radius:999px;
+      padding:2px 10px; font-size:.72rem; font-weight:700;
+      border:1px solid transparent; margin-left:8px;
+    }
+    td.cell-ok  { background:#d1fae5; text-align:center; }
+    td.cell-nok { background:#fee2e2; text-align:center; }
+    td.cell-na  { background:#f8f9fa; text-align:center; color:#ccc; }
+    td.cell-turma { font-size:.75rem; font-weight:600; white-space:nowrap; padding:5px 8px; }
+    th.col-disc { font-size:.62rem; min-width:78px; max-width:95px; white-space:normal; line-height:1.2; padding:5px 3px; text-align:center; }
+    .chevron { transition:transform .2s; }
+    .chevron.aberto { transform:rotate(180deg); }
+    .escola-body .table-responsive { max-height:480px; overflow-y:auto; }
+    .escola-body thead th { position:sticky; top:0; z-index:2; background:#fff; }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header class="nav-header d-flex align-items-center justify-content-between gap-3">
+  <div>
+    <div class="fw-bold" style="font-size:1.05rem;letter-spacing:.02em;">
+      <i class="bi bi-diagram-3-fill me-2" style="color:var(--neon-blue);"></i>
+      Atribuição de Aulas
+    </div>
+    <div style="font-size:.72rem;opacity:.7;margin-top:2px;">SME Ribeirão Preto — PPA · PRA · Disciplinas</div>
+  </div>
+  <div class="d-flex align-items-center gap-3">
+    <div id="statusLoad" class="d-flex align-items-center gap-2" style="font-size:.78rem;opacity:.85;">
+      <div class="spinner-border spinner-border-sm text-light" style="width:.9rem;height:.9rem;"></div>
+      Carregando…
+    </div>
+    <div id="infoLoad" style="font-size:.7rem;opacity:.6;display:none;"></div>
+  </div>
+</header>
+
+<!-- ── SUBNAV ── -->
+<div class="sub-nav-bar">
+  <button class="btn-modo active" id="btn-PPA" onclick="switchModo('PPA')">
+    <i class="bi bi-journal-check me-1"></i>PPA
+  </button>
+  <button class="btn-modo" id="btn-PRA" onclick="switchModo('PRA')">
+    <i class="bi bi-arrow-repeat me-1"></i>PRA
+  </button>
+
+  <!-- Select de disciplinas individuais -->
+  <div class="d-flex align-items-center gap-1 ms-1">
+    <select id="selDisc" class="form-select form-select-sm" style="min-width:220px;font-size:.78rem;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(0,229,255,.3);"
+            onchange="switchModo('DISC')">
+      <option value="">— Disciplina individual —</option>
+    </select>
+  </div>
+
+  <div class="ms-auto">
+    <button class="btn-modo" id="btn-GRADE" onclick="switchModo('GRADE')">
+      <i class="bi bi-grid-3x3-gap-fill me-1"></i>Por Escola / Disciplina
+    </button>
+  </div>
+</div>
+
+<!-- ── CONTEÚDO PRINCIPAL ── -->
+<main class="container-fluid p-3 p-md-4">
+
+  <!-- KPIs -->
+  <div class="row g-3 mb-4" id="kpiRow"></div>
+
+  <!-- Gráficos (ocultos no modo GRADE) -->
+  <div class="row g-3 mb-4" id="chartsRow">
+    <div class="col-12 col-lg-7">
+      <div class="chart-container">
+        <h6 class="fw-bold mb-3 text-muted">
+          <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Déficit por Unidade
+        </h6>
+        <div style="height:280px;"><canvas id="barChart"></canvas></div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-5">
+      <div class="chart-container">
+        <h6 class="fw-bold mb-3 text-muted">
+          <i class="bi bi-pie-chart-fill me-2 text-primary"></i>Status Geral
+        </h6>
+        <div style="height:280px;"><canvas id="pieChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabela principal (PPA / PRA / disciplina individual) -->
+  <div class="table-container mb-4" id="tableContainer">
+    <div class="d-flex flex-column flex-md-row justify-content-between mb-3 align-items-start align-items-md-center gap-2">
+      <h5 class="fw-bold m-0 text-primary" id="tabelaTitulo">
+        <i class="bi bi-list-task me-2"></i>Detalhamento
+      </h5>
+      <input type="text" id="buscaTabela" class="form-control shadow-sm" style="max-width:260px;"
+             placeholder="Pesquisar unidade…" oninput="filtrarTabela()">
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle" id="mainTable">
+        <thead class="table-light">
+          <tr id="tableHead" style="font-size:.75rem;color:#666;text-transform:uppercase;"></tr>
+        </thead>
+        <tbody id="mainBody">
+          <tr><td colspan="4" class="text-center text-muted p-4">
+            <div class="spinner-border spinner-border-sm mb-2"></div><br>Carregando…
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Grade matricial (Por Escola / Disciplina) -->
+  <div id="gradeContainer" class="d-none">
+    <div class="table-container mb-3">
+      <div class="row g-2">
+        <div class="col-12 col-md-5">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" id="buscaGradeEscola" class="form-control"
+                   placeholder="Pesquisar escola…" oninput="renderGrade()">
+          </div>
+        </div>
+        <div class="col-12 col-md-5">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text"><i class="bi bi-book"></i></span>
+            <input type="text" id="buscaGradeDisc" class="form-control"
+                   placeholder="Filtrar disciplina…" oninput="renderGrade()">
+          </div>
+        </div>
+        <div class="col-12 col-md-2">
+          <button class="btn btn-sm btn-outline-secondary w-100"
+                  onclick="document.getElementById('buscaGradeEscola').value='';document.getElementById('buscaGradeDisc').value='';renderGrade();">
+            <i class="bi bi-x-circle me-1"></i>Limpar
+          </button>
+        </div>
+      </div>
+    </div>
+    <div id="gradeEscolas"></div>
+  </div>
+
+</main>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk';
+
+// ── ESTADO ──────────────────────────────────────────────────────
+let D = null;              // dados processados
+let modo = 'PPA';          // modo ativo: 'PPA' | 'PRA' | 'DISC' | 'GRADE'
+let discAtiva = '';        // disciplina selecionada no modo DISC
+let grafBar = null;
+let grafPie = null;
+let abertosGrade = new Set();
+
+// ── API ──────────────────────────────────────────────────────────
+async function fetchTurmas() {
+  const PAGE = 1000;
+  let rows = [], offset = 0;
+  while (true) {
+    const url = `${SUPABASE_URL}/rest/v1/turmas?select=nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,funcao_professor,status_atribuicao&order=nome_unidade.asc&limit=${PAGE}&offset=${offset}`;
+    const r = await fetch(url, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    });
+    if (!r.ok) throw new Error(`Erro ${r.status}`);
+    const batch = await r.json();
+    rows = rows.concat(batch);
+    if (batch.length < PAGE) break;
+    offset += PAGE;
+    if (offset > 300000) break;
+  }
+  return rows;
+}
+
+// ── NORMALIZAÇÃO ─────────────────────────────────────────────────
+function normalizar(txt) {
+  return String(txt || '').trim().toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[º°]/g, '').replace(/[–—]/g, '-')
+    .replace(/\s*-\s*/g, ' - ').replace(/\s+/g, ' ');
+}
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+function cleanUnit(txt) { return String(txt || '').trim().replace(/\s+/g, ' '); }
+
+function corrigirTextoLegivel(valor) {
+  const raw = String(valor || '').trim();
+  const n = normalizar(raw.replace(/�/g, 'U'));
+  if (n.includes('MUSICA') || n.includes('M SICA')) return 'MÚSICA';
+  return raw;
+}
+
+function normalizarDisciplina(valor) {
+  const txt = corrigirTextoLegivel(valor);
+  if (!txt) return '';
+  const n = normalizar(txt);
+  const f = n.replace(/[^A-Z0-9]+/g, '');
+  if (f.includes('LINGUAPORTUGUESA') || f.includes('PORTUGUES')) return 'Língua Portuguesa';
+  if (f.includes('MATEMATICA'))  return 'Matemática';
+  if (f.includes('CIENCIAS'))    return 'Ciências';
+  if (f.includes('HISTORIA'))    return 'História';
+  if (f.includes('GEOGRAFIA'))   return 'Geografia';
+  if (f.includes('ARTESVISUAIS')) return 'Artes Visuais';
+  if (f === 'ARTE' || (f.includes('ARTE') && !f.includes('ARTES'))) return 'Arte';
+  if ((f.includes('EDUCACAO') || f.includes('EDUCA')) && (f.includes('FISICA') || f.includes('FIS'))) return 'Educação Física';
+  if ((f.includes('LINGUA') || f.includes('LNGUA')) && (f.includes('INGLESA') || f.includes('INGLES'))) return 'Língua Inglesa';
+  if (f.includes('ATENDIMENTOEDUCACIONAL') || f.includes('EDUCACIONALESPECIALIZADO') || f === 'AEE') return 'AEE';
+  return corrigirTextoLegivel(valor);
+}
+
+function periodoDesc(valor) {
+  const p = String(valor || '').trim().toUpperCase();
+  if (p === 'M') return 'Manhã';
+  if (p === 'T') return 'Tarde';
+  if (p === 'N') return 'Noite';
+  return p || '-';
+}
+
+function statusAtribuicao(row) {
+  return normalizar(row.status_atribuicao || '');
+}
+function isAtribuido(row) {
+  const st = statusAtribuicao(row);
+  return st.includes('2 -') || st.startsWith('2 ') || st === '2' ||
+         st.includes('4 -') || st.startsWith('4 ') || st === '4' ||
+         st.includes('TROCA');
+}
+function isSubstituto(row) {
+  const st = statusAtribuicao(row);
+  return st.includes('4 -') || st.startsWith('4 ') || st === '4';
+}
+function isMagisterioII(disc) {
+  const d = normalizar(disc);
+  return d.includes('MAGISTERIO II') || d.includes('MAGISTERIO 2');
+}
+function isSegundoAnoPPA(anoEscolar) {
+  const a = normalizar(anoEscolar);
+  return a.includes('2 ANO') || a.includes('2O ANO');
+}
+function isPRADisc(disc) {
+  const f = normalizar(disc).replace(/[^A-Z0-9]+/g, '');
+  return f.includes('RECUP') && (f.includes('APREND') || f.includes('APREN')) &&
+         f.includes('ANOS') && f.includes('INIC');
+}
+
+// ── PROCESSAMENTO DOS DADOS ───────────────────────────────────────
+function montarDados(rows) {
+  const ppaSumm  = {};
+  const praSumm  = {};
+  const discMap  = {};  // disc → { key → rowObj }
+  const matrice  = {};  // escola → turma → disc → {profName, atribuido}
+
+  rows.forEach(row => {
+    const unit  = cleanUnit(row.nome_unidade || 'Sem unidade');
+    const disc  = normalizarDisciplina(row.descricao_disciplina || '');
+    if (!disc) return;
+
+    const ano    = String(row.ano_escolar || '').trim();
+    const letra  = String(row.letra_turma || '').trim();
+    const per    = periodoDesc(row.periodo);
+    const carga  = Number(row.carga_horaria || 0);
+    const atrib  = isAtribuido(row);
+    const sub    = isSubstituto(row);
+    const magII  = isMagisterioII(disc);
+    const pra    = isPRADisc(disc);
+
+    const profName   = atrib ? ((sub ? row.nome_professor_sub : row.nome_professor_prop) || '—').trim() : 'S/ Atribuição';
+    const profCode   = atrib ? ((sub ? row.codigo_professor_sub : row.codigo_professor_prop) || '—').trim() : '—';
+    const profStatus = atrib ? (row.situacao_professor || row.funcao_professor || 'ATIVA') : '—';
+    const turmaKey   = `${ano} ${letra}`.trim();
+    const key        = `${unit.toUpperCase()}|${per.toUpperCase()}`;
+
+    const det = { disc, turma: turmaKey, profName, profCode, profStatus, workload: carga };
+
+    // PPA — Magistério II no 2º Ano
+    if (magII && isSegundoAnoPPA(ano)) {
+      if (!ppaSumm[key]) ppaSumm[key] = { unit, period: per, magisterio: 0, cargaAtribuida: 0, details: [] };
+      ppaSumm[key].magisterio += 1;
+      if (atrib) ppaSumm[key].cargaAtribuida += carga;
+      ppaSumm[key].details.push(det);
+    }
+
+    // PRA
+    if (pra) {
+      if (!praSumm[key]) praSumm[key] = { unit, period: per, criadas: 0, atribuidas: 0, cargaCriada: 0, cargaAtribuida: 0, details: [] };
+      praSumm[key].criadas += 1;
+      praSumm[key].cargaCriada += carga;
+      if (atrib) { praSumm[key].atribuidas += 1; praSumm[key].cargaAtribuida += carga; }
+      praSumm[key].details.push(det);
+    }
+
+    // Todas as disciplinas individualmente
+    if (!discMap[disc]) discMap[disc] = {};
+    if (!discMap[disc][key]) {
+      discMap[disc][key] = { unit, period: per, disciplina: disc, criadas: 0, atribuidas: 0, cargaCriada: 0, cargaAtribuida: 0, details: [] };
+    }
+    discMap[disc][key].criadas += 1;
+    discMap[disc][key].cargaCriada += carga;
+    if (atrib) { discMap[disc][key].atribuidas += 1; discMap[disc][key].cargaAtribuida += carga; }
+    discMap[disc][key].details.push(det);
+
+    // Matrice escola × turma × disciplina
+    if (!matrice[unit]) matrice[unit] = {};
+    if (!matrice[unit][turmaKey]) matrice[unit][turmaKey] = {};
+    if (!matrice[unit][turmaKey][disc]) {
+      matrice[unit][turmaKey][disc] = { profName, atribuido: atrib };
+    } else if (!matrice[unit][turmaKey][disc].atribuido && atrib) {
+      matrice[unit][turmaKey][disc] = { profName, atribuido: true };
+    }
+  });
+
+  // Finalizar PPA
+  const ppaRows = Object.values(ppaSumm).filter(r => r.magisterio > 0).map(r => {
+    r.meta           = r.magisterio * 12;
+    r.percAtribuido  = r.meta > 0 ? Math.min(r.cargaAtribuida / r.meta * 100, 100) : 0;
+    r.faltaAtribuir  = Math.max(0, r.meta - r.cargaAtribuida);
+    return r;
+  }).sort((a, b) => a.unit.localeCompare(b.unit));
+
+  const praRows = Object.values(praSumm).filter(r => r.criadas > 0)
+    .sort((a, b) => a.unit.localeCompare(b.unit));
+
+  // Finalizar disciplinas
+  const discObj = {};
+  Object.keys(discMap).sort().forEach(d => {
+    discObj[d] = Object.values(discMap[d]).filter(r => r.criadas > 0)
+      .sort((a, b) => a.unit.localeCompare(b.unit) || a.period.localeCompare(b.period));
+  });
+
+  return {
+    ppa: ppaRows,
+    pra: praRows,
+    disciplinas: discObj,
+    disciplinasLista: Object.keys(discObj).sort(),
+    matrice,
+    escolasLista: Object.keys(matrice).sort()
+  };
+}
+
+// ── KPIs ─────────────────────────────────────────────────────────
+function renderKPIs() {
+  const row = document.getElementById('kpiRow');
+  if (!D) { row.innerHTML = ''; return; }
+
+  let html = '';
+  if (modo === 'PPA') {
+    const d = D.ppa;
+    const t = d.reduce((s, x) => s + (x.meta || 0), 0);
+    const a = d.reduce((s, x) => s + (x.cargaAtribuida || 0), 0);
+    const pct = t > 0 ? Math.round(a / t * 100) : 0;
+    const cor = pct >= 90 ? '#10b981' : pct >= 60 ? '#f59e0b' : '#ef4444';
+    html = `
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Meta (12h/sala)</div><div class="kpi-val text-primary">${t}h</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Atribuído</div><div class="kpi-val text-success">${a}h</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Déficit</div><div class="kpi-val" style="color:#ef4444">${t - a}h</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Eficácia</div><div class="kpi-val" style="color:${cor}">${pct}%</div><div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:${pct}%;background:${cor};"></div></div></div></div>`;
+  } else if (modo === 'PRA') {
+    const d = D.pra;
+    const criadas = d.reduce((s, x) => s + (x.criadas || 0), 0);
+    const atrib   = d.reduce((s, x) => s + (x.atribuidas || 0), 0);
+    const pend    = criadas - atrib;
+    const pct     = criadas > 0 ? Math.round(atrib / criadas * 100) : 0;
+    const cor = pct >= 90 ? '#10b981' : pct >= 60 ? '#f59e0b' : '#ef4444';
+    html = `
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Turmas Criadas</div><div class="kpi-val text-primary">${criadas}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Atribuídas</div><div class="kpi-val text-success">${atrib}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Pendentes</div><div class="kpi-val" style="color:#ef4444">${pend}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Atribuição</div><div class="kpi-val" style="color:${cor}">${pct}%</div><div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:${pct}%;background:${cor};"></div></div></div></div>`;
+  } else if (modo === 'DISC' && discAtiva) {
+    const d = D.disciplinas[discAtiva] || [];
+    const criadas = d.reduce((s, x) => s + (x.criadas || 0), 0);
+    const atrib   = d.reduce((s, x) => s + (x.atribuidas || 0), 0);
+    const carga   = d.reduce((s, x) => s + (x.cargaAtribuida || 0), 0);
+    const pend    = criadas - atrib;
+    const pct     = criadas > 0 ? Math.round(atrib / criadas * 100) : 0;
+    const cor = pct >= 90 ? '#10b981' : pct >= 60 ? '#f59e0b' : '#ef4444';
+    html = `
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Turmas</div><div class="kpi-val text-primary">${criadas}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Atribuídas</div><div class="kpi-val text-success">${atrib}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Pendentes</div><div class="kpi-val" style="color:#ef4444">${pend}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Carga Atribuída</div><div class="kpi-val" style="color:${cor}">${Math.round(carga)}h</div><div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:${pct}%;background:${cor};"></div></div></div></div>`;
+  } else if (modo === 'GRADE') {
+    // KPIs globais da grade
+    const matrice = D.matrice;
+    const escolas = D.escolasLista;
+    let tot = 0, atr = 0;
+    const turmasSet = new Set();
+    const discSet = new Set();
+    escolas.forEach(e => {
+      Object.keys(matrice[e]).forEach(t => {
+        turmasSet.add(`${e}|${t}`);
+        Object.keys(matrice[e][t]).forEach(d => { discSet.add(d); tot++; if (matrice[e][t][d].atribuido) atr++; });
+      });
+    });
+    const pct = tot > 0 ? Math.round(atr / tot * 100) : 0;
+    const cor = pct >= 90 ? '#10b981' : pct >= 60 ? '#f59e0b' : '#ef4444';
+    html = `
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Escolas</div><div class="kpi-val text-primary">${escolas.length}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Turmas</div><div class="kpi-val text-primary">${turmasSet.size}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Disciplinas</div><div class="kpi-val text-primary">${discSet.size}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Atribuição Geral</div><div class="kpi-val" style="color:${cor}">${pct}%</div><div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:${pct}%;background:${cor};"></div></div></div></div>`;
+  }
+  row.innerHTML = html;
+}
+
+// ── GRÁFICOS ──────────────────────────────────────────────────────
+function renderCharts() {
+  const isPPA  = (modo === 'PPA');
+  const isDisc = (modo === 'DISC');
+  const data   = isPPA ? D.ppa : isDisc ? (D.disciplinas[discAtiva] || []) : D.pra;
+
+  // Agrupa por unidade para o gráfico
+  const mapa = {};
+  (data || []).forEach(row => {
+    const k = String(row.unit || '').trim().toUpperCase();
+    if (!mapa[k]) mapa[k] = { unit: row.unit, valor: 0, atrib: 0, meta: 0, criadas: 0 };
+    if (isPPA) {
+      mapa[k].valor += (row.faltaAtribuir || 0);
+      mapa[k].atrib += (row.cargaAtribuida || 0);
+      mapa[k].meta  += (row.meta || 0);
+    } else {
+      mapa[k].valor  += Math.max(0, (row.criadas || 0) - (row.atribuidas || 0));
+      mapa[k].atrib  += (row.atribuidas || 0);
+      mapa[k].criadas += (row.criadas || 0);
+    }
+  });
+  const sorted = Object.values(mapa).sort((a, b) => b.valor - a.valor).slice(0, 10);
+
+  const barEl = document.getElementById('barChart');
+  const pieEl = document.getElementById('pieChart');
+  if (!barEl || !pieEl) return;
+
+  if (grafBar) grafBar.destroy();
+  grafBar = new Chart(barEl, {
+    type: 'bar',
+    data: {
+      labels: sorted.map(x => { const n = String(x.unit || ''); return n.length > 24 ? n.substring(0,22)+'…' : n; }),
+      datasets: [{ label: isPPA ? 'Horas Faltantes' : 'Pendentes', data: sorted.map(x => x.valor), backgroundColor: '#FF007F', borderRadius: 4 }]
+    },
+    options: {
+      maintainAspectRatio: false, indexAxis: 'y',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => sorted[items[0]?.dataIndex]?.unit || '',
+            label: c => {
+              const x = sorted[c.dataIndex] || {};
+              return isPPA
+                ? [`Déficit: ${x.valor}h`, `Atribuído: ${x.atrib}h`, `Meta: ${x.meta}h`]
+                : [`Pendentes: ${x.valor}`, `Atribuídas: ${x.atrib}`, `Criadas: ${x.criadas}`];
+            }
+          }
+        }
+      },
+      scales: { x: { beginAtZero: true }, y: { ticks: { autoSkip: false, font: { size: 11 } } } }
+    }
+  });
+
+  const totAtrib = isPPA
+    ? data.reduce((s, x) => s + (x.cargaAtribuida || 0), 0)
+    : data.reduce((s, x) => s + (x.atribuidas || 0), 0);
+  const totPend = isPPA
+    ? data.reduce((s, x) => s + (x.faltaAtribuir || 0), 0)
+    : data.reduce((s, x) => s + Math.max(0, (x.criadas || 0) - (x.atribuidas || 0)), 0);
+
+  if (grafPie) grafPie.destroy();
+  grafPie = new Chart(pieEl, {
+    type: 'doughnut',
+    data: {
+      labels: ['Atribuído', 'Pendente'],
+      datasets: [{ data: [totAtrib, totPend], backgroundColor: ['#39FF14', '#eaedf0'], borderWidth: 0 }]
+    },
+    options: { maintainAspectRatio: false, cutout: '72%', plugins: { legend: { position: 'bottom' } } }
+  });
+}
+
+// ── TABELA PRINCIPAL ──────────────────────────────────────────────
+function renderTable() {
+  const isPPA  = (modo === 'PPA');
+  const data   = isPPA ? D.ppa : (modo === 'PRA') ? D.pra : (D.disciplinas[discAtiva] || []);
+  const head   = document.getElementById('tableHead');
+  const body   = document.getElementById('mainBody');
+  const titulo = document.getElementById('tabelaTitulo');
+
+  titulo.innerHTML = `<i class="bi bi-list-task me-2"></i>${
+    isPPA ? 'Projeto Professor Alfabetizador — PPA' :
+    modo === 'PRA' ? 'Projeto Recuperação da Aprendizagem — PRA' :
+    escapeHtml(discAtiva)}`;
+
+  head.innerHTML = `
+    <th>Unidade / Turno</th>
+    <th class="text-center">${isPPA ? 'Salas' : 'Turmas'}</th>
+    <th>Progresso</th>
+    <th class="text-center">Status</th>`;
+
+  if (!data.length) {
+    body.innerHTML = `<tr><td colspan="4" class="text-center text-muted p-4">Nenhum dado encontrado.</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = data.map((r, idx) => {
+    const perc = isPPA
+      ? Number(r.percAtribuido || 0)
+      : (r.criadas > 0 ? Math.min(r.atribuidas / r.criadas * 100, 100) : 0);
+    const atriLabel = isPPA ? `${r.cargaAtribuida}h` : r.atribuidas;
+    const pendLabel = isPPA ? `${r.faltaAtribuir}h` : Math.max(0, (r.criadas || 0) - (r.atribuidas || 0));
+    const valMain   = isPPA ? r.magisterio : r.criadas;
+    const barCor    = perc >= 100 ? 'var(--neon-green)' : perc >= 50 ? 'var(--neon-yellow)' : 'var(--neon-pink)';
+    const stText    = perc >= 100 ? 'IDEAL' : perc >= 50 ? 'MÍNIMO' : 'CRÍTICO';
+    const stClass   = perc >= 100 ? 'bg-success-subtle text-success' : perc >= 50 ? 'bg-warning-subtle text-warning' : 'bg-danger-subtle text-danger';
+    const detId     = `det-${modo}-${idx}`;
+    const detBodyId = `detb-${modo}-${idx}`;
+
+    const detHtml = _renderDetalhes(r.details || []);
+
+    return `
+      <tr class="main-row" onclick="toggleRow('${detId}')">
+        <td><div class="unit-name">${escapeHtml(r.unit)}</div><span class="badge bg-light text-dark border mt-1">${escapeHtml(r.period)}</span></td>
+        <td class="text-center align-middle"><span class="fs-4 fw-bold text-primary">${valMain}</span></td>
+        <td class="align-middle">
+          <div class="d-flex justify-content-between mb-1" style="font-size:.78rem;">
+            <span>Atribuído: <b>${atriLabel}</b></span>
+            <span style="color:var(--neon-pink);">Faltam: <b>${pendLabel}</b></span>
+          </div>
+          <div class="progress" style="height:6px;">
+            <div class="progress-bar" style="width:${Math.min(perc,100)}%;background:${barCor}!important;"></div>
+          </div>
+        </td>
+        <td class="text-center align-middle">
+          <div class="p-1 border rounded ${stClass} fw-bold" style="font-size:.72rem;">${stText}</div>
+        </td>
+      </tr>
+      <tr id="${detId}" class="d-none">
+        <td colspan="4" class="p-3">
+          <div class="detail-box table-responsive">
+            <table class="table table-sm small m-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Disciplina</th><th class="text-center">Turma</th>
+                  <th>Professor</th><th class="text-center">Código</th>
+                  <th class="text-center">Situação</th><th class="text-center">Carga</th>
+                </tr>
+              </thead>
+              <tbody id="${detBodyId}">${detHtml}</tbody>
+            </table>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function _renderDetalhes(details) {
+  if (!details.length) return '<tr><td colspan="6" class="text-center text-muted">Sem detalhes</td></tr>';
+  return details.map(d => `
+    <tr>
+      <td><span class="badge bg-primary-subtle text-primary border">${escapeHtml(d.disc)}</span></td>
+      <td class="fw-bold text-center text-nowrap">${escapeHtml(d.turma)}</td>
+      <td class="text-nowrap">${escapeHtml(d.profName)}</td>
+      <td class="text-center">${escapeHtml(d.profCode)}</td>
+      <td class="text-center"><span class="badge ${String(d.profStatus).includes('ATIVA') ? 'bg-success' : 'bg-secondary'}">${escapeHtml(d.profStatus)}</span></td>
+      <td class="text-center fw-bold">${d.workload}h</td>
+    </tr>`).join('');
+}
+
+function toggleRow(id) {
+  document.getElementById(id)?.classList.toggle('d-none');
+}
+
+function filtrarTabela() {
+  const termo = (document.getElementById('buscaTabela')?.value || '').toLowerCase().trim();
+  document.querySelectorAll('#mainBody > tr.main-row').forEach(tr => {
+    const vis = !termo || tr.innerText.toLowerCase().includes(termo);
+    tr.classList.toggle('d-none', !vis);
+    const match = (tr.getAttribute('onclick') || '').match(/toggleRow\('(.+?)'\)/);
+    if (match && !vis) document.getElementById(match[1])?.classList.add('d-none');
+  });
+}
+
+// ── GRADE MATRICIAL ───────────────────────────────────────────────
+function renderGrade() {
+  const container = document.getElementById('gradeEscolas');
+  const matrice   = D?.matrice;
+  if (!matrice) { container.innerHTML = '<div class="alert alert-info">Aguarde o carregamento dos dados.</div>'; return; }
+
+  const termEscola = (document.getElementById('buscaGradeEscola')?.value || '').toUpperCase().trim();
+  const termDisc   = (document.getElementById('buscaGradeDisc')?.value  || '').toUpperCase().trim();
+  const escolas    = D.escolasLista.filter(e => !termEscola || e.toUpperCase().includes(termEscola));
+
+  if (!escolas.length) { container.innerHTML = '<div class="alert alert-warning">Nenhuma escola encontrada.</div>'; return; }
+
+  let html = '';
+  escolas.forEach((escola, idx) => {
+    const turmasObj = matrice[escola];
+    const turmas    = ordenarTurmas(Object.keys(turmasObj));
+
+    const discSet = new Set();
+    turmas.forEach(t => Object.keys(turmasObj[t]).forEach(d => discSet.add(d)));
+    const discs = [...discSet].sort().filter(d => !termDisc || d.toUpperCase().includes(termDisc));
+    if (!discs.length) return;
+
+    let tot = 0, atr = 0;
+    turmas.forEach(t => discs.forEach(d => { if (turmasObj[t][d]) { tot++; if (turmasObj[t][d].atribuido) atr++; } }));
+    const pct = tot > 0 ? Math.round(atr / tot * 100) : 0;
+    const [corP, bgP] = pct >= 90 ? ['#10b981','#d1fae5'] : pct >= 60 ? ['#f59e0b','#fef3c7'] : ['#ef4444','#fee2e2'];
+
+    const chipsHtml = discs.map(d => {
+      let dt = 0, da = 0;
+      turmas.forEach(t => { if (turmasObj[t][d]) { dt++; if (turmasObj[t][d].atribuido) da++; } });
+      const dp = dt > 0 ? Math.round(da / dt * 100) : 0;
+      const [dc, db] = dp >= 90 ? ['#10b981','#d1fae5'] : dp >= 60 ? ['#f59e0b','#fef3c7'] : ['#ef4444','#fee2e2'];
+      return `<span class="chip-disc" style="background:${db};color:${dc};border-color:${dc}40;" title="${escapeHtml(d)}: ${da}/${dt}">${d.length > 20 ? d.substring(0,18)+'…' : escapeHtml(d)} ${dp}%</span>`;
+    }).join(' ');
+
+    const abert = abertosGrade.has(idx);
+    html += `
+    <div class="table-container mb-3 p-0 overflow-hidden shadow-sm" id="gradeCard-${idx}">
+      <div class="escola-header" onclick="toggleGradeEscola(${idx})">
+        <div>
+          <span class="fw-bold" style="font-size:.85rem;">${escapeHtml(escola)}</span>
+          <span class="badge-pct" style="background:${bgP};color:${corP};border-color:${corP}40;">${atr}/${tot} (${pct}%)</span>
+        </div>
+        <i class="bi bi-chevron-down chevron ${abert ? 'aberto' : ''}" id="gradeChev-${idx}"></i>
+      </div>
+      <div id="gradeBody-${idx}" class="escola-body" style="display:${abert ? 'block' : 'none'};">
+        <div class="px-3 py-2 border-bottom" style="background:#fafbff;">
+          <div style="display:flex;flex-wrap:wrap;gap:5px;">${chipsHtml}</div>
+        </div>
+        <div class="table-responsive" style="max-height:460px;overflow-y:auto;">
+          <table class="table table-bordered table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th style="min-width:90px;font-size:.7rem;background:#fff;">Turma</th>
+                ${discs.map(d => `<th class="col-disc">${escapeHtml(d)}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${turmas.map(turma => `
+                <tr>
+                  <td class="cell-turma">${escapeHtml(turma)}</td>
+                  ${discs.map(d => {
+                    const c = turmasObj[turma][d];
+                    if (!c) return `<td class="cell-na">—</td>`;
+                    return c.atribuido
+                      ? `<td class="cell-ok" title="${escapeHtml(c.profName)}"><i class="bi bi-check-circle-fill" style="color:#10b981;font-size:.9rem;"></i></td>`
+                      : `<td class="cell-nok" title="S/ Atribuição"><i class="bi bi-x-circle-fill" style="color:#ef4444;font-size:.9rem;"></i></td>`;
+                  }).join('')}
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  container.innerHTML = html || '<div class="alert alert-warning">Nenhum resultado para os filtros atuais.</div>';
+}
+
+function toggleGradeEscola(idx) {
+  const b = document.getElementById(`gradeBody-${idx}`);
+  const c = document.getElementById(`gradeChev-${idx}`);
+  if (!b) return;
+  const abrindo = b.style.display === 'none';
+  b.style.display = abrindo ? 'block' : 'none';
+  abrindo ? abertosGrade.add(idx) : abertosGrade.delete(idx);
+  c?.classList.toggle('aberto', abrindo);
+}
+
+function ordenarTurmas(lista) {
+  return lista.sort((a, b) => {
+    const p = s => { const m = s.match(/^(\d+)[ºo°ª]?\s*(?:ANO)?\s*(.*)$/i); return m ? [parseInt(m[1],10),(m[2]||'').trim()] : [99,s]; };
+    const [ay,at] = p(a), [by,bt] = p(b);
+    return ay !== by ? ay - by : at.localeCompare(bt);
+  });
+}
+
+// ── MODO / SUBNAV ─────────────────────────────────────────────────
+function switchModo(novoModo) {
+  if (novoModo === 'DISC') {
+    const sel = document.getElementById('selDisc');
+    if (!sel.value) return;
+    discAtiva = sel.value;
+  }
+  modo = novoModo;
+  abertosGrade = new Set();
+
+  // Atualiza botões
+  ['PPA','PRA','GRADE'].forEach(m => {
+    document.getElementById(`btn-${m}`)?.classList.toggle('active', m === modo);
+  });
+  // Select de disciplina: não tem classe active nos botões, mas highlight visual
+  if (modo === 'DISC') {
+    ['PPA','PRA','GRADE'].forEach(m => document.getElementById(`btn-${m}`)?.classList.remove('active'));
+  }
+
+  const isGrade  = (modo === 'GRADE');
+  document.getElementById('chartsRow').classList.toggle('d-none', isGrade);
+  document.getElementById('tableContainer').classList.toggle('d-none', isGrade);
+  document.getElementById('gradeContainer').classList.toggle('d-none', !isGrade);
+
+  renderKPIs();
+  if (!isGrade) { renderCharts(); renderTable(); }
+  else renderGrade();
+}
+
+// ── INICIALIZAÇÃO ─────────────────────────────────────────────────
+async function init() {
+  try {
+    const rows = await fetchTurmas();
+    D = montarDados(rows);
+
+    // Popula select de disciplinas
+    const sel = document.getElementById('selDisc');
+    D.disciplinasLista.forEach(d => {
+      const op = document.createElement('option');
+      op.value = d; op.textContent = d;
+      sel.appendChild(op);
+    });
+
+    // Status
+    document.getElementById('statusLoad').style.display = 'none';
+    document.getElementById('infoLoad').style.display = 'block';
+    document.getElementById('infoLoad').textContent =
+      `${rows.length.toLocaleString('pt-BR')} registros — ${new Date().toLocaleTimeString('pt-BR')}`;
+
+    switchModo('PPA');
+  } catch (err) {
+    document.getElementById('statusLoad').innerHTML =
+      `<span class="text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>${escapeHtml(err.message)}</span>`;
+    console.error(err);
+  }
+}
+
+init();
+</script>
+</body>
+</html>

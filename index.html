@@ -1258,7 +1258,21 @@
         </div>
       </div>
 
-      <div class="table-container">
+      <!-- Toggle Visão por Turma / Por Escola+Disciplina -->
+      <div class="d-flex justify-content-end mb-3">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Modo de visualização">
+          <button type="button" class="btn btn-outline-primary active" id="btnModoTurma"
+                  onclick="alternarVisualizacaoTurmas('turma')">
+            <i class="bi bi-list-task me-1"></i>Por Turma
+          </button>
+          <button type="button" class="btn btn-outline-primary" id="btnModoEscola"
+                  onclick="alternarVisualizacaoTurmas('escola')">
+            <i class="bi bi-grid-3x3-gap-fill me-1"></i>Por Escola / Disciplina
+          </button>
+        </div>
+      </div>
+
+      <div class="table-container" id="tableContainerTurmas">
         <div class="d-flex flex-column flex-md-row justify-content-between mb-3 align-items-start align-items-md-center gap-2">
           <h5 class="fw-bold m-0 text-primary">
             <i class="bi bi-list-task me-2"></i>Detalhamento Operacional
@@ -1278,6 +1292,24 @@
             </thead>
             <tbody id="mainTable"></tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- Visão Por Escola / Disciplina: grade matricial -->
+      <div id="matrizDisciplinas" class="d-none">
+        <div class="table-container">
+          <div class="d-flex flex-column flex-md-row justify-content-between mb-3 align-items-start align-items-md-center gap-2">
+            <h5 class="fw-bold m-0 text-primary">
+              <i class="bi bi-grid-3x3-gap-fill me-2"></i>Disciplinas por Escola
+            </h5>
+            <input type="text" id="searchMatriz" class="form-control shadow-sm" style="max-width:280px;"
+                   placeholder="Pesquisar escola..." oninput="filtrarMatrizDisciplinas()">
+          </div>
+          <div id="matrizDisciplinasBody">
+            <div class="text-center text-muted p-4">
+              <div class="spinner-border spinner-border-sm mb-2"></div><br>Carregando…
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -2774,12 +2806,22 @@ function _filtrarDisciplinasTurmasPorUnidade(obj) {
   return resultado;
 }
 
+function _filtrarMatriceEscolaPorUnidade(obj) {
+  if (!filtroUnidadeEscola || !obj) return obj;
+  const res = {};
+  Object.keys(obj).forEach(esc => {
+    if (_unidadeMatchFiltro(esc)) res[esc] = obj[esc];
+  });
+  return res;
+}
+
 function _filtrarDashPorUnidade(res) {
   if (!res || !filtroUnidadeEscola) return res;
   return Object.assign({}, res, {
     ppa: _filtrarArrayPorUnidade(res.ppa),
     pra: _filtrarArrayPorUnidade(res.pra),
-    disciplinasTurmas: _filtrarDisciplinasTurmasPorUnidade(res.disciplinasTurmas)
+    disciplinasTurmas: _filtrarDisciplinasTurmasPorUnidade(res.disciplinasTurmas),
+    matriceEscola: _filtrarMatriceEscolaPorUnidade(res.matriceEscola)
   });
 }
 
@@ -7096,6 +7138,7 @@ function _renderTabelaTotal(linhas) {
       const ppaSummary = {};
       const praSummary = {};
       const disciplinasTurmas = {};
+      const matriceEscola = {};
 
       turmas.forEach(row => {
         if (serieExcluidaPorSet(row.ano_escolar, seriesExcluidas)) return;
@@ -7130,6 +7173,17 @@ function _renderTabelaTotal(linhas) {
         if (atribuido) {
           disciplinasTurmas[disc][key].atribuidas += 1;
           disciplinasTurmas[disc][key].cargaAtribuida += workload;
+        }
+
+        // Popula a matriz escola→turma→disciplina para a visão de grade
+        if (!matriceEscola[unit]) matriceEscola[unit] = {};
+        const _turmaKey = `${String(row.ano_escolar || '').trim()} ${String(row.letra_turma || '').trim()}`.trim();
+        if (!matriceEscola[unit][_turmaKey]) matriceEscola[unit][_turmaKey] = {};
+        if (!matriceEscola[unit][_turmaKey][disc]) {
+          matriceEscola[unit][_turmaKey][disc] = {
+            profName: atribuido ? ((substituto ? row.nome_professor_sub : row.nome_professor_prop) || '-') : 'S/ ATRIBUIÇÃO',
+            atribuido
+          };
         }
 
         if ((magII && isSegundoAnoPPA(anoDesc)) || disc.includes('PROJ. PROF. ALFABETIZADOR') || anoDesc.includes('PROJETO PROFESSOR ALFABETIZADOR')) {
@@ -7224,6 +7278,7 @@ function _renderTabelaTotal(linhas) {
         pra: praRows,
         disciplinasLista: Object.keys(disciplinasObjetoFinal).sort(),
         disciplinasTurmas: disciplinasObjetoFinal,
+        matriceEscola: matriceEscola,
         alunos: [],
         avaliacoesConfig: AVALIACOES_CONFIG
       };
@@ -8201,6 +8256,167 @@ function limparAreaAvaliacao() {
     window.renderDiagnosticaHierarquia = window.renderDiagnosticaHierarquia || function() {
       if (typeof renderHierarquiaDiag === 'function') renderHierarquiaDiag();
     };
+
+    // ── VISÃO POR ESCOLA / DISCIPLINA ──────────────────────────────────────
+    let _modoVisualizacaoTurmas = 'turma';
+
+    function alternarVisualizacaoTurmas(modo) {
+      _modoVisualizacaoTurmas = modo;
+      const btnTurma  = document.getElementById('btnModoTurma');
+      const btnEscola = document.getElementById('btnModoEscola');
+      const tableBox  = document.getElementById('tableContainerTurmas');
+      const matrizBox = document.getElementById('matrizDisciplinas');
+
+      if (modo === 'escola') {
+        btnTurma?.classList.remove('active');
+        btnEscola?.classList.add('active');
+        tableBox?.classList.add('d-none');
+        matrizBox?.classList.remove('d-none');
+        renderMatrizDisciplinas();
+      } else {
+        btnTurma?.classList.add('active');
+        btnEscola?.classList.remove('active');
+        tableBox?.classList.remove('d-none');
+        matrizBox?.classList.add('d-none');
+      }
+    }
+
+    function renderMatrizDisciplinas() {
+      const body = document.getElementById('matrizDisciplinasBody');
+      if (!body) return;
+
+      const matrice = rawData?.matriceEscola;
+      if (!matrice || !Object.keys(matrice).length) {
+        body.innerHTML = '<div class="alert alert-info">Nenhum dado disponível. Carregue os dados primeiro.</div>';
+        return;
+      }
+
+      // Coleta todas as disciplinas únicas entre as escolas visíveis
+      const todasDisc = new Set();
+      Object.values(matrice).forEach(turmasObj => {
+        Object.values(turmasObj).forEach(discsObj => {
+          Object.keys(discsObj).forEach(d => todasDisc.add(d));
+        });
+      });
+      const disciplinas = [...todasDisc].sort();
+
+      const searchTerm = (document.getElementById('searchMatriz')?.value || '').toUpperCase().trim();
+      const escolas = Object.keys(matrice).sort((a, b) => a.localeCompare(b));
+      const escolasFiltradas = searchTerm ? escolas.filter(e => e.toUpperCase().includes(searchTerm)) : escolas;
+
+      if (!escolasFiltradas.length) {
+        body.innerHTML = '<div class="alert alert-warning">Nenhuma escola encontrada.</div>';
+        return;
+      }
+
+      let html = '';
+      escolasFiltradas.forEach((escola, idx) => {
+        const turmasObj = matrice[escola];
+
+        // Ordena turmas: por ano então por letra
+        const turmas = Object.keys(turmasObj).sort((a, b) => {
+          const parseT = s => {
+            const m = s.match(/^(\d+)[ºo°ª]?\s*(?:ANO)?\s*(.*)$/i);
+            return m ? [parseInt(m[1], 10), (m[2] || '').trim()] : [99, s];
+          };
+          const [ay, at] = parseT(a);
+          const [by, bt] = parseT(b);
+          return ay !== by ? ay - by : at.localeCompare(bt);
+        });
+
+        // Resumo de atribuição da escola
+        let total = 0, atrib = 0;
+        turmas.forEach(t => {
+          Object.values(turmasObj[t]).forEach(cell => {
+            total++;
+            if (cell.atribuido) atrib++;
+          });
+        });
+        const pct = total > 0 ? Math.round(atrib / total * 100) : 0;
+        const pctColor = pct >= 100 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
+        const pctBg    = pct >= 100 ? '#d1fae5' : pct >= 50 ? '#fef3c7' : '#fee2e2';
+
+        // Disciplinas que a escola realmente possui (para o mini resumo por disciplina)
+        const discEscola = new Set();
+        turmas.forEach(t => Object.keys(turmasObj[t]).forEach(d => discEscola.add(d)));
+        const discEscolaOrdenadas = [...discEscola].sort();
+
+        // Chips de resumo por disciplina
+        const chipsHtml = discEscolaOrdenadas.map(d => {
+          let dTotal = 0, dAtrib = 0;
+          turmas.forEach(t => {
+            if (turmasObj[t][d]) { dTotal++; if (turmasObj[t][d].atribuido) dAtrib++; }
+          });
+          const dp = dTotal > 0 ? Math.round(dAtrib / dTotal * 100) : 0;
+          const dc = dp >= 100 ? '#10b981' : dp >= 50 ? '#f59e0b' : '#ef4444';
+          const db = dp >= 100 ? '#d1fae5' : dp >= 50 ? '#fef3c7' : '#fee2e2';
+          return `<span style="display:inline-block;background:${db};color:${dc};border:1px solid ${dc}40;border-radius:999px;padding:1px 8px;font-size:.65rem;font-weight:700;white-space:nowrap;" title="${d}: ${dAtrib}/${dTotal}">${d.length > 18 ? d.substring(0,16)+'…' : d} ${dp}%</span>`;
+        }).join(' ');
+
+        // Cabeçalho: usa apenas as disciplinas da escola para a tabela
+        const colsHtml = discEscolaOrdenadas.map(d =>
+          `<th class="text-center" style="font-size:.62rem;min-width:72px;max-width:90px;white-space:normal;line-height:1.2;padding:4px 3px;">${d}</th>`
+        ).join('');
+
+        // Linhas de turmas
+        const rowsHtml = turmas.map(turma => {
+          const cellsHtml = discEscolaOrdenadas.map(d => {
+            const cell = turmasObj[turma][d];
+            if (!cell) return `<td class="text-center" style="background:#f8f9fa;"><span style="color:#ccc;font-size:.75rem;">—</span></td>`;
+            if (cell.atribuido) {
+              const nome = (cell.profName || '').replace(/"/g, '&quot;');
+              return `<td class="text-center" style="background:#d1fae5;" title="${nome}"><i class="bi bi-check-circle-fill" style="color:#10b981;font-size:.9rem;"></i></td>`;
+            }
+            return `<td class="text-center" style="background:#fee2e2;" title="S/ Atribuição"><i class="bi bi-x-circle-fill" style="color:#ef4444;font-size:.9rem;"></i></td>`;
+          }).join('');
+          return `<tr><td style="font-size:.75rem;font-weight:600;white-space:nowrap;padding:5px 8px;">${turma}</td>${cellsHtml}</tr>`;
+        }).join('');
+
+        html += `
+        <div class="mb-3 border rounded-3 overflow-hidden shadow-sm" id="matrizCard-${idx}">
+          <div class="d-flex justify-content-between align-items-center px-3 py-2"
+               style="background:#f0f4ff;cursor:pointer;user-select:none;"
+               onclick="toggleMatrizEscola(${idx})">
+            <div>
+              <span class="fw-bold" style="font-size:.85rem;">${escola}</span>
+              <span style="display:inline-block;background:${pctBg};color:${pctColor};border:1px solid ${pctColor}40;border-radius:999px;padding:1px 10px;font-size:.72rem;font-weight:700;margin-left:10px;">${atrib}/${total} (${pct}%)</span>
+            </div>
+            <i class="bi bi-chevron-down text-muted" id="chevron-${idx}" style="transition:transform .2s;"></i>
+          </div>
+          <div id="matrizBody-${idx}" class="d-none">
+            <div class="px-3 py-2" style="background:#fafbff;border-bottom:1px solid #e8ecff;">
+              <div style="display:flex;flex-wrap:wrap;gap:4px;">${chipsHtml}</div>
+            </div>
+            <div class="table-responsive" style="max-height:480px;overflow-y:auto;">
+              <table class="table table-bordered table-sm align-middle mb-0" style="font-size:.78rem;">
+                <thead style="position:sticky;top:0;z-index:2;background:#fff;">
+                  <tr>
+                    <th style="min-width:80px;font-size:.7rem;background:#fff;">Turma</th>
+                    ${colsHtml}
+                  </tr>
+                </thead>
+                <tbody>${rowsHtml}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>`;
+      });
+
+      body.innerHTML = html;
+    }
+
+    function toggleMatrizEscola(idx) {
+      const bodyEl   = document.getElementById(`matrizBody-${idx}`);
+      const chevron  = document.getElementById(`chevron-${idx}`);
+      if (!bodyEl) return;
+      const abrindo = bodyEl.classList.contains('d-none');
+      bodyEl.classList.toggle('d-none', !abrindo);
+      if (chevron) chevron.style.transform = abrindo ? 'rotate(180deg)' : '';
+    }
+
+    function filtrarMatrizDisciplinas() {
+      renderMatrizDisciplinas();
+    }
 
     // Filtro visual simples da tabela PPA/PRA, sem mexer na lógica do JS_Turmas.
     function filtrarTabelaTurmasIndex() {
