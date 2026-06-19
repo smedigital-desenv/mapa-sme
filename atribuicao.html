@@ -364,9 +364,11 @@
         </button>
       </div>
 
-      <!-- Toggle de sub-vista -->
-      <div class="d-flex gap-2 mb-3">
-        <button id="btnPendEscola" class="btn btn-sm fw-bold active"
+      <!-- Controles: toggle + filtros em uma linha -->
+      <div class="d-flex flex-wrap align-items-center gap-2">
+
+        <!-- Toggle sub-vista -->
+        <button id="btnPendEscola" class="btn btn-sm fw-bold"
                 style="background:#fff0f0;border:1.5px solid #ef4444;color:#ef4444;"
                 onclick="setPendVisuMode('escola')">
           <i class="bi bi-building me-1"></i>Por Escola
@@ -376,51 +378,45 @@
                 onclick="setPendVisuMode('disc')">
           <i class="bi bi-book me-1"></i>Por Disciplina
         </button>
-      </div>
 
-      <!-- Filtros -->
-      <div class="d-flex flex-wrap gap-3 align-items-start">
+        <div class="vr mx-1" style="height:24px;"></div>
 
         <!-- Pesquisa livre -->
-        <div class="input-group input-group-sm shadow-sm" style="max-width:220px;">
+        <div class="input-group input-group-sm shadow-sm" style="width:200px;">
           <span class="input-group-text"><i class="bi bi-search"></i></span>
           <input type="text" id="buscaPendEscola" class="form-control"
                  placeholder="Pesquisar escola…" oninput="renderPendentes()">
         </div>
 
-        <!-- Tipo: checkboxes inline -->
-        <div class="d-flex flex-wrap gap-2 align-items-center">
-          <span class="text-muted small fw-bold">Tipo:</span>
-          <div class="d-flex gap-2 flex-wrap" id="filtroPendTipoGroup">
-            <label class="pend-check-chip" style="--chip-cor:#7c3aed;--chip-bg:#ede9fe;">
-              <input type="checkbox" value="CEI"   checked onchange="renderPendentes()">
-              <span>CEI</span>
-            </label>
-            <label class="pend-check-chip" style="--chip-cor:#0284c7;--chip-bg:#e0f2fe;">
-              <input type="checkbox" value="EMEI"  checked onchange="renderPendentes()">
-              <span>EMEI</span>
-            </label>
-            <label class="pend-check-chip" style="--chip-cor:#059669;--chip-bg:#d1fae5;">
-              <input type="checkbox" value="EMEF"  checked onchange="renderPendentes()">
-              <span>EMEF</span>
-            </label>
-            <label class="pend-check-chip" style="--chip-cor:#64748b;--chip-bg:#f1f5f9;">
-              <input type="checkbox" value="Outros" checked onchange="renderPendentes()">
-              <span>Outros</span>
-            </label>
-          </div>
+        <div class="vr mx-1" style="height:24px;"></div>
+
+        <!-- Tipo: chips -->
+        <div class="d-flex gap-1 align-items-center" id="filtroPendTipoGroup">
+          <label class="pend-check-chip" style="--chip-cor:#7c3aed;--chip-bg:#ede9fe;">
+            <input type="checkbox" value="CEI"    checked onchange="renderPendentes()"><span>CEI</span>
+          </label>
+          <label class="pend-check-chip" style="--chip-cor:#0284c7;--chip-bg:#e0f2fe;">
+            <input type="checkbox" value="EMEI"   checked onchange="renderPendentes()"><span>EMEI</span>
+          </label>
+          <label class="pend-check-chip" style="--chip-cor:#059669;--chip-bg:#d1fae5;">
+            <input type="checkbox" value="EMEF"   checked onchange="renderPendentes()"><span>EMEF</span>
+          </label>
+          <label class="pend-check-chip" style="--chip-cor:#64748b;--chip-bg:#f1f5f9;">
+            <input type="checkbox" value="Outros" checked onchange="renderPendentes()"><span>Outros</span>
+          </label>
         </div>
+
+        <div class="vr mx-1" style="height:24px;"></div>
 
         <!-- Disciplina: botão abre painel inline -->
         <button type="button" id="btnPendDiscLabel"
                 class="btn btn-sm btn-outline-secondary shadow-sm"
-                style="min-width:170px;text-align:left;"
-                onclick="togglePendDiscPanel()">
+                style="text-align:left;" onclick="togglePendDiscPanel()">
           <i class="bi bi-book me-1"></i><span id="pendDiscLabelText">Todas as disciplinas</span>
           <i class="bi bi-chevron-down ms-1" id="pendDiscPanelChev" style="font-size:.7rem;"></i>
         </button>
 
-      </div><!-- /filtros -->
+      </div><!-- /controles -->
 
       <!-- Painel de disciplinas (inline, colapsável) -->
       <div id="pendDiscPanel" class="mt-2 border rounded p-2 bg-white shadow-sm" style="display:none;">
