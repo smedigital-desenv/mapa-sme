@@ -1513,14 +1513,26 @@ function imprimirRelatorio() {
   const titulo = `Relatório — ${S._relatorioEscola || 'Escola'}`;
   const w = window.open('', '_blank');
   if (!w) { alert('Permita pop-ups para imprimir o relatório.'); return; }
+  // print-color-adjust: exact → força o navegador a imprimir cores de fundo dos cards/chips
+  const printCss = `<style>
+    *, *::before, *::after {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    @media print {
+      body { margin: 0; padding: 12px; }
+      .no-print { display: none !important; }
+    }
+  </style>`;
   w.document.write(
     `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">` +
-    `<title>${titulo}</title>${estilos}</head>` +
+    `<title>${titulo}</title>${estilos}${printCss}</head>` +
     `<body style="background:#fff;">${conteudo}</body></html>`
   );
   w.document.close();
   w.focus();
-  setTimeout(() => w.print(), 500);   // aguarda o CSS do CDN carregar
+  setTimeout(() => w.print(), 800);   // aguarda o CSS do CDN carregar
 }
 
 // mantida para compatibilidade com modal da turma
