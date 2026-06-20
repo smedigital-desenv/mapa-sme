@@ -1596,8 +1596,8 @@ async function _preencherPPA(escola) {
         </div>
       </div>` : '';
 
-    // Tabela de professoras — apenas 2º Ano (PPA)
-    const linhas = ppRows.map(r => {
+    // Helper compartilhado para linha de professor
+    const linhaProf = (turmaLabel, r) => {
       const atrib   = isAtrib(r);
       const sub     = isSub(r);
       const prop    = esc(r.nome_professor_prop || '—');
@@ -1613,22 +1613,50 @@ async function _preencherPPA(escola) {
            </div>`
         : '';
       return `<tr>
-        <td class="fw-bold" style="white-space:nowrap;">2º Ano ${esc(r.letra_turma || '')}</td>
+        <td class="fw-bold" style="white-space:nowrap;">${turmaLabel}</td>
         <td>${statusDot} ${prop}${subCell}</td>
       </tr>`;
-    }).join('');
+    };
 
-    const tabelaHtml = ppRows.length ? `
-      <div class="table-responsive">
+    // Tabela 1 — Regentes 2º Ano (Magistério II / PPA)
+    const linhas2Ano = ppRows.map(r => linhaProf(`2º Ano ${esc(r.letra_turma || '')}`, r)).join('');
+    const tabela2Ano = ppRows.length ? `
+      <div class="table-responsive mb-3">
         <table class="table table-sm align-middle mb-0" style="font-size:.78rem;">
           <thead class="table-light">
-            <tr><th>Turma</th><th>Professora(s) — 2º Ano (PPA)</th></tr>
+            <tr><th>Turma</th><th>Regente 2º Ano (Magistério II)</th></tr>
           </thead>
-          <tbody>${linhas}</tbody>
+          <tbody>${linhas2Ano}</tbody>
         </table>
       </div>` : '';
 
-    cont.innerHTML = kpisHtml + tabelaHtml;
+    // Tabela 2 — Proj. Prof. Alfabetizador (turmas dedicadas ao PPA)
+    const projRows = rowsEsc
+      .filter(r => _norm(r.descricao_disciplina || '').includes('ALFABETIZADOR'))
+      .sort((a, b) => (a.ano_escolar || '').localeCompare(b.ano_escolar || '') ||
+                      (a.letra_turma || '').localeCompare(b.letra_turma || ''));
+
+    const linhasProj = projRows.map(r => {
+      const prefixo = (r.ano_escolar || '').toUpperCase()
+        .replace('PROJ. PROF. ALFABETIZADOR', '').trim();
+      const label = ('PPA' + (prefixo ? ' ' + prefixo : '') + ' ' + (r.letra_turma || '')).trim();
+      return linhaProf(esc(label), r);
+    }).join('');
+
+    const tabelaProj = projRows.length ? `
+      <div class="label-mini mb-1 mt-2" style="color:#1d4ed8;">
+        <i class="bi bi-person-badge me-1"></i>Professores(as) do Projeto
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0" style="font-size:.78rem;">
+          <thead class="table-light">
+            <tr><th>Turma PPA</th><th>Professor(a) Alfabetizador(a)</th></tr>
+          </thead>
+          <tbody>${linhasProj}</tbody>
+        </table>
+      </div>` : '';
+
+    cont.innerHTML = kpisHtml + tabela2Ano + tabelaProj;
   } catch (err) {
     const cont2 = document.getElementById('relPPA');
     if (cont2) cont2.innerHTML = `<div class="text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>Erro ao carregar dados de PPA.</div>`;
