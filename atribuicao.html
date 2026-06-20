@@ -701,7 +701,8 @@ function montarDados(rows) {
       if (!ppaSumm[key]) ppaSumm[key] = { unit, period: per, magisterio: 0, cargaAtribuida: 0, details: [] };
       if (magII) ppaSumm[key].magisterio += 1;
       if (atrib && isPPARow) ppaSumm[key].cargaAtribuida += carga;
-      ppaSumm[key].details.push(det);
+      // No detalhe mostra apenas as linhas do projeto (não as de Magistério II, que só contam salas)
+      if (isPPARow) ppaSumm[key].details.push(det);
     }
 
     // PRA
