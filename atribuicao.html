@@ -335,6 +335,8 @@
         </button>
       </div>
     </div>
+    <!-- Filtro de anos/séries (apenas modo disciplina/PRA) -->
+    <div id="anoFiltroBar" class="d-none flex-wrap align-items-center gap-2 mb-3 pb-2 border-bottom"></div>
     <div class="table-responsive">
       <table class="table align-middle" id="mainTable" style="table-layout:fixed;width:100%;">
         <thead class="table-light">
@@ -692,7 +694,7 @@ function montarDados(rows) {
     const turmaKey   = `${ano} ${letra}`.trim();
     const key        = `${unit.toUpperCase()}|${per.toUpperCase()}`;
 
-    const det = { disc, turma: turmaKey, profName, profCode, profStatus, workload: carga };
+    const det = { disc, ano, turma: turmaKey, profName, profCode, profStatus, workload: carga };
 
     // PPA:
     //   - Linhas MAGISTÉRIO II no 2º Ano → contam salas (magisterio), NÃO somam carga atribuída
@@ -780,7 +782,7 @@ function renderKPIs() {
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Déficit</div><div class="kpi-val" style="color:#ef4444">${t - a}h</div></div></div>
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Eficácia</div><div class="kpi-val" style="color:${cor}">${pct}%</div><div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:${pct}%;background:${cor};"></div></div></div></div>`;
   } else if (modo === 'PRA') {
-    const d = D.pra;
+    const d = _aplicarFiltroAno(D.pra);
     const criadas = d.reduce((s, x) => s + (x.criadas || 0), 0);
     const atrib   = d.reduce((s, x) => s + (x.atribuidas || 0), 0);
     const pend    = criadas - atrib;
@@ -792,7 +794,7 @@ function renderKPIs() {
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Pendentes</div><div class="kpi-val" style="color:#ef4444">${pend}</div></div></div>
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Atribuição</div><div class="kpi-val" style="color:${cor}">${pct}%</div><div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:${pct}%;background:${cor};"></div></div></div></div>`;
   } else if (modo === 'DISC' && discAtiva) {
-    const d = D.disciplinas[discAtiva] || [];
+    const d = _aplicarFiltroAno(D.disciplinas[discAtiva] || []);
     const criadas = d.reduce((s, x) => s + (x.criadas || 0), 0);
     const atrib   = d.reduce((s, x) => s + (x.atribuidas || 0), 0);
     const carga   = d.reduce((s, x) => s + (x.cargaAtribuida || 0), 0);
@@ -841,7 +843,7 @@ function renderKPIs() {
 function renderCharts() {
   const isPPA  = (modo === 'PPA');
   const isDisc = (modo === 'DISC');
-  const data   = isPPA ? D.ppa : isDisc ? (D.disciplinas[discAtiva] || []) : D.pra;
+  const data   = _dadosModo();
 
   // Agrupa por unidade para o gráfico
   const mapa = {};
@@ -911,10 +913,91 @@ function renderCharts() {
 
 // ── TABELA PRINCIPAL ──────────────────────────────────────────────
 let _tabelaEscolasAbertas = new Set(); // chaves de escola abertas
+let _anosSelecionados = null;          // null = todos os anos; Set = anos marcados
+
+function _dadosBaseModo() {
+  return (modo === 'PPA') ? D.ppa : (modo === 'PRA') ? D.pra : (D.disciplinas[discAtiva] || []);
+}
+
+function _compararAnos(a, b) {
+  const na = parseInt(String(a).match(/\d+/)?.[0] ?? '999', 10);
+  const nb = parseInt(String(b).match(/\d+/)?.[0] ?? '999', 10);
+  if (na !== nb) return na - nb;
+  return String(a).localeCompare(String(b));
+}
+
+function _coletarAnos(data) {
+  const anos = new Set();
+  data.forEach(r => (r.details || []).forEach(d => { if (d.ano) anos.add(d.ano); }));
+  return [...anos].sort(_compararAnos);
+}
+
+function _aplicarFiltroAno(data) {
+  if (!_anosSelecionados) return data;
+  const out = [];
+  data.forEach(r => {
+    const dets = (r.details || []).filter(d => _anosSelecionados.has(d.ano));
+    if (!dets.length) return;
+    const atrDets = dets.filter(d => d.profName !== 'S/ Atribuição');
+    out.push({
+      ...r,
+      details: dets,
+      criadas: dets.length,
+      atribuidas: atrDets.length,
+      cargaCriada: dets.reduce((s, d) => s + (d.workload || 0), 0),
+      cargaAtribuida: atrDets.reduce((s, d) => s + (d.workload || 0), 0),
+    });
+  });
+  return out;
+}
+
+function _dadosModo() {
+  const base = _dadosBaseModo();
+  return (modo === 'PPA') ? base : _aplicarFiltroAno(base);
+}
+
+function renderAnoFiltro() {
+  const bar = document.getElementById('anoFiltroBar');
+  if (!bar) return;
+  if (modo === 'PPA') { bar.classList.add('d-none'); bar.classList.remove('d-flex'); return; }
+  const anos = _coletarAnos(_dadosBaseModo());
+  if (anos.length <= 1) { bar.classList.add('d-none'); bar.classList.remove('d-flex'); return; }
+  bar.classList.remove('d-none'); bar.classList.add('d-flex');
+  const sel = _anosSelecionados;
+  const chips = anos.map(a => {
+    const ativo = !sel || sel.has(a);
+    return `<button type="button" class="btn btn-sm ${ativo ? 'btn-primary' : 'btn-outline-secondary'}"
+      style="font-size:.72rem;font-weight:700;padding:2px 10px;border-radius:999px;"
+      onclick="toggleAnoFiltro('${escapeJs(a)}')">${ativo ? '<i class="bi bi-check2 me-1"></i>' : ''}${escapeHtml(a)}</button>`;
+  }).join('');
+  bar.innerHTML = `
+    <span class="text-muted small fw-bold me-1"><i class="bi bi-funnel-fill me-1"></i>Anos/Séries:</span>
+    ${chips}
+    ${sel ? `<button type="button" class="btn btn-sm btn-link text-decoration-none p-0 ms-1" style="font-size:.72rem;" onclick="resetAnoFiltro()">limpar filtro</button>` : ''}`;
+}
+
+function toggleAnoFiltro(ano) {
+  const todos = _coletarAnos(_dadosBaseModo());
+  if (!_anosSelecionados) _anosSelecionados = new Set(todos);
+  if (_anosSelecionados.has(ano)) _anosSelecionados.delete(ano);
+  else _anosSelecionados.add(ano);
+  if (_anosSelecionados.size === 0 || _anosSelecionados.size === todos.length) _anosSelecionados = null;
+  _tabelaEscolasAbertas = new Set();
+  renderKPIs();
+  renderTable();
+}
+
+function resetAnoFiltro() {
+  _anosSelecionados = null;
+  _tabelaEscolasAbertas = new Set();
+  renderKPIs();
+  renderTable();
+}
 
 function renderTable() {
   const isPPA  = (modo === 'PPA');
-  const data   = isPPA ? D.ppa : (modo === 'PRA') ? D.pra : (D.disciplinas[discAtiva] || []);
+  renderAnoFiltro();
+  const data   = _dadosModo();
   const head   = document.getElementById('tableHead');
   const body   = document.getElementById('mainBody');
   const titulo = document.getElementById('tabelaTitulo');
@@ -1723,6 +1806,7 @@ async function exportarPendentesExcel() {
 function switchModo(novoModo) {
   modo = novoModo;
   abertosGrade         = new Set();
+  _anosSelecionados    = null;
   _pendentesAbertos    = new Set();
   _pendDiscAbertos     = new Set();
   _tabelaEscolasAbertas = new Set();
@@ -1806,7 +1890,7 @@ async function baixarRelatorioExcel() {
 async function exportarTabelaExcel() {
   if (typeof ExcelJS === 'undefined') { alert('Biblioteca Excel não carregada.'); return; }
   const isPPA  = (modo === 'PPA');
-  const data   = isPPA ? D.ppa : (modo === 'PRA') ? D.pra : (D?.disciplinas[discAtiva] || []);
+  const data   = _dadosModo();
   const titulo = isPPA ? 'PPA' : modo === 'PRA' ? 'PRA' : discAtiva.replace(/[^\w]/g,'_');
 
   const wb = new ExcelJS.Workbook();
