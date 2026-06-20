@@ -1046,9 +1046,11 @@ function renderTabela() {
         const periodoLabel = t.periodo==='MANHA'?'Manhã':t.periodo==='TARDE'?'Tarde':(t.periodo||'');
         const periodoCor   = t.periodo==='MANHA'?'#1e40af':'#854d0e';
         const periodoBg    = t.periodo==='MANHA'?'#dbeafe':'#fef9c3';
+        const escEsc = escola.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        const trEsc  = (t.turma_raw||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         return `
         <tr class="grp-turma" data-grp="${grpId}" style="display:none;cursor:pointer;"
-            onclick="abrirModalTurma(${gi}, ${ti})"
+            onclick="abrirModalTurma('${escEsc}','${trEsc}')"
             title="Clique para ver os alunos da turma">
           <td style="padding-left:30px;font-size:.78rem;">
             <i class="bi bi-arrow-return-right me-1" style="font-size:.65rem;opacity:.3;"></i>
@@ -1056,6 +1058,12 @@ function renderTabela() {
             <span class="badge ms-2" style="background:${periodoBg};color:${periodoCor};font-size:.6rem;font-weight:800;">${periodoLabel}</span>
             ${t.tipo ? `<span class="badge ms-1" style="background:#f1f5f9;color:#64748b;font-size:.6rem;">${esc(t.tipo)}</span>` : ''}
             <i class="bi bi-people-fill ms-2 text-primary" style="font-size:.65rem;opacity:.45;"></i>
+            <button class="btn btn-sm btn-outline-primary py-0 px-2 ms-2"
+                    style="font-size:.58rem;font-weight:800;vertical-align:middle;"
+                    onclick="event.stopPropagation();abrirRelatorioTurma('${escEsc}','${trEsc}')"
+                    title="Gerar relatório da turma">
+              <i class="bi bi-file-earmark-text me-1"></i>Relatório
+            </button>
           </td>
           <td class="text-center small">${t.total_estudantes||0}</td>
           <td class="text-center small">${t.avaliados||0}</td>
@@ -1436,6 +1444,222 @@ function abrirRelatorioEscola(escola) {
 // Para cada turma abaixo da meta, lista nominalmente os alunos a priorizar para
 // atingir 70% de leitores — na ordem N4 → N3 → N2 → N1 (e, dentro do nível, os de
 // melhor desempenho primeiro, por estarem mais próximos de virar Iniciante).
+// ── Relatório executivo da turma ───────────────────────────
+function abrirRelatorioTurma(escola, turmaRaw) {
+  const av = document.getElementById('selAvaliacao')?.value || '';
+  const dadosEsc = S.porEscola[av]?.[escola];
+  if (!dadosEsc) return;
+  const t = (dadosEsc.turmas || []).find(x => (x.turma_raw||'') === turmaRaw);
+  if (!t) return;
+
+  // identificador ano + turma
+  let _ano = (t.ano_escolar||'').trim(), _tu = (t.turma||'').trim();
+  if ((!_ano||!_tu) && t.turma_raw) { const p = parseTurma(t.turma_raw); _ano = _ano||p.anoEscolar; _tu = _tu||p.turma; }
+  const turmaLabel = `${_ano} ${_tu}`.trim();
+
+  const avaliados = +t.avaliados || 0;
+  const total     = +t.total_estudantes || 0;
+  const leitores  = (+t.iniciantes||0) + (+t.fluentes||0);
+  const naoLeit   = Math.max(0, avaliados - leitores);
+  const pct     = n => avaliados > 0 ? `${(n/avaliados*100).toFixed(1)}%` : '—';
+  const pctPart = total > 0 ? `${(avaliados/total*100).toFixed(1)}%` : '—';
+  const meta    = calcularMeta(t);
+  const ep      = renderEngajamento(escola, _ano, _tu);
+  const periodoLabel = t.periodo==='MANHA'?'Manhã':t.periodo==='TARDE'?'Tarde':(t.periodo||'—');
+
+  S._relatorioEscola = `${turmaLabel} — ${escola}`;
+
+  // ── KPIs ──
+  const corLeit = avaliados>0 && leitores/avaliados>=0.7 ? '#10B981'
+                : avaliados>0 && leitores/avaliados>=0.5 ? '#F59E0B' : '#dc2626';
+  const kpi = (label,val,cor) => `
+    <div class="col-6 col-md-4 col-lg">
+      <div style="background:#f8fafc;border-radius:10px;padding:10px 12px;height:100%;">
+        <div style="font-size:1.2rem;font-weight:900;color:${cor};line-height:1.1;">${val}</div>
+        <div class="label-mini mt-1">${label}</div>
+      </div>
+    </div>`;
+  const kpisHtml = `
+    <div class="row g-2 mb-4">
+      ${kpi('Matriculados', total.toLocaleString('pt-BR'), '#002b5e')}
+      ${kpi('Avaliados', `${avaliados.toLocaleString('pt-BR')} <span style="font-size:.7rem;font-weight:700;">(${pctPart})</span>`, '#0062ff')}
+      ${kpi('Ausentes', (+t.ausentes||0).toLocaleString('pt-BR'), '#94a3b8')}
+      ${kpi('Leitores', `${leitores.toLocaleString('pt-BR')} <span style="font-size:.7rem;font-weight:700;">(${pct(leitores)})</span>`, corLeit)}
+      ${kpi('Não leitores', `${naoLeit.toLocaleString('pt-BR')} <span style="font-size:.7rem;font-weight:700;">(${pct(naoLeit)})</span>`, '#dc2626')}
+      ${kpi('Engaj. Elefante', ep || '—', '#7c3aed')}
+    </div>`;
+
+  // ── Distribuição de perfis ──
+  const PERFIS_REL = ['pre_n1','pre_n2','pre_n3','pre_n4','iniciantes','fluentes'];
+  const perfilRows = PERFIS_REL.map(k => {
+    const m = PERFIL_MAP[k], n = +t[k]||0;
+    return `<tr>
+      <td><span class="chip ${m.cls}">${m.label}</span></td>
+      <td class="text-center fw-bold">${n}</td>
+      <td class="text-center">${pct(n)}</td>
+    </tr>`;
+  }).join('');
+  const distHtml = `
+    <h6 class="fw-bold text-primary mb-2"><i class="bi bi-bar-chart-steps me-2"></i>Distribuição de perfis</h6>
+    ${renderBarra(t)}
+    <div class="table-responsive mt-2">
+      <table class="table table-sm align-middle mb-0" style="font-size:.78rem;">
+        <thead class="table-light"><tr>
+          <th>Perfil</th><th class="text-center">Alunos</th><th class="text-center">% dos avaliados</th>
+        </tr></thead>
+        <tbody>${perfilRows}</tbody>
+      </table>
+    </div>`;
+
+  // ── Meta 70% ──
+  const corMeta = meta.atingiu ? '#059669' : meta.faltam<=3 ? '#d97706' : '#dc2626';
+  const metaHtml = `
+    <div class="card-kpi my-4" style="border-left:4px solid ${corMeta};">
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <i class="bi bi-bullseye" style="color:${corMeta};"></i>
+        <h6 class="fw-bold m-0" style="font-size:.9rem;">Meta — 70% Iniciante + Fluente</h6>
+      </div>
+      <div style="font-size:.85rem;color:#334155;">
+        ${meta.atingiu
+          ? `<span style="color:#059669;font-weight:800;">✓ Meta atingida</span> — ${meta.pctAtual.toFixed(1)}% de leitores.`
+          : `Atualmente <strong>${meta.pctAtual.toFixed(1)}%</strong> de leitores. Faltam <strong style="color:${corMeta};">${meta.faltam} aluno${meta.faltam!==1?'s':''}</strong> para atingir 70%.`}
+      </div>
+    </div>`;
+
+  // ── Alunos para meta + lista completa (async) ──
+  const metaTurmaHtml = `
+    <h6 class="fw-bold text-primary mt-4 mb-2">
+      <i class="bi bi-person-check-fill me-2"></i>Alunos para atingir a meta
+      <span class="fw-normal text-muted" style="font-size:.72rem;">— prioridade N4 → N3 → N2 → N1</span>
+    </h6>
+    <div id="relTurmaMeta">
+      <div class="text-muted small py-2"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div>
+    </div>`;
+  const alunosTurmaHtml = `
+    <h6 class="fw-bold text-primary mt-4 mb-2"><i class="bi bi-people-fill me-2"></i>Todos os alunos da turma</h6>
+    <div id="relTurmaAlunos">
+      <div class="text-muted small py-2"><span class="spinner-border spinner-border-sm me-2"></span>Carregando alunos…</div>
+    </div>`;
+
+  // ── Monta o modal ──
+  document.getElementById('modalRelatorioTitulo').textContent = `${turmaLabel} — ${escola}`;
+  document.getElementById('modalRelatorioSub').textContent =
+    `${av.trim()} · ${periodoLabel}${t.tipo ? ' · ' + t.tipo : ''}`;
+  document.getElementById('modalRelatorioBody').innerHTML = `
+    <div class="p-4">
+      <div class="d-none d-print-block mb-3">
+        <h4 class="fw-bold mb-0">${esc(turmaLabel)} — ${esc(escola)}</h4>
+        <div class="text-muted">Relatório de Fluência Leitora · ${esc(av.trim())}</div>
+      </div>
+      ${kpisHtml}${distHtml}${metaHtml}${metaTurmaHtml}${alunosTurmaHtml}
+    </div>`;
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalRelatorio')).show();
+
+  _preencherTurmaDetalhe(av, escola, t, meta);
+}
+
+// Busca alunos da turma e preenche: lista p/ meta + lista completa
+async function _preencherTurmaDetalhe(av, escola, t, meta) {
+  const contMeta   = document.getElementById('relTurmaMeta');
+  const contAlunos = document.getElementById('relTurmaAlunos');
+
+  const PRIO = ['Pré-leitor - Nível 4','Pré-leitor - Nível 3','Pré-leitor - Nível 2','Pré-leitor - Nível 1'];
+  const NIVEL = {
+    'Pré-leitor - Nível 4': { lbl:'N4', cls:'chip-pre4' },
+    'Pré-leitor - Nível 3': { lbl:'N3', cls:'chip-pre3' },
+    'Pré-leitor - Nível 2': { lbl:'N2', cls:'chip-pre2' },
+    'Pré-leitor - Nível 1': { lbl:'N1', cls:'chip-pre1' },
+  };
+
+  try {
+    const alunos = await apiFetch(
+      `fluencia_estudantes?avaliacao=eq.${encodeURIComponent(av)}&escola=eq.${encodeURIComponent(escola)}` +
+      `&turma_raw=eq.${encodeURIComponent(t.turma_raw)}&order=estudante.asc` +
+      `&select=estudante,participacao,perfil_leitor,palavras_canonicas,palavras_canonicas_max,palavras_global,palavras_global_max,palavras_desconhecidas,palavras_desconhecidas_max,texto_palavras,texto_precisao,texto_compreensao,texto_compreensao_max`
+    );
+
+    // ── Lista para meta ──
+    if (contMeta) {
+      if (meta.atingiu || meta.faltam <= 0) {
+        contMeta.innerHTML = `<div class="alert alert-success mb-0 py-2"><i class="bi bi-check-circle-fill me-2"></i>A turma já atingiu a meta de 70%.</div>`;
+      } else {
+        const score = a => (+a.texto_palavras||0) + (+a.palavras_global||0) + (+a.palavras_canonicas||0);
+        const candidatos = alunos
+          .filter(a => PRIO.includes(a.perfil_leitor))
+          .sort((a,b) => PRIO.indexOf(a.perfil_leitor) - PRIO.indexOf(b.perfil_leitor) || score(b) - score(a) || (a.estudante||'').localeCompare(b.estudante||''));
+        const escolhidos = candidatos.slice(0, meta.faltam);
+        const linhas = escolhidos.map((a,i) => {
+          const nv = NIVEL[a.perfil_leitor] || { lbl:'?', cls:'chip-ausente' };
+          return `<tr><td class="text-center text-muted small">${i+1}</td><td>${esc(a.estudante)}</td><td class="text-center"><span class="chip ${nv.cls}">${nv.lbl}</span></td></tr>`;
+        }).join('');
+        const aviso = escolhidos.length < meta.faltam
+          ? `<div class="small text-muted mt-1">Obs.: a turma tem só ${escolhidos.length} pré-leitor(es) listável(is) — faltam ${meta.faltam} para a meta.</div>` : '';
+        contMeta.innerHTML = `
+          <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+            <span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700;">Faltam ${meta.faltam}</span>
+            <span class="small text-muted">${meta.pctAtual.toFixed(0)}% → 70%</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0" style="font-size:.78rem;">
+              <thead class="table-light"><tr><th style="width:36px;">#</th><th>Aluno</th><th class="text-center" style="width:70px;">Nível</th></tr></thead>
+              <tbody>${linhas || '<tr><td colspan="3" class="text-muted small">Sem pré-leitores listáveis.</td></tr>'}</tbody>
+            </table>
+          </div>${aviso}`;
+      }
+    }
+
+    // ── Lista completa ──
+    if (contAlunos) {
+      if (!alunos.length) {
+        contAlunos.innerHTML = '<div class="text-muted small">Nenhum aluno encontrado.</div>';
+      } else {
+        const ORDEM_PERFIL = ['Fluente','Iniciante','Pré-leitor - Nível 4','Pré-leitor - Nível 3','Pré-leitor - Nível 2','Pré-leitor - Nível 1','-'];
+        alunos.sort((a,b) => {
+          const pa = ORDEM_PERFIL.indexOf(a.perfil_leitor), pb = ORDEM_PERFIL.indexOf(b.perfil_leitor);
+          if (pa !== pb) return (pa<0?99:pa) - (pb<0?99:pb);
+          return (a.estudante||'').localeCompare(b.estudante||'');
+        });
+        const fmtN = (v, max) => v != null ? `${v}/${max||'?'}` : '—';
+        const fmtPct = v => v != null ? `${(v*100).toFixed(0)}%` : '—';
+        contAlunos.innerHTML = `
+          <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0" style="font-size:.74rem;">
+              <thead class="table-light"><tr>
+                <th style="min-width:200px;">Aluno</th><th class="text-center">Participação</th><th class="text-center">Perfil</th>
+                <th class="text-center" title="Palavras (Sílabas Canônicas)">Pal. Canôn.</th>
+                <th class="text-center" title="Palavras (Leitura Global)">Pal. Global</th>
+                <th class="text-center" title="Palavras Desconhecidas">Pal. Desc.</th>
+                <th class="text-center" title="Texto: Palavras Corretas">Txt. Pal.</th>
+                <th class="text-center" title="Texto: Precisão">Precisão</th>
+                <th class="text-center" title="Texto: Compreensão">Compreensão</th>
+              </tr></thead>
+              <tbody>${alunos.map(a => {
+                const chipCls = perfilChipCls(a.perfil_leitor);
+                const partCls = a.participacao === 'Presente avaliado' ? 'background:#dcfce7;color:#166534'
+                  : a.participacao === 'Ausente' ? 'background:#fee2e2;color:#991b1b' : 'background:#f1f5f9;color:#64748b';
+                return `<tr>
+                  <td style="font-weight:600;">${esc(a.estudante)}</td>
+                  <td class="text-center"><span class="chip" style="${partCls};font-size:.6rem;">${a.participacao === 'Presente avaliado' ? 'Avaliado' : a.participacao === 'Ausente' ? 'Ausente' : a.participacao === 'Presente não avaliado' ? 'Pres. N.A.' : esc(a.participacao||'—')}</span></td>
+                  <td class="text-center"><span class="chip ${chipCls}">${esc(a.perfil_leitor||'—')}</span></td>
+                  <td class="text-center text-muted">${fmtN(a.palavras_canonicas, a.palavras_canonicas_max)}</td>
+                  <td class="text-center text-muted">${fmtN(a.palavras_global, a.palavras_global_max)}</td>
+                  <td class="text-center text-muted">${fmtN(a.palavras_desconhecidas, a.palavras_desconhecidas_max)}</td>
+                  <td class="text-center fw-bold" style="color:#002b5e;">${a.texto_palavras != null ? a.texto_palavras : '—'}</td>
+                  <td class="text-center">${fmtPct(a.texto_precisao)}</td>
+                  <td class="text-center">${fmtN(a.texto_compreensao, a.texto_compreensao_max)}</td>
+                </tr>`;
+              }).join('')}</tbody>
+            </table>
+          </div>`;
+      }
+    }
+  } catch (e) {
+    if (contMeta)   contMeta.innerHTML   = `<div class="alert alert-danger mb-0">${e.message}</div>`;
+    if (contAlunos) contAlunos.innerHTML = `<div class="alert alert-danger mb-0">${e.message}</div>`;
+  }
+}
+
 async function _preencherAlunosMeta(av, escola, turmas) {
   const cont = document.getElementById('relAlunosMeta');
   if (!cont) return;
@@ -1880,18 +2104,10 @@ function toggleGrp(grpId) {
 }
 
 // ── Modal de turma (lista de alunos) ───────────────────────
-async function abrirModalTurma(gi, ti) {
+async function abrirModalTurma(escola, turmaRaw) {
   const av      = document.getElementById('selAvaliacao')?.value || '';
   const escObj  = S.porEscola[av] || {};
-  const escolas = Object.keys(escObj).sort((a,b) => {
-    const fa = +escObj[a].totais.pct_fluentes || 0;
-    const fb = +escObj[b].totais.pct_fluentes || 0;
-    return fb - fa;
-  });
-  const escola  = escolas[gi];
-  const turmas  = [...(escObj[escola]?.turmas || [])]
-    .sort((a,b) => (a.ano_escolar||'').localeCompare(b.ano_escolar||'') || (a.turma||'').localeCompare(b.turma||''));
-  const turma   = turmas[ti];
+  const turma   = (escObj[escola]?.turmas || []).find(t => (t.turma_raw||'') === turmaRaw);
   if (!turma) return;
 
   // Header do modal
