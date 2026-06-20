@@ -1173,11 +1173,6 @@
             <i class="bi bi-people-fill me-2"></i>Rede
           </label>
 
-          <input type="radio" class="btn-check" name="mainNav" id="navAtribuicao" autocomplete="off" onclick="switchMainView('Atribuicao')">
-          <label class="btn btn-outline-light nav-btn-main" for="navAtribuicao">
-            <i class="bi bi-diagram-3-fill me-2"></i>Atribuição
-          </label>
-
           <input type="radio" class="btn-check" name="mainNav" id="navElefante" autocomplete="off" onclick="switchMainView('Elefante')">
           <label class="btn btn-outline-light nav-btn-main" for="navElefante">
             <i class="bi bi-book-fill me-2"></i>Elefante Letrado
@@ -1475,36 +1470,6 @@
 
 
 
-
-    <!-- ═════════════════════════════════════════════════════
-         VIEW ATRIBUIÇÃO DE AULAS
-         ═════════════════════════════════════════════════════ -->
-    <section id="viewAtribuicao" class="d-none">
-      <div class="avaliacao-header-card">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-          <div>
-            <div class="mini-label mb-1">Módulo integrado</div>
-            <h5 class="avaliacao-title m-0"><i class="bi bi-diagram-3-fill me-2"></i>Atribuição de Aulas</h5>
-          </div>
-          <button class="btn btn-outline-primary fw-bold" onclick="recarregarAtribuicao()">
-            <i class="bi bi-arrow-clockwise me-1"></i>Recarregar módulo
-          </button>
-        </div>
-      </div>
-
-      <div class="elefante-shell">
-        <div class="elefante-toolbar">
-          <div>
-            <div class="fw-bold text-primary">Painel de Atribuição</div>
-            <div class="small text-muted">PPA · PRA · Disciplinas por escola carregados dentro do MAPA.</div>
-          </div>
-          <a class="btn btn-sm btn-success fw-bold" href="atribuicao.html" target="_blank" rel="noopener">
-            <i class="bi bi-box-arrow-up-right me-1"></i>Abrir em nova aba
-          </a>
-        </div>
-        <iframe id="frameAtribuicao" class="elefante-frame" src="atribuicao.html" title="Atribuição de Aulas"></iframe>
-      </div>
-    </section>
 
     <!-- ═════════════════════════════════════════════════════
          VIEW ELEFANTE LETRADO
@@ -8007,10 +7972,9 @@ function switchMainView(view) {
   const vConfig = document.getElementById('viewConfiguracoes');
   const vElefante = document.getElementById('viewElefante');
   const vFluencia = document.getElementById('viewFluencia');
-  const vAtribuicao = document.getElementById('viewAtribuicao');
 
   [subNavTurmas, subNavAvaliacoes].forEach(el => el && el.classList.add('d-none'));
-  [vTurmas, vAlunos, vBimestre, vTotal, vConfig, vElefante, vFluencia, vAtribuicao].forEach(el => el && el.classList.add('d-none'));
+  [vTurmas, vAlunos, vBimestre, vTotal, vConfig, vElefante, vFluencia].forEach(el => el && el.classList.add('d-none'));
   mostrarAnoFilterBar(false);
 
   if (view === 'Turmas') {
@@ -8021,11 +7985,6 @@ function switchMainView(view) {
   }
 
 
-
-  if (view === 'Atribuicao') {
-    if (vAtribuicao) vAtribuicao.classList.remove('d-none');
-    return;
-  }
 
   if (view === 'Elefante') {
     if (vElefante) vElefante.classList.remove('d-none');
@@ -8088,7 +8047,7 @@ function abrirAvaliacao(tipo, btn) {
   _preAquecerAvaliacao(tipo);
   marcarSubAvaliacao(tipo, btn);
 
-  ['viewTurmas','viewAlunos','viewBimestre1','viewTotal','viewConfiguracoes','viewElefante','viewFluencia','viewAtribuicao'].forEach(id => {
+  ['viewTurmas','viewAlunos','viewBimestre1','viewTotal','viewConfiguracoes','viewElefante','viewFluencia'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.add('d-none');
   });
@@ -8279,11 +8238,6 @@ function limparAreaAvaliacao() {
 
 
   <script>
-    function recarregarAtribuicao() {
-      const frame = document.getElementById('frameAtribuicao');
-      if (frame) frame.src = 'atribuicao.html?ts=' + Date.now();
-    }
-
     function recarregarElefanteLetrado() {
       const frame = document.getElementById('frameElefanteLetrado');
       if (frame) frame.src = 'elefante_letrado.html?ts=' + Date.now();
