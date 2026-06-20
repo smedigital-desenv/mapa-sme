@@ -47,6 +47,8 @@
       background:white; border-radius:12px; padding:1.1rem;
       box-shadow:0 4px 15px rgba(0,0,0,.05); height:100%;
     }
+    .card-kpi-click { cursor:pointer; transition:transform .12s, box-shadow .12s; border:1.5px solid transparent; }
+    .card-kpi-click:hover { transform:translateY(-2px); box-shadow:0 8px 22px rgba(239,68,68,.18); border-color:#fecaca; }
     .kpi-val { font-size:1.5rem; font-weight:900; line-height:1.1; }
     .kpi-lbl { font-size:.68rem; font-weight:800; color:#64748b;
                text-transform:uppercase; letter-spacing:.05em; }
@@ -511,6 +513,41 @@
   </div>
 </div>
 
+<!-- ── MODAL: PENDENTES (turmas sem atribuição) ── -->
+<div class="modal fade" id="modalPendentesKpi" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header border-0 p-3" style="background:#ef4444;color:white;">
+        <h5 class="modal-title fw-bold">
+          <i class="bi bi-exclamation-circle-fill me-2"></i>Aulas Pendentes
+          <span id="modalPendTitulo" class="fw-normal opacity-75" style="font-size:.85rem;"></span>
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0 table-responsive">
+        <table class="table table-hover m-0" style="font-size:.8rem;">
+          <thead class="table-light" style="position:sticky;top:0;z-index:2;">
+            <tr>
+              <th>Unidade</th>
+              <th>Disciplina</th>
+              <th class="text-center">Turma</th>
+              <th class="text-center">Turno</th>
+              <th class="text-center">Carga</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyModalPend"></tbody>
+        </table>
+      </div>
+      <div class="modal-footer border-0 bg-light d-flex justify-content-between align-items-center gap-2">
+        <button class="btn btn-outline-danger btn-sm fw-bold" onclick="exportarModalPendExcel()">
+          <i class="bi bi-download me-1"></i>Baixar Excel
+        </button>
+        <span id="modalPendTotal" class="small fw-bold text-muted"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── CONFIG ──────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
@@ -791,7 +828,7 @@ function renderKPIs() {
     html = `
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Turmas Criadas</div><div class="kpi-val text-primary">${criadas}</div></div></div>
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Atribuídas</div><div class="kpi-val text-success">${atrib}</div></div></div>
-      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Pendentes</div><div class="kpi-val" style="color:#ef4444">${pend}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi card-kpi-click" onclick="abrirModalPendentes()" title="Ver lista de pendentes"><div class="kpi-lbl">Pendentes <i class="bi bi-box-arrow-up-right ms-1" style="font-size:.65rem;"></i></div><div class="kpi-val" style="color:#ef4444">${pend}</div></div></div>
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Atribuição</div><div class="kpi-val" style="color:${cor}">${pct}%</div><div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:${pct}%;background:${cor};"></div></div></div></div>`;
   } else if (modo === 'DISC' && discAtiva) {
     const d = _aplicarFiltroAno(D.disciplinas[discAtiva] || []);
@@ -804,7 +841,7 @@ function renderKPIs() {
     html = `
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Turmas</div><div class="kpi-val text-primary">${criadas}</div></div></div>
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Atribuídas</div><div class="kpi-val text-success">${atrib}</div></div></div>
-      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Pendentes</div><div class="kpi-val" style="color:#ef4444">${pend}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi card-kpi-click" onclick="abrirModalPendentes()" title="Ver lista de pendentes"><div class="kpi-lbl">Pendentes <i class="bi bi-box-arrow-up-right ms-1" style="font-size:.65rem;"></i></div><div class="kpi-val" style="color:#ef4444">${pend}</div></div></div>
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Carga Atribuída</div><div class="kpi-val" style="color:${cor}">${Math.round(carga)}h</div><div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:${pct}%;background:${cor};"></div></div></div></div>`;
   } else if (modo === 'GRADE') {
     const matrice = D.matrice;
@@ -1978,6 +2015,62 @@ async function exportarTabelaExcel() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url;
   a.download = `Atribuicao_${titulo}_${new Date().toISOString().slice(0,10)}.xlsx`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ── MODAL PENDENTES (clique no card) ──────────────────────────────
+function _pendentesDoModo() {
+  const itens = [];
+  _dadosModo().forEach(r => (r.details || []).forEach(d => {
+    if (d.profName === 'S/ Atribuição')
+      itens.push({ unit: r.unit, period: r.period, disc: d.disc, turma: d.turma, workload: d.workload });
+  }));
+  return itens.sort((a, b) =>
+    a.unit.localeCompare(b.unit) || a.disc.localeCompare(b.disc) || String(a.turma).localeCompare(String(b.turma)));
+}
+
+function abrirModalPendentes() {
+  const itens = _pendentesDoModo();
+  const tbody = document.getElementById('tbodyModalPend');
+  const titulo = modo === 'PRA' ? 'PRA' : (discAtiva || '');
+  document.getElementById('modalPendTitulo').textContent = titulo ? `— ${titulo}` : '';
+
+  if (!itens.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-success p-4">
+      <i class="bi bi-check-circle-fill me-2"></i>Nenhuma aula pendente.</td></tr>`;
+  } else {
+    tbody.innerHTML = itens.map(p => `
+      <tr>
+        <td style="font-size:.76rem;">${escapeHtml(p.unit)}</td>
+        <td><span class="badge bg-primary-subtle text-primary border">${escapeHtml(p.disc)}</span></td>
+        <td class="text-center fw-bold">${escapeHtml(p.turma)}</td>
+        <td class="text-center"><span class="badge bg-light text-dark border">${escapeHtml(p.period)}</span></td>
+        <td class="text-center fw-bold text-danger">${p.workload}h</td>
+      </tr>`).join('');
+  }
+  const cargaTot = itens.reduce((s, p) => s + (p.workload || 0), 0);
+  document.getElementById('modalPendTotal').textContent =
+    `${itens.length} aula${itens.length !== 1 ? 's' : ''} pendente${itens.length !== 1 ? 's' : ''} · ${cargaTot}h descobertas`;
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPendentesKpi')).show();
+}
+
+async function exportarModalPendExcel() {
+  if (typeof ExcelJS === 'undefined') { alert('Biblioteca Excel não carregada.'); return; }
+  const itens = _pendentesDoModo();
+  const titulo = (modo === 'PRA' ? 'PRA' : (discAtiva || 'Disciplina')).replace(/[^\w]/g, '_');
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Pendentes');
+  ws.addRow(['Unidade', 'Disciplina', 'Turma', 'Turno', 'Carga (h)']);
+  ws.getRow(1).fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFEF4444' } };
+  ws.getRow(1).font = { bold:true, color:{ argb:'FFFFFFFF' } };
+  itens.forEach(p => ws.addRow([p.unit, p.disc, p.turma, p.period, p.workload]));
+  ws.columns.forEach(col => { col.width = 24; });
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = `Pendentes_${titulo}_${new Date().toISOString().slice(0,10)}.xlsx`;
   a.click(); URL.revokeObjectURL(url);
 }
 
