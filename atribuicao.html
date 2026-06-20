@@ -1025,7 +1025,7 @@ function renderTable() {
       : `toggleRow('${singleDetId}')`;
 
     return `
-    <tr class="main-row escola-header" data-unit="${escapeHtml(unit)}" data-safe="${safeUnit}"
+    <tr class="main-row tbl-escola-header" data-unit="${escapeHtml(unit)}" data-safe="${safeUnit}"
         onclick="${headerOnclick}"
         style="cursor:pointer;background:#f1f5f9;border-top:2px solid #e2e8f0;">
       <td style="padding:.6rem .75rem;">
@@ -1118,7 +1118,7 @@ function toggleRow(id) {
 
 function filtrarTabela() {
   const termo = (document.getElementById('buscaTabela')?.value || '').toLowerCase().trim();
-  document.querySelectorAll('#mainBody > tr.escola-header').forEach(tr => {
+  document.querySelectorAll('#mainBody > tr.tbl-escola-header').forEach(tr => {
     const vis = !termo || tr.innerText.toLowerCase().includes(termo);
     tr.style.display = vis ? '' : 'none';
     const safe = tr.dataset.safe;
