@@ -461,9 +461,27 @@
         </div>
         <div class="col-12 col-md-2">
           <button class="btn btn-sm btn-outline-secondary w-100"
-                  onclick="document.getElementById('buscaGradeEscola').value='';document.getElementById('buscaGradeDisc').value='';renderGrade();">
+                  onclick="limparFiltrosGrade()">
             <i class="bi bi-x-circle me-1"></i>Limpar
           </button>
+        </div>
+      </div>
+      <!-- Filtro de tipo de escola -->
+      <div class="d-flex flex-wrap align-items-center gap-2 mt-2 pt-2 border-top">
+        <span class="text-muted small fw-bold"><i class="bi bi-funnel-fill me-1"></i>Tipo:</span>
+        <div class="d-flex gap-1 flex-wrap" id="filtroGradeTipoGroup">
+          <label class="pend-check-chip" style="--chip-cor:#7c3aed;--chip-bg:#ede9fe;">
+            <input type="checkbox" value="CEI"    checked onchange="renderGrade()"><span>CEI</span>
+          </label>
+          <label class="pend-check-chip" style="--chip-cor:#0284c7;--chip-bg:#e0f2fe;">
+            <input type="checkbox" value="EMEI"   checked onchange="renderGrade()"><span>EMEI</span>
+          </label>
+          <label class="pend-check-chip" style="--chip-cor:#059669;--chip-bg:#d1fae5;">
+            <input type="checkbox" value="EMEF"   checked onchange="renderGrade()"><span>EMEF</span>
+          </label>
+          <label class="pend-check-chip" style="--chip-cor:#64748b;--chip-bg:#f1f5f9;">
+            <input type="checkbox" value="Outros" checked onchange="renderGrade()"><span>Outros</span>
+          </label>
         </div>
       </div>
     </div>
@@ -1392,6 +1410,9 @@ function renderGrade() {
 
   if (!escolas.length) { container.innerHTML = '<div class="alert alert-warning">Nenhuma escola encontrada.</div>'; return; }
 
+  // Tipos de escola selecionados (chips)
+  const tiposSel = _gradeGetTiposSel();
+
   // Agrupa escolas por tipo
   const porTipo = {};
   escolas.forEach(e => {
@@ -1404,6 +1425,7 @@ function renderGrade() {
   let idx = 0; // contador global para IDs únicos
 
   TIPOS_ESCOLA.forEach(tipo => {
+    if (tiposSel.size && !tiposSel.has(tipo.key)) return;
     const escolasTipo = porTipo[tipo.key] || [];
     if (!escolasTipo.length) return;
 
@@ -1491,6 +1513,21 @@ function renderGrade() {
   }); // fim TIPOS_ESCOLA.forEach
 
   container.innerHTML = html || '<div class="alert alert-warning">Nenhum resultado para os filtros atuais.</div>';
+}
+
+function _gradeGetTiposSel() {
+  const sel = new Set();
+  document.querySelectorAll('#filtroGradeTipoGroup input[type=checkbox]').forEach(c => {
+    if (c.checked) sel.add(c.value);
+  });
+  return sel;
+}
+
+function limparFiltrosGrade() {
+  document.getElementById('buscaGradeEscola').value = '';
+  document.getElementById('buscaGradeDisc').value = '';
+  document.querySelectorAll('#filtroGradeTipoGroup input[type=checkbox]').forEach(c => { c.checked = true; });
+  renderGrade();
 }
 
 function toggleGradeTipo(key) {
