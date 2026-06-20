@@ -1526,15 +1526,7 @@ function abrirRelatorioTurma(escola, turmaRaw) {
       </div>
     </div>`;
 
-  // ── Alunos para meta + lista completa (async) ──
-  const metaTurmaHtml = `
-    <h6 class="fw-bold text-primary mt-4 mb-2">
-      <i class="bi bi-person-check-fill me-2"></i>Alunos para atingir a meta
-      <span class="fw-normal text-muted" style="font-size:.72rem;">— prioridade N4 → N3 → N2 → N1</span>
-    </h6>
-    <div id="relTurmaMeta">
-      <div class="text-muted small py-2"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div>
-    </div>`;
+  // ── Lista completa de alunos (async) ──
   const alunosTurmaHtml = `
     <h6 class="fw-bold text-primary mt-4 mb-2"><i class="bi bi-people-fill me-2"></i>Todos os alunos da turma</h6>
     <div id="relTurmaAlunos">
@@ -1551,26 +1543,17 @@ function abrirRelatorioTurma(escola, turmaRaw) {
         <h4 class="fw-bold mb-0">${esc(turmaLabel)} — ${esc(escola)}</h4>
         <div class="text-muted">Relatório de Fluência Leitora · ${esc(av.trim())}</div>
       </div>
-      ${kpisHtml}${distHtml}${metaHtml}${metaTurmaHtml}${alunosTurmaHtml}
+      ${kpisHtml}${distHtml}${metaHtml}${alunosTurmaHtml}
     </div>`;
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalRelatorio')).show();
 
-  _preencherTurmaDetalhe(av, escola, t, meta);
+  _preencherTurmaDetalhe(av, escola, t);
 }
 
-// Busca alunos da turma e preenche: lista p/ meta + lista completa
-async function _preencherTurmaDetalhe(av, escola, t, meta) {
-  const contMeta   = document.getElementById('relTurmaMeta');
+// Busca alunos da turma e preenche a lista completa
+async function _preencherTurmaDetalhe(av, escola, t) {
   const contAlunos = document.getElementById('relTurmaAlunos');
-
-  const PRIO = ['Pré-leitor - Nível 4','Pré-leitor - Nível 3','Pré-leitor - Nível 2','Pré-leitor - Nível 1'];
-  const NIVEL = {
-    'Pré-leitor - Nível 4': { lbl:'N4', cls:'chip-pre4' },
-    'Pré-leitor - Nível 3': { lbl:'N3', cls:'chip-pre3' },
-    'Pré-leitor - Nível 2': { lbl:'N2', cls:'chip-pre2' },
-    'Pré-leitor - Nível 1': { lbl:'N1', cls:'chip-pre1' },
-  };
 
   try {
     const alunos = await apiFetch(
@@ -1578,36 +1561,6 @@ async function _preencherTurmaDetalhe(av, escola, t, meta) {
       `&turma_raw=eq.${encodeURIComponent(t.turma_raw)}&order=estudante.asc` +
       `&select=estudante,participacao,perfil_leitor,palavras_canonicas,palavras_canonicas_max,palavras_global,palavras_global_max,palavras_desconhecidas,palavras_desconhecidas_max,texto_palavras,texto_precisao,texto_compreensao,texto_compreensao_max`
     );
-
-    // ── Lista para meta ──
-    if (contMeta) {
-      if (meta.atingiu || meta.faltam <= 0) {
-        contMeta.innerHTML = `<div class="alert alert-success mb-0 py-2"><i class="bi bi-check-circle-fill me-2"></i>A turma já atingiu a meta de 70%.</div>`;
-      } else {
-        const score = a => (+a.texto_palavras||0) + (+a.palavras_global||0) + (+a.palavras_canonicas||0);
-        const candidatos = alunos
-          .filter(a => PRIO.includes(a.perfil_leitor))
-          .sort((a,b) => PRIO.indexOf(a.perfil_leitor) - PRIO.indexOf(b.perfil_leitor) || score(b) - score(a) || (a.estudante||'').localeCompare(b.estudante||''));
-        const escolhidos = candidatos.slice(0, meta.faltam);
-        const linhas = escolhidos.map((a,i) => {
-          const nv = NIVEL[a.perfil_leitor] || { lbl:'?', cls:'chip-ausente' };
-          return `<tr><td class="text-center text-muted small">${i+1}</td><td>${esc(a.estudante)}</td><td class="text-center"><span class="chip ${nv.cls}">${nv.lbl}</span></td></tr>`;
-        }).join('');
-        const aviso = escolhidos.length < meta.faltam
-          ? `<div class="small text-muted mt-1">Obs.: a turma tem só ${escolhidos.length} pré-leitor(es) listável(is) — faltam ${meta.faltam} para a meta.</div>` : '';
-        contMeta.innerHTML = `
-          <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
-            <span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700;">Faltam ${meta.faltam}</span>
-            <span class="small text-muted">${meta.pctAtual.toFixed(0)}% → 70%</span>
-          </div>
-          <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0" style="font-size:.78rem;">
-              <thead class="table-light"><tr><th style="width:36px;">#</th><th>Aluno</th><th class="text-center" style="width:70px;">Nível</th></tr></thead>
-              <tbody>${linhas || '<tr><td colspan="3" class="text-muted small">Sem pré-leitores listáveis.</td></tr>'}</tbody>
-            </table>
-          </div>${aviso}`;
-      }
-    }
 
     // ── Lista completa ──
     if (contAlunos) {
@@ -1655,7 +1608,6 @@ async function _preencherTurmaDetalhe(av, escola, t, meta) {
       }
     }
   } catch (e) {
-    if (contMeta)   contMeta.innerHTML   = `<div class="alert alert-danger mb-0">${e.message}</div>`;
     if (contAlunos) contAlunos.innerHTML = `<div class="alert alert-danger mb-0">${e.message}</div>`;
   }
 }
