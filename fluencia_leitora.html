@@ -1557,38 +1557,57 @@ async function _preencherPPA(escola) {
       return;
     }
 
-    // KPIs: apenas 2º Ano (PPA)
-    const ppRows    = mgRows.filter(r => is2Ano(r.ano_escolar));
-    const salas     = ppRows.length;
-    const meta      = salas * 12;
-    // carga atribuída = salas_atribuídas × 12h (carga_horaria da tabela é a regência, não o PPA)
-    const nAtrib    = ppRows.filter(isAtrib).length;
-    const cargaAtrib = nAtrib * 12;
-    const pct       = meta > 0 ? Math.round(cargaAtrib / meta * 100) : 0;
-    const cor       = pct >= 100 ? '#059669' : pct >= 60 ? '#d97706' : '#dc2626';
-    const bgCor     = pct >= 100 ? '#d1fae5' : pct >= 60 ? '#fef3c7' : '#fee2e2';
+    // KPIs: 2º Ano como meta; carga real vem das linhas PROJ. PROF. ALFABETIZADOR
+    const ppRows     = mgRows.filter(r => is2Ano(r.ano_escolar));
+    const salas      = ppRows.length;
+    const meta       = salas * 12;
+
+    // projRows precisa ser calculado antes dos KPIs para usar na carga atribuída
+    const projRowsAll = rowsEsc
+      .filter(r => _norm(r.descricao_disciplina || '').includes('ALFABETIZADOR'))
+      .sort((a, b) => (a.ano_escolar || '').localeCompare(b.ano_escolar || '') ||
+                      (a.letra_turma || '').localeCompare(b.letra_turma || ''));
+
+    // carga atribuída: soma real de carga_horaria das linhas PPA atribuídas
+    // fallback para salas × 12h quando a escola não usa turmas dedicadas de PPA
+    const cargaAtrib = projRowsAll.length
+      ? projRowsAll.filter(isAtrib).reduce((s, r) => s + Number(r.carga_horaria || 0), 0)
+      : ppRows.filter(isAtrib).length * 12;
+
+    const faltam     = Math.max(0, meta - cargaAtrib);
+    const pct        = meta > 0 ? Math.round(cargaAtrib / meta * 100) : 0;
+    const cor        = pct >= 100 ? '#059669' : pct >= 60 ? '#d97706' : '#dc2626';
+    const bgCor      = pct >= 100 ? '#d1fae5' : pct >= 60 ? '#fef3c7' : '#fee2e2';
+    const corFaltam  = faltam === 0 ? '#059669' : faltam <= meta * 0.2 ? '#d97706' : '#dc2626';
+    const bgFaltam   = faltam === 0 ? '#d1fae5' : faltam <= meta * 0.2 ? '#fef3c7' : '#fee2e2';
 
     const kpisHtml = salas > 0 ? `
       <div class="row g-2 mb-3">
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-sm-4 col-lg">
           <div style="background:#f0f4ff;border-radius:8px;padding:8px 12px;">
             <div style="font-size:1.15rem;font-weight:900;color:#002b5e;">${salas}</div>
             <div style="font-size:.63rem;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Salas 2º Ano (PPA)</div>
           </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-sm-4 col-lg">
           <div style="background:#f0f4ff;border-radius:8px;padding:8px 12px;">
             <div style="font-size:1.15rem;font-weight:900;color:#002b5e;">${meta}h</div>
             <div style="font-size:.63rem;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Meta PPA (12h/sala)</div>
           </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-sm-4 col-lg">
           <div style="background:#d1fae5;border-radius:8px;padding:8px 12px;">
             <div style="font-size:1.15rem;font-weight:900;color:#059669;">${cargaAtrib}h</div>
             <div style="font-size:.63rem;font-weight:800;color:#059669;text-transform:uppercase;letter-spacing:.04em;">Carga Atribuída</div>
           </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-sm-4 col-lg">
+          <div style="background:${bgFaltam};border-radius:8px;padding:8px 12px;">
+            <div style="font-size:1.15rem;font-weight:900;color:${corFaltam};">${faltam === 0 ? '✓ 0h' : faltam + 'h'}</div>
+            <div style="font-size:.63rem;font-weight:800;color:${corFaltam};text-transform:uppercase;letter-spacing:.04em;">Faltam Atribuir</div>
+          </div>
+        </div>
+        <div class="col-6 col-sm-4 col-lg">
           <div style="background:${bgCor};border-radius:8px;padding:8px 12px;">
             <div style="font-size:1.15rem;font-weight:900;color:${cor};">${pct}%</div>
             <div style="font-size:.63rem;font-weight:800;color:${cor};text-transform:uppercase;letter-spacing:.04em;">Eficácia PPA</div>
@@ -1631,26 +1650,40 @@ async function _preencherPPA(escola) {
       </div>` : '';
 
     // Tabela 2 — Proj. Prof. Alfabetizador (turmas dedicadas ao PPA)
-    const projRows = rowsEsc
-      .filter(r => _norm(r.descricao_disciplina || '').includes('ALFABETIZADOR'))
-      .sort((a, b) => (a.ano_escolar || '').localeCompare(b.ano_escolar || '') ||
-                      (a.letra_turma || '').localeCompare(b.letra_turma || ''));
-
-    const linhasProj = projRows.map(r => {
+    const linhasProj = projRowsAll.map(r => {
       const prefixo = (r.ano_escolar || '').toUpperCase()
         .replace('PROJ. PROF. ALFABETIZADOR', '').trim();
       const label = ('PPA' + (prefixo ? ' ' + prefixo : '') + ' ' + (r.letra_turma || '')).trim();
-      return linhaProf(esc(label), r);
+      const atrib   = isAtrib(r);
+      const sub     = isSub(r);
+      const prop    = esc(r.nome_professor_prop || '—');
+      const subNome = r.nome_professor_sub ? esc(r.nome_professor_sub) : '';
+      const carga   = r.carga_horaria ? `<span style="color:#64748b;">${r.carga_horaria}h</span>` : '—';
+      const statusDot = atrib
+        ? (sub
+            ? `<span title="Dono afastado — com substituta" style="color:#d97706;">●</span>`
+            : `<span title="Atribuído — dono ativo" style="color:#059669;">●</span>`)
+        : `<span title="Sem atribuição" style="color:#dc2626;">●</span>`;
+      const subCell = subNome
+        ? `<div style="font-size:.7rem;color:#64748b;margin-top:2px;">
+             <i class="bi bi-arrow-return-right me-1"></i>Sub: ${subNome}
+           </div>`
+        : '';
+      return `<tr>
+        <td class="fw-bold" style="white-space:nowrap;">${esc(label)}</td>
+        <td>${statusDot} ${prop}${subCell}</td>
+        <td class="text-center fw-bold">${carga}</td>
+      </tr>`;
     }).join('');
 
-    const tabelaProj = projRows.length ? `
+    const tabelaProj = projRowsAll.length ? `
       <div class="label-mini mb-1 mt-2" style="color:#1d4ed8;">
         <i class="bi bi-person-badge me-1"></i>Professores(as) do Projeto
       </div>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0" style="font-size:.78rem;">
           <thead class="table-light">
-            <tr><th>Turma PPA</th><th>Professor(a) Alfabetizador(a)</th></tr>
+            <tr><th>Turma PPA</th><th>Professor(a) Alfabetizador(a)</th><th class="text-center">Carga</th></tr>
           </thead>
           <tbody>${linhasProj}</tbody>
         </table>
