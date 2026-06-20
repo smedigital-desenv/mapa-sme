@@ -1676,6 +1676,8 @@ async function _preencherPPA(escola) {
       </tr>`;
     }).join('');
 
+    // Totais da tabela: carga atribuída (soma real) × carga prevista (meta 12h/sala 2º Ano)
+    const corTotal = cargaAtrib >= meta ? '#059669' : '#dc2626';
     const tabelaProj = projRowsAll.length ? `
       <div class="label-mini mb-1 mt-2" style="color:#1d4ed8;">
         <i class="bi bi-person-badge me-1"></i>Professores(as) do Projeto
@@ -1686,6 +1688,16 @@ async function _preencherPPA(escola) {
             <tr><th>Turma PPA</th><th>Professor(a) Alfabetizador(a)</th><th class="text-center">Carga</th></tr>
           </thead>
           <tbody>${linhasProj}</tbody>
+          <tfoot class="table-light" style="border-top:2px solid #cbd5e1;">
+            <tr>
+              <td class="fw-bold" colspan="2" style="text-align:right;">Carga atribuída</td>
+              <td class="text-center fw-bold" style="color:${corTotal};">${cargaAtrib}h</td>
+            </tr>
+            <tr>
+              <td class="fw-bold" colspan="2" style="text-align:right;">Carga prevista (${salas} salas × 12h)</td>
+              <td class="text-center fw-bold" style="color:#002b5e;">${meta}h</td>
+            </tr>
+          </tfoot>
         </table>
       </div>` : '';
 
