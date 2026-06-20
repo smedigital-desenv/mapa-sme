@@ -248,7 +248,6 @@
       <div class="spinner-border spinner-border-sm text-light" style="width:.9rem;height:.9rem;"></div>
       Carregando…
     </div>
-    <div id="infoLoad" style="font-size:.7rem;opacity:.6;display:none;"></div>
   </div>
 </header>
 
@@ -2080,11 +2079,11 @@ async function init() {
     const [rows] = await Promise.all([fetchTurmas(), fetchSeriesExcluidas()]);
     D = montarDados(rows);
 
-    // Status
-    document.getElementById('statusLoad').style.display = 'none';
-    document.getElementById('infoLoad').style.display = 'block';
-    document.getElementById('infoLoad').textContent =
-      `${rows.length.toLocaleString('pt-BR')} registros — ${new Date().toLocaleTimeString('pt-BR')}`;
+    // Status — troca o spinner por um check verde quando termina
+    document.getElementById('statusLoad').innerHTML =
+      `<i class="bi bi-check-circle-fill text-success" style="font-size:.95rem;"></i>` +
+      `<span>${rows.length.toLocaleString('pt-BR')} registros · ` +
+      `${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>`;
 
     switchModo('PPA');
   } catch (err) {
