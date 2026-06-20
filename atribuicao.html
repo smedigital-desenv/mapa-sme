@@ -453,11 +453,12 @@
           </div>
         </div>
         <div class="col-12 col-md-5">
-          <div class="input-group input-group-sm">
-            <span class="input-group-text"><i class="bi bi-book"></i></span>
-            <input type="text" id="buscaGradeDisc" class="form-control"
-                   placeholder="Filtrar disciplina…" oninput="renderGrade()">
-          </div>
+          <button type="button" id="btnGradeDiscLabel"
+                  class="btn btn-sm btn-outline-secondary shadow-sm w-100 d-flex align-items-center justify-content-between"
+                  onclick="toggleGradeDiscPanel()">
+            <span><i class="bi bi-book me-1"></i><span id="gradeDiscLabelText">Todas as disciplinas</span></span>
+            <i class="bi bi-chevron-down" id="gradeDiscPanelChev" style="font-size:.7rem;"></i>
+          </button>
         </div>
         <div class="col-12 col-md-2">
           <button class="btn btn-sm btn-outline-secondary w-100"
@@ -466,6 +467,23 @@
           </button>
         </div>
       </div>
+
+      <!-- Painel de disciplinas (inline, colapsável) -->
+      <div id="gradeDiscPanel" class="mt-2 border rounded p-2 bg-white shadow-sm" style="display:none;">
+        <div class="d-flex gap-1 mb-2">
+          <div class="input-group input-group-sm flex-grow-1" style="max-width:260px;">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" id="buscaGradeDiscDrop" class="form-control"
+                   placeholder="Buscar disciplina…" autocomplete="off"
+                   oninput="filtrarGradeDiscDrop(this.value)">
+          </div>
+          <button class="btn btn-sm btn-outline-secondary" onclick="toggleTodasGradeDisc(true)"  title="Marcar todas"><i class="bi bi-check-all"></i></button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="toggleTodasGradeDisc(false)" title="Desmarcar todas"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div id="gradeDiscList"
+             style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1px 4px;max-height:220px;overflow-y:auto;"></div>
+      </div>
+
       <!-- Filtro de tipo de escola -->
       <div class="d-flex flex-wrap align-items-center gap-2 mt-2 pt-2 border-top">
         <span class="text-muted small fw-bold"><i class="bi bi-funnel-fill me-1"></i>Tipo:</span>
@@ -1404,8 +1422,9 @@ function renderGrade() {
   const matrice   = D?.matrice;
   if (!matrice) { container.innerHTML = '<div class="alert alert-info">Aguarde o carregamento dos dados.</div>'; return; }
 
+  _gradePopularDiscList();
   const termEscola = (document.getElementById('buscaGradeEscola')?.value || '').toUpperCase().trim();
-  const termDisc   = (document.getElementById('buscaGradeDisc')?.value  || '').toUpperCase().trim();
+  const discSel    = _gradeDiscSel; // null = todas
   const escolas    = D.escolasLista.filter(e => !termEscola || e.toUpperCase().includes(termEscola));
 
   if (!escolas.length) { container.innerHTML = '<div class="alert alert-warning">Nenhuma escola encontrada.</div>'; return; }
@@ -1429,8 +1448,8 @@ function renderGrade() {
     const escolasTipo = porTipo[tipo.key] || [];
     if (!escolasTipo.length) return;
 
-    // Cabeçalho de tipo de escola (colapsável) — abre automaticamente durante busca
-    const tipoAberto = abertosGradeTipo.has(tipo.key) || !!termEscola || !!termDisc;
+    // Cabeçalho de tipo de escola (colapsável) — abre automaticamente durante busca/filtro
+    const tipoAberto = abertosGradeTipo.has(tipo.key) || !!termEscola || !!discSel;
     html += `
     <div class="tipo-escola-header" style="--cor:${tipo.cor};--bg:${tipo.bg};"
          onclick="toggleGradeTipo('${escapeJs(tipo.key)}')">
@@ -1469,7 +1488,7 @@ function renderGrade() {
       // Disciplinas presentes neste grupo
       const discSetG = new Set();
       turmasG.forEach(t => Object.keys(turmasObj[t]).forEach(d => discSetG.add(d)));
-      const discsG = [...discSetG].sort().filter(d => !termDisc || d.toUpperCase().includes(termDisc));
+      const discsG = [...discSetG].sort().filter(d => !discSel || discSel.has(d));
       if (!discsG.length) return;
 
       temConteudo = true;
@@ -1523,10 +1542,69 @@ function _gradeGetTiposSel() {
   return sel;
 }
 
+// ── Filtro de disciplinas da grade (multi-seleção)
+let _gradeDiscSel = null; // null = todas
+
+function _gradePopularDiscList() {
+  const list = document.getElementById('gradeDiscList');
+  if (!list || list.children.length > 0 || !D) return;
+  const discs = Object.keys(D.disciplinas || {}).sort();
+  _gradeDiscSel = null;
+  list.innerHTML = discs.map(d => `
+    <label class="pend-disc-item">
+      <input type="checkbox" value="${escapeHtml(d)}" checked onchange="_gradeOnDiscChange()">
+      <span>${escapeHtml(d)}</span>
+    </label>`).join('');
+  _atualizarBotaoGradeDisc();
+}
+
+function _gradeOnDiscChange() {
+  const checks = document.querySelectorAll('#gradeDiscList input[type=checkbox]');
+  const marcadas = [...checks].filter(c => c.checked).map(c => c.value);
+  _gradeDiscSel = (marcadas.length === checks.length) ? null : new Set(marcadas);
+  _atualizarBotaoGradeDisc();
+  renderGrade();
+}
+
+function _atualizarBotaoGradeDisc() {
+  const checks = document.querySelectorAll('#gradeDiscList input[type=checkbox]');
+  const marcadas = [...checks].filter(c => c.checked).length;
+  const total = checks.length;
+  const label = document.getElementById('gradeDiscLabelText');
+  if (label) label.textContent = (marcadas === 0 || marcadas === total)
+    ? 'Todas as disciplinas' : `${marcadas} de ${total} disciplinas`;
+}
+
+function toggleGradeDiscPanel() {
+  const panel = document.getElementById('gradeDiscPanel');
+  const chev  = document.getElementById('gradeDiscPanelChev');
+  if (!panel) return;
+  const abrindo = panel.style.display === 'none';
+  panel.style.display = abrindo ? 'block' : 'none';
+  chev?.classList.toggle('aberto', abrindo);
+}
+
+function filtrarGradeDiscDrop(termo) {
+  const q = termo.trim().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  document.querySelectorAll('#gradeDiscList .pend-disc-item').forEach(el => {
+    const txt = el.querySelector('span')?.textContent.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'') || '';
+    el.style.display = txt.includes(q) ? '' : 'none';
+  });
+}
+
+function toggleTodasGradeDisc(marcar) {
+  document.querySelectorAll('#gradeDiscList input[type=checkbox]').forEach(c => { c.checked = marcar; });
+  _gradeDiscSel = marcar ? null : new Set();
+  _atualizarBotaoGradeDisc();
+  renderGrade();
+}
+
 function limparFiltrosGrade() {
   document.getElementById('buscaGradeEscola').value = '';
-  document.getElementById('buscaGradeDisc').value = '';
   document.querySelectorAll('#filtroGradeTipoGroup input[type=checkbox]').forEach(c => { c.checked = true; });
+  document.querySelectorAll('#gradeDiscList input[type=checkbox]').forEach(c => { c.checked = true; });
+  _gradeDiscSel = null;
+  _atualizarBotaoGradeDisc();
   renderGrade();
 }
 
