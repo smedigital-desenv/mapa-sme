@@ -388,7 +388,7 @@
         <div class="input-group input-group-sm shadow-sm" style="width:200px;">
           <span class="input-group-text"><i class="bi bi-search"></i></span>
           <input type="text" id="buscaPendEscola" class="form-control"
-                 placeholder="Pesquisar escola…" oninput="renderPendentes()">
+                 placeholder="Pesquisar escola…" oninput="renderPendentesDebounced()">
         </div>
 
         <div class="vr mx-1" style="height:24px;"></div>
@@ -452,7 +452,7 @@
         <div class="input-group input-group-sm shadow-sm" style="width:220px;">
           <span class="input-group-text"><i class="bi bi-search"></i></span>
           <input type="text" id="buscaGradeEscola" class="form-control"
-                 placeholder="Pesquisar escola…" oninput="renderGrade()">
+                 placeholder="Pesquisar escola…" oninput="renderGradeDebounced()">
         </div>
 
         <div class="vr mx-1" style="height:24px;"></div>
@@ -646,15 +646,45 @@ let grafPie = null;
 let abertosGrade    = new Set();
 let abertosGradeTipo = new Set(); // começa colapsado — todos os grupos fechados
 
+// Debounce para buscas que disparam re-render completo a cada tecla
+function debounce(fn, ms = 180) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+const renderGradeDebounced     = debounce(() => renderGrade(), 180);
+const renderPendentesDebounced = debounce(() => renderPendentes(), 180);
+
 // ── API ──────────────────────────────────────────────────────────
 async function fetchTurmas() {
   const PAGE = 1000;
-  let rows = [], offset = 0;
+  const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,funcao_professor,status_atribuicao';
+  const H = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+  const pageUrl = off => `${SUPABASE_URL}/rest/v1/turmas?select=${SELECT}&order=nome_unidade.asc&limit=${PAGE}&offset=${off}`;
+
+  // 1ª página + total de registros (Content-Range, via Prefer: count=exact)
+  const first = await fetch(pageUrl(0), { headers: { ...H, Prefer: 'count=exact' } });
+  if (!first.ok) throw new Error(`Erro ${first.status}`);
+  const firstBatch = await first.json();
+  if (firstBatch.length < PAGE) return firstBatch; // tudo coube na 1ª página
+
+  const total = parseInt((first.headers.get('content-range') || '').split('/')[1], 10);
+
+  if (Number.isFinite(total)) {
+    // Demais páginas em paralelo (ordem preservada pelo índice dos offsets)
+    const offsets = [];
+    for (let off = PAGE; off < total && off <= 300000; off += PAGE) offsets.push(off);
+    const restantes = await Promise.all(offsets.map(async off => {
+      const r = await fetch(pageUrl(off), { headers: H });
+      if (!r.ok) throw new Error(`Erro ${r.status}`);
+      return r.json();
+    }));
+    return firstBatch.concat(...restantes);
+  }
+
+  // Fallback: total indisponível → paginação sequencial
+  let rows = firstBatch.slice(), offset = PAGE;
   while (true) {
-    const url = `${SUPABASE_URL}/rest/v1/turmas?select=nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,funcao_professor,status_atribuicao&order=nome_unidade.asc&limit=${PAGE}&offset=${offset}`;
-    const r = await fetch(url, {
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
-    });
+    const r = await fetch(pageUrl(offset), { headers: H });
     if (!r.ok) throw new Error(`Erro ${r.status}`);
     const batch = await r.json();
     rows = rows.concat(batch);
@@ -1737,7 +1767,10 @@ function selecionarDropdown(tipo, disc) {
 // ── NÃO ATRIBUÍDAS ───────────────────────────────────────────────
 let _pendentesAbertos = new Set();
 
+let _pendentesCache = null, _pendentesCacheRef = null;
 function _getPendentes() {
+  // Memoiza pela identidade de D (recalculado só quando os dados mudam)
+  if (_pendentesCache && _pendentesCacheRef === D) return _pendentesCache;
   const lista = [];
   const seen  = new Set();
   Object.keys(D.disciplinas || {}).forEach(disc => {
@@ -1752,6 +1785,8 @@ function _getPendentes() {
       });
     });
   });
+  _pendentesCache = lista;
+  _pendentesCacheRef = D;
   return lista;
 }
 
