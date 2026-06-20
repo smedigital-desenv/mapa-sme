@@ -1537,18 +1537,79 @@ function abrirRelatorioTurma(escola, turmaRaw) {
   document.getElementById('modalRelatorioTitulo').textContent = `${turmaLabel} — ${escola}`;
   document.getElementById('modalRelatorioSub').textContent =
     `${av.trim()} · ${periodoLabel}${t.tipo ? ' · ' + t.tipo : ''}`;
+  // ── Professora da turma (regente — carregada async) ──
+  const profHtml = `
+    <div id="relTurmaProf" class="mb-3">
+      <div class="text-muted small py-1"><span class="spinner-border spinner-border-sm me-2"></span>Carregando professora…</div>
+    </div>`;
+
   document.getElementById('modalRelatorioBody').innerHTML = `
     <div class="p-4">
       <div class="d-none d-print-block mb-3">
         <h4 class="fw-bold mb-0">${esc(turmaLabel)} — ${esc(escola)}</h4>
         <div class="text-muted">Relatório de Fluência Leitora · ${esc(av.trim())}</div>
       </div>
-      ${kpisHtml}${distHtml}${metaHtml}${alunosTurmaHtml}
+      ${profHtml}${kpisHtml}${distHtml}${metaHtml}${alunosTurmaHtml}
     </div>`;
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalRelatorio')).show();
 
   _preencherTurmaDetalhe(av, escola, t);
+  _preencherTurmaProfessor(escola, _ano, _tu);
+}
+
+// Busca o regente (Magistério II) da turma na tabela `turmas` e exibe o nome
+async function _preencherTurmaProfessor(escola, ano, letra) {
+  const cont = document.getElementById('relTurmaProf');
+  if (!cont) return;
+  try {
+    const chave = escola.replace(/[,\.]/g, ' ').split(/\s+/).find(w => w.length > 3) || escola.split(' ')[0];
+    const rows = await apiFetch(
+      `turmas?select=nome_unidade,ano_escolar,letra_turma,descricao_disciplina,` +
+      `status_atribuicao,nome_professor_prop,nome_professor_sub` +
+      `&nome_unidade=ilike.*${encodeURIComponent(chave)}*&limit=1000`
+    );
+
+    const escolaNorm = _normEscola(escola);
+    const anoNorm    = _normAno(ano);
+    const letraNorm  = _normTurma(letra);
+    const isMagII = d => {
+      const n = _norm(d || '');
+      return n.includes('MAGISTERIO II') || n.includes('MAGISTERIO 2');
+    };
+
+    const reg = rows.find(r =>
+      _normEscola(r.nome_unidade || '') === escolaNorm &&
+      _normAno(r.ano_escolar || '') === anoNorm &&
+      _normTurma(r.letra_turma || '') === letraNorm &&
+      isMagII(r.descricao_disciplina));
+
+    if (!reg) {
+      cont.innerHTML = `<div class="d-flex align-items-center gap-2" style="background:#f8fafc;border-radius:8px;padding:8px 12px;">
+        <i class="bi bi-person-badge" style="color:#94a3b8;"></i>
+        <span class="text-muted small">Regente não localizado na atribuição.</span>
+      </div>`;
+      return;
+    }
+
+    const atrib   = /^[24]\b/.test((reg.status_atribuicao||'').trim()) || (reg.status_atribuicao||'').toUpperCase().includes('TROCA');
+    const sub     = /^4\b/.test((reg.status_atribuicao||'').trim());
+    const prop    = esc(reg.nome_professor_prop || '—');
+    const subNome = reg.nome_professor_sub ? esc(reg.nome_professor_sub) : '';
+    const cor     = atrib ? (sub ? '#d97706' : '#059669') : '#dc2626';
+
+    cont.innerHTML = `
+      <div style="background:#f8fafc;border-radius:8px;padding:10px 14px;border-left:4px solid ${cor};">
+        <div class="label-mini mb-1"><i class="bi bi-person-badge me-1"></i>Professora regente (Magistério II)</div>
+        <div style="font-weight:800;color:#002b5e;font-size:.95rem;">
+          <span style="color:${cor};">●</span> ${atrib ? prop : 'S/ Atribuição'}
+        </div>
+        ${subNome ? `<div style="font-size:.75rem;color:#64748b;margin-top:2px;"><i class="bi bi-arrow-return-right me-1"></i>Substituta: ${subNome}</div>` : ''}
+      </div>`;
+  } catch (err) {
+    cont.innerHTML = `<div class="text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>Erro ao carregar professora.</div>`;
+    console.error('_preencherTurmaProfessor:', err);
+  }
 }
 
 // Busca alunos da turma e preenche a lista completa
