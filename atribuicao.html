@@ -444,48 +444,20 @@
   <!-- Grade matricial (Por Escola / Disciplina) -->
   <div id="gradeContainer" class="d-none">
     <div class="table-container mb-3">
-      <div class="row g-2">
-        <div class="col-12 col-md-5">
-          <div class="input-group input-group-sm">
-            <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input type="text" id="buscaGradeEscola" class="form-control"
-                   placeholder="Pesquisar escola…" oninput="renderGrade()">
-          </div>
-        </div>
-        <div class="col-12 col-md-5">
-          <button type="button" id="btnGradeDiscLabel"
-                  class="btn btn-sm btn-outline-secondary shadow-sm w-100 d-flex align-items-center justify-content-between"
-                  onclick="toggleGradeDiscPanel()">
-            <span><i class="bi bi-book me-1"></i><span id="gradeDiscLabelText">Todas as disciplinas</span></span>
-            <i class="bi bi-chevron-down" id="gradeDiscPanelChev" style="font-size:.7rem;"></i>
-          </button>
-        </div>
-        <div class="col-12 col-md-2">
-          <button class="btn btn-sm btn-outline-secondary w-100"
-                  onclick="limparFiltrosGrade()">
-            <i class="bi bi-x-circle me-1"></i>Limpar
-          </button>
-        </div>
-      </div>
 
-      <!-- Painel de disciplinas (inline, colapsável) -->
-      <div id="gradeDiscPanel" class="mt-2 border rounded p-2 bg-white shadow-sm" style="display:none;">
-        <div class="d-flex gap-1 mb-2">
-          <div class="input-group input-group-sm flex-grow-1" style="max-width:260px;">
-            <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input type="text" id="buscaGradeDiscDrop" class="form-control"
-                   placeholder="Buscar disciplina…" autocomplete="off"
-                   oninput="filtrarGradeDiscDrop(this.value)">
-          </div>
-          <button class="btn btn-sm btn-outline-secondary" onclick="toggleTodasGradeDisc(true)"  title="Marcar todas"><i class="bi bi-check-all"></i></button>
-          <button class="btn btn-sm btn-outline-secondary" onclick="toggleTodasGradeDisc(false)" title="Desmarcar todas"><i class="bi bi-x-lg"></i></button>
-        </div>
-        <div id="gradeDiscList"
-             style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1px 4px;max-height:220px;overflow-y:auto;"></div>
-      </div>
+      <!-- Controles em uma linha -->
+      <div class="d-flex flex-wrap align-items-center gap-2">
 
-      <!-- Filtro de tipo de escola -->
-      <div class="d-flex flex-wrap align-items-center gap-2 mt-2 pt-2 border-top">
+        <!-- Pesquisa escola -->
+        <div class="input-group input-group-sm shadow-sm" style="width:220px;">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="text" id="buscaGradeEscola" class="form-control"
+                 placeholder="Pesquisar escola…" oninput="renderGrade()">
+        </div>
+
+        <div class="vr mx-1" style="height:24px;"></div>
+
+        <!-- Tipo: chips -->
         <span class="text-muted small fw-bold"><i class="bi bi-funnel-fill me-1"></i>Tipo:</span>
         <div class="d-flex gap-1 flex-wrap" id="filtroGradeTipoGroup">
           <label class="pend-check-chip" style="--chip-cor:#7c3aed;--chip-bg:#ede9fe;">
@@ -501,6 +473,36 @@
             <input type="checkbox" value="Outros" checked onchange="renderGrade()"><span>Outros</span>
           </label>
         </div>
+
+        <div class="vr mx-1" style="height:24px;"></div>
+
+        <!-- Disciplina: botão abre painel inline -->
+        <button type="button" id="btnGradeDiscLabel"
+                class="btn btn-sm btn-outline-secondary shadow-sm d-flex align-items-center gap-1"
+                style="min-width:180px;text-align:left;" onclick="toggleGradeDiscPanel()">
+          <i class="bi bi-book"></i><span id="gradeDiscLabelText" class="flex-grow-1">Todas as disciplinas</span>
+          <i class="bi bi-chevron-down" id="gradeDiscPanelChev" style="font-size:.7rem;"></i>
+        </button>
+
+        <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="limparFiltrosGrade()">
+          <i class="bi bi-x-circle me-1"></i>Limpar
+        </button>
+      </div><!-- /controles -->
+
+      <!-- Painel de disciplinas (inline, colapsável) -->
+      <div id="gradeDiscPanel" class="mt-2 border rounded p-2 bg-white shadow-sm" style="display:none;">
+        <div class="d-flex gap-1 mb-2">
+          <div class="input-group input-group-sm flex-grow-1" style="max-width:260px;">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" id="buscaGradeDiscDrop" class="form-control"
+                   placeholder="Buscar disciplina…" autocomplete="off"
+                   oninput="filtrarGradeDiscDrop(this.value)">
+          </div>
+          <button class="btn btn-sm btn-outline-secondary" onclick="toggleTodasGradeDisc(true)"  title="Marcar todas"><i class="bi bi-check-all"></i></button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="toggleTodasGradeDisc(false)" title="Desmarcar todas"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div id="gradeDiscList"
+             style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1px 4px;max-height:220px;overflow-y:auto;"></div>
       </div>
     </div>
     <div id="gradeEscolas"></div>
