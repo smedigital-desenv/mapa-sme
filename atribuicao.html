@@ -1112,8 +1112,9 @@ function _renderDetalhes(details) {
 function toggleRow(id) {
   const tr = document.getElementById(id);
   if (!tr) return;
-  const showing = tr.style.display !== 'none' && !tr.classList.contains('d-none');
-  tr.style.setProperty('display', showing ? 'none' : 'table-row', 'important');
+  tr.classList.remove('d-none');
+  const visivel = tr.style.display === 'table-row';
+  tr.style.setProperty('display', visivel ? 'none' : 'table-row', 'important');
 }
 
 function filtrarTabela() {
