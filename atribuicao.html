@@ -606,7 +606,7 @@ let discAtiva = '';        // disciplina selecionada no modo DISC
 let grafBar = null;
 let grafPie = null;
 let abertosGrade    = new Set();
-let abertosGradeTipo = new Set(['CEI','EMEI','EMEF','Outros']); // todos abertos por padrão
+let abertosGradeTipo = new Set(); // começa colapsado — todos os grupos fechados
 
 // ── API ──────────────────────────────────────────────────────────
 async function fetchTurmas() {
@@ -1407,8 +1407,8 @@ function renderGrade() {
     const escolasTipo = porTipo[tipo.key] || [];
     if (!escolasTipo.length) return;
 
-    // Cabeçalho de tipo de escola (colapsável)
-    const tipoAberto = abertosGradeTipo.has(tipo.key);
+    // Cabeçalho de tipo de escola (colapsável) — abre automaticamente durante busca
+    const tipoAberto = abertosGradeTipo.has(tipo.key) || !!termEscola || !!termDisc;
     html += `
     <div class="tipo-escola-header" style="--cor:${tipo.cor};--bg:${tipo.bg};"
          onclick="toggleGradeTipo('${escapeJs(tipo.key)}')">
