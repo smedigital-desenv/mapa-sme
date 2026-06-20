@@ -1526,7 +1526,7 @@ async function _preencherPPA(escola) {
     const chave = escola.replace(/[,\.]/g, ' ').split(/\s+/).find(w => w.length > 3) || escola.split(' ')[0];
     const rows = await apiFetch(
       `turmas?select=nome_unidade,ano_escolar,letra_turma,descricao_disciplina,` +
-      `status_atribuicao,nome_professor_prop,nome_professor_sub,situacao_professor` +
+      `carga_horaria,status_atribuicao,nome_professor_prop,nome_professor_sub,situacao_professor` +
       `&nome_unidade=ilike.*${encodeURIComponent(chave)}*&limit=1000`
     );
 
