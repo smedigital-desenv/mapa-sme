@@ -6904,29 +6904,74 @@ function _renderTabelaTotal(linhas) {
     return !!s && !['-', '0', 'NULL', 'NULO', 'SEM PROFESSOR', 'S ATRIBUICAO', 'SEM ATRIBUICAO'].includes(s);
   }
 
+    // Helper: verificar se está NA ATIVA
+  function estaNaAtiva(situacao) {
+    if (typeof situacao === 'number') {
+      return situacao === 1;  // 1 = NA ATIVA
+    }
+    const texto = String(situacao || '').toUpperCase().trim();
+    return texto.includes('NA ATIVA') || texto === 'ATIVA';
+  }
+
   function statusAtribuicao(row) {
     return normalizar(row.status_atribuicao || row.status || row.situacao_atribuicao || row.situacao_turma || row.situacao_professor || '');
   }
 
   function isAtribuido(row) {
-    const st = statusAtribuicao(row);
-    // Regra exata do Apps Script: status 2, status 4 ou TROCA.
-    return st.includes('2 -') || st.startsWith('2 ') || st === '2' ||
-           st.includes('4 -') || st.startsWith('4 ') || st === '4' ||
-           st.includes('TROCA');
+    const situacaoTitular = Number(row.codigo_situacao_professor_prop) || String(row.situacao_professor || '').trim().toUpperCase();
+    const codigoSubstituto = String(row.codigo_professor_sub || '').trim();
+    const situacaoSubstituto = Number(row.codigo_situacao_professor_sub) || String(row.situacao_professor_sub || '').trim().toUpperCase();
+
+    // PASSO 1: Titular na ativa?
+    if (estaNaAtiva(situacaoTitular)) {
+      return true;  // Atribuído
+    }
+
+    // PASSO 2: Sem substituto?
+    if (!codigoSubstituto || codigoSubstituto === '0' || codigoSubstituto === '') {
+      return false;  // Saldo
+    }
+
+    // PASSO 3: Substituto na ativa?
+    if (estaNaAtiva(situacaoSubstituto)) {
+      return true;  // Atribuído (substituto cobre)
+    }
+
+    return false;  // Saldo (ambos ausentes)
   }
 
   function isSubstituto(row) {
-    const st = statusAtribuicao(row);
-    // Regra exata do Apps Script: substituto somente quando a identificação é 4.
-    return st.includes('4 -') || st.startsWith('4 ') || st === '4';
+    const situacaoTitular = Number(row.codigo_situacao_professor_prop) || String(row.situacao_professor || '').trim().toUpperCase();
+    const codigoSubstituto = String(row.codigo_professor_sub || '').trim();
+    const situacaoSubstituto = Number(row.codigo_situacao_professor_sub) || String(row.situacao_professor_sub || '').trim().toUpperCase();
+
+    const titularAusente = !estaNaAtiva(situacaoTitular);
+    const substitutoPresente = (codigoSubstituto && codigoSubstituto !== '0') && estaNaAtiva(situacaoSubstituto);
+
+    return titularAusente && substitutoPresente;
   }
 
   function detalheTurma(row, disc, workload, atribuido, substituto) {
+    let profName, profCode, profStatus;
+
+    if (!atribuido) {
+      profName = 'S/ ATRIBUIÇÃO';
+      profCode = '-';
+      profStatus = '-';
+    } else if (substituto) {
+      profName = row.nome_professor_sub || '-';
+      profCode = row.codigo_professor_sub || '-';
+      profStatus = row.situacao_professor_sub || 'NA ATIVA';
+    } else {
+      profName = row.nome_professor_prop || '-';
+      profCode = row.codigo_professor_prop || '-';
+      profStatus = row.situacao_professor || 'NA ATIVA';
+    }
+
     return {
-      profName: atribuido ? (substituto ? row.nome_professor_sub : row.nome_professor_prop) || '-' : 'S/ ATRIBUIÇÃO',
-      profCode: atribuido ? (substituto ? row.codigo_professor_sub : row.codigo_professor_prop) || '-' : '-',
-      profStatus: atribuido ? row.situacao_professor || row.funcao_professor || 'ATRIBUÍDO' : '-',
+      profName,
+      profCode,
+      profStatus,
       turma: `${row.ano_escolar || ''} ${row.letra_turma || ''}`.trim(),
       disc,
       workload
