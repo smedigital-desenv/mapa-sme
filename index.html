@@ -1158,11 +1158,6 @@
 
       <div class="nav-main-wrapper">
         <div class="main-nav-group" role="group" aria-label="Navegação principal">
-          <input type="radio" class="btn-check" name="mainNav" id="navTurmas" autocomplete="off" checked onclick="switchMainView('Turmas')">
-          <label class="btn btn-outline-light nav-btn-main" for="navTurmas">
-            <i class="bi bi-diagram-3-fill me-2"></i>Turmas
-          </label>
-
           <input type="radio" class="btn-check" name="mainNav" id="navAvaliacoes" autocomplete="off" onclick="switchMainView('Avaliacoes')">
           <label class="btn btn-outline-light nav-btn-main" for="navAvaliacoes">
             <i class="bi bi-clipboard-data-fill me-2"></i>Avaliações
@@ -1173,7 +1168,7 @@
             <i class="bi bi-people-fill me-2"></i>Rede
           </label>
 
-          <input type="radio" class="btn-check" name="mainNav" id="navAtribuicao" autocomplete="off" onclick="switchMainView('Atribuicao')">
+          <input type="radio" class="btn-check" name="mainNav" id="navAtribuicao" autocomplete="off" checked onclick="switchMainView('Atribuicao')">
           <label class="btn btn-outline-light nav-btn-main" for="navAtribuicao">
             <i class="bi bi-diagram-3-fill me-2"></i>Atribuição
           </label>
@@ -1195,11 +1190,6 @@
         </div>
 
         <div class="sub-nav-wrap">
-          <div id="subNavTurmas" class="d-none">
-            <button type="button" class="btn-toggle active" id="btnPPA" onclick="switchProject('PPA')">PPA</button>
-            <button type="button" class="btn-toggle" id="btnPRA" onclick="switchProject('PRA')">PRA</button>
-          </div>
-
           <div id="subNavAvaliacoes" class="d-none">
             <button type="button" class="btn-toggle active" data-avaliacao="AnoEscolar" onclick="abrirAvaliacao('AnoEscolar', this)">Diagnóstica</button>
             <button type="button" class="btn-toggle" data-avaliacao="primeiroBimestre" onclick="abrirAvaliacao('primeiroBimestre', this)">1º Bim.</button>
@@ -1232,92 +1222,6 @@
   </header>
 
   <main class="container-fluid p-3 p-md-4 view-shell">
-
-    <!-- ═════════════════════════════════════════════════════
-         VIEW TURMAS — PPA / PRA
-         ═════════════════════════════════════════════════════ -->
-    <section id="viewTurmas">
-      <div class="row g-3 mb-4" id="kpiRow"></div>
-
-      <div class="row g-3 mb-4">
-        <div class="col-12 col-lg-7">
-          <div class="chart-container">
-            <h6 class="fw-bold mb-3 text-muted">
-              <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Déficit por Unidade
-            </h6>
-            <div class="chart-canvas-wrapper" style="height:280px;">
-              <canvas id="barChart"></canvas>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-12 col-lg-5">
-          <div class="chart-container">
-            <h6 class="fw-bold mb-3 text-muted">
-              <i class="bi bi-pie-chart-fill me-2 text-primary"></i>Status Geral
-            </h6>
-            <div class="chart-canvas-wrapper" style="height:280px;">
-              <canvas id="pieChart"></canvas>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Toggle Visão por Turma / Por Escola+Disciplina -->
-      <div class="d-flex justify-content-end mb-3">
-        <div class="btn-group btn-group-sm" role="group" aria-label="Modo de visualização">
-          <button type="button" class="btn btn-outline-primary active" id="btnModoTurma"
-                  onclick="alternarVisualizacaoTurmas('turma')">
-            <i class="bi bi-list-task me-1"></i>Por Turma
-          </button>
-          <button type="button" class="btn btn-outline-primary" id="btnModoEscola"
-                  onclick="alternarVisualizacaoTurmas('escola')">
-            <i class="bi bi-grid-3x3-gap-fill me-1"></i>Por Escola / Disciplina
-          </button>
-        </div>
-      </div>
-
-      <div class="table-container" id="tableContainerTurmas">
-        <div class="d-flex flex-column flex-md-row justify-content-between mb-3 align-items-start align-items-md-center gap-2">
-          <h5 class="fw-bold m-0 text-primary">
-            <i class="bi bi-list-task me-2"></i>Detalhamento Operacional
-          </h5>
-
-          <div class="d-flex flex-column flex-md-row gap-2 align-items-stretch align-items-md-center">
-            <input type="text" id="searchInput" class="form-control shadow-sm" style="min-width:230px;" placeholder="Pesquisar unidade..."
-                   oninput="filtrarTabelaTurmasIndex()">
-            <span id="btnRelatorioContainer"></span>
-          </div>
-        </div>
-
-        <div class="table-responsive">
-          <table class="table align-middle" id="dataGrid">
-            <thead class="table-light">
-              <tr id="tableHead" style="font-size:.75rem;color:#666;text-transform:uppercase;"></tr>
-            </thead>
-            <tbody id="mainTable"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Visão Por Escola / Disciplina: grade matricial -->
-      <div id="matrizDisciplinas" class="d-none">
-        <div class="table-container">
-          <div class="d-flex flex-column flex-md-row justify-content-between mb-3 align-items-start align-items-md-center gap-2">
-            <h5 class="fw-bold m-0 text-primary">
-              <i class="bi bi-grid-3x3-gap-fill me-2"></i>Disciplinas por Escola
-            </h5>
-            <input type="text" id="searchMatriz" class="form-control shadow-sm" style="max-width:280px;"
-                   placeholder="Pesquisar escola..." oninput="filtrarMatrizDisciplinas()">
-          </div>
-          <div id="matrizDisciplinasBody">
-            <div class="text-center text-muted p-4">
-              <div class="spinner-border spinner-border-sm mb-2"></div><br>Carregando…
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
 
     <!-- ═════════════════════════════════════════════════════
          VIEW DIAGNÓSTICA
@@ -7769,16 +7673,14 @@ function atualizarDados() {
     const selectedNav = document.querySelector('input[name="mainNav"]:checked');
 
     if (modoApp === 'apresentacao') {
-      switchMainView('Turmas');
-      switchProject('PPA');
+      switchMainView('Atribuicao');
       iniciarModoEspecial();
     } else if (modoApp === 'atribuicao') {
-      switchMainView('Turmas');
-      switchProject('PPA');
+      switchMainView('Atribuicao');
       iniciarModoEspecial();
     } else if (!jaRenderizou) {
       if (selectedNav) switchMainView(selectedNav.id.replace('nav', ''));
-      else switchMainView('Turmas');
+      else switchMainView('Atribuicao');
     }
 
     jaRenderizou = true;
@@ -7896,8 +7798,7 @@ function iniciarModoEspecial() {
 
 function iniciarModoAtribuicao() {
   document.body.classList.add('modo-atribuicao');
-  switchMainView('Turmas');
-  switchProject('PPA');
+  switchMainView('Atribuicao');
 
   if (!document.getElementById('avisoModoAtribuicao')) {
     document.body.insertAdjacentHTML('afterbegin',
@@ -7929,11 +7830,10 @@ function executarPassoApresentacao() {
   const passo = APRESENTACAO_ROTA[apresentacaoIndex % APRESENTACAO_ROTA.length];
 
   try {
-    if (passo.view === 'Turmas') {
-      switchMainView('Turmas');
-      if (passo.project) switchProject(passo.project);
-      const navTurmas = document.getElementById('navTurmas');
-      if (navTurmas) navTurmas.checked = true;
+    if (passo.view === 'Turmas' || passo.view === 'Atribuicao') {
+      switchMainView('Atribuicao');
+      const navAtribuicao = document.getElementById('navAtribuicao');
+      if (navAtribuicao) navAtribuicao.checked = true;
     }
   } catch (erro) {
     console.error('Erro no modo apresentação:', erro);
@@ -7998,9 +7898,7 @@ function selecionarAnoFiltro(ano, btn) {
 function switchMainView(view) {
   if (typeof rawData === 'undefined' || !rawData) return;
 
-  const subNavTurmas = document.getElementById('subNavTurmas');
   const subNavAvaliacoes = document.getElementById('subNavAvaliacoes');
-  const vTurmas = document.getElementById('viewTurmas');
   const vAlunos = document.getElementById('viewAlunos');
   const vBimestre = document.getElementById('viewBimestre1');
   const vTotal = document.getElementById('viewTotal');
@@ -8009,18 +7907,9 @@ function switchMainView(view) {
   const vFluencia = document.getElementById('viewFluencia');
   const vAtribuicao = document.getElementById('viewAtribuicao');
 
-  [subNavTurmas, subNavAvaliacoes].forEach(el => el && el.classList.add('d-none'));
-  [vTurmas, vAlunos, vBimestre, vTotal, vConfig, vElefante, vFluencia, vAtribuicao].forEach(el => el && el.classList.add('d-none'));
+  [subNavAvaliacoes].forEach(el => el && el.classList.add('d-none'));
+  [vAlunos, vBimestre, vTotal, vConfig, vElefante, vFluencia, vAtribuicao].forEach(el => el && el.classList.add('d-none'));
   mostrarAnoFilterBar(false);
-
-  if (view === 'Turmas') {
-    if (subNavTurmas) subNavTurmas.classList.remove('d-none');
-    if (vTurmas) vTurmas.classList.remove('d-none');
-    switchProject(currentProject);
-    return;
-  }
-
-
 
   if (view === 'Atribuicao') {
     if (vAtribuicao) vAtribuicao.classList.remove('d-none');
