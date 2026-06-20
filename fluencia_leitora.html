@@ -1517,56 +1517,59 @@ async function _preencherAlunosMeta(av, escola, turmas) {
   }
 }
 
-// Busca dados de PPA (Magistério II, 2º Ano) da tabela `turmas` e preenche
-// o bloco #relPPA no modal de relatório da escola.
+// Busca dados de Magistério II da tabela `turmas` e preenche o bloco #relPPA.
+// KPIs de PPA = 2º Ano; lista de professoras = todos os anos de Magistério II.
 async function _preencherPPA(escola) {
   const cont = document.getElementById('relPPA');
   if (!cont) return;
   try {
-    // Primeira palavra com >3 chars para ilike (evita "DE", "DA", etc.)
     const chave = escola.replace(/[,\.]/g, ' ').split(/\s+/).find(w => w.length > 3) || escola.split(' ')[0];
     const rows = await apiFetch(
-      `turmas?select=nome_unidade,ano_escolar,descricao_disciplina,carga_horaria,status_atribuicao` +
+      `turmas?select=nome_unidade,ano_escolar,letra_turma,descricao_disciplina,` +
+      `status_atribuicao,nome_professor_prop,nome_professor_sub,situacao_professor` +
       `&nome_unidade=ilike.*${encodeURIComponent(chave)}*&limit=1000`
     );
 
-    // Filtra pela escola exata usando mesma normalização do cross-reference Elefante
     const escolaNorm = _normEscola(escola);
     const rowsEsc = rows.filter(r => _normEscola(r.nome_unidade || '') === escolaNorm);
 
-    // Magistério II no 2º Ano
     const isMagII = d => {
       const n = _norm(d || '');
       return n.includes('MAGISTERIO II') || n.includes('MAGISTERIO 2');
     };
-    const is2Ano = a => {
-      const n = _norm(a || '').replace(/[º°]/g, '');
-      return /\b2\s*ANO\b/.test(n);
-    };
+    const is2Ano = a => /\b2\s*ANO\b/.test(_norm(a || '').replace(/[º°]/g, ''));
     const isAtrib = r => {
       const st = (r.status_atribuicao || '').toUpperCase();
       return /^[24]\b/.test(st.trim()) || st.includes('TROCA');
     };
+    const isSub = r => /^4\b/.test((r.status_atribuicao || '').trim());
 
-    const ppRows = rowsEsc.filter(r => isMagII(r.descricao_disciplina) && is2Ano(r.ano_escolar));
+    // Todos os Magistério II da escola, ordenados por ano + turma
+    const mgRows = rowsEsc
+      .filter(r => isMagII(r.descricao_disciplina))
+      .sort((a, b) => (a.ano_escolar || '').localeCompare(b.ano_escolar || '') ||
+                      (a.letra_turma || '').localeCompare(b.letra_turma || ''));
 
-    if (!ppRows.length) {
+    if (!mgRows.length) {
       cont.innerHTML = `<div class="text-muted small py-1">
-        <i class="bi bi-dash-circle me-1"></i>Sem salas de PPA (Magistério II — 2º Ano) registradas para esta escola.
+        <i class="bi bi-dash-circle me-1"></i>Sem registros de Magistério II para esta escola.
       </div>`;
       return;
     }
 
-    const salas       = ppRows.length;
-    const meta        = salas * 12;
-    const atribuidas  = ppRows.filter(isAtrib);
-    const cargaAtrib  = atribuidas.reduce((s, r) => s + Number(r.carga_horaria || 0), 0);
-    const pct         = meta > 0 ? Math.round(cargaAtrib / meta * 100) : 0;
-    const cor         = pct >= 100 ? '#059669' : pct >= 60 ? '#d97706' : '#dc2626';
-    const bgCor       = pct >= 100 ? '#d1fae5' : pct >= 60 ? '#fef3c7' : '#fee2e2';
+    // KPIs: apenas 2º Ano (PPA)
+    const ppRows    = mgRows.filter(r => is2Ano(r.ano_escolar));
+    const salas     = ppRows.length;
+    const meta      = salas * 12;
+    // carga atribuída = salas_atribuídas × 12h (carga_horaria da tabela é a regência, não o PPA)
+    const nAtrib    = ppRows.filter(isAtrib).length;
+    const cargaAtrib = nAtrib * 12;
+    const pct       = meta > 0 ? Math.round(cargaAtrib / meta * 100) : 0;
+    const cor       = pct >= 100 ? '#059669' : pct >= 60 ? '#d97706' : '#dc2626';
+    const bgCor     = pct >= 100 ? '#d1fae5' : pct >= 60 ? '#fef3c7' : '#fee2e2';
 
-    cont.innerHTML = `
-      <div class="row g-2">
+    const kpisHtml = salas > 0 ? `
+      <div class="row g-2 mb-3">
         <div class="col-6 col-md-3">
           <div style="background:#f0f4ff;border-radius:8px;padding:8px 12px;">
             <div style="font-size:1.15rem;font-weight:900;color:#002b5e;">${salas}</div>
@@ -1591,7 +1594,45 @@ async function _preencherPPA(escola) {
             <div style="font-size:.63rem;font-weight:800;color:${cor};text-transform:uppercase;letter-spacing:.04em;">Eficácia PPA</div>
           </div>
         </div>
+      </div>` : '';
+
+    // Tabela de professoras — todos os anos de Magistério II
+    const linhas = mgRows.map(r => {
+      const isPPA   = is2Ano(r.ano_escolar);
+      const atrib   = isAtrib(r);
+      const sub     = isSub(r);
+      const prop    = esc(r.nome_professor_prop || '—');
+      const subNome = r.nome_professor_sub ? esc(r.nome_professor_sub) : '';
+      const badge   = isPPA
+        ? `<span style="background:#dbeafe;color:#1d4ed8;font-size:.6rem;font-weight:800;padding:1px 5px;border-radius:4px;">PPA</span>`
+        : '';
+      const statusDot = atrib
+        ? (sub
+            ? `<span title="Dono afastado — com substituta" style="color:#d97706;">●</span>`
+            : `<span title="Atribuído — dono ativo" style="color:#059669;">●</span>`)
+        : `<span title="Sem atribuição" style="color:#dc2626;">●</span>`;
+      const subCell = subNome
+        ? `<div style="font-size:.7rem;color:#64748b;margin-top:2px;">
+             <i class="bi bi-arrow-return-right me-1"></i>Sub: ${subNome}
+           </div>`
+        : '';
+      return `<tr>
+        <td class="fw-bold" style="white-space:nowrap;">${esc(r.ano_escolar || '')} ${esc(r.letra_turma || '')} ${badge}</td>
+        <td>${statusDot} ${prop}${subCell}</td>
+      </tr>`;
+    }).join('');
+
+    const tabelaHtml = `
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0" style="font-size:.78rem;">
+          <thead class="table-light">
+            <tr><th>Turma</th><th>Professora(s) — Magistério II</th></tr>
+          </thead>
+          <tbody>${linhas}</tbody>
+        </table>
       </div>`;
+
+    cont.innerHTML = kpisHtml + tabelaHtml;
   } catch (err) {
     const cont2 = document.getElementById('relPPA');
     if (cont2) cont2.innerHTML = `<div class="text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>Erro ao carregar dados de PPA.</div>`;
