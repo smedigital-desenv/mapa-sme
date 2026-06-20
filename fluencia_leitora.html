@@ -1596,16 +1596,12 @@ async function _preencherPPA(escola) {
         </div>
       </div>` : '';
 
-    // Tabela de professoras — todos os anos de Magistério II
-    const linhas = mgRows.map(r => {
-      const isPPA   = is2Ano(r.ano_escolar);
+    // Tabela de professoras — apenas 2º Ano (PPA)
+    const linhas = ppRows.map(r => {
       const atrib   = isAtrib(r);
       const sub     = isSub(r);
       const prop    = esc(r.nome_professor_prop || '—');
       const subNome = r.nome_professor_sub ? esc(r.nome_professor_sub) : '';
-      const badge   = isPPA
-        ? `<span style="background:#dbeafe;color:#1d4ed8;font-size:.6rem;font-weight:800;padding:1px 5px;border-radius:4px;">PPA</span>`
-        : '';
       const statusDot = atrib
         ? (sub
             ? `<span title="Dono afastado — com substituta" style="color:#d97706;">●</span>`
@@ -1617,20 +1613,20 @@ async function _preencherPPA(escola) {
            </div>`
         : '';
       return `<tr>
-        <td class="fw-bold" style="white-space:nowrap;">${esc(r.ano_escolar || '')} ${esc(r.letra_turma || '')} ${badge}</td>
+        <td class="fw-bold" style="white-space:nowrap;">2º Ano ${esc(r.letra_turma || '')}</td>
         <td>${statusDot} ${prop}${subCell}</td>
       </tr>`;
     }).join('');
 
-    const tabelaHtml = `
+    const tabelaHtml = ppRows.length ? `
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0" style="font-size:.78rem;">
           <thead class="table-light">
-            <tr><th>Turma</th><th>Professora(s) — Magistério II</th></tr>
+            <tr><th>Turma</th><th>Professora(s) — 2º Ano (PPA)</th></tr>
           </thead>
           <tbody>${linhas}</tbody>
         </table>
-      </div>`;
+      </div>` : '';
 
     cont.innerHTML = kpisHtml + tabelaHtml;
   } catch (err) {
