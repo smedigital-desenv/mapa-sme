@@ -795,10 +795,13 @@ function montarDados(rows) {
     const profName   = atrib ? ((sub ? row.nome_professor_sub : row.nome_professor_prop) || '—').trim() : 'S/ Atribuição';
     const profCode   = atrib ? ((sub ? row.codigo_professor_sub : row.codigo_professor_prop) || '—').trim() : '—';
     const profStatus = atrib ? (row.situacao_professor || row.funcao_professor || 'ATIVA') : '—';
+    // Titular (dono) e substituto separados — exibe "Sub:" abaixo quando dono afastado
+    const profTitular = atrib ? ((row.nome_professor_prop || '—').trim()) : 'S/ Atribuição';
+    const profSub     = (atrib && sub) ? ((row.nome_professor_sub || '').trim()) : '';
     const turmaKey   = `${ano} ${letra}`.trim();
     const key        = `${unit.toUpperCase()}|${per.toUpperCase()}`;
 
-    const det = { disc, ano, turma: turmaKey, profName, profCode, profStatus, workload: carga };
+    const det = { disc, ano, turma: turmaKey, profName, profCode, profStatus, workload: carga, profTitular, profSub };
 
     // PPA:
     //   - Linhas MAGISTÉRIO II no 2º Ano → contam salas (magisterio), NÃO somam carga atribuída
@@ -834,9 +837,9 @@ function montarDados(rows) {
     if (!matrice[unit]) matrice[unit] = {};
     if (!matrice[unit][turmaKey]) matrice[unit][turmaKey] = {};
     if (!matrice[unit][turmaKey][disc]) {
-      matrice[unit][turmaKey][disc] = { profName, atribuido: atrib };
+      matrice[unit][turmaKey][disc] = { profName, atribuido: atrib, profTitular, profSub };
     } else if (!matrice[unit][turmaKey][disc].atribuido && atrib) {
-      matrice[unit][turmaKey][disc] = { profName, atribuido: true };
+      matrice[unit][turmaKey][disc] = { profName, atribuido: true, profTitular, profSub };
     }
   });
 
@@ -1343,7 +1346,10 @@ function _renderDetalhes(details) {
     <tr>
       <td><span class="badge bg-primary-subtle text-primary border">${escapeHtml(d.disc)}</span></td>
       <td class="fw-bold text-center text-nowrap">${escapeHtml(d.turma)}</td>
-      <td class="text-nowrap">${escapeHtml(d.profName)}</td>
+      <td class="text-nowrap">
+        ${escapeHtml(d.profTitular || d.profName)}
+        ${d.profSub ? `<div style="font-size:.7rem;color:#64748b;margin-top:2px;"><i class="bi bi-arrow-return-right me-1"></i>Sub: ${escapeHtml(d.profSub)}</div>` : ''}
+      </td>
       <td class="text-center">${escapeHtml(d.profCode)}</td>
       <td class="text-center"><span class="badge ${String(d.profStatus).includes('ATIVA') ? 'bg-success' : 'bg-secondary'}">${escapeHtml(d.profStatus)}</span></td>
       <td class="text-center fw-bold">${d.workload}h</td>
@@ -1429,7 +1435,7 @@ function _renderGrupoTabela(turmasObj, turmasGrupo, discsGrupo) {
         const c = turmasObj[turma][d];
         if (!c) return `<td class="cell-na">—</td>`;
         return c.atribuido
-          ? `<td class="cell-ok" title="${escapeHtml(c.profName)}"><i class="bi bi-check-circle-fill" style="color:#10b981;font-size:.9rem;"></i></td>`
+          ? `<td class="cell-ok" title="${escapeHtml((c.profTitular || c.profName) + (c.profSub ? ' (Sub: ' + c.profSub + ')' : ''))}"><i class="bi bi-check-circle-fill" style="color:#10b981;font-size:.9rem;"></i></td>`
           : `<td class="cell-nok" title="S/ Atribuição"><i class="bi bi-x-circle-fill" style="color:#ef4444;font-size:.9rem;"></i></td>`;
       }).join('')}
     </tr>`).join('');
