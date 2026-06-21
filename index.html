@@ -7200,7 +7200,7 @@ function _renderTabelaTotal(linhas) {
         if (!matriceEscola[unit][_turmaKey]) matriceEscola[unit][_turmaKey] = {};
         if (!matriceEscola[unit][_turmaKey][disc]) {
           matriceEscola[unit][_turmaKey][disc] = {
-            profName: atribuido ? ((substituto ? row.nome_professor_sub : row.nome_professor_prop) || '-') : 'S/ ATRIBUIÇÃO',
+            profName: atribuido ? ((substituto ? row.nome_professor_sub : row.nome_professor_prop) || '-') : obterRazaoSaldo(row),
             atribuido
           };
         }

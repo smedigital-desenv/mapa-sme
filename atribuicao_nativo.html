@@ -973,7 +973,7 @@ function montarDados(rows) {
     const profCode   = atrib ? ((sub ? row.codigo_professor_sub : row.codigo_professor_prop) || '—').trim() : '—';
     const profStatus = atrib ? (row.situacao_professor || row.funcao_professor || 'ATIVA') : '—';
     // Titular (dono) e substituto separados — exibe "Sub:" abaixo quando dono afastado
-    const profTitular = atrib ? ((row.nome_professor_prop || '—').trim()) : 'S/ Atribuição';
+    const profTitular = atrib ? ((row.nome_professor_prop || '—').trim()) : obterRazaoSaldo(row);
     const profSub     = (atrib && sub) ? ((row.nome_professor_sub || '').trim()) : '';
     const turmaKey   = `${ano} ${letra}`.trim();
     const key        = `${unit.toUpperCase()}|${per.toUpperCase()}`;
