@@ -288,24 +288,10 @@
   <div class="mg-spacer"></div>
 </header>
 
-<!-- ── HEADER ── -->
-<header class="nav-header d-flex align-items-center justify-content-between gap-3">
-  <div>
-    <div class="fw-bold" style="font-size:1.05rem;letter-spacing:.02em;">
-      <i class="bi bi-diagram-3-fill me-2" style="color:var(--neon-blue);"></i>
-      Atribuição de Aulas
-    </div>
-    <div style="font-size:.72rem;opacity:.7;margin-top:2px;">SME Ribeirão Preto — PPA · PRA · Disciplinas</div>
-  </div>
-  <div class="d-flex align-items-center gap-3">
-    <div id="statusLoad" class="d-flex align-items-center gap-2" style="font-size:.78rem;opacity:.85;">
-      <div class="spinner-border spinner-border-sm text-light" style="width:.9rem;height:.9rem;"></div>
-      Carregando…
-    </div>
-  </div>
-</header>
+<!-- statusLoad oculto: mantém o JS de carregamento funcionando sem a faixa visível -->
+<div id="statusLoad" style="display:none;"></div>
 
-<!-- ── SUBNAV ── -->
+<!-- ── SUBNAV (fixa abaixo do cabeçalho global) ── -->
 <div class="sub-nav-bar" style="gap:.75rem;">
   <!-- Dropdown unificado Projetos + Disciplinas -->
   <div class="dropdown turmas-disc-dropdown">
@@ -2376,6 +2362,17 @@ async function init() {
 }
 
 init();
+
+// Mantém a barra de filtros fixa logo abaixo do cabeçalho global (robusto a quebras de linha)
+(function fixarSubNav() {
+  const mg  = document.querySelector('.mg-header');
+  const sub = document.querySelector('.sub-nav-bar');
+  if (!mg || !sub) return;
+  const ajustar = () => { sub.style.top = mg.offsetHeight + 'px'; };
+  ajustar();
+  window.addEventListener('resize', ajustar);
+  if (window.ResizeObserver) new ResizeObserver(ajustar).observe(mg);
+})();
 </script>
 </body>
 </html>
