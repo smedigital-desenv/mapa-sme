@@ -715,7 +715,26 @@ const renderGradeDebounced     = debounce(() => renderGrade(), 180);
 const renderPendentesDebounced = debounce(() => renderPendentes(), 180);
 
 // ── API ──────────────────────────────────────────────────────────
+// Cache em sessionStorage: ao revisitar a página, reusa os dados (não re-busca tudo)
 async function fetchTurmas() {
+  const CACHE_KEY = 'mapa_atrib_turmas_v1';
+  const TTL = 10 * 60 * 1000; // 10 minutos
+  if (!window.__forcarRefetch) {
+    try {
+      const raw = sessionStorage.getItem(CACHE_KEY);
+      if (raw) {
+        const o = JSON.parse(raw);
+        if (o && o.ts && (Date.now() - o.ts) < TTL && Array.isArray(o.rows)) return o.rows;
+      }
+    } catch (e) {}
+  }
+  window.__forcarRefetch = false;
+  const rows = await _fetchTurmasRede();
+  try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), rows })); } catch (e) {}
+  return rows;
+}
+
+async function _fetchTurmasRede() {
   const PAGE = 1000;
   const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,funcao_professor,status_atribuicao';
   const H = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
@@ -2394,6 +2413,7 @@ async function atualizarPainel() {
   if (btn)  btn.disabled = true;
   if (icon) icon.classList.add('spin');
   try {
+    window.__forcarRefetch = true; // "Atualizar" sempre busca dados frescos (ignora o cache)
     const [rows] = await Promise.all([fetchTurmas(), fetchSeriesExcluidas()]);
     D = montarDados(rows); // novo objeto → invalida memo de pendentes automaticamente
     discAtiva = discAtual;
