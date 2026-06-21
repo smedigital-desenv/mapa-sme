@@ -302,10 +302,38 @@
   </div>
 </header>
 
-<!-- statusLoad oculto: mantém o JS de carregamento funcionando sem a faixa visível -->
+<!-- ── FAIXA TÍTULO (mesmo padrão de Elefante/Fluência) ── -->
+<header class="nav-header">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-2">
+      <i class="bi bi-diagram-3-fill" style="color:var(--neon-blue);font-size:1.4rem;filter:drop-shadow(0 0 6px rgba(0,229,255,.55));"></i>
+      <div>
+        <h5 class="m-0 fw-bold">Atribuição de Aulas</h5>
+        <div style="font-size:.63rem;color:rgba(255,255,255,.65);font-weight:800;letter-spacing:.08em;text-transform:uppercase;">
+          SME Ribeirão Preto · PPA · PRA · Disciplinas
+        </div>
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <button class="btn-modo" id="btn-PENDENTES" onclick="switchModo('PENDENTES')"
+              style="border-color:rgba(239,68,68,.6);color:rgba(255,255,255,.85);">
+        <i class="bi bi-exclamation-circle me-1"></i>Não Atribuídas
+      </button>
+      <button class="btn-modo" id="btn-GRADE" onclick="switchModo('GRADE')">
+        <i class="bi bi-grid-3x3-gap-fill me-1"></i>Por Escola / Disciplina
+      </button>
+      <button class="btn-modo d-none" id="btn-SaldoPPA" onclick="abrirRelatorioSaldo()"
+              style="background:#198754;border-color:#198754;color:#fff;">
+        <i class="bi bi-file-earmark-spreadsheet me-1"></i>Saldo PPA
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- statusLoad oculto: mantém o JS de carregamento funcionando -->
 <div id="statusLoad" style="display:none;"></div>
 
-<!-- ── SUBNAV (fixa abaixo do cabeçalho global) ── -->
+<!-- ── BARRA DE CONTROLES (combo + filtro Mostrar), fixa abaixo do cabeçalho global ── -->
 <div class="sub-nav-bar" style="gap:.75rem;">
   <!-- Dropdown unificado Projetos + Disciplinas -->
   <div class="dropdown turmas-disc-dropdown">
@@ -334,19 +362,18 @@
     </div>
   </div>
 
-  <div class="ms-auto d-flex align-items-center gap-2">
-    <button class="btn-modo" id="btn-PENDENTES" onclick="switchModo('PENDENTES')"
-            style="border-color:rgba(239,68,68,.6);color:rgba(255,255,255,.85);">
-      <i class="bi bi-exclamation-circle me-1"></i>Não Atribuídas
-    </button>
-    <button class="btn-modo" id="btn-GRADE" onclick="switchModo('GRADE')">
-      <i class="bi bi-grid-3x3-gap-fill me-1"></i>Por Escola / Disciplina
-    </button>
-    <button class="btn-modo d-none" id="btn-SaldoPPA"
-            onclick="abrirRelatorioSaldo()"
-            style="background:#198754;border-color:#198754;color:#fff;">
-      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Saldo PPA
-    </button>
+  <!-- Filtro de status (oculto nos modos GRADE / PENDENTES) -->
+  <div id="chartsRow" class="d-flex align-items-center gap-2 ms-auto"
+       style="background:rgba(255,255,255,.08);border-radius:8px;padding:3px 10px;">
+    <span class="small fw-bold" style="color:rgba(255,255,255,.7);"><i class="bi bi-funnel-fill me-1"></i>Mostrar:</span>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Filtro de status">
+      <input type="radio" class="btn-check" name="statusFiltro" id="sf-tudo" autocomplete="off" checked onchange="setStatusFiltro('tudo')">
+      <label class="btn btn-outline-light fw-bold" for="sf-tudo"><i class="bi bi-grid me-1"></i>Tudo</label>
+      <input type="radio" class="btn-check" name="statusFiltro" id="sf-atr" autocomplete="off" onchange="setStatusFiltro('atribuidas')">
+      <label class="btn btn-outline-success fw-bold" for="sf-atr"><i class="bi bi-check-circle me-1"></i>Atribuídas</label>
+      <input type="radio" class="btn-check" name="statusFiltro" id="sf-nao" autocomplete="off" onchange="setStatusFiltro('nao')">
+      <label class="btn btn-outline-danger fw-bold" for="sf-nao"><i class="bi bi-x-circle me-1"></i>Não atribuídas</label>
+    </div>
   </div>
 </div>
 
@@ -355,23 +382,6 @@
 
   <!-- KPIs -->
   <div class="row g-3 mb-4" id="kpiRow"></div>
-
-  <!-- Filtro de status (oculto nos modos GRADE / PENDENTES) -->
-  <div class="row g-3 mb-4" id="chartsRow">
-    <div class="col-12">
-      <div class="table-container py-2 px-3 d-flex align-items-center gap-2 flex-wrap">
-        <span class="text-muted small fw-bold"><i class="bi bi-funnel-fill me-1"></i>Mostrar:</span>
-        <div class="btn-group btn-group-sm" role="group" aria-label="Filtro de status">
-          <input type="radio" class="btn-check" name="statusFiltro" id="sf-tudo" autocomplete="off" checked onchange="setStatusFiltro('tudo')">
-          <label class="btn btn-outline-secondary fw-bold" for="sf-tudo"><i class="bi bi-grid me-1"></i>Tudo</label>
-          <input type="radio" class="btn-check" name="statusFiltro" id="sf-atr" autocomplete="off" onchange="setStatusFiltro('atribuidas')">
-          <label class="btn btn-outline-success fw-bold" for="sf-atr"><i class="bi bi-check-circle me-1"></i>Atribuídas</label>
-          <input type="radio" class="btn-check" name="statusFiltro" id="sf-nao" autocomplete="off" onchange="setStatusFiltro('nao')">
-          <label class="btn btn-outline-danger fw-bold" for="sf-nao"><i class="bi bi-x-circle me-1"></i>Não atribuídas</label>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- Tabela principal (PPA / PRA / disciplina individual) -->
   <div class="table-container mb-4" id="tableContainer">
