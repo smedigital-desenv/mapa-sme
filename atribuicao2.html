@@ -821,10 +821,18 @@ function periodoDesc(valor) {
 
 // Helper: verificar se está NA ATIVA
 function estaNaAtiva(situacao) {
-  if (typeof situacao === 'number') {
-    return situacao === 1;  // 1 = NA ATIVA
+  if (!situacao && situacao !== 0) {
+    return false;  // null/undefined = não está na ativa
   }
-  const texto = String(situacao || '').toUpperCase().trim();
+  
+  // Tentar como número primeiro
+  const num = Number(situacao);
+  if (!isNaN(num)) {
+    return num === 1;  // 1 = NA ATIVA, qualquer outro = não ativa
+  }
+  
+  // Se não for número, tentar como texto
+  const texto = String(situacao).toUpperCase().trim();
   return texto.includes('NA ATIVA') || texto === 'ATIVA';
 }
 
@@ -832,15 +840,32 @@ function statusAtribuicao(row) {
   return normalizar(row.status_atribuicao || '');
 }
 function isAtribuido(row) {
-  const situacaoTitular = Number(row.codigo_situacao_professor_prop) || String(row.situacao_professor || '').trim().toUpperCase();
+  if (!row) return false;
+  
+  const situacaoTitular = row.codigo_situacao_professor_prop !== undefined 
+    ? row.codigo_situacao_professor_prop 
+    : row.situacao_professor;
+    
+  const codigoTitular = row.codigo_professor_prop;
   const codigoSubstituto = String(row.codigo_professor_sub || '').trim();
-  const situacaoSubstituto = Number(row.codigo_situacao_professor_sub) || String(row.situacao_professor_sub || '').trim().toUpperCase();
+  
+  const situacaoSubstituto = row.codigo_situacao_professor_sub !== undefined
+    ? row.codigo_situacao_professor_sub
+    : row.situacao_professor_sub;
+
+  if (estaEmContracao(codigoTitular)) {
+    return false;
+  }
 
   if (estaNaAtiva(situacaoTitular)) {
     return true;
   }
 
   if (!codigoSubstituto || codigoSubstituto === '0' || codigoSubstituto === '') {
+    return false;
+  }
+
+  if (estaEmContracao(codigoSubstituto)) {
     return false;
   }
 
@@ -851,9 +876,14 @@ function isAtribuido(row) {
   return false;
 }
 function isSubstituto(row) {
-  const situacaoTitular = Number(row.codigo_situacao_professor_prop) || String(row.situacao_professor || '').trim().toUpperCase();
+  const situacaoTitular = row.codigo_situacao_professor_prop !== undefined 
+    ? row.codigo_situacao_professor_prop 
+    : row.situacao_professor;
   const codigoSubstituto = String(row.codigo_professor_sub || '').trim();
-  const situacaoSubstituto = Number(row.codigo_situacao_professor_sub) || String(row.situacao_professor_sub || '').trim().toUpperCase();
+  
+  const situacaoSubstituto = row.codigo_situacao_professor_sub !== undefined
+    ? row.codigo_situacao_professor_sub
+    : row.situacao_professor_sub;
 
   const titularAusente = !estaNaAtiva(situacaoTitular);
   const substitutoPresente = (codigoSubstituto && codigoSubstituto !== '0') && estaNaAtiva(situacaoSubstituto);
@@ -863,6 +893,68 @@ function isSubstituto(row) {
 function isMagisterioII(disc) {
   const d = normalizar(disc);
   return d.includes('MAGISTERIO II') || d.includes('MAGISTERIO 2');
+}
+
+// ═══ VERIFICAR CONTRATAÇÃO EM ANDAMENTO ═══
+function estaEmContracao(codigoProfessor) {
+  const cod = Number(codigoProfessor);
+  return !isNaN(cod) && cod >= 99000;
+}
+
+// ═══ MAPEAMENTO DE SITUAÇÕES ═══
+function obterNomeSituacao(codigo, textoSituacao) {
+  if (!codigo && codigo !== 0) return 'Sem informação';
+  
+  const cod = Number(codigo);
+  const texto = String(textoSituacao || '').trim().toUpperCase();
+  
+  const mapa = {
+    1: 'NA ATIVA',
+    2: 'APOSENTADO',
+    3: 'AFASTADO',
+    4: 'LICENÇA',
+    5: 'EXONERADO',
+    6: 'FALECIDO',
+    7: 'AFASTADO POR LEI',
+    8: 'SUSPENSO'
+  };
+  
+  if (!isNaN(cod) && mapa[cod]) {
+    return mapa[cod];
+  }
+  
+  if (texto.includes('APOSENTADO')) return 'APOSENTADO';
+  if (texto.includes('AFASTADO')) return 'AFASTADO';
+  if (texto.includes('LICENÇA')) return 'LICENÇA';
+  if (texto.includes('EXONERADO')) return 'EXONERADO';
+  if (texto.includes('FALECIDO')) return 'FALECIDO';
+  if (texto.includes('NA ATIVA')) return 'NA ATIVA';
+  if (texto.includes('SUSPENSO')) return 'SUSPENSO';
+  
+  return texto || 'Sem informação';
+}
+
+function obterRazaoSaldo(row) {
+  const codigoTit = row.codigo_professor_prop;
+  const situacaoTit = obterNomeSituacao(row.codigo_situacao_professor_prop, row.situacao_professor);
+  const temSub = String(row.codigo_professor_sub || '').trim() && row.codigo_professor_sub !== '0';
+  const codigoSub = row.codigo_professor_sub;
+  
+  if (estaEmContracao(codigoTit)) {
+    return 'SALDO (Em processo de contratação)';
+  }
+  
+  if (!temSub) {
+    return `SALDO (${situacaoTit})`;
+  }
+  
+  const situacaoSub = obterNomeSituacao(row.codigo_situacao_professor_sub, row.situacao_professor_sub);
+  
+  if (estaEmContracao(codigoSub)) {
+    return 'SALDO (Substituto em processo de contratação)';
+  }
+  
+  return `SALDO (Titular: ${situacaoTit}, Substituto: ${situacaoSub})`;
 }
 function isSegundoAnoPPA(anoEscolar) {
   const a = normalizar(anoEscolar);
