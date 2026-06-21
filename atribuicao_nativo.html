@@ -262,8 +262,18 @@
   }
   .mg-nav-btn:hover { border-color: rgba(255,255,255,.4); }
   .mg-nav-btn.active { background: #fff; color: var(--primary, #002b5e); box-shadow: 0 2px 10px rgba(0,0,0,.18); }
-  .mg-spacer { min-width: 86px; }
-  @media (max-width: 992px) { .mg-nav-btn { min-width: auto; } .mg-spacer { display: none; } }
+  .mg-actions { min-width: 86px; display: flex; justify-content: flex-end; align-items: center; }
+  .mg-action-btn {
+    display: inline-flex; align-items: center; gap: .35rem;
+    font-size: .76rem; font-weight: 800; padding: 5px 12px;
+    border-radius: 8px; border: 1.5px solid rgba(255,255,255,.45);
+    background: transparent; color: #fff; cursor: pointer; transition: .2s;
+  }
+  .mg-action-btn:hover { background: rgba(255,255,255,.12); border-color: #fff; }
+  .mg-action-btn:disabled { opacity: .6; cursor: default; }
+  @keyframes mg-spin { to { transform: rotate(360deg); } }
+  .mg-action-btn .spin { display: inline-block; animation: mg-spin .8s linear infinite; }
+  @media (max-width: 992px) { .mg-nav-btn { min-width: auto; } }
 </style>
 </head>
 <body>
@@ -285,7 +295,11 @@
     <a class="mg-nav-btn" href="index.html"><i class="bi bi-book-half"></i>Fluência Leitora</a>
     <a class="mg-nav-btn" href="index.html"><i class="bi bi-gear-fill"></i>Configurações</a>
   </nav>
-  <div class="mg-spacer"></div>
+  <div class="mg-actions">
+    <button id="btnAtualizar" class="mg-action-btn" onclick="atualizarPainel()" title="Atualizar dados do painel">
+      <i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span>
+    </button>
+  </div>
 </header>
 
 <!-- statusLoad oculto: mantém o JS de carregamento funcionando sem a faixa visível -->
@@ -2362,6 +2376,27 @@ async function init() {
 }
 
 init();
+
+// Atualiza o painel SEM recarregar a página: re-busca dados e re-renderiza o modo atual
+async function atualizarPainel() {
+  const btn  = document.getElementById('btnAtualizar');
+  const icon = btn?.querySelector('i');
+  const modoAtual = modo, discAtual = discAtiva;
+  if (btn)  btn.disabled = true;
+  if (icon) icon.classList.add('spin');
+  try {
+    const [rows] = await Promise.all([fetchTurmas(), fetchSeriesExcluidas()]);
+    D = montarDados(rows); // novo objeto → invalida memo de pendentes automaticamente
+    discAtiva = discAtual;
+    switchModo(modoAtual); // re-renderiza a visão em que o usuário estava
+  } catch (err) {
+    console.error(err);
+    alert('Falha ao atualizar: ' + err.message);
+  } finally {
+    if (btn)  btn.disabled = false;
+    if (icon) icon.classList.remove('spin');
+  }
+}
 
 // Mantém a barra de filtros fixa logo abaixo do cabeçalho global (robusto a quebras de linha)
 (function fixarSubNav() {
