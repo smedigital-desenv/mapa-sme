@@ -6868,23 +6868,34 @@ function _renderTabelaTotal(linhas) {
       ? row.codigo_situacao_professor_prop 
       : row.situacao_professor;
       
+    const codigoTitular = row.codigo_professor_prop;
     const codigoSubstituto = String(row.codigo_professor_sub || '').trim();
     
     const situacaoSubstituto = row.codigo_situacao_professor_sub !== undefined
       ? row.codigo_situacao_professor_sub
       : row.situacao_professor_sub;
 
-    // PASSO 1: Verificar se Titular está NA ATIVA
+    // PASSO 1: Titular em processo de contratação? → Não é atribuição definitiva
+    if (estaEmContracao(codigoTitular)) {
+      return false;  // SALDO (Contratação em andamento)
+    }
+
+    // PASSO 2: Verificar se Titular está NA ATIVA
     if (estaNaAtiva(situacaoTitular)) {
       return true;  // Atribuído
     }
 
-    // PASSO 2: Titular não está ativo. Tem substituto?
+    // PASSO 3: Titular não está ativo. Tem substituto?
     if (!codigoSubstituto || codigoSubstituto === '0' || codigoSubstituto === '') {
       return false;  // Sem substituto → SALDO
     }
 
-    // PASSO 3: Tem substituto. Substituto está NA ATIVA?
+    // PASSO 4: Tem substituto. Substituto em contratação? → Não é atribuição definitiva
+    if (estaEmContracao(codigoSubstituto)) {
+      return false;  // SALDO (Substituto em contratação)
+    }
+
+    // PASSO 5: Tem substituto. Substituto está NA ATIVA?
     if (estaNaAtiva(situacaoSubstituto)) {
       return true;  // Substituto está ativo → ATRIBUÍDO
     }
@@ -6902,6 +6913,12 @@ function _renderTabelaTotal(linhas) {
     const substitutoPresente = (codigoSubstituto && codigoSubstituto !== '0') && estaNaAtiva(situacaoSubstituto);
 
     return titularAusente && substitutoPresente;
+  }
+
+  // ═══ VERIFICAR CONTRATAÇÃO EM ANDAMENTO ═══
+  function estaEmContracao(codigoProfessor) {
+    const cod = Number(codigoProfessor);
+    return !isNaN(cod) && cod >= 9900;
   }
 
   // ═══ MAPEAMENTO DE SITUAÇÕES ═══
@@ -6939,15 +6956,31 @@ function _renderTabelaTotal(linhas) {
   }
 
   function obterRazaoSaldo(row) {
+    const codigoTit = row.codigo_professor_prop;
     const situacaoTit = obterNomeSituacao(row.codigo_situacao_professor_prop, row.situacao_professor);
     const temSub = String(row.codigo_professor_sub || '').trim() && row.codigo_professor_sub !== '0';
+    const codigoSub = row.codigo_professor_sub;
     
+    // Verificar contratação do titular
+    if (estaEmContracao(codigoTit)) {
+      return 'SALDO (Em processo de contratação)';
+    }
+    
+    // Se não tem substituto, mostrar situação do titular
     if (!temSub) {
       return `SALDO (${situacaoTit})`;
-    } else {
-      const situacaoSub = obterNomeSituacao(row.codigo_situacao_professor_sub, row.situacao_professor_sub);
-      return `SALDO (Titular: ${situacaoTit}, Substituto: ${situacaoSub})`;
     }
+    
+    // Tem substituto - verificar situação
+    const situacaoSub = obterNomeSituacao(row.codigo_situacao_professor_sub, row.situacao_professor_sub);
+    
+    // Verificar contratação do substituto
+    if (estaEmContracao(codigoSub)) {
+      return 'SALDO (Substituto em processo de contratação)';
+    }
+    
+    // Ambos inativos
+    return `SALDO (Titular: ${situacaoTit}, Substituto: ${situacaoSub})`;
   }
 
   function detalheTurma(row, disc, workload, atribuido, substituto) {

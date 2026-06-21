@@ -750,22 +750,46 @@ function statusAtribuicao(row) {
   return normalizar(row.status_atribuicao || '');
 }
 function isAtribuido(row) {
-  const situacaoTitular = Number(row.codigo_situacao_professor_prop) || String(row.situacao_professor || '').trim().toUpperCase();
+  if (!row) return false;
+  
+  // Extrair valores com segurança
+  const situacaoTitular = row.codigo_situacao_professor_prop !== undefined 
+    ? row.codigo_situacao_professor_prop 
+    : row.situacao_professor;
+    
+  const codigoTitular = row.codigo_professor_prop;
   const codigoSubstituto = String(row.codigo_professor_sub || '').trim();
-  const situacaoSubstituto = Number(row.codigo_situacao_professor_sub) || String(row.situacao_professor_sub || '').trim().toUpperCase();
+  
+  const situacaoSubstituto = row.codigo_situacao_professor_sub !== undefined
+    ? row.codigo_situacao_professor_sub
+    : row.situacao_professor_sub;
 
+  // PASSO 1: Titular em processo de contratação? → Não é atribuição definitiva
+  if (estaEmContracao(codigoTitular)) {
+    return false;  // SALDO (Contratação em andamento)
+  }
+
+  // PASSO 2: Verificar se Titular está NA ATIVA
   if (estaNaAtiva(situacaoTitular)) {
-    return true;
+    return true;  // Atribuído
   }
 
+  // PASSO 3: Titular não está ativo. Tem substituto?
   if (!codigoSubstituto || codigoSubstituto === '0' || codigoSubstituto === '') {
-    return false;
+    return false;  // Sem substituto → SALDO
   }
 
+  // PASSO 4: Tem substituto. Substituto em contratação? → Não é atribuição definitiva
+  if (estaEmContracao(codigoSubstituto)) {
+    return false;  // SALDO (Substituto em contratação)
+  }
+
+  // PASSO 5: Tem substituto. Substituto está NA ATIVA?
   if (estaNaAtiva(situacaoSubstituto)) {
-    return true;
+    return true;  // Substituto está ativo → ATRIBUÍDO
   }
 
+  // Substituto também não está ativo → SALDO
   return false;
 }
 function isSubstituto(row) {
@@ -781,6 +805,74 @@ function isSubstituto(row) {
 function isMagisterioII(disc) {
   const d = normalizar(disc);
   return d.includes('MAGISTERIO II') || d.includes('MAGISTERIO 2');
+}
+
+// ═══ VERIFICAR CONTRATAÇÃO EM ANDAMENTO ═══
+function estaEmContracao(codigoProfessor) {
+  const cod = Number(codigoProfessor);
+  return !isNaN(cod) && cod >= 9900;
+}
+
+// ═══ MAPEAMENTO DE SITUAÇÕES ═══
+function obterNomeSituacao(codigo, textoSituacao) {
+  if (!codigo && codigo !== 0) return 'Sem informação';
+  
+  const cod = Number(codigo);
+  const texto = String(textoSituacao || '').trim().toUpperCase();
+  
+  // Mapeamento por código
+  const mapa = {
+    1: 'NA ATIVA',
+    2: 'APOSENTADO',
+    3: 'AFASTADO',
+    4: 'LICENÇA',
+    5: 'EXONERADO',
+    6: 'FALECIDO',
+    7: 'AFASTADO POR LEI',
+    8: 'SUSPENSO'
+  };
+  
+  if (!isNaN(cod) && mapa[cod]) {
+    return mapa[cod];
+  }
+  
+  if (texto.includes('APOSENTADO')) return 'APOSENTADO';
+  if (texto.includes('AFASTADO')) return 'AFASTADO';
+  if (texto.includes('LICENÇA')) return 'LICENÇA';
+  if (texto.includes('EXONERADO')) return 'EXONERADO';
+  if (texto.includes('FALECIDO')) return 'FALECIDO';
+  if (texto.includes('NA ATIVA')) return 'NA ATIVA';
+  if (texto.includes('SUSPENSO')) return 'SUSPENSO';
+  
+  return texto || 'Sem informação';
+}
+
+function obterRazaoSaldo(row) {
+  const codigoTit = row.codigo_professor_prop;
+  const situacaoTit = obterNomeSituacao(row.codigo_situacao_professor_prop, row.situacao_professor);
+  const temSub = String(row.codigo_professor_sub || '').trim() && row.codigo_professor_sub !== '0';
+  const codigoSub = row.codigo_professor_sub;
+  
+  // Verificar contratação do titular
+  if (estaEmContracao(codigoTit)) {
+    return 'SALDO (Em processo de contratação)';
+  }
+  
+  // Se não tem substituto, mostrar situação do titular
+  if (!temSub) {
+    return `SALDO (${situacaoTit})`;
+  }
+  
+  // Tem substituto - verificar situação
+  const situacaoSub = obterNomeSituacao(row.codigo_situacao_professor_sub, row.situacao_professor_sub);
+  
+  // Verificar contratação do substituto
+  if (estaEmContracao(codigoSub)) {
+    return 'SALDO (Substituto em processo de contratação)';
+  }
+  
+  // Ambos inativos
+  return `SALDO (Titular: ${situacaoTit}, Substituto: ${situacaoSub})`;
 }
 function isSegundoAnoPPA(anoEscolar) {
   const a = normalizar(anoEscolar);
