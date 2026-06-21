@@ -67,6 +67,8 @@
     .news-date { font-size:.68rem; color:#94a3b8; font-weight:700; }
     .news-title { font-weight:800; color:#0f172a; font-size:.9rem; margin-top:3px; }
     .news-text { font-size:.82rem; color:#475569; }
+    .news-list { margin:.4rem 0 0; padding-left:1.15rem; }
+    .news-list li { font-size:.82rem; color:#475569; margin-bottom:2px; }
     .secao-titulo { font-weight:900; color:var(--primary); letter-spacing:.02em; }
   </style>
 </head>
@@ -125,7 +127,7 @@
       </div>
     </div>
 
-    <h5 class="secao-titulo mb-3"><i class="bi bi-megaphone-fill me-2"></i>Novidades e atualizações</h5>
+    <h5 class="secao-titulo mb-3"><i class="bi bi-megaphone-fill me-2"></i>Funcionalidades e novidades</h5>
     <div class="news-card" id="muralNoticias"></div>
 
   </main>
@@ -137,6 +139,39 @@
        cor: 'azul' | 'verde' | 'roxo' | 'laranja' | 'cinza'
        ════════════════════════════════════════════════════════════ */
     const NOTICIAS = [
+      // ── Principais funções de cada módulo ──
+      { data:'21/06/2026', tag:'Avaliações', cor:'azul',
+        titulo:'Avaliações — principais funções',
+        itens:[
+          'Painel da Rede: avaliações, alunos únicos, críticos e taxa de fluência',
+          'Diagnóstica, Bimestres (1º a 4º) e Total',
+          'Leitura, Escrita e Produção Textual',
+          'Filtros por ano escolar e por unidade/turma',
+        ] },
+      { data:'21/06/2026', tag:'Atribuição', cor:'verde',
+        titulo:'Atribuição — principais funções',
+        itens:[
+          'PPA, PRA e disciplinas — por escola e turno',
+          'Grade por escola/disciplina',
+          '"Não Atribuídas": todas as aulas sem professor (por escola ou disciplina)',
+          'Saldo PPA e exportação para Excel',
+          'Filtros por ano/série, tipo de escola e status (Tudo / Atribuídas / Não atribuídas)',
+        ] },
+      { data:'21/06/2026', tag:'Elefante Letrado', cor:'roxo',
+        titulo:'Elefante Letrado — principais funções',
+        itens:[
+          'Engajamento da rede, da escola e por turma',
+          'Situação da Rede e comparação com a média',
+          'Importação de planilha',
+        ] },
+      { data:'21/06/2026', tag:'Fluência Leitora', cor:'laranja',
+        titulo:'Fluência Leitora — principais funções',
+        itens:[
+          'Avaliação diagnóstica de fluência leitora',
+          'Ranking e situação por escola e turma',
+          'Meta de 70% (Iniciante + Fluente)',
+          'Importação de planilha',
+        ] },
       { data:'20/06/2026', tag:'Plataforma', cor:'azul',
         titulo:'Novo painel unificado dos módulos',
         texto:'Avaliações, Atribuição, Elefante Letrado e Fluência agora ficam nesta tela inicial, com navegação mais rápida e cache que evita recarregar tudo a cada acesso.' },
@@ -167,7 +202,8 @@
             <span class="news-date">${esc(n.data)}</span>
           </div>
           <div class="news-title">${esc(n.titulo)}</div>
-          <div class="news-text">${esc(n.texto)}</div>
+          ${n.texto ? `<div class="news-text">${esc(n.texto)}</div>` : ''}
+          ${(n.itens && n.itens.length) ? `<ul class="news-list">${n.itens.map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}
         </div>`;
     }).join('') || '<div class="news-item text-muted">Sem novidades por enquanto.</div>';
   </script>
