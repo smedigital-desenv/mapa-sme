@@ -736,7 +736,7 @@ async function fetchTurmas() {
 
 async function _fetchTurmasRede() {
   const PAGE = 1000;
-  const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,funcao_professor,status_atribuicao';
+  const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,situacao_professor_sub,funcao_professor,status_atribuicao';
   const H = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
   const pageUrl = off => `${SUPABASE_URL}/rest/v1/turmas?select=${SELECT}&order=nome_unidade.asc&limit=${PAGE}&offset=${off}`;
 
@@ -821,18 +821,8 @@ function periodoDesc(valor) {
 
 // Helper: verificar se está NA ATIVA
 function estaNaAtiva(situacao) {
-  if (!situacao && situacao !== 0) {
-    return false;  // null/undefined = não está na ativa
-  }
-  
-  // Tentar como número primeiro
-  const num = Number(situacao);
-  if (!isNaN(num)) {
-    return num === 1;  // 1 = NA ATIVA, qualquer outro = não ativa
-  }
-  
-  // Se não for número, tentar como texto
-  const texto = String(situacao).toUpperCase().trim();
+  // Usa apenas o TEXTO da situação (campo confiável vindo do banco)
+  const texto = String(situacao || '').toUpperCase().trim();
   return texto.includes('NA ATIVA') || texto === 'ATIVA';
 }
 
@@ -841,54 +831,41 @@ function statusAtribuicao(row) {
 }
 function isAtribuido(row) {
   if (!row) return false;
-  
-  const situacaoTitular = row.codigo_situacao_professor_prop !== undefined 
-    ? row.codigo_situacao_professor_prop 
-    : row.situacao_professor;
-    
-  const codigoTitular = row.codigo_professor_prop;
-  const codigoSubstituto = String(row.codigo_professor_sub || '').trim();
-  
-  const situacaoSubstituto = row.codigo_situacao_professor_sub !== undefined
-    ? row.codigo_situacao_professor_sub
-    : row.situacao_professor_sub;
 
-  if (estaEmContracao(codigoTitular)) {
-    return false;
-  }
+  const codigoTitular    = String(row.codigo_professor_prop || '').trim();
+  const codigoSubstituto = String(row.codigo_professor_sub  || '').trim();
 
-  if (estaNaAtiva(situacaoTitular)) {
-    return true;
-  }
+  // 1) Titular em contratação (código do professor >= 99000) → ATRIBUÍDO
+  if (estaEmContracao(codigoTitular)) return true;
 
-  if (!codigoSubstituto || codigoSubstituto === '0' || codigoSubstituto === '') {
-    return false;
-  }
+  // 2) Titular presente (código != 0) e NA ATIVA (pelo TEXTO) → ATRIBUÍDO
+  if (codigoTitular && codigoTitular !== '0' && estaNaAtiva(row.situacao_professor)) return true;
 
-  if (estaEmContracao(codigoSubstituto)) {
-    return false;
-  }
+  // 3) Sem substituto (código do professor 0 ou vazio) → SALDO
+  if (!codigoSubstituto || codigoSubstituto === '0') return false;
 
-  if (estaNaAtiva(situacaoSubstituto)) {
-    return true;
-  }
+  // 4) Substituto em contratação (código >= 99000) → ATRIBUÍDO
+  if (estaEmContracao(codigoSubstituto)) return true;
 
+  // 5) Substituto NA ATIVA (pelo TEXTO) → ATRIBUÍDO
+  if (estaNaAtiva(row.situacao_professor_sub)) return true;
+
+  // 6) Ninguém ativo → SALDO
   return false;
 }
 function isSubstituto(row) {
-  const situacaoTitular = row.codigo_situacao_professor_prop !== undefined 
-    ? row.codigo_situacao_professor_prop 
-    : row.situacao_professor;
-  const codigoSubstituto = String(row.codigo_professor_sub || '').trim();
-  
-  const situacaoSubstituto = row.codigo_situacao_professor_sub !== undefined
-    ? row.codigo_situacao_professor_sub
-    : row.situacao_professor_sub;
+  const codigoTitular    = String(row.codigo_professor_prop || '').trim();
+  const codigoSubstituto = String(row.codigo_professor_sub  || '').trim();
 
-  const titularAusente = !estaNaAtiva(situacaoTitular);
-  const substitutoPresente = (codigoSubstituto && codigoSubstituto !== '0') && estaNaAtiva(situacaoSubstituto);
+  // O titular "ocupa" a vaga se está em contratação OU presente e na ativa (texto)
+  const titularOcupa = estaEmContracao(codigoTitular) ||
+    (codigoTitular && codigoTitular !== '0' && estaNaAtiva(row.situacao_professor));
 
-  return titularAusente && substitutoPresente;
+  // O substituto "ocupa" se existe (código != 0) e está em contratação OU na ativa (texto)
+  const substitutoOcupa = (codigoSubstituto && codigoSubstituto !== '0') &&
+    (estaEmContracao(codigoSubstituto) || estaNaAtiva(row.situacao_professor_sub));
+
+  return !titularOcupa && substitutoOcupa;
 }
 function isMagisterioII(disc) {
   const d = normalizar(disc);
@@ -901,59 +878,38 @@ function estaEmContracao(codigoProfessor) {
   return !isNaN(cod) && cod >= 99000;
 }
 
-// ═══ MAPEAMENTO DE SITUAÇÕES ═══
-function obterNomeSituacao(codigo, textoSituacao) {
-  if (!codigo && codigo !== 0) return 'Sem informação';
-  
-  const cod = Number(codigo);
+// ═══ MAPEAMENTO DE SITUAÇÕES (pelo texto) ═══
+function obterNomeSituacao(textoSituacao) {
   const texto = String(textoSituacao || '').trim().toUpperCase();
-  
-  const mapa = {
-    1: 'NA ATIVA',
-    2: 'APOSENTADO',
-    3: 'AFASTADO',
-    4: 'LICENÇA',
-    5: 'EXONERADO',
-    6: 'FALECIDO',
-    7: 'AFASTADO POR LEI',
-    8: 'SUSPENSO'
-  };
-  
-  if (!isNaN(cod) && mapa[cod]) {
-    return mapa[cod];
-  }
-  
-  if (texto.includes('APOSENTADO')) return 'APOSENTADO';
-  if (texto.includes('AFASTADO')) return 'AFASTADO';
-  if (texto.includes('LICENÇA')) return 'LICENÇA';
-  if (texto.includes('EXONERADO')) return 'EXONERADO';
-  if (texto.includes('FALECIDO')) return 'FALECIDO';
-  if (texto.includes('NA ATIVA')) return 'NA ATIVA';
-  if (texto.includes('SUSPENSO')) return 'SUSPENSO';
-  
-  return texto || 'Sem informação';
+  if (!texto) return 'Sem informação';
+  if (texto.includes('NA ATIVA') || texto === 'ATIVA') return 'NA ATIVA';
+  if (texto.includes('APOSENTAD')) return 'APOSENTADO';
+  if (texto.includes('AFASTAD')) return 'AFASTADO';
+  if (texto.includes('LICEN')) return 'LICENÇA';
+  if (texto.includes('EXONERAD') || texto.includes('RESCINDID')) return 'EXONERADO';
+  if (texto.includes('FALECID')) return 'FALECIDO';
+  if (texto.includes('READAPT')) return 'READAPTADO';
+  if (texto.includes('SUSPENS')) return 'SUSPENSO';
+  return String(textoSituacao).trim();
 }
 
 function obterRazaoSaldo(row) {
-  const codigoTit = row.codigo_professor_prop;
-  const situacaoTit = obterNomeSituacao(row.codigo_situacao_professor_prop, row.situacao_professor);
-  const temSub = String(row.codigo_professor_sub || '').trim() && row.codigo_professor_sub !== '0';
-  const codigoSub = row.codigo_professor_sub;
-  
-  if (estaEmContracao(codigoTit)) {
-    return 'SALDO (Em processo de contratação)';
-  }
-  
+  const codigoTit = String(row.codigo_professor_prop || '').trim();
+  const codigoSub = String(row.codigo_professor_sub  || '').trim();
+  const temSub = codigoSub && codigoSub !== '0';
+
+  if (estaEmContracao(codigoTit)) return 'SALDO (Em processo de contratação)';
+
+  const situacaoTit = obterNomeSituacao(row.situacao_professor);
+
   if (!temSub) {
+    if (!codigoTit || codigoTit === '0') return 'SALDO (Sem professor)';
     return `SALDO (${situacaoTit})`;
   }
-  
-  const situacaoSub = obterNomeSituacao(row.codigo_situacao_professor_sub, row.situacao_professor_sub);
-  
-  if (estaEmContracao(codigoSub)) {
-    return 'SALDO (Substituto em processo de contratação)';
-  }
-  
+
+  if (estaEmContracao(codigoSub)) return 'SALDO (Substituto em processo de contratação)';
+
+  const situacaoSub = obterNomeSituacao(row.situacao_professor_sub);
   return `SALDO (Titular: ${situacaoTit}, Substituto: ${situacaoSub})`;
 }
 function isSegundoAnoPPA(anoEscolar) {
@@ -991,16 +947,49 @@ function montarDados(rows) {
     // Linha de atribuição PPA (PROJ. PROF. ALFABETIZADOR) — conta horas, não salas
     const isPPARow = discNorm.includes('ALFABETIZADOR') || discNorm.includes(' PPA') || discNorm === 'PPA';
 
-    const profName   = atrib ? ((sub ? row.nome_professor_sub : row.nome_professor_prop) || '—').trim() : obterRazaoSaldo(row);
-    const profCode   = atrib ? ((sub ? row.codigo_professor_sub : row.codigo_professor_prop) || '—').trim() : '—';
-    const profStatus = atrib ? (row.situacao_professor || row.funcao_professor || 'ATIVA') : '—';
-    // Titular (dono) e substituto separados — exibe "Sub:" abaixo quando dono afastado
-    const profTitular = atrib ? ((row.nome_professor_prop || '—').trim()) : 'S/ Atribuição';
-    const profSub     = (atrib && sub) ? ((row.nome_professor_sub || '').trim()) : '';
+    // ── Nome / código / situação exibidos ──
+    const _cT = String(row.codigo_professor_prop || '').trim();
+    const _cS = String(row.codigo_professor_sub  || '').trim();
+    const _temTit = _cT && _cT !== '0';
+    const _temSub = _cS && _cS !== '0';
+
+    let profName, profCode, profStatus, profTitular, profSub;
+
+    if (atrib) {
+      // Quem está na sala (substituto quando o titular está afastado)
+      profName    = ((sub ? row.nome_professor_sub : row.nome_professor_prop) || '—').toString().trim();
+      profCode    = ((sub ? row.codigo_professor_sub : row.codigo_professor_prop) || '—').toString().trim();
+      profStatus  = sub
+        ? (estaEmContracao(_cS) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor_sub))
+        : (estaEmContracao(_cT) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor));
+      profTitular = (row.nome_professor_prop || '—').toString().trim();
+      profSub     = sub ? (row.nome_professor_sub || '').toString().trim() : '';
+    } else if (_temSub) {
+      // SALDO com substituto afastado: traz nome/código/afastamento do substituto (titular como dono)
+      profName    = (row.nome_professor_sub || '—').toString().trim();
+      profCode    = (row.codigo_professor_sub || '—').toString().trim();
+      profStatus  = estaEmContracao(_cS) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor_sub);
+      profTitular = _temTit ? (row.nome_professor_prop || '—').toString().trim() : (row.nome_professor_sub || '—').toString().trim();
+      profSub     = _temTit ? (row.nome_professor_sub || '').toString().trim() : '';
+    } else if (_temTit) {
+      // SALDO só com titular afastado: traz nome/código/afastamento do titular
+      profName    = (row.nome_professor_prop || '—').toString().trim();
+      profCode    = (row.codigo_professor_prop || '—').toString().trim();
+      profStatus  = estaEmContracao(_cT) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor);
+      profTitular = (row.nome_professor_prop || '—').toString().trim();
+      profSub     = '';
+    } else {
+      // SALDO sem professor
+      profName    = obterRazaoSaldo(row);
+      profCode    = '—';
+      profStatus  = '—';
+      profTitular = obterRazaoSaldo(row);
+      profSub     = '';
+    }
     const turmaKey   = `${ano} ${letra}`.trim();
     const key        = `${unit.toUpperCase()}|${per.toUpperCase()}`;
 
-    const det = { disc, ano, turma: turmaKey, profName, profCode, profStatus, workload: carga, profTitular, profSub };
+    const det = { disc, ano, turma: turmaKey, profName, profCode, profStatus, workload: carga, profTitular, profSub, atribuido: atrib };
 
     // PPA:
     //   - Linhas MAGISTÉRIO II no 2º Ano → contam salas (magisterio), NÃO somam carga atribuída
@@ -1244,7 +1233,7 @@ function _aplicarFiltroAno(data) {
   data.forEach(r => {
     const dets = (r.details || []).filter(d => _anosSelecionados.has(d.ano));
     if (!dets.length) return;
-    const atrDets = dets.filter(d => d.profName !== 'S/ Atribuição');
+    const atrDets = dets.filter(d => d.atribuido === true);
     out.push({
       ...r,
       details: dets,
@@ -1260,8 +1249,8 @@ function _aplicarFiltroAno(data) {
 // Filtro de status: 'tudo' | 'atribuidas' | 'nao'
 let _statusFiltro = 'tudo';
 function _detStatusOk(d) {
-  if (_statusFiltro === 'atribuidas') return d.profName !== 'S/ Atribuição';
-  if (_statusFiltro === 'nao')        return d.profName === 'S/ Atribuição';
+  if (_statusFiltro === 'atribuidas') return d.atribuido === true;
+  if (_statusFiltro === 'nao')        return d.atribuido !== true;
   return true;
 }
 
@@ -1280,7 +1269,7 @@ function _aplicarFiltros(data) {
     if (ehPPA) {
       out.push({ ...r, details: dets }); // PPA: mantém métricas (salas/meta), só filtra os detalhes
     } else {
-      const atrDets = dets.filter(d => d.profName !== 'S/ Atribuição');
+      const atrDets = dets.filter(d => d.atribuido === true);
       out.push({
         ...r, details: dets, criadas: dets.length, atribuidas: atrDets.length,
         cargaCriada: dets.reduce((s, d) => s + (d.workload || 0), 0),
@@ -1579,6 +1568,16 @@ function _renderDetalhesDireto(safeUnit, r) {
   </tr>`;
 }
 
+// Cor do badge de situação:
+//   verde = na ativa | amarelo = em contratação | cinza = sem professor | vermelho = demais (afastado/aposentado/readaptado/etc.)
+function corSituacao(status) {
+  const s = String(status || '').toUpperCase().trim();
+  if (s.includes('ATIVA')) return 'bg-success';
+  if (s.includes('CONTRATA')) return 'bg-warning text-dark';
+  if (s === '—' || s === '') return 'bg-secondary';
+  return 'bg-danger';
+}
+
 function _renderDetalhes(details) {
   if (!details.length) return '<tr><td colspan="6" class="text-center text-muted">Sem detalhes</td></tr>';
   return details.map(d => `
@@ -1590,7 +1589,7 @@ function _renderDetalhes(details) {
         ${d.profSub ? `<div style="font-size:.7rem;color:#64748b;margin-top:2px;"><i class="bi bi-arrow-return-right me-1"></i>Sub: ${escapeHtml(d.profSub)}</div>` : ''}
       </td>
       <td class="text-center">${escapeHtml(d.profCode)}</td>
-      <td class="text-center"><span class="badge ${String(d.profStatus).includes('ATIVA') ? 'bg-success' : 'bg-secondary'}">${escapeHtml(d.profStatus)}</span></td>
+      <td class="text-center"><span class="badge ${corSituacao(d.profStatus)}">${escapeHtml(d.profStatus)}</span></td>
       <td class="text-center fw-bold">${d.workload}h</td>
     </tr>`).join('');
 }
@@ -2021,7 +2020,7 @@ function _getPendentes() {
   Object.keys(D.disciplinas || {}).forEach(disc => {
     (D.disciplinas[disc] || []).forEach(row => {
       (row.details || []).forEach(det => {
-        if (det.profName !== 'S/ Atribuição') return;
+        if (det.atribuido === true) return;
         const chave = `${row.unit}|${row.period}|${det.disc}|${det.turma}`;
         if (seen.has(chave)) return;
         seen.add(chave);
@@ -2423,7 +2422,7 @@ async function exportarTabelaExcel() {
 function _pendentesDoModo() {
   const itens = [];
   _dadosModo().forEach(r => (r.details || []).forEach(d => {
-    if (d.profName === 'S/ Atribuição')
+    if (d.atribuido !== true)
       itens.push({ unit: r.unit, period: r.period, disc: d.disc, turma: d.turma, workload: d.workload });
   }));
   return itens.sort((a, b) =>
