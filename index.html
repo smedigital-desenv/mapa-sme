@@ -1201,9 +1201,7 @@
         </div>
       </div>
 
-      <div class="clock-box d-flex align-items-center gap-2 justify-content-end">
-        <span id="clock">--:--:--</span>
-      </div>
+      <div id="moduloTopActions" class="clock-box d-flex align-items-center gap-2 justify-content-end"></div>
 
     </div>
 
@@ -1384,20 +1382,6 @@
          VIEW ATRIBUIÇÃO DE AULAS
          ═════════════════════════════════════════════════════ -->
     <section id="viewAtribuicao" class="d-none">
-      <div class="avaliacao-header-card">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-          <h5 class="avaliacao-title m-0"><i class="bi bi-diagram-3-fill me-2"></i>Atribuição de Aulas</h5>
-          <div class="d-flex gap-2 flex-wrap">
-            <button class="btn btn-outline-primary fw-bold" onclick="recarregarAtribuicao()">
-              <i class="bi bi-arrow-clockwise me-1"></i>Recarregar módulo
-            </button>
-            <a class="btn btn-success fw-bold" href="atribuicao.html" target="_blank" rel="noopener">
-              <i class="bi bi-box-arrow-up-right me-1"></i>Abrir em nova aba
-            </a>
-          </div>
-        </div>
-      </div>
-
       <div class="elefante-shell">
         <iframe id="frameAtribuicao" class="elefante-frame" src="atribuicao.html" title="Atribuição de Aulas"></iframe>
       </div>
@@ -7655,11 +7639,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   atualizarDados();
-
-  setInterval(() => {
-    const c = document.getElementById('clock');
-    if (c) c.innerText = new Date().toLocaleTimeString();
-  }, 1000);
 });
 
 let _preloadBackgroundIniciado = false;
@@ -7948,9 +7927,11 @@ function switchMainView(view) {
   [subNavAvaliacoes].forEach(el => el && el.classList.add('d-none'));
   [vAlunos, vBimestre, vTotal, vConfig, vElefante, vFluencia, vAtribuicao].forEach(el => el && el.classList.add('d-none'));
   mostrarAnoFilterBar(false);
+  if (typeof setModuloTopActions === 'function') setModuloTopActions(null);
 
   if (view === 'Atribuicao') {
     if (vAtribuicao) vAtribuicao.classList.remove('d-none');
+    setModuloTopActions('Atribuicao');
     return;
   }
 
@@ -8206,6 +8187,26 @@ function limparAreaAvaliacao() {
 
 
   <script>
+    // Botões contextuais no topo (substituem o relógio) — só aparecem no módulo ativo
+    function setModuloTopActions(modulo) {
+      const slot = document.getElementById('moduloTopActions');
+      if (!slot) return;
+      const map = {
+        Atribuicao: { reload: 'recarregarAtribuicao()',       href: 'atribuicao.html' },
+        Elefante:   { reload: 'recarregarElefanteLetrado()',  href: 'elefante_letrado.html' },
+        Fluencia:   { reload: 'recarregarFluenciaLeitora()',  href: 'fluencia_leitora.html' },
+      };
+      const cfg = map[modulo];
+      if (!cfg) { slot.innerHTML = ''; return; }
+      slot.innerHTML = `
+        <button class="btn btn-sm btn-outline-light" onclick="${cfg.reload}" title="Recarregar módulo">
+          <i class="bi bi-arrow-clockwise"></i>
+        </button>
+        <a class="btn btn-sm btn-outline-light" href="${cfg.href}" target="_blank" rel="noopener" title="Abrir em nova aba">
+          <i class="bi bi-box-arrow-up-right"></i>
+        </a>`;
+    }
+
     function recarregarAtribuicao() {
       const frame = document.getElementById('frameAtribuicao');
       if (frame) frame.src = 'atribuicao.html?ts=' + Date.now();
