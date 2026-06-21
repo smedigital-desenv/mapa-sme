@@ -715,13 +715,13 @@ const renderGradeDebounced     = debounce(() => renderGrade(), 180);
 const renderPendentesDebounced = debounce(() => renderPendentes(), 180);
 
 // ── API ──────────────────────────────────────────────────────────
-// Cache em sessionStorage: ao revisitar a página, reusa os dados (não re-busca tudo)
+// Cache em localStorage: reusa os dados entre abas/sessões (abre rápido), com validade
 async function fetchTurmas() {
   const CACHE_KEY = 'mapa_atrib_turmas_v1';
-  const TTL = 10 * 60 * 1000; // 10 minutos
+  const TTL = 10 * 60 * 1000; // 10 minutos (o botão "Atualizar" força dados frescos)
   if (!window.__forcarRefetch) {
     try {
-      const raw = sessionStorage.getItem(CACHE_KEY);
+      const raw = localStorage.getItem(CACHE_KEY);
       if (raw) {
         const o = JSON.parse(raw);
         if (o && o.ts && (Date.now() - o.ts) < TTL && Array.isArray(o.rows)) return o.rows;
@@ -730,7 +730,7 @@ async function fetchTurmas() {
   }
   window.__forcarRefetch = false;
   const rows = await _fetchTurmasRede();
-  try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), rows })); } catch (e) {}
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), rows })); } catch (e) {}
   return rows;
 }
 
