@@ -869,26 +869,45 @@ function montarDados(rows) {
     // Linha de atribuição PPA (PROJ. PROF. ALFABETIZADOR) — conta horas, não salas
     const isPPARow = discNorm.includes('ALFABETIZADOR') || discNorm.includes(' PPA') || discNorm === 'PPA';
 
-    const profName   = atrib ? ((sub ? row.nome_professor_sub : row.nome_professor_prop) || '—').trim() : obterRazaoSaldo(row);
-    const profCode   = atrib ? ((sub ? row.codigo_professor_sub : row.codigo_professor_prop) || '—').trim() : '—';
-    let profStatus = '—';
+    // ── Nome / código / situação exibidos ──
+    const _cT = String(row.codigo_professor_prop || '').trim();
+    const _cS = String(row.codigo_professor_sub  || '').trim();
+    const _temTit = _cT && _cT !== '0';
+    const _temSub = _cS && _cS !== '0';
+
+    let profName, profCode, profStatus, profTitular, profSub;
+
     if (atrib) {
-      profStatus = sub
-        ? (estaEmContracao(row.codigo_professor_sub) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor_sub))
-        : (estaEmContracao(row.codigo_professor_prop) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor));
+      // Quem está na sala (substituto quando o titular está afastado)
+      profName    = ((sub ? row.nome_professor_sub : row.nome_professor_prop) || '—').toString().trim();
+      profCode    = ((sub ? row.codigo_professor_sub : row.codigo_professor_prop) || '—').toString().trim();
+      profStatus  = sub
+        ? (estaEmContracao(_cS) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor_sub))
+        : (estaEmContracao(_cT) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor));
+      profTitular = (row.nome_professor_prop || '—').toString().trim();
+      profSub     = sub ? (row.nome_professor_sub || '').toString().trim() : '';
+    } else if (_temSub) {
+      // SALDO com substituto afastado: traz nome/código/afastamento do substituto (titular como dono)
+      profName    = (row.nome_professor_sub || '—').toString().trim();
+      profCode    = (row.codigo_professor_sub || '—').toString().trim();
+      profStatus  = estaEmContracao(_cS) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor_sub);
+      profTitular = _temTit ? (row.nome_professor_prop || '—').toString().trim() : (row.nome_professor_sub || '—').toString().trim();
+      profSub     = _temTit ? (row.nome_professor_sub || '').toString().trim() : '';
+    } else if (_temTit) {
+      // SALDO só com titular afastado: traz nome/código/afastamento do titular
+      profName    = (row.nome_professor_prop || '—').toString().trim();
+      profCode    = (row.codigo_professor_prop || '—').toString().trim();
+      profStatus  = estaEmContracao(_cT) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor);
+      profTitular = (row.nome_professor_prop || '—').toString().trim();
+      profSub     = '';
     } else {
-      // Saldo: mostra a situação do professor vinculado (motivo do saldo), ex.: READAPTADO
-      const _cT = String(row.codigo_professor_prop || '').trim();
-      const _cS = String(row.codigo_professor_sub  || '').trim();
-      if (_cT && _cT !== '0') {
-        profStatus = estaEmContracao(_cT) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor);
-      } else if (_cS && _cS !== '0') {
-        profStatus = estaEmContracao(_cS) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor_sub);
-      }
+      // SALDO sem professor
+      profName    = obterRazaoSaldo(row);
+      profCode    = '—';
+      profStatus  = '—';
+      profTitular = obterRazaoSaldo(row);
+      profSub     = '';
     }
-    // Titular (dono) e substituto separados — exibe "Sub:" abaixo quando dono afastado
-    const profTitular = atrib ? ((row.nome_professor_prop || '—').trim()) : obterRazaoSaldo(row);
-    const profSub     = (atrib && sub) ? ((row.nome_professor_sub || '').trim()) : '';
     const turmaKey   = `${ano} ${letra}`.trim();
     const key        = `${unit.toUpperCase()}|${per.toUpperCase()}`;
 
