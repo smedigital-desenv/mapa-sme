@@ -806,6 +806,7 @@ function obterNomeSituacao(textoSituacao) {
   if (texto.includes('LICEN')) return 'LICENÇA';
   if (texto.includes('EXONERAD') || texto.includes('RESCINDID')) return 'EXONERADO';
   if (texto.includes('FALECID')) return 'FALECIDO';
+  if (texto.includes('READAPT')) return 'READAPTADO';
   if (texto.includes('SUSPENS')) return 'SUSPENSO';
   return String(textoSituacao).trim();
 }
@@ -870,18 +871,28 @@ function montarDados(rows) {
 
     const profName   = atrib ? ((sub ? row.nome_professor_sub : row.nome_professor_prop) || '—').trim() : obterRazaoSaldo(row);
     const profCode   = atrib ? ((sub ? row.codigo_professor_sub : row.codigo_professor_prop) || '—').trim() : '—';
-    const profStatus = atrib
-      ? (sub
-          ? (estaEmContracao(row.codigo_professor_sub) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor_sub))
-          : (estaEmContracao(row.codigo_professor_prop) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor)))
-      : '—';
+    let profStatus = '—';
+    if (atrib) {
+      profStatus = sub
+        ? (estaEmContracao(row.codigo_professor_sub) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor_sub))
+        : (estaEmContracao(row.codigo_professor_prop) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor));
+    } else {
+      // Saldo: mostra a situação do professor vinculado (motivo do saldo), ex.: READAPTADO
+      const _cT = String(row.codigo_professor_prop || '').trim();
+      const _cS = String(row.codigo_professor_sub  || '').trim();
+      if (_cT && _cT !== '0') {
+        profStatus = estaEmContracao(_cT) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor);
+      } else if (_cS && _cS !== '0') {
+        profStatus = estaEmContracao(_cS) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor_sub);
+      }
+    }
     // Titular (dono) e substituto separados — exibe "Sub:" abaixo quando dono afastado
     const profTitular = atrib ? ((row.nome_professor_prop || '—').trim()) : obterRazaoSaldo(row);
     const profSub     = (atrib && sub) ? ((row.nome_professor_sub || '').trim()) : '';
     const turmaKey   = `${ano} ${letra}`.trim();
     const key        = `${unit.toUpperCase()}|${per.toUpperCase()}`;
 
-    const det = { disc, ano, turma: turmaKey, profName, profCode, profStatus, workload: carga, profTitular, profSub };
+    const det = { disc, ano, turma: turmaKey, profName, profCode, profStatus, workload: carga, profTitular, profSub, atribuido: atrib };
 
     // PPA:
     //   - Linhas MAGISTÉRIO II no 2º Ano → contam salas (magisterio), NÃO somam carga atribuída
@@ -1125,7 +1136,7 @@ function _aplicarFiltroAno(data) {
   data.forEach(r => {
     const dets = (r.details || []).filter(d => _anosSelecionados.has(d.ano));
     if (!dets.length) return;
-    const atrDets = dets.filter(d => d.profName !== 'S/ Atribuição');
+    const atrDets = dets.filter(d => d.atribuido === true);
     out.push({
       ...r,
       details: dets,
@@ -1141,8 +1152,8 @@ function _aplicarFiltroAno(data) {
 // Filtro de status: 'tudo' | 'atribuidas' | 'nao'
 let _statusFiltro = 'tudo';
 function _detStatusOk(d) {
-  if (_statusFiltro === 'atribuidas') return d.profName !== 'S/ Atribuição';
-  if (_statusFiltro === 'nao')        return d.profName === 'S/ Atribuição';
+  if (_statusFiltro === 'atribuidas') return d.atribuido === true;
+  if (_statusFiltro === 'nao')        return d.atribuido !== true;
   return true;
 }
 
@@ -1161,7 +1172,7 @@ function _aplicarFiltros(data) {
     if (ehPPA) {
       out.push({ ...r, details: dets }); // PPA: mantém métricas (salas/meta), só filtra os detalhes
     } else {
-      const atrDets = dets.filter(d => d.profName !== 'S/ Atribuição');
+      const atrDets = dets.filter(d => d.atribuido === true);
       out.push({
         ...r, details: dets, criadas: dets.length, atribuidas: atrDets.length,
         cargaCriada: dets.reduce((s, d) => s + (d.workload || 0), 0),
@@ -1902,7 +1913,7 @@ function _getPendentes() {
   Object.keys(D.disciplinas || {}).forEach(disc => {
     (D.disciplinas[disc] || []).forEach(row => {
       (row.details || []).forEach(det => {
-        if (det.profName !== 'S/ Atribuição') return;
+        if (det.atribuido === true) return;
         const chave = `${row.unit}|${row.period}|${det.disc}|${det.turma}`;
         if (seen.has(chave)) return;
         seen.add(chave);
@@ -2304,7 +2315,7 @@ async function exportarTabelaExcel() {
 function _pendentesDoModo() {
   const itens = [];
   _dadosModo().forEach(r => (r.details || []).forEach(d => {
-    if (d.profName === 'S/ Atribuição')
+    if (d.atribuido !== true)
       itens.push({ unit: r.unit, period: r.period, disc: d.disc, turma: d.turma, workload: d.workload });
   }));
   return itens.sort((a, b) =>
