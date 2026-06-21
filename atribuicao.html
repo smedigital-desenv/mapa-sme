@@ -752,17 +752,19 @@ function statusAtribuicao(row) {
 function isAtribuido(row) {
   if (!row) return false;
   
-  // Extrair valores com segurança
-  const situacaoTitular = row.codigo_situacao_professor_prop !== undefined 
-    ? row.codigo_situacao_professor_prop 
-    : row.situacao_professor;
-    
+  // Extrair valores com segurança.
+  // O código de situação só vale quando é um código real (1-8); quando vem
+  // vazio, nulo ou '0', usamos o texto da situação (campo confiável).
+  const _codSitProp = row.codigo_situacao_professor_prop;
+  const _propValido = _codSitProp !== undefined && _codSitProp !== null && String(_codSitProp).trim() !== '' && String(_codSitProp).trim() !== '0';
+  const situacaoTitular = _propValido ? _codSitProp : row.situacao_professor;
+
   const codigoTitular = row.codigo_professor_prop;
   const codigoSubstituto = String(row.codigo_professor_sub || '').trim();
-  
-  const situacaoSubstituto = row.codigo_situacao_professor_sub !== undefined
-    ? row.codigo_situacao_professor_sub
-    : row.situacao_professor_sub;
+
+  const _codSitSub = row.codigo_situacao_professor_sub;
+  const _subValido = _codSitSub !== undefined && _codSitSub !== null && String(_codSitSub).trim() !== '' && String(_codSitSub).trim() !== '0';
+  const situacaoSubstituto = _subValido ? _codSitSub : row.situacao_professor_sub;
 
   // PASSO 1: Titular em processo de contratação? → AINDA É ATRIBUÍDO
   if (estaEmContracao(codigoTitular)) {
@@ -815,16 +817,14 @@ function estaEmContracao(codigoProfessor) {
 
 // ═══ MAPEAMENTO DE SITUAÇÕES ═══
 function obterNomeSituacao(codigo, textoSituacao) {
-  if (!codigo && codigo !== 0) return 'Sem informação';
-  
   const cod = Number(codigo);
+  // Código de situação só é válido quando é um número real (não vazio, nulo nem '0')
+  const codValido = codigo !== undefined && codigo !== null && String(codigo).trim() !== '' && String(codigo).trim() !== '0' && !isNaN(cod);
   const texto = String(textoSituacao || '').trim().toUpperCase();
-  
-  // PRIMEIRO: Verificar se é contratação em andamento (código >= 99000)
-  if (!isNaN(cod) && cod >= 99000) {
-    return 'Em contratação';
-  }
-  
+
+  // Contratação em andamento (código do professor >= 99000)
+  if (codValido && cod >= 99000) return 'Em contratação';
+
   // Mapeamento por código de situação
   const mapa = {
     1: 'NA ATIVA',
@@ -836,20 +836,18 @@ function obterNomeSituacao(codigo, textoSituacao) {
     7: 'AFASTADO POR LEI',
     8: 'SUSPENSO'
   };
-  
-  if (!isNaN(cod) && mapa[cod]) {
-    return mapa[cod];
-  }
-  
-  if (texto.includes('APOSENTADO')) return 'APOSENTADO';
-  if (texto.includes('AFASTADO')) return 'AFASTADO';
-  if (texto.includes('LICENÇA')) return 'LICENÇA';
-  if (texto.includes('EXONERADO')) return 'EXONERADO';
-  if (texto.includes('FALECIDO')) return 'FALECIDO';
-  if (texto.includes('NA ATIVA')) return 'NA ATIVA';
-  if (texto.includes('SUSPENSO')) return 'SUSPENSO';
-  
-  return texto || 'Sem informação';
+  if (codValido && mapa[cod]) return mapa[cod];
+
+  // Sem código válido → usa o texto da situação
+  if (texto.includes('APOSENTAD')) return 'APOSENTADO';
+  if (texto.includes('AFASTAD')) return 'AFASTADO';
+  if (texto.includes('LICEN')) return 'LICENÇA';
+  if (texto.includes('EXONERAD') || texto.includes('RESCINDID')) return 'EXONERADO';
+  if (texto.includes('FALECID')) return 'FALECIDO';
+  if (texto.includes('NA ATIVA') || texto === 'ATIVA') return 'NA ATIVA';
+  if (texto.includes('SUSPENS')) return 'SUSPENSO';
+
+  return textoSituacao ? String(textoSituacao).trim() : 'Sem informação';
 }
 
 function obterRazaoSaldo(row) {
