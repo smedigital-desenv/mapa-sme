@@ -781,6 +781,23 @@ function isSubstituto(row) {
 
   return titularAusente && substitutoPresente;
 }
+function isMagisterioII(disc) {
+  const d = normalizar(disc);
+  return d.includes('MAGISTERIO II') || d.includes('MAGISTERIO 2');
+}
+function isSegundoAnoPPA(anoEscolar) {
+  const a = normalizar(anoEscolar);
+  return a.includes('2 ANO') || a.includes('2O ANO');
+}
+function isPRADisc(disc) {
+  const f = normalizar(disc).replace(/[^A-Z0-9]+/g, '');
+  return f.includes('RECUP') && (f.includes('APREND') || f.includes('APREN')) &&
+         f.includes('ANOS') && f.includes('INIC');
+}
+
+// ── PROCESSAMENTO DOS DADOS ───────────────────────────────────────
+function montarDados(rows) {
+  const ppaSumm  = {};
   const praSumm  = {};
   const discMap  = {};  // disc → { key → rowObj }
   const matrice  = {};  // escola → turma → disc → {profName, atribuido}
