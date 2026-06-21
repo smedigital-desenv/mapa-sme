@@ -654,7 +654,7 @@ const renderPendentesDebounced = debounce(() => renderPendentes(), 180);
 // ── API ──────────────────────────────────────────────────────────
 async function fetchTurmas() {
   const PAGE = 1000;
-  const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,funcao_professor,status_atribuicao';
+  const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,codigo_situacao_professor_prop,nome_professor_sub,codigo_professor_sub,codigo_situacao_professor_sub,situacao_professor,situacao_professor_sub,funcao_professor,status_atribuicao';
   const H = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
   const pageUrl = off => `${SUPABASE_URL}/rest/v1/turmas?select=${SELECT}&order=nome_unidade.asc&limit=${PAGE}&offset=${off}`;
 
@@ -916,7 +916,11 @@ function montarDados(rows) {
 
     const profName   = atrib ? ((sub ? row.nome_professor_sub : row.nome_professor_prop) || '—').trim() : obterRazaoSaldo(row);
     const profCode   = atrib ? ((sub ? row.codigo_professor_sub : row.codigo_professor_prop) || '—').trim() : '—';
-    const profStatus = atrib ? (row.situacao_professor || row.funcao_professor || 'ATIVA') : '—';
+    const profStatus = atrib
+      ? (sub
+          ? (estaEmContracao(row.codigo_professor_sub) ? 'Em contratação' : obterNomeSituacao(row.codigo_situacao_professor_sub, row.situacao_professor_sub))
+          : (estaEmContracao(row.codigo_professor_prop) ? 'Em contratação' : obterNomeSituacao(row.codigo_situacao_professor_prop, row.situacao_professor)))
+      : '—';
     // Titular (dono) e substituto separados — exibe "Sub:" abaixo quando dono afastado
     const profTitular = atrib ? ((row.nome_professor_prop || '—').trim()) : obterRazaoSaldo(row);
     const profSub     = (atrib && sub) ? ((row.nome_professor_sub || '').trim()) : '';
