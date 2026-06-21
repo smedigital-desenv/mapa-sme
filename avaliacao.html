@@ -1141,57 +1141,55 @@
   <!-- ═══════════════════════════════════════════════════════
        BARRA SUPERIOR
        ═══════════════════════════════════════════════════════ -->
-  <header class="nav-header">
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+  <style>
+    /* ═══ Cabeçalho global (mesmo padrão dos módulos atribuicao2/elefante2/fluencia2) ═══ */
+    .mg-header{background:var(--primary);color:#fff;border-bottom:5px solid var(--neon-blue);padding:.95rem 1.6rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;position:sticky;top:0;z-index:1050;box-shadow:0 6px 18px rgba(0,43,94,.18);}
+    .mg-brand{display:flex;align-items:center;gap:.6rem;min-width:180px;}
+    .mg-brand-icon{width:34px;height:34px;display:grid;place-items:center;color:var(--neon-blue);font-size:1.4rem;filter:drop-shadow(0 0 6px rgba(0,229,255,.55));}
+    .mg-brand h4{margin:0;font-weight:900;letter-spacing:.03em;font-size:1.4rem;line-height:1;}
+    .mg-brand-sub{font-size:.63rem;color:rgba(255,255,255,.68);font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-top:2px;}
+    .mg-nav{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;flex:1;min-width:280px;}
+    .mg-nav-btn{display:inline-flex;align-items:center;gap:.4rem;justify-content:center;min-width:150px;font-size:.78rem;font-weight:900;padding:6px 14px;border-radius:8px;border:2px solid transparent;color:#fff;text-decoration:none;transition:.2s;white-space:nowrap;cursor:pointer;}
+    .mg-nav-btn:hover{border-color:rgba(255,255,255,.4);}
+    .mg-nav-btn.active{background:#fff;color:var(--primary);box-shadow:0 2px 10px rgba(0,0,0,.18);}
+    .mg-actions{min-width:86px;display:flex;justify-content:flex-end;align-items:center;}
+    .mg-action-btn{display:inline-flex;align-items:center;gap:.35rem;font-size:.76rem;font-weight:800;padding:5px 12px;border-radius:8px;border:1.5px solid rgba(255,255,255,.45);background:transparent;color:#fff;cursor:pointer;transition:.2s;}
+    .mg-action-btn:hover{background:rgba(255,255,255,.12);border-color:#fff;}
+    /* faixa-título usa .nav-header mas não fixa (só o cabeçalho global fixa) */
+    .nav-header{position:static!important;}
+    @media (max-width:992px){.mg-nav-btn{min-width:auto;}}
+  </style>
 
-      <div class="brand-map d-flex align-items-center gap-2">
-        <div class="brand-icon">
-          <i class="bi bi-map-fill"></i>
-        </div>
-        <div>
-          <h4 class="m-0">MAPA</h4>
-          <div style="font-size:.63rem;color:rgba(255,255,255,.68);font-weight:800;letter-spacing:.08em;text-transform:uppercase;">
-            SME Ribeirão Preto
-          </div>
-        </div>
+  <!-- Cabeçalho global -->
+  <header class="mg-header">
+    <div class="mg-brand">
+      <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div>
+      <div>
+        <h4>MAPA</h4>
+        <div class="mg-brand-sub">SME Ribeirão Preto</div>
       </div>
-
-      <div class="nav-main-wrapper">
-        <div class="main-nav-group" role="group" aria-label="Navegação principal">
-          <!-- Avaliações = módulo nativo (engloba Rede como sub-tela) -->
-          <input type="radio" class="btn-check" name="mainNav" id="navAvaliacoes" autocomplete="off" checked onclick="abrirModuloAvaliacoes()">
-          <label class="btn btn-outline-light nav-btn-main" for="navAvaliacoes">
-            <i class="bi bi-clipboard-data-fill me-2"></i>Avaliações
-          </label>
-
-          <!-- Demais módulos = páginas separadas (opção 2, sem iframe) -->
-          <a class="btn btn-outline-light nav-btn-main" href="atribuicao2.html">
-            <i class="bi bi-diagram-3-fill me-2"></i>Atribuição
-          </a>
-          <a class="btn btn-outline-light nav-btn-main" href="elefante2.html">
-            <i class="bi bi-book-fill me-2"></i>Elefante Letrado
-          </a>
-          <a class="btn btn-outline-light nav-btn-main" href="fluencia2.html">
-            <i class="bi bi-book-half me-2"></i>Fluência Leitora
-          </a>
-
-          <input type="radio" class="btn-check" name="mainNav" id="navConfiguracoes" autocomplete="off" onclick="switchMainView('Configuracoes')">
-          <label class="btn btn-outline-light nav-btn-main" for="navConfiguracoes">
-            <i class="bi bi-gear-fill me-2"></i>Configurações
-          </label>
-        </div>
-      </div>
-
-      <div class="clock-box d-flex align-items-center gap-2 justify-content-end">
-        <button class="btn btn-sm btn-outline-light fw-bold" onclick="atualizarDados()" title="Atualizar dados">
-          <i class="bi bi-arrow-clockwise"></i>
-        </button>
-      </div>
-
     </div>
+    <nav class="mg-nav">
+      <a class="mg-nav-btn active" onclick="document.getElementById('navAvaliacoes').checked=true;abrirModuloAvaliacoes();return false;"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+      <a class="mg-nav-btn" href="atribuicao2.html"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+      <a class="mg-nav-btn" href="elefante2.html"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+      <a class="mg-nav-btn" href="fluencia2.html"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+      <a class="mg-nav-btn" onclick="document.getElementById('navConfiguracoes').checked=true;switchMainView('Configuracoes');return false;"><i class="bi bi-gear-fill"></i>Configurações</a>
+    </nav>
+    <div class="mg-actions">
+      <button class="mg-action-btn" onclick="atualizarDados()" title="Atualizar dados"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button>
+    </div>
+  </header>
 
-    <!-- Barra-título do módulo Avaliações (mesmo padrão dos demais módulos) -->
-    <div class="d-flex align-items-center gap-2 mt-3 pt-2" style="border-top:1px solid rgba(0,229,255,.18);">
+  <!-- Rádios ocultos: preservam a lógica de carga/estado existente -->
+  <div style="display:none;">
+    <input type="radio" name="mainNav" id="navAvaliacoes" checked>
+    <input type="radio" name="mainNav" id="navConfiguracoes">
+  </div>
+
+  <!-- Faixa-título (mesmo padrão dos demais módulos) -->
+  <header class="nav-header">
+    <div class="d-flex align-items-center gap-2">
       <i class="bi bi-clipboard-data-fill" style="color:var(--neon-blue);font-size:1.4rem;filter:drop-shadow(0 0 6px rgba(0,229,255,.55));"></i>
       <div>
         <h5 class="m-0 fw-bold text-white">Avaliações</h5>
@@ -1200,22 +1198,23 @@
         </div>
       </div>
     </div>
+  </header>
 
-    <!-- Sub-navegação do módulo Avaliações (Rede + avaliações) -->
-    <div class="sub-nav-wrap mt-2">
-      <div id="subNavAvaliacoes" class="d-flex flex-wrap gap-2 align-items-center">
-        <button type="button" class="btn-toggle active" data-sub="Rede" onclick="abrirSubRede(this)"><i class="bi bi-people-fill me-1"></i>Rede</button>
-        <button type="button" class="btn-toggle" data-avaliacao="AnoEscolar" onclick="abrirAvaliacao('AnoEscolar', this)">Diagnóstica</button>
-        <button type="button" class="btn-toggle" data-avaliacao="primeiroBimestre" onclick="abrirAvaliacao('primeiroBimestre', this)">1º Bim.</button>
-        <button type="button" class="btn-toggle" data-avaliacao="segundoBimestre" onclick="abrirAvaliacao('segundoBimestre', this)">2º Bim.</button>
-        <button type="button" class="btn-toggle" data-avaliacao="terceiroBimestre" onclick="abrirAvaliacao('terceiroBimestre', this)">3º Bim.</button>
-        <button type="button" class="btn-toggle" data-avaliacao="quartoBimestre" onclick="abrirAvaliacao('quartoBimestre', this)">4º Bim.</button>
-        <button type="button" class="btn-toggle" data-avaliacao="Total" onclick="abrirAvaliacao('Total', this)">Total</button>
-      </div>
+  <!-- Sub-navegação do módulo Avaliações (Rede + avaliações) -->
+  <div style="background:rgba(0,43,94,.95);border-bottom:1px solid rgba(0,229,255,.2);padding:.45rem 1.6rem;">
+    <div id="subNavAvaliacoes" class="d-flex flex-wrap gap-2 align-items-center">
+      <button type="button" class="btn-toggle active" data-sub="Rede" onclick="abrirSubRede(this)"><i class="bi bi-people-fill me-1"></i>Rede</button>
+      <button type="button" class="btn-toggle" data-avaliacao="AnoEscolar" onclick="abrirAvaliacao('AnoEscolar', this)">Diagnóstica</button>
+      <button type="button" class="btn-toggle" data-avaliacao="primeiroBimestre" onclick="abrirAvaliacao('primeiroBimestre', this)">1º Bim.</button>
+      <button type="button" class="btn-toggle" data-avaliacao="segundoBimestre" onclick="abrirAvaliacao('segundoBimestre', this)">2º Bim.</button>
+      <button type="button" class="btn-toggle" data-avaliacao="terceiroBimestre" onclick="abrirAvaliacao('terceiroBimestre', this)">3º Bim.</button>
+      <button type="button" class="btn-toggle" data-avaliacao="quartoBimestre" onclick="abrirAvaliacao('quartoBimestre', this)">4º Bim.</button>
+      <button type="button" class="btn-toggle" data-avaliacao="Total" onclick="abrirAvaliacao('Total', this)">Total</button>
     </div>
+  </div>
 
-    <!-- Barra global de ano: usada em Diagnóstica, Bimestres e Total -->
-    <div id="anoFilterBar" class="ano-filter-bar d-none mt-2">
+  <!-- Barra global de ano: usada em Diagnóstica, Bimestres e Total -->
+  <div id="anoFilterBar" class="ano-filter-bar d-none">
       <span class="ano-filter-label">
         <i class="bi bi-funnel-fill me-1"></i>Ano escolar
       </span>
@@ -1226,7 +1225,6 @@
       <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('4º ANO', this)">4º Ano</button>
       <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('5º ANO', this)">5º Ano</button>
     </div>
-  </header>
 
   <main class="container-fluid p-3 p-md-4 view-shell">
 
