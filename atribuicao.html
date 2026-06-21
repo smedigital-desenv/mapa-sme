@@ -909,7 +909,7 @@ function montarDados(rows) {
     // Linha de atribuição PPA (PROJ. PROF. ALFABETIZADOR) — conta horas, não salas
     const isPPARow = discNorm.includes('ALFABETIZADOR') || discNorm.includes(' PPA') || discNorm === 'PPA';
 
-    const profName   = atrib ? ((sub ? row.nome_professor_sub : row.nome_professor_prop) || '—').trim() : 'S/ Atribuição';
+    const profName   = atrib ? ((sub ? row.nome_professor_sub : row.nome_professor_prop) || '—').trim() : obterRazaoSaldo(row);
     const profCode   = atrib ? ((sub ? row.codigo_professor_sub : row.codigo_professor_prop) || '—').trim() : '—';
     const profStatus = atrib ? (row.situacao_professor || row.funcao_professor || 'ATIVA') : '—';
     // Titular (dono) e substituto separados — exibe "Sub:" abaixo quando dono afastado

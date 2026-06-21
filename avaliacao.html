@@ -6967,17 +6967,20 @@ function _renderTabelaTotal(linhas) {
     let profName, profCode, profStatus;
 
     if (!atribuido) {
-      profName = 'S/ ATRIBUIÇÃO';
+      // Mostrar a razão real do saldo
+      profName = obterRazaoSaldo(row);  // Ex: "SALDO (Aposentadoria)"
       profCode = '-';
       profStatus = '-';
     } else if (substituto) {
+      // Substituto está lecionando
       profName = row.nome_professor_sub || '-';
       profCode = row.codigo_professor_sub || '-';
-      profStatus = row.situacao_professor_sub || 'NA ATIVA';
+      profStatus = obterNomeSituacao(row.codigo_situacao_professor_sub, row.situacao_professor_sub);
     } else {
+      // Titular está lecionando
       profName = row.nome_professor_prop || '-';
       profCode = row.codigo_professor_prop || '-';
-      profStatus = row.situacao_professor || 'NA ATIVA';
+      profStatus = obterNomeSituacao(row.codigo_situacao_professor_prop, row.situacao_professor);
     }
 
     return {
@@ -7177,7 +7180,7 @@ function _renderTabelaTotal(linhas) {
         if (!matriceEscola[unit][_turmaKey]) matriceEscola[unit][_turmaKey] = {};
         if (!matriceEscola[unit][_turmaKey][disc]) {
           matriceEscola[unit][_turmaKey][disc] = {
-            profName: atribuido ? ((substituto ? row.nome_professor_sub : row.nome_professor_prop) || '-') : 'S/ ATRIBUIÇÃO',
+            profName: atribuido ? ((substituto ? row.nome_professor_sub : row.nome_professor_prop) || '-') : obterRazaoSaldo(row),
             atribuido
           };
         }
