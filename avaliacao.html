@@ -6861,6 +6861,11 @@ function _renderTabelaTotal(linhas) {
     const cod = Number(codigo);
     const texto = String(textoSituacao || '').trim().toUpperCase();
     
+    // PRIMEIRO: Verificar se é contratação em andamento (código >= 99000)
+    if (!isNaN(cod) && cod >= 99000) {
+      return 'Em contratação';
+    }
+    
     const mapa = {
       1: 'NA ATIVA',
       2: 'APOSENTADO',

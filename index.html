@@ -6928,7 +6928,12 @@ function _renderTabelaTotal(linhas) {
     const cod = Number(codigo);
     const texto = String(textoSituacao || '').trim().toUpperCase();
     
-    // Mapeamento por código
+    // PRIMEIRO: Verificar se é contratação em andamento (código do professor >= 99000)
+    if (!isNaN(cod) && cod >= 99000) {
+      return 'Em contratação';
+    }
+    
+    // Mapeamento por código de situação
     const mapa = {
       1: 'NA ATIVA',
       2: 'APOSENTADO',
