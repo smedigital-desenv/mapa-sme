@@ -262,7 +262,7 @@
     <a class="mg-nav-btn" href="index2.html#Configuracoes"><i class="bi bi-gear-fill"></i>Configurações</a>
   </nav>
   <div class="mg-actions">
-    <button class="mg-action-btn" onclick="location.reload()" title="Atualizar"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button>
+    <button class="mg-action-btn" onclick="_limparCacheFlu();location.reload()" title="Atualizar (dados frescos)"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button>
   </div>
 </header>
 
@@ -568,7 +568,26 @@ const PERFIS = [
 window.addEventListener('DOMContentLoaded', () => carregarDados());
 
 // ── API ────────────────────────────────────────────────────
+// Cache de leituras em sessionStorage (revisitar a página não re-busca tudo)
+const _FLU_CACHE_PREFIX = 'mapa_flu_';
+const _FLU_CACHE_TTL = 10 * 60 * 1000; // 10 min
+function _limparCacheFlu() {
+  try { Object.keys(sessionStorage).filter(k => k.startsWith(_FLU_CACHE_PREFIX)).forEach(k => sessionStorage.removeItem(k)); } catch (e) {}
+}
 async function apiFetch(path) {
+  const key = _FLU_CACHE_PREFIX + path;
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (raw) {
+      const o = JSON.parse(raw);
+      if (o && o.ts && (Date.now() - o.ts) < _FLU_CACHE_TTL) return o.data;
+    }
+  } catch (e) {}
+  const data = await _apiFetchRede(path);
+  try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch (e) {}
+  return data;
+}
+async function _apiFetchRede(path) {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
   });
@@ -594,6 +613,7 @@ async function apiUpsert(registros) {
     );
     if (!r.ok) throw new Error(`Upsert falhou: ${await r.text()}`);
   }
+  _limparCacheFlu(); // dados mudaram → invalida o cache de leituras
 }
 
 // ── Engajamento do Elefante Letrado ────────────────────────
