@@ -6925,7 +6925,7 @@ function _renderTabelaTotal(linhas) {
       : row.situacao_professor_sub;
 
     if (estaEmContracao(codigoTitular)) {
-      return false;
+      return true;
     }
 
     if (estaNaAtiva(situacaoTitular)) {
@@ -6937,7 +6937,7 @@ function _renderTabelaTotal(linhas) {
     }
 
     if (estaEmContracao(codigoSubstituto)) {
-      return false;
+      return true;
     }
 
     if (estaNaAtiva(situacaoSubstituto)) {
@@ -6958,7 +6958,7 @@ function _renderTabelaTotal(linhas) {
       : row.situacao_professor_sub;
 
     const titularAusente = !estaNaAtiva(situacaoTitular);
-    const substitutoPresente = (codigoSubstituto && codigoSubstituto !== '0') && estaNaAtiva(situacaoSubstituto);
+    const substitutoPresente = (codigoSubstituto && codigoSubstituto !== '0') && (estaNaAtiva(situacaoSubstituto) || estaEmContracao(codigoSubstituto));
 
     return titularAusente && substitutoPresente;
   }
