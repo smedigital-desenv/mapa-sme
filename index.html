@@ -6841,10 +6841,18 @@ function _renderTabelaTotal(linhas) {
 
     // Helper: verificar se está NA ATIVA
   function estaNaAtiva(situacao) {
-    if (typeof situacao === 'number') {
-      return situacao === 1;  // 1 = NA ATIVA
+    if (!situacao && situacao !== 0) {
+      return false;  // null/undefined = não está na ativa
     }
-    const texto = String(situacao || '').toUpperCase().trim();
+    
+    // Tentar como número primeiro
+    const num = Number(situacao);
+    if (!isNaN(num)) {
+      return num === 1;  // 1 = NA ATIVA, qualquer outro = não ativa
+    }
+    
+    // Se não for número, tentar como texto
+    const texto = String(situacao).toUpperCase().trim();
     return texto.includes('NA ATIVA') || texto === 'ATIVA';
   }
 
@@ -6853,26 +6861,36 @@ function _renderTabelaTotal(linhas) {
   }
 
   function isAtribuido(row) {
-    const situacaoTitular = Number(row.codigo_situacao_professor_prop) || String(row.situacao_professor || '').trim().toUpperCase();
+    if (!row) return false;
+    
+    // Extrair valores com segurança
+    const situacaoTitular = row.codigo_situacao_professor_prop !== undefined 
+      ? row.codigo_situacao_professor_prop 
+      : row.situacao_professor;
+      
     const codigoSubstituto = String(row.codigo_professor_sub || '').trim();
-    const situacaoSubstituto = Number(row.codigo_situacao_professor_sub) || String(row.situacao_professor_sub || '').trim().toUpperCase();
+    
+    const situacaoSubstituto = row.codigo_situacao_professor_sub !== undefined
+      ? row.codigo_situacao_professor_sub
+      : row.situacao_professor_sub;
 
-    // PASSO 1: Titular na ativa?
+    // PASSO 1: Verificar se Titular está NA ATIVA
     if (estaNaAtiva(situacaoTitular)) {
       return true;  // Atribuído
     }
 
-    // PASSO 2: Sem substituto?
+    // PASSO 2: Titular não está ativo. Tem substituto?
     if (!codigoSubstituto || codigoSubstituto === '0' || codigoSubstituto === '') {
-      return false;  // Saldo
+      return false;  // Sem substituto → SALDO
     }
 
-    // PASSO 3: Substituto na ativa?
+    // PASSO 3: Tem substituto. Substituto está NA ATIVA?
     if (estaNaAtiva(situacaoSubstituto)) {
-      return true;  // Atribuído (substituto cobre)
+      return true;  // Substituto está ativo → ATRIBUÍDO
     }
 
-    return false;  // Saldo (ambos ausentes)
+    // Substituto também não está ativo → SALDO
+    return false;
   }
 
   function isSubstituto(row) {
@@ -6886,21 +6904,70 @@ function _renderTabelaTotal(linhas) {
     return titularAusente && substitutoPresente;
   }
 
+  // ═══ MAPEAMENTO DE SITUAÇÕES ═══
+  function obterNomeSituacao(codigo, textoSituacao) {
+    if (!codigo && codigo !== 0) return 'Sem informação';
+    
+    const cod = Number(codigo);
+    const texto = String(textoSituacao || '').trim().toUpperCase();
+    
+    // Mapeamento por código
+    const mapa = {
+      1: 'NA ATIVA',
+      2: 'APOSENTADO',
+      3: 'AFASTADO',
+      4: 'LICENÇA',
+      5: 'EXONERADO',
+      6: 'FALECIDO',
+      7: 'AFASTADO POR LEI',
+      8: 'SUSPENSO'
+    };
+    
+    if (!isNaN(cod) && mapa[cod]) {
+      return mapa[cod];
+    }
+    
+    if (texto.includes('APOSENTADO')) return 'APOSENTADO';
+    if (texto.includes('AFASTADO')) return 'AFASTADO';
+    if (texto.includes('LICENÇA')) return 'LICENÇA';
+    if (texto.includes('EXONERADO')) return 'EXONERADO';
+    if (texto.includes('FALECIDO')) return 'FALECIDO';
+    if (texto.includes('NA ATIVA')) return 'NA ATIVA';
+    if (texto.includes('SUSPENSO')) return 'SUSPENSO';
+    
+    return texto || 'Sem informação';
+  }
+
+  function obterRazaoSaldo(row) {
+    const situacaoTit = obterNomeSituacao(row.codigo_situacao_professor_prop, row.situacao_professor);
+    const temSub = String(row.codigo_professor_sub || '').trim() && row.codigo_professor_sub !== '0';
+    
+    if (!temSub) {
+      return `SALDO (${situacaoTit})`;
+    } else {
+      const situacaoSub = obterNomeSituacao(row.codigo_situacao_professor_sub, row.situacao_professor_sub);
+      return `SALDO (Titular: ${situacaoTit}, Substituto: ${situacaoSub})`;
+    }
+  }
+
   function detalheTurma(row, disc, workload, atribuido, substituto) {
     let profName, profCode, profStatus;
 
     if (!atribuido) {
-      profName = 'S/ ATRIBUIÇÃO';
-      profCode = '-';
-      profStatus = '-';
+      // Mostrar a razão real do saldo
+      profName = obterRazaoSaldo(row);  // Ex: "SALDO (Aposentadoria)"
+      profCode = '—';
+      profStatus = '—';
     } else if (substituto) {
-      profName = row.nome_professor_sub || '-';
-      profCode = row.codigo_professor_sub || '-';
-      profStatus = row.situacao_professor_sub || 'NA ATIVA';
+      // Substituto está lecionando
+      profName = row.nome_professor_sub || '—';
+      profCode = row.codigo_professor_sub || '—';
+      profStatus = obterNomeSituacao(row.codigo_situacao_professor_sub, row.situacao_professor_sub);
     } else {
-      profName = row.nome_professor_prop || '-';
-      profCode = row.codigo_professor_prop || '-';
-      profStatus = row.situacao_professor || 'NA ATIVA';
+      // Titular está lecionando
+      profName = row.nome_professor_prop || '—';
+      profCode = row.codigo_professor_prop || '—';
+      profStatus = obterNomeSituacao(row.codigo_situacao_professor_prop, row.situacao_professor);
     }
 
     return {
