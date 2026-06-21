@@ -8046,6 +8046,15 @@ function limparAreaAvaliacao() {
       if (areaSeries) areaSeries.innerHTML = '<div class="text-muted">Carregando séries…</div>';
       if (tabUsuarios) tabUsuarios.innerHTML = '<tr><td colspan="5" class="text-muted">Carregando…</td></tr>';
 
+      // As Configurações usam o Google Apps Script. Fora dele (página estática),
+      // degrada sem quebrar o restante do carregamento.
+      if (typeof google === 'undefined' || !google.script || !google.script.run) {
+        _configMapaCache = _configMapaCache || { usuarios: [], unidades: [], series: [] };
+        if (areaSeries) areaSeries.innerHTML = '<div class="alert alert-info small mb-0">As Configurações usam o Google Apps Script e não estão disponíveis nesta versão.</div>';
+        renderConfiguracoesMapa();
+        return;
+      }
+
       google.script.run
         .withSuccessHandler(res => {
           _configMapaCache = res || { usuarios: [], unidades: [], series: [] };
