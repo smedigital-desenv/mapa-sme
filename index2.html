@@ -1158,25 +1158,19 @@
 
       <div class="nav-main-wrapper">
         <div class="main-nav-group" role="group" aria-label="Navegação principal">
-          <input type="radio" class="btn-check" name="mainNav" id="navAvaliacoes" autocomplete="off" onclick="switchMainView('Avaliacoes')">
+          <!-- Avaliações = módulo nativo (engloba Rede como sub-tela) -->
+          <input type="radio" class="btn-check" name="mainNav" id="navAvaliacoes" autocomplete="off" checked onclick="abrirModuloAvaliacoes()">
           <label class="btn btn-outline-light nav-btn-main" for="navAvaliacoes">
             <i class="bi bi-clipboard-data-fill me-2"></i>Avaliações
           </label>
 
-          <input type="radio" class="btn-check" name="mainNav" id="navRede" autocomplete="off" checked onclick="switchMainView('Rede')">
-          <label class="btn btn-outline-light nav-btn-main" for="navRede">
-            <i class="bi bi-people-fill me-2"></i>Rede
-          </label>
-
-          <!-- Módulos = páginas separadas (opção 2, sem iframe) -->
+          <!-- Demais módulos = páginas separadas (opção 2, sem iframe) -->
           <a class="btn btn-outline-light nav-btn-main" href="atribuicao2.html">
             <i class="bi bi-diagram-3-fill me-2"></i>Atribuição
           </a>
-
           <a class="btn btn-outline-light nav-btn-main" href="elefante2.html">
             <i class="bi bi-book-fill me-2"></i>Elefante Letrado
           </a>
-
           <a class="btn btn-outline-light nav-btn-main" href="fluencia2.html">
             <i class="bi bi-book-half me-2"></i>Fluência Leitora
           </a>
@@ -1186,25 +1180,31 @@
             <i class="bi bi-gear-fill me-2"></i>Configurações
           </label>
         </div>
-
-        <div class="sub-nav-wrap">
-          <div id="subNavAvaliacoes" class="d-none">
-            <button type="button" class="btn-toggle active" data-avaliacao="AnoEscolar" onclick="abrirAvaliacao('AnoEscolar', this)">Diagnóstica</button>
-            <button type="button" class="btn-toggle" data-avaliacao="primeiroBimestre" onclick="abrirAvaliacao('primeiroBimestre', this)">1º Bim.</button>
-            <button type="button" class="btn-toggle" data-avaliacao="segundoBimestre" onclick="abrirAvaliacao('segundoBimestre', this)">2º Bim.</button>
-            <button type="button" class="btn-toggle" data-avaliacao="terceiroBimestre" onclick="abrirAvaliacao('terceiroBimestre', this)">3º Bim.</button>
-            <button type="button" class="btn-toggle" data-avaliacao="quartoBimestre" onclick="abrirAvaliacao('quartoBimestre', this)">4º Bim.</button>
-            <button type="button" class="btn-toggle" data-avaliacao="Total" onclick="abrirAvaliacao('Total', this)">Total</button>
-          </div>
-        </div>
       </div>
 
-      <div id="moduloTopActions" class="clock-box d-flex align-items-center gap-2 justify-content-end"></div>
+      <div class="clock-box d-flex align-items-center gap-2 justify-content-end">
+        <button class="btn btn-sm btn-outline-light fw-bold" onclick="atualizarDados()" title="Atualizar dados">
+          <i class="bi bi-arrow-clockwise"></i>
+        </button>
+      </div>
 
     </div>
 
+    <!-- Sub-navegação do módulo Avaliações (Rede + avaliações) -->
+    <div class="sub-nav-wrap mt-2">
+      <div id="subNavAvaliacoes" class="d-flex flex-wrap gap-2 align-items-center">
+        <button type="button" class="btn-toggle active" data-sub="Rede" onclick="abrirSubRede(this)"><i class="bi bi-people-fill me-1"></i>Rede</button>
+        <button type="button" class="btn-toggle" data-avaliacao="AnoEscolar" onclick="abrirAvaliacao('AnoEscolar', this)">Diagnóstica</button>
+        <button type="button" class="btn-toggle" data-avaliacao="primeiroBimestre" onclick="abrirAvaliacao('primeiroBimestre', this)">1º Bim.</button>
+        <button type="button" class="btn-toggle" data-avaliacao="segundoBimestre" onclick="abrirAvaliacao('segundoBimestre', this)">2º Bim.</button>
+        <button type="button" class="btn-toggle" data-avaliacao="terceiroBimestre" onclick="abrirAvaliacao('terceiroBimestre', this)">3º Bim.</button>
+        <button type="button" class="btn-toggle" data-avaliacao="quartoBimestre" onclick="abrirAvaliacao('quartoBimestre', this)">4º Bim.</button>
+        <button type="button" class="btn-toggle" data-avaliacao="Total" onclick="abrirAvaliacao('Total', this)">Total</button>
+      </div>
+    </div>
+
     <!-- Barra global de ano: usada em Diagnóstica, Bimestres e Total -->
-    <div id="anoFilterBar" class="ano-filter-bar d-none mt-3">
+    <div id="anoFilterBar" class="ano-filter-bar d-none mt-2">
       <span class="ano-filter-label">
         <i class="bi bi-funnel-fill me-1"></i>Ano escolar
       </span>
@@ -7638,15 +7638,14 @@ function atualizarDados() {
 
     const selectedNav = document.querySelector('input[name="mainNav"]:checked');
 
-    if (modoApp === 'apresentacao') {
-      switchMainView('Atribuicao');
-      iniciarModoEspecial();
-    } else if (modoApp === 'atribuicao') {
-      switchMainView('Atribuicao');
+    if (modoApp === 'apresentacao' || modoApp === 'atribuicao') {
+      // modos especiais antigos: cai no módulo Avaliações (tela Rede)
+      abrirModuloAvaliacoes();
       iniciarModoEspecial();
     } else if (!jaRenderizou) {
-      if (selectedNav) switchMainView(selectedNav.id.replace('nav', ''));
-      else switchMainView('Atribuicao');
+      // Configurações se foi essa a aba marcada; caso contrário, módulo Avaliações (Rede)
+      if (selectedNav && selectedNav.id === 'navConfiguracoes') switchMainView('Configuracoes');
+      else abrirModuloAvaliacoes();
     }
 
     jaRenderizou = true;
@@ -7764,7 +7763,7 @@ function iniciarModoEspecial() {
 
 function iniciarModoAtribuicao() {
   document.body.classList.add('modo-atribuicao');
-  switchMainView('Atribuicao');
+  abrirModuloAvaliacoes();
 
   if (!document.getElementById('avisoModoAtribuicao')) {
     document.body.insertAdjacentHTML('afterbegin',
@@ -7797,7 +7796,7 @@ function executarPassoApresentacao() {
 
   try {
     if (passo.view === 'Turmas' || passo.view === 'Atribuicao') {
-      switchMainView('Atribuicao');
+      abrirModuloAvaliacoes();
       const navAtribuicao = document.getElementById('navAtribuicao');
       if (navAtribuicao) navAtribuicao.checked = true;
     }
@@ -7905,6 +7904,7 @@ function switchMainView(view) {
   if (view === 'Rede') {
     avaliacaoAtual = 'AnoEscolar';
 
+    if (subNavAvaliacoes) subNavAvaliacoes.classList.remove('d-none'); // sub-nav do módulo fica visível
     if (vAlunos) vAlunos.classList.remove('d-none');
     mostrarAnoFilterBar(true);
     _resetarAnoFilterBar();
@@ -7922,6 +7922,18 @@ function switchMainView(view) {
     if (subNavAvaliacoes) subNavAvaliacoes.classList.remove('d-none');
     abrirAvaliacao(view === 'Bimestre1' ? 'primeiroBimestre' : 'AnoEscolar');
   }
+}
+
+// Módulo Avaliações: "Rede" como sub-tela
+function abrirSubRede(btn) {
+  document.querySelectorAll('#subNavAvaliacoes .btn-toggle').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  switchMainView('Rede');
+}
+function abrirModuloAvaliacoes() {
+  // Clicar em "Avaliações" no topo volta para a tela Rede (painel)
+  const r = document.querySelector('#subNavAvaliacoes [data-sub="Rede"]');
+  abrirSubRede(r);
 }
 
 // ===========================================================
