@@ -1490,6 +1490,16 @@ function _renderDetalhesDireto(safeUnit, r) {
   </tr>`;
 }
 
+// Cor do badge de situação:
+//   verde = na ativa | amarelo = em contratação | cinza = sem professor | vermelho = demais (afastado/aposentado/readaptado/etc.)
+function corSituacao(status) {
+  const s = String(status || '').toUpperCase().trim();
+  if (s.includes('ATIVA')) return 'bg-success';
+  if (s.includes('CONTRATA')) return 'bg-warning text-dark';
+  if (s === '—' || s === '') return 'bg-secondary';
+  return 'bg-danger';
+}
+
 function _renderDetalhes(details) {
   if (!details.length) return '<tr><td colspan="6" class="text-center text-muted">Sem detalhes</td></tr>';
   return details.map(d => `
@@ -1501,7 +1511,7 @@ function _renderDetalhes(details) {
         ${d.profSub ? `<div style="font-size:.7rem;color:#64748b;margin-top:2px;"><i class="bi bi-arrow-return-right me-1"></i>Sub: ${escapeHtml(d.profSub)}</div>` : ''}
       </td>
       <td class="text-center">${escapeHtml(d.profCode)}</td>
-      <td class="text-center"><span class="badge ${String(d.profStatus).includes('ATIVA') ? 'bg-success' : 'bg-secondary'}">${escapeHtml(d.profStatus)}</span></td>
+      <td class="text-center"><span class="badge ${corSituacao(d.profStatus)}">${escapeHtml(d.profStatus)}</span></td>
       <td class="text-center fw-bold">${d.workload}h</td>
     </tr>`).join('');
 }
