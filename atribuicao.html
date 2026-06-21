@@ -654,7 +654,7 @@ const renderPendentesDebounced = debounce(() => renderPendentes(), 180);
 // ── API ──────────────────────────────────────────────────────────
 async function fetchTurmas() {
   const PAGE = 1000;
-  const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,codigo_situacao_professor_prop,nome_professor_sub,codigo_professor_sub,codigo_situacao_professor_sub,situacao_professor,situacao_professor_sub,funcao_professor,status_atribuicao';
+  const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,situacao_professor_sub,funcao_professor,status_atribuicao';
   const H = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
   const pageUrl = off => `${SUPABASE_URL}/rest/v1/turmas?select=${SELECT}&order=nome_unidade.asc&limit=${PAGE}&offset=${off}`;
 
@@ -739,9 +739,7 @@ function periodoDesc(valor) {
 
 // Helper: verificar se está NA ATIVA
 function estaNaAtiva(situacao) {
-  if (typeof situacao === 'number') {
-    return situacao === 1;  // 1 = NA ATIVA
-  }
+  // Usa apenas o TEXTO da situação (campo confiável vindo do banco)
   const texto = String(situacao || '').toUpperCase().trim();
   return texto.includes('NA ATIVA') || texto === 'ATIVA';
 }
@@ -751,58 +749,41 @@ function statusAtribuicao(row) {
 }
 function isAtribuido(row) {
   if (!row) return false;
-  
-  // Extrair valores com segurança.
-  // O código de situação só vale quando é um código real (1-8); quando vem
-  // vazio, nulo ou '0', usamos o texto da situação (campo confiável).
-  const _codSitProp = row.codigo_situacao_professor_prop;
-  const _propValido = _codSitProp !== undefined && _codSitProp !== null && String(_codSitProp).trim() !== '' && String(_codSitProp).trim() !== '0';
-  const situacaoTitular = _propValido ? _codSitProp : row.situacao_professor;
 
-  const codigoTitular = row.codigo_professor_prop;
-  const codigoSubstituto = String(row.codigo_professor_sub || '').trim();
+  const codigoTitular    = String(row.codigo_professor_prop || '').trim();
+  const codigoSubstituto = String(row.codigo_professor_sub  || '').trim();
 
-  const _codSitSub = row.codigo_situacao_professor_sub;
-  const _subValido = _codSitSub !== undefined && _codSitSub !== null && String(_codSitSub).trim() !== '' && String(_codSitSub).trim() !== '0';
-  const situacaoSubstituto = _subValido ? _codSitSub : row.situacao_professor_sub;
+  // 1) Titular em contratação (código do professor >= 99000) → ATRIBUÍDO
+  if (estaEmContracao(codigoTitular)) return true;
 
-  // PASSO 1: Titular em processo de contratação? → AINDA É ATRIBUÍDO
-  if (estaEmContracao(codigoTitular)) {
-    return true;  // Atribuído (em contratação)
-  }
+  // 2) Titular presente (código != 0) e NA ATIVA (pelo TEXTO) → ATRIBUÍDO
+  if (codigoTitular && codigoTitular !== '0' && estaNaAtiva(row.situacao_professor)) return true;
 
-  // PASSO 2: Verificar se Titular está NA ATIVA
-  if (estaNaAtiva(situacaoTitular)) {
-    return true;  // Atribuído
-  }
+  // 3) Sem substituto (código do professor 0 ou vazio) → SALDO
+  if (!codigoSubstituto || codigoSubstituto === '0') return false;
 
-  // PASSO 3: Titular não está ativo. Tem substituto?
-  if (!codigoSubstituto || codigoSubstituto === '0' || codigoSubstituto === '') {
-    return false;  // Sem substituto → SALDO
-  }
+  // 4) Substituto em contratação (código >= 99000) → ATRIBUÍDO
+  if (estaEmContracao(codigoSubstituto)) return true;
 
-  // PASSO 4: Tem substituto. Substituto em contratação? → AINDA É ATRIBUÍDO
-  if (estaEmContracao(codigoSubstituto)) {
-    return true;  // Atribuído (substituto em contratação)
-  }
+  // 5) Substituto NA ATIVA (pelo TEXTO) → ATRIBUÍDO
+  if (estaNaAtiva(row.situacao_professor_sub)) return true;
 
-  // PASSO 5: Tem substituto. Substituto está NA ATIVA?
-  if (estaNaAtiva(situacaoSubstituto)) {
-    return true;  // Substituto está ativo → ATRIBUÍDO
-  }
-
-  // Substituto também não está ativo → SALDO
+  // 6) Ninguém ativo → SALDO
   return false;
 }
 function isSubstituto(row) {
-  const situacaoTitular = Number(row.codigo_situacao_professor_prop) || String(row.situacao_professor || '').trim().toUpperCase();
-  const codigoSubstituto = String(row.codigo_professor_sub || '').trim();
-  const situacaoSubstituto = Number(row.codigo_situacao_professor_sub) || String(row.situacao_professor_sub || '').trim().toUpperCase();
+  const codigoTitular    = String(row.codigo_professor_prop || '').trim();
+  const codigoSubstituto = String(row.codigo_professor_sub  || '').trim();
 
-  const titularAusente = !estaNaAtiva(situacaoTitular);
-  const substitutoPresente = (codigoSubstituto && codigoSubstituto !== '0') && (estaNaAtiva(situacaoSubstituto) || estaEmContracao(codigoSubstituto));
+  // O titular "ocupa" a vaga se está em contratação OU presente e na ativa (texto)
+  const titularOcupa = estaEmContracao(codigoTitular) ||
+    (codigoTitular && codigoTitular !== '0' && estaNaAtiva(row.situacao_professor));
 
-  return titularAusente && substitutoPresente;
+  // O substituto "ocupa" se existe (código != 0) e está em contratação OU na ativa (texto)
+  const substitutoOcupa = (codigoSubstituto && codigoSubstituto !== '0') &&
+    (estaEmContracao(codigoSubstituto) || estaNaAtiva(row.situacao_professor_sub));
+
+  return !titularOcupa && substitutoOcupa;
 }
 function isMagisterioII(disc) {
   const d = normalizar(disc);
@@ -815,66 +796,41 @@ function estaEmContracao(codigoProfessor) {
   return !isNaN(cod) && cod >= 99000;
 }
 
-// ═══ MAPEAMENTO DE SITUAÇÕES ═══
-function obterNomeSituacao(codigo, textoSituacao) {
-  const cod = Number(codigo);
-  // Código de situação só é válido quando é um número real (não vazio, nulo nem '0')
-  const codValido = codigo !== undefined && codigo !== null && String(codigo).trim() !== '' && String(codigo).trim() !== '0' && !isNaN(cod);
+// ═══ MAPEAMENTO DE SITUAÇÕES (pelo texto) ═══
+function obterNomeSituacao(textoSituacao) {
   const texto = String(textoSituacao || '').trim().toUpperCase();
-
-  // Contratação em andamento (código do professor >= 99000)
-  if (codValido && cod >= 99000) return 'Em contratação';
-
-  // Mapeamento por código de situação
-  const mapa = {
-    1: 'NA ATIVA',
-    2: 'APOSENTADO',
-    3: 'AFASTADO',
-    4: 'LICENÇA',
-    5: 'EXONERADO',
-    6: 'FALECIDO',
-    7: 'AFASTADO POR LEI',
-    8: 'SUSPENSO'
-  };
-  if (codValido && mapa[cod]) return mapa[cod];
-
-  // Sem código válido → usa o texto da situação
+  if (!texto) return 'Sem informação';
+  if (texto.includes('NA ATIVA') || texto === 'ATIVA') return 'NA ATIVA';
   if (texto.includes('APOSENTAD')) return 'APOSENTADO';
   if (texto.includes('AFASTAD')) return 'AFASTADO';
   if (texto.includes('LICEN')) return 'LICENÇA';
   if (texto.includes('EXONERAD') || texto.includes('RESCINDID')) return 'EXONERADO';
   if (texto.includes('FALECID')) return 'FALECIDO';
-  if (texto.includes('NA ATIVA') || texto === 'ATIVA') return 'NA ATIVA';
   if (texto.includes('SUSPENS')) return 'SUSPENSO';
-
-  return textoSituacao ? String(textoSituacao).trim() : 'Sem informação';
+  return String(textoSituacao).trim();
 }
 
 function obterRazaoSaldo(row) {
-  const codigoTit = row.codigo_professor_prop;
-  const situacaoTit = obterNomeSituacao(row.codigo_situacao_professor_prop, row.situacao_professor);
-  const temSub = String(row.codigo_professor_sub || '').trim() && row.codigo_professor_sub !== '0';
-  const codigoSub = row.codigo_professor_sub;
-  
-  // Verificar contratação do titular
-  if (estaEmContracao(codigoTit)) {
-    return 'SALDO (Em processo de contratação)';
-  }
-  
-  // Se não tem substituto, mostrar situação do titular
+  const codigoTit = String(row.codigo_professor_prop || '').trim();
+  const codigoSub = String(row.codigo_professor_sub  || '').trim();
+  const temSub = codigoSub && codigoSub !== '0';
+
+  // Titular em contratação (não deveria cair em saldo, mas por segurança)
+  if (estaEmContracao(codigoTit)) return 'SALDO (Em processo de contratação)';
+
+  const situacaoTit = obterNomeSituacao(row.situacao_professor);
+
+  // Sem substituto
   if (!temSub) {
+    if (!codigoTit || codigoTit === '0') return 'SALDO (Sem professor)';
     return `SALDO (${situacaoTit})`;
   }
-  
-  // Tem substituto - verificar situação
-  const situacaoSub = obterNomeSituacao(row.codigo_situacao_professor_sub, row.situacao_professor_sub);
-  
-  // Verificar contratação do substituto
-  if (estaEmContracao(codigoSub)) {
-    return 'SALDO (Substituto em processo de contratação)';
-  }
-  
+
+  // Substituto em contratação
+  if (estaEmContracao(codigoSub)) return 'SALDO (Substituto em processo de contratação)';
+
   // Ambos inativos
+  const situacaoSub = obterNomeSituacao(row.situacao_professor_sub);
   return `SALDO (Titular: ${situacaoTit}, Substituto: ${situacaoSub})`;
 }
 function isSegundoAnoPPA(anoEscolar) {
@@ -916,8 +872,8 @@ function montarDados(rows) {
     const profCode   = atrib ? ((sub ? row.codigo_professor_sub : row.codigo_professor_prop) || '—').trim() : '—';
     const profStatus = atrib
       ? (sub
-          ? (estaEmContracao(row.codigo_professor_sub) ? 'Em contratação' : obterNomeSituacao(row.codigo_situacao_professor_sub, row.situacao_professor_sub))
-          : (estaEmContracao(row.codigo_professor_prop) ? 'Em contratação' : obterNomeSituacao(row.codigo_situacao_professor_prop, row.situacao_professor)))
+          ? (estaEmContracao(row.codigo_professor_sub) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor_sub))
+          : (estaEmContracao(row.codigo_professor_prop) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor)))
       : '—';
     // Titular (dono) e substituto separados — exibe "Sub:" abaixo quando dono afastado
     const profTitular = atrib ? ((row.nome_professor_prop || '—').trim()) : obterRazaoSaldo(row);
