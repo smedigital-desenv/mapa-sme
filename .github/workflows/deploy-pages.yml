@@ -1,0 +1,56 @@
+name: Deploy GitHub Pages (produção + homologação)
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:   # permite rodar manualmente pela aba Actions
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Evita que dois deploys rodem ao mesmo tempo e se atropelem
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar main (produção)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: _src/main
+
+      - name: Baixar develop (homologação)
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          path: _src/develop
+
+      - name: Montar o site (main na raiz, develop em /teste)
+        run: |
+          mkdir -p _site
+          rsync -a --exclude='.git' --exclude='.github' _src/main/ _site/
+          mkdir -p _site/teste
+          rsync -a --exclude='.git' --exclude='.github' _src/develop/ _site/teste/
+          touch _site/.nojekyll
+
+      - name: Enviar artefato do Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publicar no GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
