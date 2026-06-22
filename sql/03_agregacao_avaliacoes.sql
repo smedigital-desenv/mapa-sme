@@ -1,27 +1,76 @@
 -- ============================================================
--- PERFORMANCE — AGREGAÇÃO SERVER-SIDE DAS AVALIAÇÕES
--- Rode este script UMA VEZ no SQL Editor do Supabase.
+-- PERFORMANCE MÁXIMA — AVALIAÇÕES INSTANTÂNEAS (MATERIALIZED VIEWS)
+-- Rode este script no SQL Editor do Supabase (pode re-rodar à vontade).
 --
--- Objetivo: parar de baixar a tabela `bimestres` inteira (269 mil linhas)
--- para o navegador. Em vez disso, o Postgres já devolve os dados SOMADOS
--- por combinação crua de colunas (poucos KB). A normalização/rotulagem
--- continua igual no JS, rodando sobre esse conjunto pequeno — então os
--- números exibidos permanecem idênticos.
+-- Ideia: parar de reagrupar a tabela `bimestres` (269 mil linhas) a cada
+-- acesso. As "materialized views" guardam o resultado JÁ SOMADO; as funções
+-- só leem essas views (sub-segundo). A normalização/rotulagem continua no JS,
+-- então os números exibidos permanecem IDÊNTICOS.
+--
+-- Para você NÃO PERDER DADOS: as views se atualizam sozinhas a cada 5 min
+-- (pg_cron) e há uma função para forçar atualização na hora após importações.
 -- ============================================================
 
--- ── Índices: aceleram os filtros por bimestre / unidade / turma ──
+-- ── Índices na tabela base (aceleram a construção das views e os drill-downs) ──
 CREATE INDEX IF NOT EXISTS idx_bimestres_bimestre ON bimestres (bimestre);
 CREATE INDEX IF NOT EXISTS idx_bimestres_unidade  ON bimestres (nome_unidade);
 CREATE INDEX IF NOT EXISTS idx_bimestres_turma    ON bimestres (turma);
 
--- ── FUNÇÃO 1: agrupa `bimestres` por colunas cruas ──
--- Retorna { grupos: [...], hier: [...] }:
---   grupos = contagem por (bimestre, unidade, ano, turma, disciplina, eixo,
---            valor/codigo/texto da resposta)  → alimenta linhas/Total/eixos
---   hier   = nº de alunos DISTINTOS por (bimestre, unidade, ano, turma)
---            (só calculado quando p_incluir_hier = true — o Total não precisa)
--- Obs.: NÃO agrupamos por `fqs` (texto da pergunta) — nenhum consumidor usa e
--- isso reduz muito o nº de linhas agrupadas (json menor, resposta mais rápida).
+-- ════════════════════════════════════════════════════════════
+-- MATERIALIZED VIEWS (resultado pré-agregado)
+-- ════════════════════════════════════════════════════════════
+
+-- MV 1: contagem por combinação crua (SEM `fqs` — nenhum consumidor usa e
+--       isso reduz muito o nº de linhas). Alimenta linhas/Total/eixos.
+DROP MATERIALIZED VIEW IF EXISTS mv_bimestres_grupos CASCADE;
+CREATE MATERIALIZED VIEW mv_bimestres_grupos AS
+  SELECT b.bimestre, b.nome_unidade, b.ano_escolar, b.turma,
+         b.fnc_disciplina, b.descricao_fne,
+         b.valor_resposta, b.codigo_resposta, b.texto_resposta,
+         COUNT(*)::int AS qtd
+  FROM bimestres b
+  GROUP BY b.bimestre, b.nome_unidade, b.ano_escolar, b.turma,
+           b.fnc_disciplina, b.descricao_fne,
+           b.valor_resposta, b.codigo_resposta, b.texto_resposta;
+
+-- índice único (integridade do agrupamento) + índice de filtro por bimestre
+CREATE UNIQUE INDEX ux_mv_grupos ON mv_bimestres_grupos
+  (bimestre, nome_unidade, ano_escolar, turma, fnc_disciplina, descricao_fne,
+   valor_resposta, codigo_resposta, texto_resposta);
+CREATE INDEX ix_mv_grupos_bim ON mv_bimestres_grupos (bimestre);
+
+-- MV 2: alunos DISTINTOS por (bimestre, unidade, ano, turma) — alimenta o `hier`.
+DROP MATERIALIZED VIEW IF EXISTS mv_bimestres_hier CASCADE;
+CREATE MATERIALIZED VIEW mv_bimestres_hier AS
+  SELECT b.bimestre, b.nome_unidade, b.ano_escolar, b.turma,
+         COUNT(DISTINCT COALESCE(b.rema_aluno, b.nome_aluno))::int AS qtd_alunos
+  FROM bimestres b
+  GROUP BY b.bimestre, b.nome_unidade, b.ano_escolar, b.turma;
+
+CREATE UNIQUE INDEX ux_mv_hier ON mv_bimestres_hier
+  (bimestre, nome_unidade, ano_escolar, turma);
+CREATE INDEX ix_mv_hier_bim ON mv_bimestres_hier (bimestre);
+
+-- MV 3: árvore do Total — alunos únicos por unidade/ano/turma (bimestres ∪ alunos).
+DROP MATERIALIZED VIEW IF EXISTS mv_arvore_total CASCADE;
+CREATE MATERIALIZED VIEW mv_arvore_total AS
+  SELECT s.nome_unidade, s.ano_escolar, s.turma, COUNT(*)::int AS qtd_alunos
+  FROM (
+    SELECT nome_unidade, ano_escolar, turma, COALESCE(rema_aluno, nome_aluno) AS id
+      FROM bimestres
+    UNION
+    SELECT nome_unidade, ano_escolar, turma, COALESCE(rema_aluno, nome_aluno) AS id
+      FROM alunos
+  ) s
+  GROUP BY s.nome_unidade, s.ano_escolar, s.turma;
+
+CREATE UNIQUE INDEX ux_mv_arvore ON mv_arvore_total
+  (nome_unidade, ano_escolar, turma);
+
+-- ════════════════════════════════════════════════════════════
+-- FUNÇÕES (apenas LEEM as views — sub-segundo)
+-- ════════════════════════════════════════════════════════════
+
 DROP FUNCTION IF EXISTS agrupar_bimestres(INT, TEXT, TEXT, TEXT);
 DROP FUNCTION IF EXISTS agrupar_bimestres(INT, TEXT, TEXT, TEXT, BOOLEAN);
 CREATE OR REPLACE FUNCTION agrupar_bimestres(
@@ -33,52 +82,68 @@ CREATE OR REPLACE FUNCTION agrupar_bimestres(
 ) RETURNS json LANGUAGE sql STABLE AS $$
   SELECT json_build_object(
     'grupos', COALESCE((SELECT json_agg(g) FROM (
-      SELECT b.bimestre, b.nome_unidade, b.ano_escolar, b.turma,
-             b.fnc_disciplina, b.descricao_fne,
-             b.valor_resposta, b.codigo_resposta, b.texto_resposta,
-             COUNT(*)::int AS qtd
-      FROM bimestres b
-      WHERE (p_bimestre IS NULL OR b.bimestre = p_bimestre)
-        AND (p_ano_like IS NULL OR b.ano_escolar ILIKE p_ano_like)
-        AND (p_unidade  IS NULL OR b.nome_unidade = p_unidade)
-        AND (p_turma    IS NULL OR b.turma = p_turma)
-      GROUP BY b.bimestre, b.nome_unidade, b.ano_escolar, b.turma,
-               b.fnc_disciplina, b.descricao_fne,
-               b.valor_resposta, b.codigo_resposta, b.texto_resposta
+      SELECT bimestre, nome_unidade, ano_escolar, turma, fnc_disciplina, descricao_fne,
+             valor_resposta, codigo_resposta, texto_resposta, qtd
+      FROM mv_bimestres_grupos
+      WHERE (p_bimestre IS NULL OR bimestre = p_bimestre)
+        AND (p_ano_like IS NULL OR ano_escolar ILIKE p_ano_like)
+        AND (p_unidade  IS NULL OR nome_unidade = p_unidade)
+        AND (p_turma    IS NULL OR turma = p_turma)
     ) g), '[]'::json),
     'hier', CASE WHEN p_incluir_hier THEN COALESCE((SELECT json_agg(h) FROM (
-      SELECT b.bimestre, b.nome_unidade, b.ano_escolar, b.turma,
-             COUNT(DISTINCT COALESCE(b.rema_aluno, b.nome_aluno))::int AS qtd_alunos
-      FROM bimestres b
-      WHERE (p_bimestre IS NULL OR b.bimestre = p_bimestre)
-        AND (p_ano_like IS NULL OR b.ano_escolar ILIKE p_ano_like)
-        AND (p_unidade  IS NULL OR b.nome_unidade = p_unidade)
-        AND (p_turma    IS NULL OR b.turma = p_turma)
-      GROUP BY b.bimestre, b.nome_unidade, b.ano_escolar, b.turma
+      SELECT bimestre, nome_unidade, ano_escolar, turma, qtd_alunos
+      FROM mv_bimestres_hier
+      WHERE (p_bimestre IS NULL OR bimestre = p_bimestre)
+        AND (p_ano_like IS NULL OR ano_escolar ILIKE p_ano_like)
+        AND (p_unidade  IS NULL OR nome_unidade = p_unidade)
+        AND (p_turma    IS NULL OR turma = p_turma)
     ) h), '[]'::json) ELSE '[]'::json END
   );
 $$;
 
--- ── FUNÇÃO 2: árvore do Total — alunos distintos por unidade/ano/turma ──
--- Une `bimestres` e `alunos` (UNION remove duplicados) e conta alunos únicos.
 CREATE OR REPLACE FUNCTION arvore_total()
 RETURNS TABLE(nome_unidade text, ano_escolar text, turma text, qtd_alunos int)
 LANGUAGE sql STABLE AS $$
-  SELECT s.nome_unidade, s.ano_escolar, s.turma, COUNT(*)::int AS qtd_alunos
-  FROM (
-    SELECT nome_unidade, ano_escolar, turma, COALESCE(rema_aluno, nome_aluno) AS id
-      FROM bimestres
-    UNION
-    SELECT nome_unidade, ano_escolar, turma, COALESCE(rema_aluno, nome_aluno) AS id
-      FROM alunos
-  ) s
-  GROUP BY s.nome_unidade, s.ano_escolar, s.turma;
+  SELECT nome_unidade, ano_escolar, turma, qtd_alunos FROM mv_arvore_total;
 $$;
 
--- ── Permissões para a chave anon (e usuários autenticados) ──
+-- Atualiza as 3 views. (REFRESH simples — CONCURRENTLY não é permitido dentro
+-- de função/transação. O refresh é rápido e roda a cada 5 min, então o bloqueio
+-- momentâneo de leitura é irrelevante.)
+-- Chame após importações para refletir os dados na hora: SELECT refresh_avaliacoes_mv();
+CREATE OR REPLACE FUNCTION refresh_avaliacoes_mv()
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  REFRESH MATERIALIZED VIEW mv_bimestres_grupos;
+  REFRESH MATERIALIZED VIEW mv_bimestres_hier;
+  REFRESH MATERIALIZED VIEW mv_arvore_total;
+END;
+$$;
+
+-- ── Permissões para a chave anon (e autenticados) ──
+GRANT SELECT ON mv_bimestres_grupos, mv_bimestres_hier, mv_arvore_total TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION agrupar_bimestres(INT, TEXT, TEXT, TEXT, BOOLEAN) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION arvore_total() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION refresh_avaliacoes_mv() TO anon, authenticated;
+
+-- ════════════════════════════════════════════════════════════
+-- REFRESH AUTOMÁTICO a cada 5 min (pg_cron) — para nunca ficar desatualizado.
+-- Se esta seção der erro de permissão, habilite a extensão em:
+--   Supabase > Database > Extensions > pg_cron  (e rode só esta parte de novo).
+-- ════════════════════════════════════════════════════════════
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+-- remove agendamento anterior (se existir) e recria
+DO $$
+BEGIN
+  PERFORM cron.unschedule('refresh_avaliacoes');
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+SELECT cron.schedule('refresh_avaliacoes', '*/5 * * * *', $$SELECT refresh_avaliacoes_mv();$$);
 
 -- ── Testes rápidos (opcional) ──
--- SELECT agrupar_bimestres(1, NULL, NULL, NULL);   -- 1º bimestre
+-- SELECT agrupar_bimestres(1);              -- 1º bimestre (instantâneo)
 -- SELECT * FROM arvore_total();
+-- SELECT refresh_avaliacoes_mv();           -- força atualização imediata
+-- SELECT jobname, schedule FROM cron.job;   -- confere o agendamento
