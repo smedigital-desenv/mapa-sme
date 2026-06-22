@@ -1,0 +1,36 @@
+/* ============================================================
+   css/elefante.css
+   Estilos do módulo Elefante Letrado.
+   Importado via style.css: @import 'elefante.css';
+   ============================================================ */
+
+/* ── Dropzone de upload ─────────────────────────────────── */
+.el-dropzone {
+  border:        2px dashed #cbd5e1;
+  border-radius: 12px;
+  padding:       28px 20px;
+  text-align:    center;
+  cursor:        pointer;
+  transition:    border-color .2s, background .2s;
+  background:    white;
+}
+.el-dropzone:hover,
+.el-dropzone.dragover {
+  border-color: var(--primary, #002b5e);
+  background:   #f0f4ff;
+}
+
+/* ── Chips de engajamento ───────────────────────────────── */
+.el-chip {
+  display:       inline-flex;
+  align-items:   center;
+  font-size:     .68rem;
+  font-weight:   900;
+  padding:       3px 10px;
+  border-radius: 999px;
+  white-space:   nowrap;
+}
+.el-chip-alto  { background: #dcfce7; color: #166534; }
+.el-chip-medio { background: #fef9c3; color: #854d0e; }
+.el-chip-baixo { background: #fee2e2; color: #991b1b; }
+.el-chip-zero  { background: #f1f5f9; color: #94a3b8; }

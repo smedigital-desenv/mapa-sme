@@ -1,0 +1,737 @@
+<script>
+// ===========================================================
+// JS_Configuracoes.html — Painel de Gerenciamento de Acessos
+// Visível apenas para VIPs. Gerencia aba Usuarios e Unidades.
+// ===========================================================
+
+// Estado local do painel
+const _cfg = {
+  usuarios: [],
+  unidades: [],
+  listaUnidadesSelect: [],
+  abaAtiva: 'usuarios',
+  editandoLinha: null,
+  loading: false
+};
+
+// ===========================================================
+// ABERTURA DO MODAL
+// ===========================================================
+function abrirConfiguracoes() {
+  const modal = document.getElementById('modalConfiguracoes');
+  if (!modal) return;
+  bootstrap.Modal.getOrCreateInstance(modal).show();
+  _cfgCarregarAba('usuarios');
+}
+
+function _cfgAbrirAba(aba) {
+  _cfg.abaAtiva = aba;
+  _cfg.editandoLinha = null;
+  document.querySelectorAll('#cfgTabs .cfg-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.aba === aba);
+  });
+  _cfgCarregarAba(aba);
+}
+
+// ===========================================================
+// CARREGAMENTO POR ABA
+// ===========================================================
+function _cfgCarregarAba(aba) {
+  if (aba === 'usuarios')  _cfgCarregarUsuarios();
+  if (aba === 'unidades')  _cfgCarregarUnidades();
+  if (aba === 'verificar') _cfgRenderVerificar();
+}
+
+// ===========================================================
+// ABA: USUÁRIOS VINCULADOS
+// ===========================================================
+function _cfgCarregarUsuarios() {
+  _cfgSetConteudo(_cfgSpinner('Carregando usuários…'));
+
+  // Carrega a lista de unidades para o select (se ainda não tiver)
+  const carregarSelect = () => {
+    if (_cfg.listaUnidadesSelect.length) return Promise.resolve();
+    return new Promise(resolve => {
+      google.script.run
+        .withSuccessHandler(r => {
+          _cfg.listaUnidadesSelect = (r && r.unidades) ? r.unidades : [];
+          resolve();
+        })
+        .withFailureHandler(() => resolve())
+        .getListaUnidades();
+    });
+  };
+
+  carregarSelect().then(() => {
+    google.script.run
+      .withSuccessHandler(r => {
+        if (!r || !r.ok) { _cfgSetConteudo(_cfgErro(r?.erro || 'Erro ao carregar.')); return; }
+        _cfg.usuarios = r.usuarios || [];
+        _cfgRenderUsuarios();
+      })
+      .withFailureHandler(err => _cfgSetConteudo(_cfgErro(String(err))))
+      .getListaUsuarios();
+  });
+}
+
+function _cfgRenderUsuarios() {
+  const lista = _cfg.usuarios;
+  const selectOpts = _cfg.listaUnidadesSelect
+    .map(u => `<option value="${_esc(u.nome)}">${_esc(u.nome)}</option>`)
+    .join('');
+
+  const html = `
+    <div class="cfg-section">
+      <div class="cfg-section-header">
+        <div>
+          <div class="cfg-section-title"><i class="bi bi-person-badge me-2"></i>Usuários Vinculados</div>
+          <div class="cfg-section-sub">Vincule qualquer e-mail a uma unidade escolar. Tem prioridade sobre o e-mail institucional.</div>
+        </div>
+        <button class="cfg-btn cfg-btn-primary" onclick="_cfgAbrirFormUsuario(null)">
+          <i class="bi bi-plus-lg me-1"></i>Novo
+        </button>
+      </div>
+
+      <div id="cfgFormUsuario" class="cfg-form d-none">
+        <div class="cfg-form-titulo" id="cfgFormUsuarioTitulo">Novo usuário</div>
+        <div class="cfg-form-grid">
+          <div class="cfg-campo">
+            <label>E-mail do usuário</label>
+            <input type="email" id="cfgInputEmail" class="cfg-input" placeholder="usuario@dominio.com">
+          </div>
+          <div class="cfg-campo">
+            <label>Unidade escolar</label>
+            <select id="cfgInputUnidade" class="cfg-input">
+              <option value="">Selecione a unidade…</option>
+              ${selectOpts}
+            </select>
+          </div>
+          <div class="cfg-campo cfg-campo-full">
+            <label>Observação <span class="cfg-opcional">(opcional)</span></label>
+            <input type="text" id="cfgInputObs" class="cfg-input" placeholder="Ex: Diretor, Coordenador…">
+          </div>
+        </div>
+        <div class="cfg-form-actions">
+          <button class="cfg-btn cfg-btn-ghost" onclick="_cfgFecharFormUsuario()">Cancelar</button>
+          <button class="cfg-btn cfg-btn-primary" onclick="_cfgSalvarUsuario()">
+            <i class="bi bi-check-lg me-1"></i>Salvar
+          </button>
+        </div>
+      </div>
+
+      ${lista.length === 0
+        ? `<div class="cfg-vazio"><i class="bi bi-inbox fs-2 mb-2"></i><br>Nenhum usuário cadastrado ainda.</div>`
+        : `<div class="cfg-table-wrap">
+            <table class="cfg-table">
+              <thead>
+                <tr>
+                  <th>E-mail</th>
+                  <th>Unidade</th>
+                  <th>Observação</th>
+                  <th class="text-end">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${lista.map(u => `
+                  <tr>
+                    <td><span class="cfg-email-chip">${_esc(u.email)}</span></td>
+                    <td><span class="cfg-unidade-chip">${_esc(u.unidade)}</span></td>
+                    <td class="cfg-obs">${_esc(u.obs) || '—'}</td>
+                    <td class="text-end cfg-acoes">
+                      <button class="cfg-btn-icon" title="Editar" onclick="_cfgAbrirFormUsuario(${u.linha})">
+                        <i class="bi bi-pencil-fill"></i>
+                      </button>
+                      <button class="cfg-btn-icon cfg-btn-icon-danger" title="Remover" onclick="_cfgRemoverUsuario(${u.linha}, '${_escJs(u.email)}')">
+                        <i class="bi bi-trash-fill"></i>
+                      </button>
+                    </td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`
+      }
+    </div>`;
+
+  _cfgSetConteudo(html);
+}
+
+function _cfgAbrirFormUsuario(linha) {
+  _cfg.editandoLinha = linha;
+  const form = document.getElementById('cfgFormUsuario');
+  const titulo = document.getElementById('cfgFormUsuarioTitulo');
+  if (!form) return;
+
+  form.classList.remove('d-none');
+  titulo.textContent = linha ? 'Editar usuário' : 'Novo usuário';
+
+  if (linha) {
+    const u = _cfg.usuarios.find(x => x.linha === linha);
+    if (u) {
+      document.getElementById('cfgInputEmail').value    = u.email;
+      document.getElementById('cfgInputUnidade').value  = u.unidade;
+      document.getElementById('cfgInputObs').value      = u.obs;
+    }
+  } else {
+    document.getElementById('cfgInputEmail').value    = '';
+    document.getElementById('cfgInputUnidade').value  = '';
+    document.getElementById('cfgInputObs').value      = '';
+  }
+
+  document.getElementById('cfgInputEmail').focus();
+  form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function _cfgFecharFormUsuario() {
+  const form = document.getElementById('cfgFormUsuario');
+  if (form) form.classList.add('d-none');
+  _cfg.editandoLinha = null;
+}
+
+function _cfgSalvarUsuario() {
+  const email    = (document.getElementById('cfgInputEmail')?.value    || '').trim();
+  const unidade  = (document.getElementById('cfgInputUnidade')?.value  || '').trim();
+  const obs      = (document.getElementById('cfgInputObs')?.value      || '').trim();
+
+  if (!email || !unidade) {
+    _cfgToast('Preencha e-mail e unidade.', 'aviso');
+    return;
+  }
+
+  _cfgSetBotaoSalvar(true);
+
+  const onSuccess = r => {
+    _cfgSetBotaoSalvar(false);
+    if (!r || !r.ok) { _cfgToast(r?.erro || 'Erro ao salvar.', 'erro'); return; }
+    _cfgToast('Salvo com sucesso!', 'ok');
+    _cfgCarregarUsuarios();
+  };
+  const onFail = err => { _cfgSetBotaoSalvar(false); _cfgToast(String(err), 'erro'); };
+
+  if (_cfg.editandoLinha) {
+    google.script.run
+      .withSuccessHandler(onSuccess).withFailureHandler(onFail)
+      .editarUsuario(_cfg.editandoLinha, email, unidade, obs);
+  } else {
+    google.script.run
+      .withSuccessHandler(onSuccess).withFailureHandler(onFail)
+      .adicionarUsuario(email, unidade, obs);
+  }
+}
+
+function _cfgRemoverUsuario(linha, emailLabel) {
+  if (!confirm(`Remover o acesso de "${emailLabel}"?`)) return;
+  google.script.run
+    .withSuccessHandler(r => {
+      if (!r || !r.ok) { _cfgToast(r?.erro || 'Erro ao remover.', 'erro'); return; }
+      _cfgToast('Usuário removido.', 'ok');
+      _cfgCarregarUsuarios();
+    })
+    .withFailureHandler(err => _cfgToast(String(err), 'erro'))
+    .removerUsuario(linha);
+}
+
+function _cfgSetBotaoSalvar(loading) {
+  const btn = document.querySelector('#cfgFormUsuario .cfg-btn-primary');
+  if (btn) {
+    btn.disabled = loading;
+    btn.innerHTML = loading
+      ? '<span class="spinner-border spinner-border-sm me-1"></span>Salvando…'
+      : '<i class="bi bi-check-lg me-1"></i>Salvar';
+  }
+}
+
+// ===========================================================
+// ABA: E-MAILS INSTITUCIONAIS DAS UNIDADES
+// ===========================================================
+function _cfgCarregarUnidades() {
+  _cfgSetConteudo(_cfgSpinner('Carregando unidades…'));
+  google.script.run
+    .withSuccessHandler(r => {
+      if (!r || !r.ok) { _cfgSetConteudo(_cfgErro(r?.erro || 'Erro ao carregar.')); return; }
+      _cfg.unidades = r.unidades || [];
+      _cfgRenderUnidades();
+    })
+    .withFailureHandler(err => _cfgSetConteudo(_cfgErro(String(err))))
+    .getListaUnidadesCompleta();
+}
+
+function _cfgRenderUnidades() {
+  const lista = _cfg.unidades;
+  const html = `
+    <div class="cfg-section">
+      <div class="cfg-section-header">
+        <div>
+          <div class="cfg-section-title"><i class="bi bi-building me-2"></i>E-mails Institucionais das Unidades</div>
+          <div class="cfg-section-sub">E-mail da própria escola. Ao logar com esse e-mail, a escola vê apenas seus dados.</div>
+        </div>
+      </div>
+
+      <div class="cfg-busca-wrap">
+        <input type="text" id="cfgBuscaUnidade" class="cfg-input cfg-busca"
+               placeholder="Buscar unidade…" oninput="_cfgFiltrarUnidades()">
+      </div>
+
+      <div class="cfg-table-wrap" id="cfgTabelaUnidades">
+        <table class="cfg-table">
+          <thead>
+            <tr>
+              <th>Nome da Unidade</th>
+              <th>E-mail Institucional</th>
+              <th class="text-end" style="width:90px;">Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${lista.map(u => `
+              <tr data-nome="${_esc(u.nome.toLowerCase())}">
+                <td>${_esc(u.nome)}</td>
+                <td>
+                  <input type="email" class="cfg-input cfg-input-inline"
+                         id="cfgEmail_${u.linha}"
+                         value="${_esc(u.email)}"
+                         placeholder="email@escola.edu.br">
+                </td>
+                <td class="text-end">
+                  <button class="cfg-btn cfg-btn-sm cfg-btn-primary"
+                          onclick="_cfgSalvarEmailUnidade(${u.linha}, '${_escJs(u.nome)}')">
+                    <i class="bi bi-check-lg"></i>
+                  </button>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  _cfgSetConteudo(html);
+}
+
+function _cfgFiltrarUnidades() {
+  const termo = (document.getElementById('cfgBuscaUnidade')?.value || '').toLowerCase().trim();
+  document.querySelectorAll('#cfgTabelaUnidades tbody tr').forEach(tr => {
+    const nome = tr.dataset.nome || '';
+    tr.style.display = (!termo || nome.includes(termo)) ? '' : 'none';
+  });
+}
+
+function _cfgSalvarEmailUnidade(linha, nomeLabel) {
+  const input = document.getElementById('cfgEmail_' + linha);
+  const email = (input?.value || '').trim().toLowerCase();
+  const btn = input?.closest('td')?.querySelector('button');
+
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+
+  google.script.run
+    .withSuccessHandler(r => {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i>'; }
+      if (!r || !r.ok) { _cfgToast(r?.erro || 'Erro ao salvar.', 'erro'); return; }
+      _cfgToast(`"${nomeLabel}" atualizado!`, 'ok');
+    })
+    .withFailureHandler(err => {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg"></i>'; }
+      _cfgToast(String(err), 'erro');
+    })
+    .atualizarEmailUnidade(linha, email);
+}
+
+// ===========================================================
+// ABA: VERIFICAR ACESSO
+// ===========================================================
+function _cfgRenderVerificar() {
+  const html = `
+    <div class="cfg-section">
+      <div class="cfg-section-header">
+        <div>
+          <div class="cfg-section-title"><i class="bi bi-shield-check me-2"></i>Verificar Acesso</div>
+          <div class="cfg-section-sub">Simule o nível de acesso que um e-mail receberá ao entrar no sistema.</div>
+        </div>
+      </div>
+
+      <div class="cfg-verificar-form">
+        <input type="email" id="cfgVerificarEmail" class="cfg-input"
+               placeholder="email@dominio.com"
+               onkeydown="if(event.key==='Enter') _cfgVerificarAcesso()">
+        <button class="cfg-btn cfg-btn-primary" onclick="_cfgVerificarAcesso()">
+          <i class="bi bi-search me-1"></i>Verificar
+        </button>
+      </div>
+
+      <div id="cfgVerificarResultado"></div>
+    </div>`;
+
+  _cfgSetConteudo(html);
+  setTimeout(() => document.getElementById('cfgVerificarEmail')?.focus(), 100);
+}
+
+function _cfgVerificarAcesso() {
+  const email = (document.getElementById('cfgVerificarEmail')?.value || '').trim();
+  const resultado = document.getElementById('cfgVerificarResultado');
+  if (!email) { _cfgToast('Informe um e-mail.', 'aviso'); return; }
+  if (!resultado) return;
+
+  resultado.innerHTML = _cfgSpinner('Verificando…');
+
+  google.script.run
+    .withSuccessHandler(r => {
+      if (!r || !r.ok) { resultado.innerHTML = _cfgErro(r?.erro || 'Erro.'); return; }
+
+      const iconeTipo = {
+        vip:         { icon: 'bi-star-fill',       cor: '#0062ff', label: 'VIP — Acesso Total' },
+        atribuicao:  { icon: 'bi-pencil-square',   cor: '#ff9900', label: 'Modo Atribuição' },
+        usuario:     { icon: 'bi-person-badge',    cor: '#00b050', label: 'Usuário Vinculado' },
+        unidade:     { icon: 'bi-building-check',  cor: '#00b050', label: 'E-mail Institucional' },
+        sem_acesso:  { icon: 'bi-slash-circle',    cor: '#dc3545', label: 'Sem Acesso' },
+      }[r.tipo] || { icon: 'bi-question-circle', cor: '#6c757d', label: r.tipo };
+
+      resultado.innerHTML = `
+        <div class="cfg-resultado-card" style="border-left:4px solid ${iconeTipo.cor};">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+            <i class="bi ${iconeTipo.icon}" style="font-size:1.4rem;color:${iconeTipo.cor};"></i>
+            <div>
+              <div style="font-weight:800;font-size:.9rem;color:${iconeTipo.cor};">${_esc(iconeTipo.label)}</div>
+              <div style="font-size:.78rem;color:#334155;">${_esc(r.descricao)}</div>
+            </div>
+          </div>
+          ${r.unidade ? `<div style="font-size:.76rem;color:#475569;">
+            <i class="bi bi-building me-1"></i>Unidade: <b>${_esc(r.unidade)}</b>
+          </div>` : ''}
+        </div>`;
+    })
+    .withFailureHandler(err => { resultado.innerHTML = _cfgErro(String(err)); })
+    .verificarAcessoEmail(email);
+}
+
+// ===========================================================
+// HELPERS DE UI
+// ===========================================================
+function _cfgSetConteudo(html) {
+  const el = document.getElementById('cfgConteudo');
+  if (el) el.innerHTML = html;
+}
+
+function _cfgSpinner(msg) {
+  return `<div class="cfg-loading">
+    <div class="spinner-border spinner-border-sm mb-2"></div>
+    <div style="font-size:.83rem;color:#64748b;">${_esc(msg || 'Carregando…')}</div>
+  </div>`;
+}
+
+function _cfgErro(msg) {
+  return `<div class="cfg-erro"><i class="bi bi-exclamation-triangle me-2"></i>${_esc(msg)}</div>`;
+}
+
+function _cfgToast(msg, tipo) {
+  const wrap = document.getElementById('cfgToastWrap');
+  if (!wrap) return;
+
+  const cor = { ok: '#00b050', aviso: '#ff9900', erro: '#dc3545' }[tipo] || '#334155';
+  const id = 'cfgToast_' + Date.now();
+  wrap.insertAdjacentHTML('beforeend', `
+    <div id="${id}" class="cfg-toast" style="border-left:4px solid ${cor};">
+      <i class="bi ${tipo === 'ok' ? 'bi-check-circle-fill' : tipo === 'erro' ? 'bi-x-circle-fill' : 'bi-exclamation-triangle-fill'}"
+         style="color:${cor};flex-shrink:0;"></i>
+      <span>${_esc(msg)}</span>
+    </div>`);
+
+  setTimeout(() => {
+    const el = document.getElementById(id);
+    if (el) { el.style.opacity = '0'; setTimeout(() => el.remove(), 400); }
+  }, 3200);
+}
+
+function _esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+function _escJs(s) {
+  return String(s ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'\\"');
+}
+</script>
+
+<!-- ── MODAL: CONFIGURAÇÕES DE ACESSO ─────────────────────── -->
+<div class="modal fade" id="modalConfiguracoes" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow-lg" style="border-radius:18px;overflow:hidden;min-height:520px;">
+
+      <!-- HEADER -->
+      <div class="modal-header border-0 p-0">
+        <div style="background:#002b5e;color:white;width:100%;padding:18px 24px 14px;border-bottom:3px solid var(--neon-blue);">
+          <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-3">
+              <div style="width:38px;height:38px;background:rgba(0,229,255,.15);border-radius:10px;display:grid;place-items:center;">
+                <i class="bi bi-shield-lock-fill" style="color:var(--neon-blue);font-size:1.2rem;"></i>
+              </div>
+              <div>
+                <div style="font-weight:900;font-size:1rem;letter-spacing:.02em;">Configurações de Acesso</div>
+                <div style="font-size:.68rem;opacity:.65;font-weight:600;text-transform:uppercase;letter-spacing:.08em;">
+                  Gerenciamento de perfis e permissões
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+
+          <!-- TABS -->
+          <div id="cfgTabs" class="cfg-tabs mt-3">
+            <button class="cfg-tab active" data-aba="usuarios" onclick="_cfgAbrirAba('usuarios')">
+              <i class="bi bi-person-badge me-1"></i>Usuários
+            </button>
+            <button class="cfg-tab" data-aba="unidades" onclick="_cfgAbrirAba('unidades')">
+              <i class="bi bi-building me-1"></i>Unidades
+            </button>
+            <button class="cfg-tab" data-aba="verificar" onclick="_cfgAbrirAba('verificar')">
+              <i class="bi bi-shield-check me-1"></i>Verificar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- BODY -->
+      <div class="modal-body p-0" style="background:#f8fafc;">
+        <div id="cfgConteudo" style="padding:20px 24px;min-height:340px;">
+          <div class="cfg-loading">
+            <div class="spinner-border spinner-border-sm mb-2"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="cfgToastWrap" style="
+  position:fixed;bottom:24px;right:24px;z-index:9999;
+  display:flex;flex-direction:column;gap:8px;pointer-events:none;
+"></div>
+
+<!-- ── ESTILOS DO PAINEL ─────────────────────────────────── -->
+<style>
+/* Tabs */
+.cfg-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: none;
+}
+.cfg-tab {
+  background: rgba(255,255,255,.1);
+  color: rgba(255,255,255,.7);
+  border: 1.5px solid rgba(255,255,255,.15);
+  border-radius: 8px 8px 0 0;
+  padding: 6px 16px;
+  font-size: .78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: .2s;
+}
+.cfg-tab:hover  { background: rgba(0,229,255,.12); color: white; }
+.cfg-tab.active {
+  background: var(--neon-blue);
+  color: #002b5e;
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 10px rgba(0,229,255,.4);
+}
+
+/* Section */
+.cfg-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.cfg-section-title {
+  font-weight: 900;
+  font-size: .95rem;
+  color: #0f172a;
+}
+.cfg-section-sub {
+  font-size: .75rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* Botões */
+.cfg-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 7px 16px;
+  font-size: .8rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: .18s;
+}
+.cfg-btn:disabled { opacity: .55; cursor: not-allowed; }
+.cfg-btn-primary  { background: #002b5e; color: white; }
+.cfg-btn-primary:hover:not(:disabled) { background: #003d8a; }
+.cfg-btn-ghost    { background: #e2e8f0; color: #334155; }
+.cfg-btn-ghost:hover { background: #cbd5e1; }
+.cfg-btn-sm       { padding: 4px 10px; font-size: .75rem; border-radius: 6px; }
+.cfg-btn-icon     {
+  background: #e2e8f0; border: none; border-radius: 6px;
+  width: 30px; height: 30px; display:inline-grid; place-items:center;
+  cursor: pointer; color: #334155; transition: .15s; font-size: .8rem;
+}
+.cfg-btn-icon:hover { background: #cbd5e1; }
+.cfg-btn-icon-danger:hover { background: #fee2e2; color: #dc3545; }
+
+/* Form */
+.cfg-form {
+  background: white;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+.cfg-form-titulo {
+  font-weight: 800;
+  font-size: .85rem;
+  color: #002b5e;
+  margin-bottom: 12px;
+  border-bottom: 2px solid var(--neon-blue);
+  padding-bottom: 6px;
+}
+.cfg-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 600px) { .cfg-form-grid { grid-template-columns: 1fr; } }
+.cfg-campo-full  { grid-column: 1 / -1; }
+.cfg-campo label { font-size: .73rem; font-weight: 700; color: #475569; display:block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .05em; }
+.cfg-opcional    { font-weight: 400; color: #94a3b8; text-transform: none; letter-spacing: 0; }
+.cfg-form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+/* Input */
+.cfg-input {
+  width: 100%;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 7px 11px;
+  font-size: .83rem;
+  color: #0f172a;
+  background: #f8fafc;
+  transition: .18s;
+  outline: none;
+}
+.cfg-input:focus { border-color: #002b5e; background: white; box-shadow: 0 0 0 3px rgba(0,43,94,.08); }
+.cfg-input-inline { font-size: .78rem; padding: 5px 9px; }
+
+/* Busca */
+.cfg-busca-wrap { margin-bottom: 12px; }
+.cfg-busca      { max-width: 340px; }
+
+/* Table */
+.cfg-table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid #e2e8f0; background: white; }
+.cfg-table      { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.cfg-table thead th {
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: .69rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  padding: 9px 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.cfg-table tbody td {
+  padding: 9px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  color: #334155;
+}
+.cfg-table tbody tr:last-child td { border-bottom: none; }
+.cfg-table tbody tr:hover { background: #f8fafc; }
+.cfg-acoes { white-space: nowrap; display: flex; justify-content: flex-end; gap: 4px; }
+
+/* Chips */
+.cfg-email-chip {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: .76rem;
+  font-weight: 600;
+  font-family: monospace;
+  white-space: nowrap;
+}
+.cfg-unidade-chip {
+  background: #f0fdf4;
+  color: #166534;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: .73rem;
+  font-weight: 600;
+  white-space: nowrap;
+  display: inline-block;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.cfg-obs { font-size: .75rem; color: #94a3b8; font-style: italic; }
+
+/* Vazio / loading / erro */
+.cfg-vazio {
+  text-align: center;
+  color: #94a3b8;
+  padding: 36px 20px;
+  font-size: .85rem;
+}
+.cfg-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+  color: #64748b;
+  font-size: .82rem;
+}
+.cfg-erro {
+  background: #fff5f5;
+  color: #dc3545;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: .82rem;
+  margin: 12px 0;
+}
+
+/* Verificar */
+.cfg-verificar-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.cfg-verificar-form .cfg-input { max-width: 340px; }
+.cfg-resultado-card {
+  background: white;
+  border-radius: 10px;
+  padding: 14px 18px;
+  border: 1.5px solid #e2e8f0;
+  margin-top: 8px;
+}
+
+/* Toast */
+.cfg-toast {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 18px rgba(0,0,0,.14);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: .82rem;
+  color: #334155;
+  font-weight: 600;
+  min-width: 240px;
+  max-width: 340px;
+  pointer-events: all;
+  transition: opacity .4s;
+}
+</style>

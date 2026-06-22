@@ -1,0 +1,742 @@
+<script>
+// ===========================================================
+// JS_Bimestre.html — Bimestres com pacote local
+// Abre uma vez o resumo do bimestre/ano e filtra unidade/turma no navegador.
+// ===========================================================
+
+let pacoteBimestreAtual = null;
+let pacoteBimestreAnoAtual = 'TODOS';
+
+const PKG = {
+  U: 0,
+  A: 1,
+  T: 2,
+  D: 3,
+  E: 4,
+  R: 5,
+  Q: 6
+};
+
+function filtrosAvaliacaoAtuais() {
+  const selAno = document.getElementById('filtroAvAno');
+  const anoSelecionado = typeof _anoFiltroAtualSeguro === 'function'
+    ? _anoFiltroAtualSeguro()
+    : (anoFiltroAtual && anoFiltroAtual !== 'TODOS' ? anoFiltroAtual : normalizarAnoFiltroFront(selAno?.value || 'TODOS'));
+
+  return {
+    unidade: _hierUnidadeAtiva || 'TODAS',
+    turma: _hierTurmaAtiva || 'TODAS',
+    ano: anoSelecionado || 'TODOS'
+  };
+}
+
+function _filtrosBasePacoteBimestre() {
+  const filtros = filtrosAvaliacaoAtuais();
+
+  // OTIMIZAÇÃO PRINCIPAL:
+  // Para o 1º Bim., carregamos sempre o pacote mestre "TODOS" uma única vez.
+  // Os cliques em 1º/2º/3º/4º/5º Ano passam a filtrar no navegador, sem nova chamada ao Apps Script.
+  if (bimestreAtualKey === 'primeiroBimestre') {
+    return { ano: 'TODOS' };
+  }
+
+  return { ano: filtros.ano || 'TODOS' };
+}
+
+function _atualizarBreadcrumb() {
+  const el = document.getElementById('filtroAtivoBreadcrumb');
+  if (!el) return;
+
+  const ano = (typeof _anoFiltroAtualSeguro === 'function' ? _anoFiltroAtualSeguro() : (anoFiltroAtual || 'TODOS'));
+  const anoStr = (ano && ano !== 'TODOS') ? ` · ${ano}` : '';
+
+  if (_hierUnidadeAtiva === 'TODAS') {
+    el.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-globe me-1"></i>Toda a rede${anoStr}</span>`;
+  } else if (_hierTurmaAtiva === 'TODAS') {
+    el.innerHTML = `<i class="bi bi-building me-1 text-primary"></i><b class="text-primary">${escapeHtml(_hierUnidadeAtiva)}</b>${anoStr}`;
+  } else {
+    el.innerHTML = `<i class="bi bi-building me-1 text-primary"></i><b class="text-primary">${escapeHtml(_hierUnidadeAtiva)}</b>
+      <i class="bi bi-chevron-right mx-1 text-muted"></i>
+      <i class="bi bi-people-fill me-1 text-info"></i><b class="text-info">Turma ${escapeHtml(_hierTurmaAtiva)}</b>${anoStr}`;
+  }
+}
+
+// ===========================================================
+// HIERARQUIA LATERAL
+// ===========================================================
+function renderHierarquia(arvore) {
+  _hierArvore = arvore || {};
+  const container = document.getElementById('hierarquiaContainer');
+  if (!container) return;
+
+  const unidades = Object.keys(_hierArvore).sort();
+  if (!unidades.length) {
+    container.innerHTML = `<div class="text-center text-muted p-3 small">Sem dados</div>`;
+    return;
+  }
+
+  container.innerHTML = unidades.map((u, ui) => {
+    const turmas = Object.keys(_hierArvore[u] || {}).sort();
+    const totalU = Object.values(_hierArvore[u] || {}).reduce((a, b) => a + Number(b || 0), 0);
+    const ativaU = _hierUnidadeAtiva === u;
+
+    return `
+      <div class="hier-unidade${ativaU ? ' ativa' : ''}"
+           onmouseenter="preAquecerFiltroBimestre('${escapeJs(u)}','TODAS')"
+           onclick="selecionarUnidade('${escapeJs(u)}', ${ui})">
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(u)}">
+          ${escapeHtml(u)}
+        </span>
+        <span class="hier-count ms-2">${totalU}</span>
+      </div>
+      <div class="hier-turmas" style="${ativaU ? 'display:block' : 'display:none'}">
+        ${turmas.map(t => `
+          <div class="hier-turma${(_hierTurmaAtiva === t && ativaU) ? ' ativa' : ''}"
+               onmouseenter="preAquecerFiltroBimestre('${escapeJs(u)}','${escapeJs(t)}')"
+               onclick="selecionarTurma('${escapeJs(u)}','${escapeJs(t)}',event)">
+            <span><i class="bi bi-people-fill me-2" style="font-size:.65rem;"></i>Turma ${escapeHtml(t)}</span>
+            <span class="hier-count">${_hierArvore[u][t]}</span>
+          </div>`).join('')}
+      </div>`;
+  }).join('');
+}
+
+function selecionarUnidade(unidade, ui) {
+  const ja = _hierUnidadeAtiva === unidade;
+  _hierUnidadeAtiva = ja ? 'TODAS' : unidade;
+  _hierTurmaAtiva = 'TODAS';
+  renderHierarquia(_hierArvore);
+  _atualizarBreadcrumb();
+  aplicarFiltrosAvaliacao();
+}
+
+function selecionarTurma(unidade, turma, ev) {
+  if (ev) ev.stopPropagation();
+  const ja = _hierTurmaAtiva === turma && _hierUnidadeAtiva === unidade;
+  _hierUnidadeAtiva = unidade;
+  _hierTurmaAtiva = ja ? 'TODAS' : turma;
+  renderHierarquia(_hierArvore);
+  _atualizarBreadcrumb();
+  aplicarFiltrosAvaliacao();
+}
+
+function limparHierarquiaSel() {
+  _hierUnidadeAtiva = 'TODAS';
+  _hierTurmaAtiva = 'TODAS';
+  renderHierarquia(_hierArvore || {});
+  _atualizarBreadcrumb();
+  aplicarFiltrosAvaliacao();
+}
+
+function _montarSelectAno(anos) {
+  const sel = document.getElementById('filtroAvAno');
+  if (!sel) return;
+
+  const alvo = (typeof _anoFiltroAtualSeguro === 'function' ? _anoFiltroAtualSeguro() : (anoFiltroAtual || sel.value || 'TODOS'));
+  const anosNormalizados = [...new Set((anos || [])
+    .map(a => normalizarAnoFiltroFront(a))
+    .filter(a => a && a !== 'TODOS'))].sort();
+
+  sel.innerHTML = `<option value="TODOS">Todos os anos</option>` +
+    anosNormalizados.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
+
+  if (![...sel.options].some(o => o.value === alvo) && alvo !== 'TODOS') {
+    sel.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(alvo)}">${escapeHtml(alvo)}</option>`);
+  }
+
+  sel.value = [...sel.options].some(o => o.value === alvo) ? alvo : 'TODOS';
+}
+
+// ===========================================================
+// FILTROS
+// ===========================================================
+function aplicarFiltrosAvaliacao() {
+  if (avaliacaoAtual === 'Total') {
+    carregarTotalRapido(false);
+    return;
+  }
+
+  if (avaliacaoAtual !== 'AnoEscolar') {
+    // Se já existe pacote do bimestre/ano, todos os filtros são locais.
+    if (pacoteBimestreAtual && pacoteBimestreAnoAtual === (_filtrosBasePacoteBimestre().ano || 'TODOS')) {
+      renderBimestrePacoteLocal();
+    } else {
+      carregarResumoBimestreRapido();
+    }
+  }
+
+  fecharDetalheEixo();
+  _atualizarBreadcrumb();
+}
+
+function limparFiltrosAvaliacao() {
+  _hierUnidadeAtiva = 'TODAS';
+  _hierTurmaAtiva = 'TODAS';
+  anoFiltroAtual = 'TODOS';
+  const sel = document.getElementById('filtroAvAno');
+  if (sel) sel.value = 'TODOS';
+  document.querySelectorAll('#anoFilterBar .btn-ano').forEach((b, i) => b.classList.toggle('active', i === 0));
+  renderHierarquia(_hierArvore || {});
+  _atualizarBreadcrumb();
+  aplicarFiltrosAvaliacao();
+}
+
+// ===========================================================
+// INICIAR BIMESTRE
+// ===========================================================
+function iniciarBimestreGenerico(key, label) {
+  bimestreAtualKey = key;
+  bimestreAtualLabel = label;
+  currentBimestreDisciplina = '';
+  pacoteBimestreAtual = null;
+
+  // Ao abrir o 1º Bim. pelo menu, a tela inicial deve ser sempre TODA A REDE / TODOS.
+  // Depois que a aba já estiver aberta, clicar nos anos continua filtrando normalmente.
+  if (key === 'primeiroBimestre' && typeof _setAnoFiltroAtualSeguro === 'function') {
+    _setAnoFiltroAtualSeguro('TODOS');
+  }
+
+  pacoteBimestreAnoAtual = (typeof _anoFiltroAtualSeguro === 'function' ? _anoFiltroAtualSeguro() : (anoFiltroAtual || 'TODOS'));
+
+  const titulo = document.getElementById('avaliacaoTitulo');
+  if (titulo) titulo.innerText = label;
+
+  const pills = document.getElementById('pillsDisciplinasContainer');
+  if (pills) {
+    pills.innerHTML = `<div class="d-flex align-items-center gap-2 p-2 text-muted">
+       <div class="spinner-border spinner-border-sm"></div>
+       <span style="font-size:.85rem;">Carregando ${escapeHtml(label)}…</span>
+     </div>`;
+  }
+
+  ['bimestre1Kpis','bimestre1Charts','bimestre1TableHead','bimestre1TableBody']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+
+  fecharDetalheEixo();
+  carregarResumoBimestreRapido();
+}
+
+function carregarResumoBimestreRapido() {
+  const filtrosBase = _filtrosBasePacoteBimestre();
+  const chave = _chavePacoteBimestre(bimestreAtualKey, filtrosBase);
+  const pills = document.getElementById('pillsDisciplinasContainer');
+
+  const cached = _cacheGet(chave);
+  if (cached && cached.ok) {
+    pacoteBimestreAtual = cached;
+    pacoteBimestreAnoAtual = filtrosBase.ano || 'TODOS';
+    _usarPacoteBimestre(cached);
+
+    if (!_cacheIsFresh(chave)) {
+      _withCache(
+        chave,
+        cb => google.script.run
+          .withSuccessHandler(r => cb(r))
+          .withFailureHandler(err => {
+            console.error('Erro ao atualizar pacote do bimestre em segundo plano:', err);
+            cb(cached);
+          })
+          .getPacoteBimestreRapido(bimestreAtualKey, filtrosBase),
+        res => {
+          if (res && res.ok) {
+            pacoteBimestreAtual = res;
+            pacoteBimestreAnoAtual = filtrosBase.ano || 'TODOS';
+            _usarPacoteBimestre(res);
+          }
+        },
+        { force: true }
+      );
+    }
+    return;
+  }
+
+  // Fallback instantâneo: se o pacote específico do ano ainda não existe,
+  // usa o pacote mestre TODOS, quando disponível, e filtra o ano no navegador.
+  // Isso evita espera ao clicar nos botões de ano.
+  const chaveTodos = _chavePacoteBimestre(bimestreAtualKey, { ano: 'TODOS' });
+  const cachedTodos = _cacheGet(chaveTodos);
+  if (cachedTodos && cachedTodos.ok) {
+    pacoteBimestreAtual = cachedTodos;
+    pacoteBimestreAnoAtual = 'TODOS';
+    _usarPacoteBimestre(cachedTodos);
+
+    // Aquece o pacote específico em segundo plano, mas sem bloquear a tela.
+    if ((filtrosBase.ano || 'TODOS') !== 'TODOS') {
+      _withCache(
+        chave,
+        cb => google.script.run
+          .withSuccessHandler(r => cb(r))
+          .withFailureHandler(err => {
+            console.warn('Pacote específico do ano falhou; mantendo pacote mestre:', err);
+            cb(cachedTodos);
+          })
+          .getPacoteBimestreRapido(bimestreAtualKey, filtrosBase),
+        () => {},
+        { refreshBackground: true }
+      );
+    }
+
+    return;
+  }
+
+  if (pills) {
+    pills.innerHTML = `<div class="d-flex align-items-center gap-2 p-2 text-muted">
+      <div class="spinner-border spinner-border-sm"></div>
+      <span style="font-size:.85rem;">Carregando ${escapeHtml(bimestreAtualLabel)}…</span>
+    </div>`;
+  }
+
+  _withCache(
+    chave,
+    cb => google.script.run
+      .withSuccessHandler(r => cb(r))
+      .withFailureHandler(err => {
+        console.error('Erro ao carregar pacote do bimestre:', err);
+        cb({ ok: false, message: 'Erro ao carregar pacote do bimestre.', linhas: [], arvore: {}, disciplinas: [] });
+      })
+      .getPacoteBimestreRapido(bimestreAtualKey, filtrosBase),
+    res => {
+      if (!res || !res.ok) {
+        if (pills) pills.innerHTML = `<div class="alert alert-warning w-100 m-0">${escapeHtml(res?.message || 'Erro ao carregar.')}</div>`;
+        return;
+      }
+      pacoteBimestreAtual = res;
+      pacoteBimestreAnoAtual = filtrosBase.ano || 'TODOS';
+      _usarPacoteBimestre(res);
+    }
+  );
+}
+
+function _usarPacoteBimestre(pacote) {
+  _montarSelectAno(pacote.anos || pacote.anosDisponiveis || []);
+  renderBimestrePacoteLocal();
+}
+
+function renderBimestrePacoteLocal() {
+  const arvoreLocal = _arvoreLocalDoPacote();
+  renderHierarquia(arvoreLocal);
+
+  const res = _montarResumoLocalDoPacote();
+  avaliacaoCache[bimestreAtualKey] = res;
+  renderBimestreRapido(res);
+}
+
+function _arvoreLocalDoPacote() {
+  const pacote = pacoteBimestreAtual || {};
+  const filtros = filtrosAvaliacaoAtuais();
+  const anoFiltro = filtros.ano || 'TODOS';
+  const arv = {};
+
+  // Preferência: hierarquia compacta enviada pelo backend.
+  // Formato: [UNIDADE, ANO, TURMA, QTD_ALUNOS]
+  if (Array.isArray(pacote.hierLinhas) && pacote.hierLinhas.length) {
+    pacote.hierLinhas.forEach(row => {
+      const u = row[0];
+      const a = normalizarAnoFiltroFront(row[1]);
+      const t = row[2];
+      const qtd = Number(row[3] || 0);
+
+      if (!u || !t) return;
+      // Filtro de unidade escolar (acesso restrito por escola).
+      if (typeof _unidadeMatchFiltro === 'function' && !_unidadeMatchFiltro(u)) return;
+      if (anoFiltro !== 'TODOS' && a !== anoFiltro) return;
+
+      if (!arv[u]) arv[u] = {};
+      arv[u][t] = (arv[u][t] || 0) + qtd;
+    });
+
+    return arv;
+  }
+
+  // Fallback para pacotes antigos: usa a árvore pronta do pacote.
+  // Se o pacote for "TODOS" e o usuário filtrar ano, a contagem pode não ser perfeita,
+  // mas evita travar a tela caso algum cache antigo ainda exista.
+  return pacote.arvore || {};
+}
+
+function _linhasPacoteFiltradas() {
+  const pacote = pacoteBimestreAtual || { linhas: [] };
+  const filtros = filtrosAvaliacaoAtuais();
+  const anoFiltro = filtros.ano || 'TODOS';
+
+  return (pacote.linhas || []).filter(row => {
+    const u = row[PKG.U];
+    const a = normalizarAnoFiltroFront(row[PKG.A]);
+    const t = row[PKG.T];
+
+    // Filtro de unidade escolar (acesso restrito por escola).
+    if (typeof _unidadeMatchFiltro === 'function' && !_unidadeMatchFiltro(u)) return false;
+
+    if (anoFiltro !== 'TODOS' && a !== anoFiltro) return false;
+    if (filtros.unidade && filtros.unidade !== 'TODAS' && u !== filtros.unidade) return false;
+    if (filtros.turma && filtros.turma !== 'TODAS' && t !== filtros.turma) return false;
+    return true;
+  });
+}
+
+function _alunosTotalPacoteLocal() {
+  const arvore = _arvoreLocalDoPacote();
+
+  if (_hierUnidadeAtiva !== 'TODAS') {
+    if (!arvore[_hierUnidadeAtiva]) return 0;
+    if (_hierTurmaAtiva !== 'TODAS') return Number(arvore[_hierUnidadeAtiva][_hierTurmaAtiva] || 0);
+    return Object.values(arvore[_hierUnidadeAtiva]).reduce((a, b) => a + Number(b || 0), 0);
+  }
+
+  return Object.keys(arvore).reduce((total, u) => {
+    return total + Object.values(arvore[u] || {}).reduce((a, b) => a + Number(b || 0), 0);
+  }, 0);
+}
+
+function _montarResumoLocalDoPacote() {
+  const linhas = _linhasPacoteFiltradas();
+  const resumo = {};
+  const disciplinas = {};
+  const unidades = {};
+  const anos = {};
+  const turmas = {};
+
+  linhas.forEach(row => {
+    const u = row[PKG.U];
+    const a = normalizarAnoFiltroFront(row[PKG.A]);
+    const t = row[PKG.T];
+    const disc = row[PKG.D];
+    const eixo = row[PKG.E];
+    const resp = row[PKG.R] || 'Não Avaliado';
+    const qtd = Number(row[PKG.Q] || 0);
+
+    if (!disc || !eixo || !qtd) return;
+    unidades[u] = true;
+    anos[a] = true;
+    turmas[t] = true;
+    disciplinas[disc] = true;
+
+    if (!resumo[disc]) resumo[disc] = {};
+    if (!resumo[disc][eixo]) resumo[disc][eixo] = {};
+    resumo[disc][eixo][resp] = (resumo[disc][eixo][resp] || 0) + qtd;
+  });
+
+  return {
+    ok: true,
+    source: 'front_pacote_local',
+    disciplinas: Object.keys(disciplinas).sort(),
+    unidades: Object.keys(unidades).sort(),
+    anos: Object.keys(anos).sort(),
+    turmas: Object.keys(turmas).sort(),
+    alunosTotal: _alunosTotalPacoteLocal(),
+    resumo: resumo,
+    generatedAt: pacoteBimestreAtual?.generatedAt || new Date().toISOString()
+  };
+}
+
+// ===========================================================
+// RENDERIZAÇÃO PRINCIPAL
+// ===========================================================
+function renderBimestreRapido(res) {
+  const titulo = document.getElementById('avaliacaoTitulo');
+  if (titulo) titulo.innerText = bimestreAtualLabel;
+
+  const disciplinas = res.disciplinas || [];
+  if (!disciplinas.length) {
+    document.getElementById('pillsDisciplinasContainer').innerHTML =
+      `<div class="alert alert-warning w-100 m-0">Nenhum dado para o filtro ativo.</div>`;
+    ['bimestre1Kpis','bimestre1Charts','bimestre1TableHead','bimestre1TableBody']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+    return;
+  }
+
+  if (!currentBimestreDisciplina || !disciplinas.includes(currentBimestreDisciplina)) {
+    currentBimestreDisciplina = disciplinas[0];
+  }
+
+  document.getElementById('pillsDisciplinasContainer').innerHTML = disciplinas.map(d =>
+    `<button class="pill-disciplina shadow-sm ${d === currentBimestreDisciplina ? 'active' : ''}"
+             onclick="selecionarDisciplinaBimestreRapido('${escapeJs(d)}')">${escapeHtml(d)}</button>`
+  ).join('');
+
+  selecionarDisciplinaBimestreRapido(currentBimestreDisciplina);
+}
+
+function selecionarDisciplinaBimestreRapido(disciplina) {
+  currentBimestreDisciplina = disciplina;
+  document.querySelectorAll('#pillsDisciplinasContainer .pill-disciplina')
+    .forEach(b => b.classList.toggle('active', b.innerText.trim() === disciplina));
+
+  const res = avaliacaoCache[bimestreAtualKey];
+  if (!res) return;
+
+  const dadosDisciplina = (res.resumo || {})[disciplina] || {};
+  const tipos = Object.keys(dadosDisciplina).sort();
+
+  document.getElementById('bimestre1Kpis').innerHTML = `
+    <div class="col-12 col-md-4"><div class="card-kpi">
+      <div class="label-mini">Disciplina / Período</div>
+      <div class="kpi-val text-primary" style="font-size:1.1rem;">${escapeHtml(disciplina)}</div>
+      <div class="mt-1">
+        <span class="badge bg-primary-subtle text-primary border">${escapeHtml(bimestreAtualLabel)}</span>
+        ${_hierUnidadeAtiva !== 'TODAS' ? `<span class="badge bg-info-subtle text-info border ms-1" style="font-size:.6rem;">${escapeHtml(_hierUnidadeAtiva.split(',')[0])}</span>` : ''}
+        ${_hierTurmaAtiva !== 'TODAS' ? `<span class="badge bg-success-subtle text-success border ms-1">Turma ${escapeHtml(_hierTurmaAtiva)}</span>` : ''}
+        ${(typeof _anoFiltroAtualSeguro === 'function' ? _anoFiltroAtualSeguro() : anoFiltroAtual) !== 'TODOS' ? `<span class="badge bg-warning-subtle text-warning border ms-1">${escapeHtml(typeof _anoFiltroAtualSeguro === 'function' ? _anoFiltroAtualSeguro() : anoFiltroAtual)}</span>` : ''}
+      </div>
+    </div></div>
+    <div class="col-6 col-md-4"><div class="card-kpi">
+      <div class="label-mini">Alunos no Filtro</div>
+      <div class="kpi-val text-success">${res.alunosTotal || 0}</div>
+    </div></div>
+    <div class="col-6 col-md-4"><div class="card-kpi">
+      <div class="label-mini">Eixos Avaliados</div>
+      <div class="kpi-val text-info">${tipos.length}</div>
+    </div></div>`;
+
+  renderGraficosBimestreRapido(disciplina, dadosDisciplina, tipos);
+  renderTabelaBimestreRapido(disciplina, dadosDisciplina, tipos);
+  fecharDetalheEixo();
+}
+
+// ===========================================================
+// GRÁFICOS DE ROSCA — um por FNE
+// ===========================================================
+function renderGraficosBimestreRapido(disciplina, dadosDisciplina, tipos) {
+  dynCharts.forEach(c => c.destroy());
+  dynCharts = [];
+  const container = document.getElementById('bimestre1Charts');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const total = tipos.length;
+  const colClass = total === 1 ? 'col-12 col-md-8 col-lg-6 mx-auto'
+    : total === 2 ? 'col-12 col-md-6'
+    : 'col-12 col-md-6 col-xl-4';
+
+  tipos.forEach((tipo, idx) => {
+    const contagem = dadosDisciplina[tipo] || {};
+    const labels = Object.keys(contagem);
+    const values = labels.map(l => contagem[l]);
+    const colors = labels.map(l => getCorParaRotulo(l));
+    const totalTipo = values.reduce((a, b) => a + b, 0);
+    const canvasId = `chartBim_${idx}`;
+    const adequacaoInfo = calcularAdequacaoDetalhada(labels, values);
+    const pctAdeq = adequacaoInfo.pct;
+
+    container.insertAdjacentHTML('beforeend', `
+      <div class="${colClass} mb-4">
+        <div class="bg-white border rounded-3 shadow-sm p-3 h-100 d-flex flex-column"
+             style="border-left:4px solid #002b5e!important;min-height:580px;">
+          <div class="mb-2">
+            <div class="fw-bold text-primary"
+                 title="${escapeHtml(tipo)}"
+                 style="font-size:.95rem;line-height:1.25;word-break:normal;overflow-wrap:break-word;hyphens:auto;max-width:100%;">
+              ${escapeHtml(tipo)}
+            </div>
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-2">
+              ${htmlStatusAdequacao(pctAdeq)}
+              <button class="btn-detalhe-eixo"
+                      onclick="abrirDetalheEixo('${escapeJs(disciplina)}','${escapeJs(tipo)}')">
+                <i class="bi bi-zoom-in me-1"></i>Detalhes
+              </button>
+            </div>
+          </div>
+          <div style="position:relative;height:380px;margin:8px 0;flex-shrink:0;">
+            <canvas id="${canvasId}"></canvas>
+          </div>
+          ${htmlLegendaColorida(tipo, null, contagem)}
+          ${htmlExplicacaoAdequacao(tipo, adequacaoInfo)}
+        </div>
+      </div>`);
+
+    const ch = new Chart(document.getElementById(canvasId), {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff', hoverOffset: 10 }] },
+      options: {
+        maintainAspectRatio: false,
+        cutout: '50%',
+        onClick: (ev, els) => { if (els.length) abrirModalBimestreRapido(disciplina, tipo, labels[els[0].index]); },
+        plugins: {
+          legend: { display: false },
+          datalabels: {
+            color: ctx => getTextColor(ctx.dataset.backgroundColor[ctx.dataIndex]),
+            font: { weight: 'bold', size: 12 },
+            formatter: val => { const p = totalTipo ? Math.round((val / totalTipo) * 100) : 0; return p >= 6 ? p + '%' : ''; }
+          },
+          tooltip: { callbacks: { label: c => `${c.label}: ${c.raw} aluno(s) — ${totalTipo ? Math.round((c.raw / totalTipo) * 100) : 0}%` } }
+        }
+      }
+    });
+    dynCharts.push(ch);
+  });
+}
+
+// ===========================================================
+// DETALHE POR PERGUNTA (FQS)
+// ===========================================================
+function abrirDetalheEixo(disciplina, eixo) {
+  const painel = document.getElementById('painelDetalheEixo');
+  const titulo = document.getElementById('detalheEixoTitulo');
+  const area = document.getElementById('detalheEixoCharts');
+  if (!painel) return;
+
+  titulo.textContent = `${disciplina} — ${eixo}`;
+  area.innerHTML = `<div class="col-12 text-center py-4">
+    <div class="spinner-border spinner-border-sm me-2"></div>Carregando perguntas…</div>`;
+  painel.classList.remove('d-none');
+  painel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  _detalheCharts.forEach(c => c.destroy());
+  _detalheCharts = [];
+
+  const filtros = filtrosAvaliacaoAtuais();
+  filtros.disciplina = disciplina;
+  filtros.eixo = eixo;
+
+  _withCache(_chaveDetalhe(bimestreAtualKey, filtros),
+    cb => google.script.run.withSuccessHandler(r => cb(r)).getDetalheEixo(bimestreAtualKey, filtros),
+    res => {
+      if (!res?.ok || !Object.keys(res.perguntas || {}).length) {
+        area.innerHTML = `<div class="col-12"><div class="alert alert-info m-0">Não há perguntas detalhadas para este eixo.</div></div>`;
+        return;
+      }
+      area.innerHTML = '';
+      const perguntas = res.perguntas;
+      const chaves = Object.keys(perguntas).sort();
+      const colClass = chaves.length === 1 ? 'col-12 col-md-8 mx-auto'
+        : chaves.length === 2 ? 'col-12 col-md-6'
+        : 'col-12 col-md-6 col-lg-4';
+
+      chaves.forEach((chave, idx) => {
+        const { label, contagem } = perguntas[chave];
+        const labels = Object.keys(contagem);
+        const values = labels.map(l => contagem[l]);
+        const colors = labels.map(l => getCorParaRotulo(l));
+        const totalP = values.reduce((a, b) => a + b, 0);
+        const canvasId = `detalhe_${idx}`;
+        const infoAdeq = calcularAdequacaoDetalhada(labels, values);
+
+        area.insertAdjacentHTML('beforeend', `
+          <div class="${colClass} mb-4">
+            <div class="bg-white border rounded-3 shadow-sm p-3 h-100 d-flex flex-column"
+                 style="border-left:4px solid var(--neon-blue)!important;">
+              <div class="fw-bold text-primary mb-2" style="font-size:.78rem;line-height:1.35;">
+                ${escapeHtml(label)}
+              </div>
+              <div style="position:relative;height:360px;flex-shrink:0;">
+                <canvas id="${canvasId}"></canvas>
+              </div>
+              ${htmlLegendaColorida(eixo, label, contagem)}
+              ${htmlExplicacaoAdequacao(eixo, infoAdeq)}
+            </div>
+          </div>`);
+
+        const ch = new Chart(document.getElementById(canvasId), {
+          type: 'doughnut',
+          data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff', hoverOffset: 8 }] },
+          options: {
+            maintainAspectRatio: false,
+            cutout: '50%',
+            plugins: {
+              legend: { display: false },
+              datalabels: {
+                color: ctx => getTextColor(ctx.dataset.backgroundColor[ctx.dataIndex]),
+                font: { weight: 'bold', size: 11 },
+                formatter: val => { const p = totalP ? Math.round((val / totalP) * 100) : 0; return p >= 6 ? p + '%' : ''; }
+              },
+              tooltip: { callbacks: { label: c => `${c.label}: ${c.raw} — ${totalP ? Math.round((c.raw / totalP) * 100) : 0}%` } }
+            }
+          }
+        });
+        _detalheCharts.push(ch);
+      });
+    });
+}
+
+function fecharDetalheEixo() {
+  const p = document.getElementById('painelDetalheEixo');
+  if (p) p.classList.add('d-none');
+  _detalheCharts.forEach(c => c.destroy());
+  _detalheCharts = [];
+}
+
+// ===========================================================
+// TABELA DE RESULTADOS
+// ===========================================================
+function renderTabelaBimestreRapido(disciplina, dadosDisciplina, tipos) {
+  document.getElementById('bimestre1TableHead').innerHTML = `
+    <tr style="font-size:.75rem;color:#666;text-transform:uppercase;">
+      <th>Eixo de Avaliação</th>
+      <th>Distribuição de Respostas</th>
+      <th class="text-center">Total</th>
+      <th class="text-center">% Adequado</th>
+      <th class="text-center">Ações</th>
+    </tr>`;
+
+  document.getElementById('bimestre1TableBody').innerHTML = tipos.map(tipo => {
+    const contagem = dadosDisciplina[tipo] || {};
+    const totalT = Object.values(contagem).reduce((a, b) => a + b, 0);
+    const infoAdeq = calcularAdequacaoDetalhada(Object.keys(contagem), Object.keys(contagem).map(k => contagem[k]));
+
+    const badges = Object.keys(contagem).map(resp => {
+      const cor = getCorParaRotulo(resp);
+      const pct = totalT > 0 ? Math.round((contagem[resp] / totalT) * 100) : 0;
+      return `<span class="badge-avaliacao me-1 mb-1"
+                    style="background:${cor};color:${getTextColor(cor)};cursor:pointer;min-width:70px;"
+                    onclick="abrirModalBimestreRapido('${escapeJs(disciplina)}','${escapeJs(tipo)}','${escapeJs(resp)}')"
+                    title="${escapeHtml(resp)} — clique para ver alunos">
+                ${escapeHtml(resp)}<br><small>${pct}%</small>
+              </span>`;
+    }).join('');
+
+    return `<tr>
+      <td class="fw-bold text-primary" style="max-width:200px;word-break:break-word;">${escapeHtml(tipo)}</td>
+      <td style="min-width:180px;">${badges}</td>
+      <td class="text-center fw-bold">${totalT}</td>
+      <td class="text-center fw-bold">${htmlStatusAdequacao(infoAdeq.pct)}</td>
+      <td class="text-center" style="white-space:nowrap;">
+        <button class="btn btn-sm btn-outline-primary me-1 fw-bold"
+                onclick="abrirModalBimestreRapido('${escapeJs(disciplina)}','${escapeJs(tipo)}','')">
+          <i class="bi bi-people me-1"></i>Todos
+        </button>
+        <button class="btn-detalhe-eixo"
+                onclick="abrirDetalheEixo('${escapeJs(disciplina)}','${escapeJs(tipo)}')">
+          <i class="bi bi-zoom-in me-1"></i>Detalhes
+        </button>
+      </td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="5" class="text-center p-3">Nenhum dado.</td></tr>`;
+}
+
+// ===========================================================
+// MODAL DE ALUNOS — continua consultando backend sob demanda
+// ===========================================================
+function abrirModalBimestreRapido(disciplina, tipo, resposta) {
+  const filtros = filtrosAvaliacaoAtuais();
+  filtros.disciplina = disciplina;
+  filtros.tipo = tipo;
+  filtros.resposta = resposta || '';
+
+  document.getElementById('modalChartTitle').innerHTML = `<i class="bi bi-hourglass-split me-2"></i>Carregando alunos…`;
+  document.getElementById('theadChartDetails').innerHTML = '';
+  document.getElementById('tbodyChartDetails').innerHTML = `<tr><td class="text-center p-4">Carregando…</td></tr>`;
+  new bootstrap.Modal(document.getElementById('modalChartDetails')).show();
+
+  google.script.run.withSuccessHandler(res => {
+    const alunos = res.alunos || [];
+    const tituloR = resposta ? ` → ${escapeHtml(resposta)}` : ' (todos)';
+    document.getElementById('modalChartTitle').innerHTML =
+      `<i class="bi bi-pie-chart-fill me-2"></i>${escapeHtml(disciplina)} — ${escapeHtml(tipo)}${tituloR}
+       <span class="badge bg-secondary ms-2">${alunos.length} alunos</span>`;
+    document.getElementById('theadChartDetails').innerHTML = `
+      <tr style="font-size:.75rem;color:#666;text-transform:uppercase;">
+        <th class="ps-3">Aluno</th><th>Unidade</th><th>Ano</th>
+        <th class="text-center">Turma</th><th class="text-center">Resposta</th>
+      </tr>`;
+    document.getElementById('tbodyChartDetails').innerHTML = alunos.map(al => {
+      const cor = getCorParaRotulo(al.resposta);
+      return `<tr>
+        <td class="fw-bold ps-3" style="font-size:.82rem;">${escapeHtml(al.n)}</td>
+        <td class="small text-muted">${escapeHtml(al.u)}</td>
+        <td class="small">${escapeHtml(al.a)}</td>
+        <td class="small text-center">${escapeHtml(al.t)}</td>
+        <td class="text-center"><span class="badge-avaliacao" style="background:${cor};color:${getTextColor(cor)};">${escapeHtml(al.resposta)}</span></td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="5" class="text-center p-3">Nenhum aluno encontrado.</td></tr>`;
+  }).getAlunosPorRespostaBimestre(bimestreAtualKey, filtros);
+}
+</script>
