@@ -7152,9 +7152,9 @@ function _renderTabelaTotal(linhas) {
 
   // ── Agregação server-side (RPC) — evita baixar a tabela bimestres inteira ──
   // Chama a função SQL agrupar_bimestres; lança erro se a RPC não existir.
-  async function rpcAgruparBimestres({ bimestre = null, anoLike = null, unidade = null, turma = null } = {}) {
+  async function rpcAgruparBimestres({ bimestre = null, anoLike = null, unidade = null, turma = null, incluirHier = true } = {}) {
     const { data, error } = await supa.rpc('agrupar_bimestres', {
-      p_bimestre: bimestre, p_ano_like: anoLike, p_unidade: unidade, p_turma: turma
+      p_bimestre: bimestre, p_ano_like: anoLike, p_unidade: unidade, p_turma: turma, p_incluir_hier: incluirHier
     });
     if (error) throw error;
     return { grupos: (data && data.grupos) || [], hier: (data && data.hier) || [] };
@@ -7531,7 +7531,7 @@ function _renderTabelaTotal(linhas) {
       // Bimestres: tenta agregação no servidor (grupos com contagem); senão, baixa cru.
       let bimestreGrupos = null;
       try {
-        bimestreGrupos = (await rpcAgruparBimestres({})).grupos;
+        bimestreGrupos = (await rpcAgruparBimestres({ incluirHier: false })).grupos;
       } catch (err) {
         console.warn('[MAPA Supabase] RPC agrupar_bimestres indisponível no Total; usando fallback.', err);
       }

@@ -17,18 +17,24 @@ CREATE INDEX IF NOT EXISTS idx_bimestres_turma    ON bimestres (turma);
 -- ── FUNÇÃO 1: agrupa `bimestres` por colunas cruas ──
 -- Retorna { grupos: [...], hier: [...] }:
 --   grupos = contagem por (bimestre, unidade, ano, turma, disciplina, eixo,
---            fqs, valor/codigo/texto da resposta)  → alimenta linhas/Total/eixos
+--            valor/codigo/texto da resposta)  → alimenta linhas/Total/eixos
 --   hier   = nº de alunos DISTINTOS por (bimestre, unidade, ano, turma)
+--            (só calculado quando p_incluir_hier = true — o Total não precisa)
+-- Obs.: NÃO agrupamos por `fqs` (texto da pergunta) — nenhum consumidor usa e
+-- isso reduz muito o nº de linhas agrupadas (json menor, resposta mais rápida).
+DROP FUNCTION IF EXISTS agrupar_bimestres(INT, TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS agrupar_bimestres(INT, TEXT, TEXT, TEXT, BOOLEAN);
 CREATE OR REPLACE FUNCTION agrupar_bimestres(
-  p_bimestre INT  DEFAULT NULL,
-  p_ano_like TEXT DEFAULT NULL,
-  p_unidade  TEXT DEFAULT NULL,
-  p_turma    TEXT DEFAULT NULL
+  p_bimestre     INT     DEFAULT NULL,
+  p_ano_like     TEXT    DEFAULT NULL,
+  p_unidade      TEXT    DEFAULT NULL,
+  p_turma        TEXT    DEFAULT NULL,
+  p_incluir_hier BOOLEAN DEFAULT TRUE
 ) RETURNS json LANGUAGE sql STABLE AS $$
   SELECT json_build_object(
     'grupos', COALESCE((SELECT json_agg(g) FROM (
       SELECT b.bimestre, b.nome_unidade, b.ano_escolar, b.turma,
-             b.fnc_disciplina, b.descricao_fne, b.fqs,
+             b.fnc_disciplina, b.descricao_fne,
              b.valor_resposta, b.codigo_resposta, b.texto_resposta,
              COUNT(*)::int AS qtd
       FROM bimestres b
@@ -37,10 +43,10 @@ CREATE OR REPLACE FUNCTION agrupar_bimestres(
         AND (p_unidade  IS NULL OR b.nome_unidade = p_unidade)
         AND (p_turma    IS NULL OR b.turma = p_turma)
       GROUP BY b.bimestre, b.nome_unidade, b.ano_escolar, b.turma,
-               b.fnc_disciplina, b.descricao_fne, b.fqs,
+               b.fnc_disciplina, b.descricao_fne,
                b.valor_resposta, b.codigo_resposta, b.texto_resposta
     ) g), '[]'::json),
-    'hier', COALESCE((SELECT json_agg(h) FROM (
+    'hier', CASE WHEN p_incluir_hier THEN COALESCE((SELECT json_agg(h) FROM (
       SELECT b.bimestre, b.nome_unidade, b.ano_escolar, b.turma,
              COUNT(DISTINCT COALESCE(b.rema_aluno, b.nome_aluno))::int AS qtd_alunos
       FROM bimestres b
@@ -49,7 +55,7 @@ CREATE OR REPLACE FUNCTION agrupar_bimestres(
         AND (p_unidade  IS NULL OR b.nome_unidade = p_unidade)
         AND (p_turma    IS NULL OR b.turma = p_turma)
       GROUP BY b.bimestre, b.nome_unidade, b.ano_escolar, b.turma
-    ) h), '[]'::json)
+    ) h), '[]'::json) ELSE '[]'::json END
   );
 $$;
 
@@ -70,7 +76,7 @@ LANGUAGE sql STABLE AS $$
 $$;
 
 -- ── Permissões para a chave anon (e usuários autenticados) ──
-GRANT EXECUTE ON FUNCTION agrupar_bimestres(INT, TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION agrupar_bimestres(INT, TEXT, TEXT, TEXT, BOOLEAN) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION arvore_total() TO anon, authenticated;
 
 -- ── Testes rápidos (opcional) ──
