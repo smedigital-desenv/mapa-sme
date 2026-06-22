@@ -1,0 +1,29 @@
+name: Keep Supabase warm
+
+# Mantém o projeto Supabase (free tier) ativo, evitando a pausa por
+# inatividade que causa o atraso de "acordar o banco" no primeiro acesso.
+# A chave usada é a anon (pública) — a mesma já presente no avaliacao.html.
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # a cada 6 horas
+  workflow_dispatch:          # permite rodar manualmente pela aba Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST
+        env:
+          SUPABASE_URL: "https://gmwotfulohkmuqrezeef.supabase.co"
+          SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk"
+        run: |
+          code=$(curl -sS -o /dev/null -w "%{http_code}" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "${SUPABASE_URL}/rest/v1/base_mapa?select=id&limit=1")
+          echo "Supabase respondeu HTTP ${code}"
+          if [ "${code}" != "200" ]; then
+            echo "::error::Supabase nao respondeu 200 (foi ${code})"
+            exit 1
+          fi

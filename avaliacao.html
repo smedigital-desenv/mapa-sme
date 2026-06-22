@@ -7069,22 +7069,44 @@ function _renderTabelaTotal(linhas) {
   async function fetchAll(table, select = '*', applyFilter) {
     if (!supa) throw new Error('Supabase não inicializado.');
     const pageSize = 1000;
-    let from = 0;
-    let rows = [];
+    const MAX_PARALELO = 6;   // páginas buscadas simultaneamente
 
-    while (true) {
-      let q = supa.from(table).select(select).range(from, from + pageSize - 1);
+    const montarQuery = (from, withCount) => {
+      let q = supa.from(table)
+        .select(select, withCount ? { count: 'exact' } : undefined)
+        .range(from, from + pageSize - 1);
       if (typeof applyFilter === 'function') q = applyFilter(q);
-      const { data, error } = await q;
-      if (error) throw error;
-      const batch = data || [];
-      rows = rows.concat(batch);
-      if (batch.length < pageSize) break;
-      from += pageSize;
-      if (from > 300000) break;
-    }
+      return q;
+    };
 
-    return rows;
+    // 1ª página já traz a contagem total (Content-Range) — evita descobrir o fim
+    // só ao receber uma página curta, permitindo buscar o resto em paralelo.
+    const primeira = await montarQuery(0, true);
+    if (primeira.error) throw primeira.error;
+    const rows = primeira.data || [];
+    const total = (primeira.count != null) ? primeira.count : rows.length;
+    if (rows.length >= total || rows.length < pageSize) return rows;
+
+    // Offsets das páginas restantes
+    const offsets = [];
+    for (let from = pageSize; from < total && from <= 300000; from += pageSize) offsets.push(from);
+
+    // Busca em paralelo com limite de concorrência (pool de workers)
+    const partes = new Array(offsets.length);
+    let idx = 0;
+    async function worker() {
+      while (idx < offsets.length) {
+        const meu = idx++;
+        const { data, error } = await montarQuery(offsets[meu], false);
+        if (error) throw error;
+        partes[meu] = data || [];
+      }
+    }
+    await Promise.all(
+      Array.from({ length: Math.min(MAX_PARALELO, offsets.length) }, worker)
+    );
+
+    return rows.concat(...partes);
   }
 
   function agruparBimestrePacote(rows) {
