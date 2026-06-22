@@ -7150,6 +7150,57 @@ function _renderTabelaTotal(linhas) {
     };
   }
 
+  // ── Agregação server-side (RPC) — evita baixar a tabela bimestres inteira ──
+  // Chama a função SQL agrupar_bimestres; lança erro se a RPC não existir.
+  async function rpcAgruparBimestres({ bimestre = null, anoLike = null, unidade = null, turma = null } = {}) {
+    const { data, error } = await supa.rpc('agrupar_bimestres', {
+      p_bimestre: bimestre, p_ano_like: anoLike, p_unidade: unidade, p_turma: turma
+    });
+    if (error) throw error;
+    return { grupos: (data && data.grupos) || [], hier: (data && data.hier) || [] };
+  }
+
+  // Monta o pacote (mesmo formato de agruparBimestrePacote) a partir dos grupos
+  // já somados no servidor. A normalização/rotulagem é a MESMA do caminho cru,
+  // então os números resultantes são idênticos.
+  function pacoteDeGrupos(grupos, hier) {
+    const ag = new Map();
+    const disciplinas = new Set();
+    const anos = new Set();
+
+    grupos.forEach(r => {
+      const u = cleanUnit(r.nome_unidade || 'Sem unidade');
+      const a = normalizar(r.ano_escolar || 'TODOS') || 'TODOS';
+      const t = String(r.turma || 'Sem turma').trim().toUpperCase();
+      const d = normalizarDisciplina(r.fnc_disciplina || 'Sem disciplina');
+      const e = corrigirTextoLegivel(r.descricao_fne || 'Sem eixo');
+      const resp = respostaLabel(r);
+      const k = [u, a, t, d, e, resp].join('||');
+      ag.set(k, (ag.get(k) || 0) + Number(r.qtd || 0));
+      disciplinas.add(d);
+      if (a) anos.add(a);
+    });
+
+    const hierAg = new Map();
+    (hier || []).forEach(r => {
+      const u = cleanUnit(r.nome_unidade || 'Sem unidade');
+      const a = normalizar(r.ano_escolar || 'TODOS') || 'TODOS';
+      const t = String(r.turma || 'Sem turma').trim().toUpperCase();
+      const k = [u, a, t].join('||');
+      if (!hierAg.has(k)) hierAg.set(k, [u, a, t, 0]);
+      hierAg.get(k)[3] += Number(r.qtd_alunos || 0);
+    });
+
+    return {
+      ok: true,
+      linhas: Array.from(ag.entries()).map(([k, qtd]) => k.split('||').concat([qtd])),
+      hierLinhas: Array.from(hierAg.values()),
+      disciplinas: Array.from(disciplinas).sort(),
+      anos: Array.from(anos).sort(),
+      generatedAt: new Date().toISOString()
+    };
+  }
+
   const api = {
     async getDashboardLeve() {
       const [turmas, baseMapa, seriesExcluidas] = await Promise.all([
@@ -7339,6 +7390,17 @@ function _renderTabelaTotal(linhas) {
     async getPacoteBimestreRapido(key, filtros) {
       const bimestre = BIM_KEY_TO_NUM[key] || 1;
       const ano = normalizar((filtros && filtros.ano) || 'TODOS');
+      const anoLike = (ano && ano !== 'TODOS') ? `%${ano.replace(' ANO', '')}%` : null;
+
+      // Caminho rápido: agregação no servidor (poucos KB)
+      try {
+        const { grupos, hier } = await rpcAgruparBimestres({ bimestre, anoLike });
+        return pacoteDeGrupos(grupos, hier);
+      } catch (err) {
+        console.warn('[MAPA Supabase] RPC agrupar_bimestres indisponível; usando fallback fetchAll.', err);
+      }
+
+      // Fallback: baixa as linhas e agrega no navegador (comportamento antigo)
       const rows = await fetchAll('bimestres', '*', q => {
         q = q.eq('bimestre', bimestre);
         if (ano && ano !== 'TODOS') q = q.ilike('ano_escolar', `%${ano.replace(' ANO', '')}%`);
@@ -7466,8 +7528,18 @@ function _renderTabelaTotal(linhas) {
       const unidadeFiltro = filtros.unidade || 'TODAS';
       const turmaFiltro = filtros.turma || 'TODAS';
 
+      // Bimestres: tenta agregação no servidor (grupos com contagem); senão, baixa cru.
+      let bimestreGrupos = null;
+      try {
+        bimestreGrupos = (await rpcAgruparBimestres({})).grupos;
+      } catch (err) {
+        console.warn('[MAPA Supabase] RPC agrupar_bimestres indisponível no Total; usando fallback.', err);
+      }
+
       const [bimestresRows, alunosRows] = await Promise.all([
-        fetchAll('bimestres').catch(err => { console.error('[MAPA Supabase] Erro bimestres total:', err); return []; }),
+        bimestreGrupos
+          ? Promise.resolve(null)
+          : fetchAll('bimestres').catch(err => { console.error('[MAPA Supabase] Erro bimestres total:', err); return []; }),
         fetchAll('alunos').catch(err => { console.error('[MAPA Supabase] Erro alunos total/diagnóstica:', err); return []; })
       ]);
 
@@ -7480,7 +7552,10 @@ function _renderTabelaTotal(linhas) {
         return true;
       }
 
-      function addTotal(r, campo, disciplinaCampo, disciplinaFixa) {
+      // peso = quantas linhas cruas o registro representa (1 no caminho cru,
+      // r.qtd nos grupos vindos da RPC) — a média ponderada dá o mesmo resultado.
+      function addTotal(r, campo, disciplinaCampo, disciplinaFixa, peso) {
+        peso = Number(peso || 1);
         const u = cleanUnit(r.nome_unidade || 'Sem unidade');
         const a = normalizar(r.ano_escolar || 'TODOS') || 'TODOS';
         const t = String(r.turma || 'Sem turma').trim().toUpperCase();
@@ -7494,19 +7569,21 @@ function _renderTabelaTotal(linhas) {
         if (score === null || Number.isNaN(score)) return;
         const k = [u, a, t, d, e, campo].join('||');
         if (!ag.has(k)) ag.set(k, { soma: 0, qtd: 0 });
-        ag.get(k).soma += score;
-        ag.get(k).qtd += 1;
+        ag.get(k).soma += score * peso;
+        ag.get(k).qtd += peso;
       }
 
       // Diagnóstica vem da tabela alunos e precisa alimentar o campo diag do Total.
       alunosRows.forEach(r => addTotal(r, 'diag', 'disciplina_fnc', 'Língua Portuguesa'));
 
-      // Bimestres vêm da tabela bimestres e alimentam b1/b2/b3/b4.
-      bimestresRows.forEach(r => {
+      // Bimestres alimentam b1/b2/b3/b4.
+      const addBimestre = r => {
         const b = Number(r.bimestre || 1);
         const campo = b === 1 ? 'b1' : b === 2 ? 'b2' : b === 3 ? 'b3' : b === 4 ? 'b4' : 'b1';
-        addTotal(r, campo, 'fnc_disciplina');
-      });
+        addTotal(r, campo, 'fnc_disciplina', null, r.qtd);
+      };
+      if (bimestreGrupos) bimestreGrupos.forEach(addBimestre);
+      else (bimestresRows || []).forEach(addBimestre);
 
       if (pacote) {
         const linhas = Array.from(ag.entries()).map(([k, v]) => {
@@ -7531,6 +7608,26 @@ function _renderTabelaTotal(linhas) {
     async getHierarquiaTotal(filtros) {
       filtros = filtros || {};
       const anoFiltro = normalizar(filtros.ano || 'TODOS') || 'TODOS';
+
+      // Caminho rápido: alunos distintos por unidade/ano/turma já contados no servidor.
+      try {
+        const { data, error } = await supa.rpc('arvore_total');
+        if (error) throw error;
+        const arvore = {};
+        (data || []).forEach(r => {
+          const a = normalizar(r.ano_escolar || 'TODOS') || 'TODOS';
+          if (anoFiltro !== 'TODOS' && a !== anoFiltro) return;
+          const u = cleanUnit(r.nome_unidade || 'Sem unidade');
+          const t = String(r.turma || 'Sem turma').trim().toUpperCase();
+          if (!arvore[u]) arvore[u] = {};
+          arvore[u][t] = (arvore[u][t] || 0) + Number(r.qtd_alunos || 0);
+        });
+        return { ok: true, arvore };
+      } catch (err) {
+        console.warn('[MAPA Supabase] RPC arvore_total indisponível; usando fallback.', err);
+      }
+
+      // Fallback: baixa as linhas e conta no navegador (comportamento antigo)
       const [bimestresRows, alunosRows] = await Promise.all([
         fetchAll('bimestres').catch(() => []),
         fetchAll('alunos').catch(() => [])
