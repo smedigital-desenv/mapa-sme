@@ -963,7 +963,7 @@ function montarDados(rows) {
         ? (estaEmContracao(_cS) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor_sub))
         : (estaEmContracao(_cT) ? 'Em contratação' : obterNomeSituacao(row.situacao_professor));
       profTitular = (row.nome_professor_prop || '—').toString().trim();
-      profSub     = sub ? (row.nome_professor_sub || '').toString().trim() : '';
+      profSub     = (sub || (estaEmContracao(_cT) && _temSub)) ? (row.nome_professor_sub || '').toString().trim() : '';
     } else if (_temSub) {
       // SALDO com substituto afastado: traz nome/código/afastamento do substituto (titular como dono)
       profName    = (row.nome_professor_sub || '—').toString().trim();
@@ -1585,8 +1585,9 @@ function _renderDetalhes(details) {
       <td><span class="badge bg-primary-subtle text-primary border">${escapeHtml(d.disc)}</span></td>
       <td class="fw-bold text-center text-nowrap">${escapeHtml(d.turma)}</td>
       <td class="text-nowrap">
-        ${escapeHtml(d.profTitular || d.profName)}
-        ${d.profSub ? `<div style="font-size:.7rem;color:#64748b;margin-top:2px;"><i class="bi bi-arrow-return-right me-1"></i>Sub: ${escapeHtml(d.profSub)}</div>` : ''}
+        ${d.profSub
+          ? `${escapeHtml(d.profSub)}<div style="font-size:.7rem;color:#64748b;margin-top:2px;"><i class="bi bi-arrow-return-right me-1"></i>substituído: ${escapeHtml(d.profTitular)}</div>`
+          : escapeHtml(d.profTitular || d.profName)}
       </td>
       <td class="text-center">${escapeHtml(d.profCode)}</td>
       <td class="text-center"><span class="badge ${corSituacao(d.profStatus)}">${escapeHtml(d.profStatus)}</span></td>
@@ -1673,7 +1674,7 @@ function _renderGrupoTabela(turmasObj, turmasGrupo, discsGrupo) {
         const c = turmasObj[turma][d];
         if (!c) return `<td class="cell-na">—</td>`;
         return c.atribuido
-          ? `<td class="cell-ok" title="${escapeHtml((c.profTitular || c.profName) + (c.profSub ? ' (Sub: ' + c.profSub + ')' : ''))}"><i class="bi bi-check-circle-fill" style="color:#10b981;font-size:.9rem;"></i></td>`
+          ? `<td class="cell-ok" title="${escapeHtml(c.profSub ? (c.profSub + ' (substituído: ' + c.profTitular + ')') : (c.profTitular || c.profName))}"><i class="bi bi-check-circle-fill" style="color:#10b981;font-size:.9rem;"></i></td>`
           : `<td class="cell-nok" title="S/ Atribuição"><i class="bi bi-x-circle-fill" style="color:#ef4444;font-size:.9rem;"></i></td>`;
       }).join('')}
     </tr>`).join('');
