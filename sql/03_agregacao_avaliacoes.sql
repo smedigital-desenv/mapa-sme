@@ -67,6 +67,31 @@ CREATE MATERIALIZED VIEW mv_arvore_total AS
 CREATE UNIQUE INDEX ux_mv_arvore ON mv_arvore_total
   (nome_unidade, ano_escolar, turma);
 
+-- MV 4: Diagnóstica/Rede — pivô por aluno (1 linha por aluno, com Escrita/Leitura/
+--       Produção). Reduz ~39k linhas para ~nº de alunos e leva só as colunas usadas.
+--       A rotulagem (respostaLabel) continua no JS, sobre os valores crus.
+DROP MATERIALIZED VIEW IF EXISTS mv_alunos_diag CASCADE;
+CREATE MATERIALIZED VIEW mv_alunos_diag AS
+  SELECT
+    nome_unidade, ano_escolar, turma,
+    COALESCE(rema_aluno, nome_aluno) AS aluno_id,
+    MAX(rema_aluno) AS rema_aluno,
+    MAX(nome_aluno) AS nome_aluno,
+    MAX(valor_resposta)  FILTER (WHERE descricao_fne ILIKE '%ESCRITA%') AS e_valor,
+    MAX(codigo_resposta) FILTER (WHERE descricao_fne ILIKE '%ESCRITA%') AS e_codigo,
+    MAX(texto_resposta)  FILTER (WHERE descricao_fne ILIKE '%ESCRITA%') AS e_texto,
+    MAX(valor_resposta)  FILTER (WHERE descricao_fne ILIKE '%LEITURA%') AS l_valor,
+    MAX(codigo_resposta) FILTER (WHERE descricao_fne ILIKE '%LEITURA%') AS l_codigo,
+    MAX(texto_resposta)  FILTER (WHERE descricao_fne ILIKE '%LEITURA%') AS l_texto,
+    MAX(valor_resposta)  FILTER (WHERE descricao_fne ILIKE '%PRODU%')   AS p_valor,
+    MAX(codigo_resposta) FILTER (WHERE descricao_fne ILIKE '%PRODU%')   AS p_codigo,
+    MAX(texto_resposta)  FILTER (WHERE descricao_fne ILIKE '%PRODU%')   AS p_texto
+  FROM alunos
+  GROUP BY nome_unidade, ano_escolar, turma, COALESCE(rema_aluno, nome_aluno);
+
+CREATE UNIQUE INDEX ux_mv_alunos ON mv_alunos_diag
+  (nome_unidade, ano_escolar, turma, aluno_id);
+
 -- ════════════════════════════════════════════════════════════
 -- FUNÇÕES (apenas LEEM as views — sub-segundo)
 -- ════════════════════════════════════════════════════════════
@@ -107,6 +132,18 @@ LANGUAGE sql STABLE AS $$
   SELECT nome_unidade, ano_escolar, turma, qtd_alunos FROM mv_arvore_total;
 $$;
 
+-- Diagnóstica/Rede: devolve o pivô por aluno em um único json (sem paginação).
+CREATE OR REPLACE FUNCTION alunos_diagnostica()
+RETURNS json LANGUAGE sql STABLE AS $$
+  SELECT COALESCE(json_agg(a), '[]'::json) FROM (
+    SELECT nome_unidade, ano_escolar, turma, rema_aluno, nome_aluno,
+           e_valor, e_codigo, e_texto,
+           l_valor, l_codigo, l_texto,
+           p_valor, p_codigo, p_texto
+    FROM mv_alunos_diag
+  ) a;
+$$;
+
 -- Atualiza as 3 views. (REFRESH simples — CONCURRENTLY não é permitido dentro
 -- de função/transação. O refresh é rápido e roda a cada 5 min, então o bloqueio
 -- momentâneo de leitura é irrelevante.)
@@ -117,13 +154,15 @@ BEGIN
   REFRESH MATERIALIZED VIEW mv_bimestres_grupos;
   REFRESH MATERIALIZED VIEW mv_bimestres_hier;
   REFRESH MATERIALIZED VIEW mv_arvore_total;
+  REFRESH MATERIALIZED VIEW mv_alunos_diag;
 END;
 $$;
 
 -- ── Permissões para a chave anon (e autenticados) ──
-GRANT SELECT ON mv_bimestres_grupos, mv_bimestres_hier, mv_arvore_total TO anon, authenticated;
+GRANT SELECT ON mv_bimestres_grupos, mv_bimestres_hier, mv_arvore_total, mv_alunos_diag TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION agrupar_bimestres(INT, TEXT, TEXT, TEXT, BOOLEAN) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION arvore_total() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION alunos_diagnostica() TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION refresh_avaliacoes_mv() TO anon, authenticated;
 
 -- ════════════════════════════════════════════════════════════

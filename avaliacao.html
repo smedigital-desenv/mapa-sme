@@ -7201,6 +7201,29 @@ function _renderTabelaTotal(linhas) {
     };
   }
 
+  // Monta a lista da Diagnóstica/Rede a partir do pivô por aluno (RPC alunos_diagnostica).
+  // Mesma lógica do caminho cru (dict por aluno) — rótulos via respostaLabel.
+  function montarAlunosDiag(rows) {
+    const dict = {};
+    const temResp = (a, b, c) => a != null || b != null || c != null;
+    rows.forEach(r => {
+      const u = cleanUnit(r.nome_unidade || 'Sem unidade');
+      const a = normalizar(r.ano_escolar || '');
+      const t = String(r.turma || '').trim().toUpperCase();
+      const n = String(r.nome_aluno || '').trim();
+      const ra = String(r.rema_aluno || n).trim();
+      const key = `${ra}|${u}|${a}|${t}`;
+      if (!dict[key]) dict[key] = { u, a, t, n, e: 'Não Avaliado', l: 'Não Avaliado', p: 'Não Avaliado' };
+      if (temResp(r.e_valor, r.e_codigo, r.e_texto))
+        dict[key].e = respostaLabel({ descricao_fne: 'ESCRITA', valor_resposta: r.e_valor, codigo_resposta: r.e_codigo, texto_resposta: r.e_texto });
+      if (temResp(r.l_valor, r.l_codigo, r.l_texto))
+        dict[key].l = respostaLabel({ descricao_fne: 'LEITURA', valor_resposta: r.l_valor, codigo_resposta: r.l_codigo, texto_resposta: r.l_texto });
+      if (temResp(r.p_valor, r.p_codigo, r.p_texto))
+        dict[key].p = respostaLabel({ descricao_fne: 'PRODUCAO TEXTUAL', valor_resposta: r.p_valor, codigo_resposta: r.p_codigo, texto_resposta: r.p_texto });
+    });
+    return Object.values(dict);
+  }
+
   const api = {
     async getDashboardLeve() {
       const [turmas, baseMapa, seriesExcluidas] = await Promise.all([
@@ -7368,7 +7391,17 @@ function _renderTabelaTotal(linhas) {
     },
 
     async getDashboardAlunos() {
-      const rows = await fetchAll('alunos');
+      // Caminho rápido: pivô por aluno já pronto no servidor (menos linhas e colunas)
+      try {
+        const { data, error } = await supa.rpc('alunos_diagnostica');
+        if (error) throw error;
+        return montarAlunosDiag(data || []);
+      } catch (err) {
+        console.warn('[MAPA Supabase] RPC alunos_diagnostica indisponível; usando fallback.', err);
+      }
+
+      // Fallback: baixa as linhas (só as colunas necessárias) e agrega no navegador
+      const rows = await fetchAll('alunos', 'nome_unidade,ano_escolar,turma,rema_aluno,nome_aluno,descricao_fne,disciplina_fnc,valor_resposta,codigo_resposta,texto_resposta');
       const dict = {};
       rows.forEach(r => {
         const unidade = cleanUnit(r.nome_unidade || 'Sem unidade');
@@ -7540,7 +7573,7 @@ function _renderTabelaTotal(linhas) {
         bimestreGrupos
           ? Promise.resolve(null)
           : fetchAll('bimestres').catch(err => { console.error('[MAPA Supabase] Erro bimestres total:', err); return []; }),
-        fetchAll('alunos').catch(err => { console.error('[MAPA Supabase] Erro alunos total/diagnóstica:', err); return []; })
+        fetchAll('alunos', 'nome_unidade,ano_escolar,turma,descricao_fne,valor_resposta,codigo_resposta,texto_resposta').catch(err => { console.error('[MAPA Supabase] Erro alunos total/diagnóstica:', err); return []; })
       ]);
 
       const ag = new Map();
