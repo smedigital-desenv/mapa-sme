@@ -13,11 +13,6 @@
 
   <title>MAPA | SME Ribeirão Preto</title>
 
-  <!-- Atribuição priorizada: pré-renderiza ao passar o mouse no link -->
-  <script type="speculationrules">
-  { "prerender": [{ "source": "document", "where": { "selector_matches": "a[href$='atribuicao.html']" }, "eagerness": "moderate" }] }
-  </script>
-
   <!-- Bootstrap / Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
@@ -1146,80 +1141,72 @@
   <!-- ═══════════════════════════════════════════════════════
        BARRA SUPERIOR
        ═══════════════════════════════════════════════════════ -->
-  <style>
-    /* ═══ Cabeçalho global (mesmo padrão dos módulos atribuicao2/elefante2/fluencia2) ═══ */
-    .mg-header{background:var(--primary);color:#fff;border-bottom:5px solid var(--neon-blue);padding:.95rem 1.6rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;position:sticky;top:0;z-index:1050;box-shadow:0 6px 18px rgba(0,43,94,.18);}
-    .mg-brand{display:flex;align-items:center;gap:.6rem;min-width:180px;}
-    .mg-brand-icon{width:34px;height:34px;display:grid;place-items:center;color:var(--neon-blue);font-size:1.4rem;filter:drop-shadow(0 0 6px rgba(0,229,255,.55));}
-    .mg-brand h4{margin:0;font-weight:900;letter-spacing:.03em;font-size:1.4rem;line-height:1;}
-    .mg-brand-sub{font-size:.63rem;color:rgba(255,255,255,.68);font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-top:2px;}
-    .mg-nav{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;flex:1;min-width:280px;}
-    .mg-nav-btn{display:inline-flex;align-items:center;gap:.4rem;justify-content:center;min-width:150px;font-size:.78rem;font-weight:900;padding:6px 14px;border-radius:8px;border:2px solid transparent;color:#fff;text-decoration:none;transition:.2s;white-space:nowrap;cursor:pointer;}
-    .mg-nav-btn:hover{border-color:rgba(255,255,255,.4);}
-    .mg-nav-btn.active{background:#fff;color:var(--primary);box-shadow:0 2px 10px rgba(0,0,0,.18);}
-    .mg-actions{min-width:86px;display:flex;justify-content:flex-end;align-items:center;}
-    .mg-action-btn{display:inline-flex;align-items:center;gap:.35rem;font-size:.76rem;font-weight:800;padding:5px 12px;border-radius:8px;border:1.5px solid rgba(255,255,255,.45);background:transparent;color:#fff;cursor:pointer;transition:.2s;}
-    .mg-action-btn:hover{background:rgba(255,255,255,.12);border-color:#fff;}
-    /* faixa-título usa .nav-header mas não fixa (só o cabeçalho global fixa) */
-    .nav-header{position:static!important;}
-    @media (max-width:992px){.mg-nav-btn{min-width:auto;}}
-  </style>
-
-  <!-- Cabeçalho global -->
-  <header class="mg-header">
-    <div class="mg-brand" style="cursor:pointer;" onclick="location.href='index.html'" title="Página inicial do MAPA">
-      <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div>
-      <div>
-        <h4>MAPA</h4>
-        <div class="mg-brand-sub">SME Ribeirão Preto</div>
-      </div>
-    </div>
-    <nav class="mg-nav">
-      <a class="mg-nav-btn active" onclick="document.getElementById('navAvaliacoes').checked=true;abrirModuloAvaliacoes();return false;"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
-      <a class="mg-nav-btn" href="atribuicao.html"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
-      <a class="mg-nav-btn" href="elefante.html"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
-      <a class="mg-nav-btn" href="fluencia.html"><i class="bi bi-book-half"></i>Fluência Leitora</a>
-      <a class="mg-nav-btn" onclick="document.getElementById('navConfiguracoes').checked=true;switchMainView('Configuracoes');return false;"><i class="bi bi-gear-fill"></i>Configurações</a>
-    </nav>
-    <div class="mg-actions">
-      <button class="mg-action-btn" onclick="atualizarDados()" title="Atualizar dados"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button>
-    </div>
-  </header>
-
-  <!-- Rádios ocultos: preservam a lógica de carga/estado existente -->
-  <div style="display:none;">
-    <input type="radio" name="mainNav" id="navAvaliacoes" checked>
-    <input type="radio" name="mainNav" id="navConfiguracoes">
-  </div>
-
-  <!-- Faixa-título (mesmo padrão dos demais módulos) -->
   <header class="nav-header">
-    <div class="d-flex align-items-center gap-2">
-      <i class="bi bi-clipboard-data-fill" style="color:var(--neon-blue);font-size:1.4rem;filter:drop-shadow(0 0 6px rgba(0,229,255,.55));"></i>
-      <div>
-        <h5 class="m-0 fw-bold text-white">Avaliações</h5>
-        <div style="font-size:.63rem;color:rgba(255,255,255,.65);font-weight:800;letter-spacing:.08em;text-transform:uppercase;">
-          SME Ribeirão Preto · Rede · Diagnóstica · Bimestres
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+
+      <div class="brand-map d-flex align-items-center gap-2">
+        <div class="brand-icon">
+          <i class="bi bi-map-fill"></i>
+        </div>
+        <div>
+          <h4 class="m-0">MAPA</h4>
+          <div style="font-size:.63rem;color:rgba(255,255,255,.68);font-weight:800;letter-spacing:.08em;text-transform:uppercase;">
+            SME Ribeirão Preto
+          </div>
         </div>
       </div>
-    </div>
-  </header>
 
-  <!-- Sub-navegação do módulo Avaliações (Rede + avaliações) -->
-  <div style="background:rgba(0,43,94,.95);border-bottom:1px solid rgba(0,229,255,.2);padding:.45rem 1.6rem;">
-    <div id="subNavAvaliacoes" class="d-flex flex-wrap gap-2 align-items-center">
-      <button type="button" class="btn-toggle active" data-sub="Rede" onclick="abrirSubRede(this)"><i class="bi bi-people-fill me-1"></i>Rede</button>
-      <button type="button" class="btn-toggle" data-avaliacao="AnoEscolar" onclick="abrirAvaliacao('AnoEscolar', this)">Diagnóstica</button>
-      <button type="button" class="btn-toggle" data-avaliacao="primeiroBimestre" onclick="abrirAvaliacao('primeiroBimestre', this)">1º Bim.</button>
-      <button type="button" class="btn-toggle" data-avaliacao="segundoBimestre" onclick="abrirAvaliacao('segundoBimestre', this)">2º Bim.</button>
-      <button type="button" class="btn-toggle" data-avaliacao="terceiroBimestre" onclick="abrirAvaliacao('terceiroBimestre', this)">3º Bim.</button>
-      <button type="button" class="btn-toggle" data-avaliacao="quartoBimestre" onclick="abrirAvaliacao('quartoBimestre', this)">4º Bim.</button>
-      <button type="button" class="btn-toggle" data-avaliacao="Total" onclick="abrirAvaliacao('Total', this)">Total</button>
-    </div>
-  </div>
+      <div class="nav-main-wrapper">
+        <div class="main-nav-group" role="group" aria-label="Navegação principal">
+          <input type="radio" class="btn-check" name="mainNav" id="navAvaliacoes" autocomplete="off" onclick="switchMainView('Avaliacoes')">
+          <label class="btn btn-outline-light nav-btn-main" for="navAvaliacoes">
+            <i class="bi bi-clipboard-data-fill me-2"></i>Avaliações
+          </label>
 
-  <!-- Barra global de ano: usada em Diagnóstica, Bimestres e Total -->
-  <div id="anoFilterBar" class="ano-filter-bar d-none">
+          <input type="radio" class="btn-check" name="mainNav" id="navRede" autocomplete="off" onclick="switchMainView('Rede')">
+          <label class="btn btn-outline-light nav-btn-main" for="navRede">
+            <i class="bi bi-people-fill me-2"></i>Rede
+          </label>
+
+          <input type="radio" class="btn-check" name="mainNav" id="navAtribuicao" autocomplete="off" checked onclick="switchMainView('Atribuicao')">
+          <label class="btn btn-outline-light nav-btn-main" for="navAtribuicao">
+            <i class="bi bi-diagram-3-fill me-2"></i>Atribuição
+          </label>
+
+          <input type="radio" class="btn-check" name="mainNav" id="navElefante" autocomplete="off" onclick="switchMainView('Elefante')">
+          <label class="btn btn-outline-light nav-btn-main" for="navElefante">
+            <i class="bi bi-book-fill me-2"></i>Elefante Letrado
+          </label>
+
+          <input type="radio" class="btn-check" name="mainNav" id="navFluencia" autocomplete="off" onclick="switchMainView('Fluencia')">
+          <label class="btn btn-outline-light nav-btn-main" for="navFluencia">
+            <i class="bi bi-book-half me-2"></i>Fluência Leitora
+          </label>
+
+          <input type="radio" class="btn-check" name="mainNav" id="navConfiguracoes" autocomplete="off" onclick="switchMainView('Configuracoes')">
+          <label class="btn btn-outline-light nav-btn-main" for="navConfiguracoes">
+            <i class="bi bi-gear-fill me-2"></i>Configurações
+          </label>
+        </div>
+
+        <div class="sub-nav-wrap">
+          <div id="subNavAvaliacoes" class="d-none">
+            <button type="button" class="btn-toggle active" data-avaliacao="AnoEscolar" onclick="abrirAvaliacao('AnoEscolar', this)">Diagnóstica</button>
+            <button type="button" class="btn-toggle" data-avaliacao="primeiroBimestre" onclick="abrirAvaliacao('primeiroBimestre', this)">1º Bim.</button>
+            <button type="button" class="btn-toggle" data-avaliacao="segundoBimestre" onclick="abrirAvaliacao('segundoBimestre', this)">2º Bim.</button>
+            <button type="button" class="btn-toggle" data-avaliacao="terceiroBimestre" onclick="abrirAvaliacao('terceiroBimestre', this)">3º Bim.</button>
+            <button type="button" class="btn-toggle" data-avaliacao="quartoBimestre" onclick="abrirAvaliacao('quartoBimestre', this)">4º Bim.</button>
+            <button type="button" class="btn-toggle" data-avaliacao="Total" onclick="abrirAvaliacao('Total', this)">Total</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="moduloTopActions" class="clock-box d-flex align-items-center gap-2 justify-content-end"></div>
+
+    </div>
+
+    <!-- Barra global de ano: usada em Diagnóstica, Bimestres e Total -->
+    <div id="anoFilterBar" class="ano-filter-bar d-none mt-3">
       <span class="ano-filter-label">
         <i class="bi bi-funnel-fill me-1"></i>Ano escolar
       </span>
@@ -1230,6 +1217,7 @@
       <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('4º ANO', this)">4º Ano</button>
       <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('5º ANO', this)">5º Ano</button>
     </div>
+  </header>
 
   <main class="container-fluid p-3 p-md-4 view-shell">
 
@@ -1390,8 +1378,32 @@
 
 
 
-    <!-- Atribuição, Elefante e Fluência agora são páginas próprias (opção 2):
-         atribuicao.html, elefante.html, fluencia.html — acessadas pelos links do menu. -->
+    <!-- ═════════════════════════════════════════════════════
+         VIEW ATRIBUIÇÃO DE AULAS
+         ═════════════════════════════════════════════════════ -->
+    <section id="viewAtribuicao" class="d-none">
+      <div class="elefante-shell">
+        <iframe id="frameAtribuicao" class="elefante-frame" src="atribuicao.html?v=20260621g" title="Atribuição de Aulas"></iframe>
+      </div>
+    </section>
+
+    <!-- ═════════════════════════════════════════════════════
+         VIEW ELEFANTE LETRADO
+         ═════════════════════════════════════════════════════ -->
+    <section id="viewElefante" class="d-none">
+      <div class="elefante-shell">
+        <iframe id="frameElefanteLetrado" class="elefante-frame" src="elefante_letrado.html" title="Elefante Letrado"></iframe>
+      </div>
+    </section>
+
+    <!-- ═════════════════════════════════════════════════════
+         VIEW FLUÊNCIA LEITORA
+         ═════════════════════════════════════════════════════ -->
+    <section id="viewFluencia" class="d-none">
+      <div class="elefante-shell">
+        <iframe id="frameFluenciaLeitora" class="elefante-frame" src="fluencia_leitora.html" title="Fluência Leitora"></iframe>
+      </div>
+    </section>
 
     <!-- ═════════════════════════════════════════════════════
          VIEW CONFIGURAÇÕES
@@ -6848,6 +6860,61 @@ function _renderTabelaTotal(linhas) {
     return normalizar(row.status_atribuicao || row.status || row.situacao_atribuicao || row.situacao_turma || row.situacao_professor || '');
   }
 
+  function isAtribuido(row) {
+    if (!row) return false;
+    
+    // Extrair valores com segurança
+    const situacaoTitular = row.codigo_situacao_professor_prop !== undefined 
+      ? row.codigo_situacao_professor_prop 
+      : row.situacao_professor;
+      
+    const codigoTitular = row.codigo_professor_prop;
+    const codigoSubstituto = String(row.codigo_professor_sub || '').trim();
+    
+    const situacaoSubstituto = row.codigo_situacao_professor_sub !== undefined
+      ? row.codigo_situacao_professor_sub
+      : row.situacao_professor_sub;
+
+    // PASSO 1: Titular em processo de contratação? → AINDA É ATRIBUÍDO (apenas com situação diferente)
+    if (estaEmContracao(codigoTitular)) {
+      return true;  // Atribuído (em contratação)
+    }
+
+    // PASSO 2: Verificar se Titular está NA ATIVA
+    if (estaNaAtiva(situacaoTitular)) {
+      return true;  // Atribuído
+    }
+
+    // PASSO 3: Titular não está ativo. Tem substituto?
+    if (!codigoSubstituto || codigoSubstituto === '0' || codigoSubstituto === '') {
+      return false;  // Sem substituto → SALDO
+    }
+
+    // PASSO 4: Tem substituto. Substituto em contratação? → AINDA É ATRIBUÍDO
+    if (estaEmContracao(codigoSubstituto)) {
+      return true;  // Atribuído (substituto em contratação)
+    }
+
+    // PASSO 5: Tem substituto. Substituto está NA ATIVA?
+    if (estaNaAtiva(situacaoSubstituto)) {
+      return true;  // Substituto está ativo → ATRIBUÍDO
+    }
+
+    // Substituto também não está ativo → SALDO
+    return false;
+  }
+
+  function isSubstituto(row) {
+    const situacaoTitular = Number(row.codigo_situacao_professor_prop) || String(row.situacao_professor || '').trim().toUpperCase();
+    const codigoSubstituto = String(row.codigo_professor_sub || '').trim();
+    const situacaoSubstituto = Number(row.codigo_situacao_professor_sub) || String(row.situacao_professor_sub || '').trim().toUpperCase();
+
+    const titularAusente = !estaNaAtiva(situacaoTitular);
+    const substitutoPresente = (codigoSubstituto && codigoSubstituto !== '0') && (estaNaAtiva(situacaoSubstituto) || estaEmContracao(codigoSubstituto));
+
+    return titularAusente && substitutoPresente;
+  }
+
   // ═══ VERIFICAR CONTRATAÇÃO EM ANDAMENTO ═══
   function estaEmContracao(codigoProfessor) {
     const cod = Number(codigoProfessor);
@@ -6861,11 +6928,12 @@ function _renderTabelaTotal(linhas) {
     const cod = Number(codigo);
     const texto = String(textoSituacao || '').trim().toUpperCase();
     
-    // PRIMEIRO: Verificar se é contratação em andamento (código >= 99000)
+    // PRIMEIRO: Verificar se é contratação em andamento (código do professor >= 99000)
     if (!isNaN(cod) && cod >= 99000) {
       return 'Em contratação';
     }
     
+    // Mapeamento por código de situação
     const mapa = {
       1: 'NA ATIVA',
       2: 'APOSENTADO',
@@ -6898,74 +6966,26 @@ function _renderTabelaTotal(linhas) {
     const temSub = String(row.codigo_professor_sub || '').trim() && row.codigo_professor_sub !== '0';
     const codigoSub = row.codigo_professor_sub;
     
+    // Verificar contratação do titular
     if (estaEmContracao(codigoTit)) {
       return 'SALDO (Em processo de contratação)';
     }
     
+    // Se não tem substituto, mostrar situação do titular
     if (!temSub) {
       return `SALDO (${situacaoTit})`;
     }
     
+    // Tem substituto - verificar situação
     const situacaoSub = obterNomeSituacao(row.codigo_situacao_professor_sub, row.situacao_professor_sub);
     
+    // Verificar contratação do substituto
     if (estaEmContracao(codigoSub)) {
       return 'SALDO (Substituto em processo de contratação)';
     }
     
+    // Ambos inativos
     return `SALDO (Titular: ${situacaoTit}, Substituto: ${situacaoSub})`;
-  }
-
-  function isAtribuido(row) {
-    if (!row) return false;
-    
-    const situacaoTitular = row.codigo_situacao_professor_prop !== undefined 
-      ? row.codigo_situacao_professor_prop 
-      : row.situacao_professor;
-      
-    const codigoTitular = row.codigo_professor_prop;
-    const codigoSubstituto = String(row.codigo_professor_sub || '').trim();
-    
-    const situacaoSubstituto = row.codigo_situacao_professor_sub !== undefined
-      ? row.codigo_situacao_professor_sub
-      : row.situacao_professor_sub;
-
-    if (estaEmContracao(codigoTitular)) {
-      return true;
-    }
-
-    if (estaNaAtiva(situacaoTitular)) {
-      return true;
-    }
-
-    if (!codigoSubstituto || codigoSubstituto === '0' || codigoSubstituto === '') {
-      return false;
-    }
-
-    if (estaEmContracao(codigoSubstituto)) {
-      return true;
-    }
-
-    if (estaNaAtiva(situacaoSubstituto)) {
-      return true;
-    }
-
-    return false;
-  }
-
-  function isSubstituto(row) {
-    const situacaoTitular = row.codigo_situacao_professor_prop !== undefined 
-      ? row.codigo_situacao_professor_prop 
-      : row.situacao_professor;
-    const codigoSubstituto = String(row.codigo_professor_sub || '').trim();
-    
-    const situacaoSubstituto = row.codigo_situacao_professor_sub !== undefined
-      ? row.codigo_situacao_professor_sub
-      : row.situacao_professor_sub;
-
-    const titularAusente = !estaNaAtiva(situacaoTitular);
-    const substitutoPresente = (codigoSubstituto && codigoSubstituto !== '0') && (estaNaAtiva(situacaoSubstituto) || estaEmContracao(codigoSubstituto));
-
-    return titularAusente && substitutoPresente;
   }
 
   function detalheTurma(row, disc, workload, atribuido, substituto) {
@@ -6974,17 +6994,17 @@ function _renderTabelaTotal(linhas) {
     if (!atribuido) {
       // Mostrar a razão real do saldo
       profName = obterRazaoSaldo(row);  // Ex: "SALDO (Aposentadoria)"
-      profCode = '-';
-      profStatus = '-';
+      profCode = '—';
+      profStatus = '—';
     } else if (substituto) {
       // Substituto está lecionando
-      profName = row.nome_professor_sub || '-';
-      profCode = row.codigo_professor_sub || '-';
+      profName = row.nome_professor_sub || '—';
+      profCode = row.codigo_professor_sub || '—';
       profStatus = obterNomeSituacao(row.codigo_situacao_professor_sub, row.situacao_professor_sub);
     } else {
       // Titular está lecionando
-      profName = row.nome_professor_prop || '-';
-      profCode = row.codigo_professor_prop || '-';
+      profName = row.nome_professor_prop || '—';
+      profCode = row.codigo_professor_prop || '—';
       profStatus = obterNomeSituacao(row.codigo_situacao_professor_prop, row.situacao_professor);
     }
 
@@ -7670,19 +7690,6 @@ function _renderTabelaTotal(linhas) {
 // Versão pacote local: pré-carrega pacotes de bimestre em background.
 // ===========================================================
 
-// Opção 2: roteamento por hash — links das páginas de módulo (index.html#Rede etc.)
-function _viewDoHash() {
-  const h = (location.hash || '').replace('#', '');
-  return ['Avaliacoes', 'Rede', 'Configuracoes'].includes(h) ? h : null;
-}
-window.addEventListener('hashchange', () => {
-  const v = _viewDoHash();
-  if (!v) return;
-  const r = document.getElementById('nav' + v);
-  if (r) r.checked = true;
-  if (typeof rawData !== 'undefined' && rawData) switchMainView(v);
-});
-
 document.addEventListener('DOMContentLoaded', () => {
   if ((typeof isVIP !== 'undefined' && isVIP) || window.__IS_VIP__) {
     const btnContainer = document.getElementById('btnRelatorioContainer');
@@ -7693,10 +7700,6 @@ document.addEventListener('DOMContentLoaded', () => {
          </button>`;
     }
   }
-
-  // Se veio de um módulo (#Rede/#Avaliacoes/#Configuracoes), marca a aba antes de carregar
-  const vHash = _viewDoHash();
-  if (vHash) { const r = document.getElementById('nav' + vHash); if (r) r.checked = true; }
 
   atualizarDados();
 });
@@ -7749,14 +7752,15 @@ function atualizarDados() {
 
     const selectedNav = document.querySelector('input[name="mainNav"]:checked');
 
-    if (modoApp === 'apresentacao' || modoApp === 'atribuicao') {
-      // modos especiais antigos: cai no módulo Avaliações (tela Rede)
-      abrirModuloAvaliacoes();
+    if (modoApp === 'apresentacao') {
+      switchMainView('Atribuicao');
+      iniciarModoEspecial();
+    } else if (modoApp === 'atribuicao') {
+      switchMainView('Atribuicao');
       iniciarModoEspecial();
     } else if (!jaRenderizou) {
-      // Configurações se foi essa a aba marcada; caso contrário, módulo Avaliações (Rede)
-      if (selectedNav && selectedNav.id === 'navConfiguracoes') switchMainView('Configuracoes');
-      else abrirModuloAvaliacoes();
+      if (selectedNav) switchMainView(selectedNav.id.replace('nav', ''));
+      else switchMainView('Atribuicao');
     }
 
     jaRenderizou = true;
@@ -7874,7 +7878,7 @@ function iniciarModoEspecial() {
 
 function iniciarModoAtribuicao() {
   document.body.classList.add('modo-atribuicao');
-  abrirModuloAvaliacoes();
+  switchMainView('Atribuicao');
 
   if (!document.getElementById('avisoModoAtribuicao')) {
     document.body.insertAdjacentHTML('afterbegin',
@@ -7907,7 +7911,7 @@ function executarPassoApresentacao() {
 
   try {
     if (passo.view === 'Turmas' || passo.view === 'Atribuicao') {
-      abrirModuloAvaliacoes();
+      switchMainView('Atribuicao');
       const navAtribuicao = document.getElementById('navAtribuicao');
       if (navAtribuicao) navAtribuicao.checked = true;
     }
@@ -8015,7 +8019,6 @@ function switchMainView(view) {
   if (view === 'Rede') {
     avaliacaoAtual = 'AnoEscolar';
 
-    if (subNavAvaliacoes) subNavAvaliacoes.classList.remove('d-none'); // sub-nav do módulo fica visível
     if (vAlunos) vAlunos.classList.remove('d-none');
     mostrarAnoFilterBar(true);
     _resetarAnoFilterBar();
@@ -8033,18 +8036,6 @@ function switchMainView(view) {
     if (subNavAvaliacoes) subNavAvaliacoes.classList.remove('d-none');
     abrirAvaliacao(view === 'Bimestre1' ? 'primeiroBimestre' : 'AnoEscolar');
   }
-}
-
-// Módulo Avaliações: "Rede" como sub-tela
-function abrirSubRede(btn) {
-  document.querySelectorAll('#subNavAvaliacoes .btn-toggle').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  switchMainView('Rede');
-}
-function abrirModuloAvaliacoes() {
-  // Clicar em "Avaliações" no topo volta para a tela Rede (painel)
-  const r = document.querySelector('#subNavAvaliacoes [data-sub="Rede"]');
-  abrirSubRede(r);
 }
 
 // ===========================================================
@@ -8147,15 +8138,6 @@ function limparAreaAvaliacao() {
       const tabUsuarios = document.getElementById('cfgUsuariosTabela');
       if (areaSeries) areaSeries.innerHTML = '<div class="text-muted">Carregando séries…</div>';
       if (tabUsuarios) tabUsuarios.innerHTML = '<tr><td colspan="5" class="text-muted">Carregando…</td></tr>';
-
-      // As Configurações usam o Google Apps Script. Fora dele (página estática),
-      // degrada sem quebrar o restante do carregamento.
-      if (typeof google === 'undefined' || !google.script || !google.script.run) {
-        _configMapaCache = _configMapaCache || { usuarios: [], unidades: [], series: [] };
-        if (areaSeries) areaSeries.innerHTML = '<div class="alert alert-info small mb-0">As Configurações usam o Google Apps Script e não estão disponíveis nesta versão.</div>';
-        renderConfiguracoesMapa();
-        return;
-      }
 
       google.script.run
         .withSuccessHandler(res => {
@@ -8276,8 +8258,8 @@ function limparAreaAvaliacao() {
       if (!slot) return;
       const map = {
         Atribuicao: { reload: 'recarregarAtribuicao()',       href: 'atribuicao.html' },
-        Elefante:   { reload: 'recarregarElefanteLetrado()',  href: 'elefante.html' },
-        Fluencia:   { reload: 'recarregarFluenciaLeitora()',  href: 'fluencia.html' },
+        Elefante:   { reload: 'recarregarElefanteLetrado()',  href: 'elefante_letrado.html' },
+        Fluencia:   { reload: 'recarregarFluenciaLeitora()',  href: 'fluencia_leitora.html' },
       };
       const cfg = map[modulo];
       if (!cfg) { slot.innerHTML = ''; return; }
@@ -8297,12 +8279,12 @@ function limparAreaAvaliacao() {
 
     function recarregarElefanteLetrado() {
       const frame = document.getElementById('frameElefanteLetrado');
-      if (frame) frame.src = 'elefante.html?ts=' + Date.now();
+      if (frame) frame.src = 'elefante_letrado.html?ts=' + Date.now();
     }
 
     function recarregarFluenciaLeitora() {
       const frame = document.getElementById('frameFluenciaLeitora');
-      if (frame) frame.src = 'fluencia.html?ts=' + Date.now();
+      if (frame) frame.src = 'fluencia_leitora.html?ts=' + Date.now();
     }
   </script>
 

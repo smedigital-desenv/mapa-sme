@@ -24,7 +24,7 @@
     .nav-header {
       background:var(--primary); color:white;
       border-bottom:4px solid var(--neon-blue);
-      padding:.9rem 1.6rem; position:sticky; top:0; z-index:1020;
+      padding:.9rem 1.6rem; position:static;
       box-shadow:0 6px 18px rgba(0,43,94,.18);
     }
 
@@ -231,27 +231,108 @@
     .pend-disc-item input[type=checkbox] { accent-color:#ef4444; width:14px;height:14px; flex-shrink:0; }
     .pend-visuBtn.active { background:#fff0f0!important; border-color:#ef4444!important; color:#ef4444!important; }
   </style>
+<style>
+  /* ═══ HEADER GLOBAL MAPA — demo nativo (sem iframe) ═══ */
+  .mg-header {
+    background: var(--primary, #002b5e); color: #fff;
+    border-bottom: 5px solid var(--neon-blue, #00e5ff);
+    padding: .95rem 1.6rem;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; flex-wrap: wrap;
+    position: sticky; top: 0; z-index: 1050;
+    box-shadow: 0 6px 18px rgba(0,43,94,.18);
+  }
+  .mg-brand { display: flex; align-items: center; gap: .6rem; min-width: 180px; }
+  .mg-brand-icon {
+    width: 34px; height: 34px; display: grid; place-items: center;
+    color: var(--neon-blue, #00e5ff); font-size: 1.4rem;
+    filter: drop-shadow(0 0 6px rgba(0,229,255,.55));
+  }
+  .mg-brand h4 { margin: 0; font-weight: 900; letter-spacing: .03em; font-size: 1.4rem; line-height: 1; }
+  .mg-brand-sub {
+    font-size: .63rem; color: rgba(255,255,255,.68); font-weight: 800;
+    letter-spacing: .08em; text-transform: uppercase; margin-top: 2px;
+  }
+  .mg-nav { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; flex: 1; min-width: 280px; }
+  .mg-nav-btn {
+    display: inline-flex; align-items: center; gap: .4rem; justify-content: center;
+    min-width: 150px; font-size: .78rem; font-weight: 900;
+    padding: 6px 14px; border-radius: 8px; border: 2px solid transparent;
+    color: #fff; text-decoration: none; transition: .2s; white-space: nowrap;
+  }
+  .mg-nav-btn:hover { border-color: rgba(255,255,255,.4); }
+  .mg-nav-btn.active { background: #fff; color: var(--primary, #002b5e); box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+  .mg-actions { min-width: 86px; display: flex; justify-content: flex-end; align-items: center; }
+  .mg-action-btn {
+    display: inline-flex; align-items: center; gap: .35rem;
+    font-size: .76rem; font-weight: 800; padding: 5px 12px;
+    border-radius: 8px; border: 1.5px solid rgba(255,255,255,.45);
+    background: transparent; color: #fff; cursor: pointer; transition: .2s;
+  }
+  .mg-action-btn:hover { background: rgba(255,255,255,.12); border-color: #fff; }
+  .mg-action-btn:disabled { opacity: .6; cursor: default; }
+  @keyframes mg-spin { to { transform: rotate(360deg); } }
+  .mg-action-btn .spin { display: inline-block; animation: mg-spin .8s linear infinite; }
+  @media (max-width: 992px) { .mg-nav-btn { min-width: auto; } }
+</style>
 </head>
 <body>
 
-<!-- ── HEADER ── -->
-<header class="nav-header d-flex align-items-center justify-content-between gap-3">
-  <div>
-    <div class="fw-bold" style="font-size:1.05rem;letter-spacing:.02em;">
-      <i class="bi bi-diagram-3-fill me-2" style="color:var(--neon-blue);"></i>
-      Atribuição de Aulas
+<!-- ═══ HEADER GLOBAL MAPA (demo: navegação nativa, sem iframe) ═══ -->
+<header class="mg-header">
+  <div class="mg-brand" style="cursor:pointer;" onclick="location.href='index.html'" title="Página inicial do MAPA">
+    <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div>
+    <div>
+      <h4>MAPA</h4>
+      <div class="mg-brand-sub">SME Ribeirão Preto</div>
     </div>
-    <div style="font-size:.72rem;opacity:.7;margin-top:2px;">SME Ribeirão Preto — PPA · PRA · Disciplinas</div>
   </div>
-  <div class="d-flex align-items-center gap-3">
-    <div id="statusLoad" class="d-flex align-items-center gap-2" style="font-size:.78rem;opacity:.85;">
-      <div class="spinner-border spinner-border-sm text-light" style="width:.9rem;height:.9rem;"></div>
-      Carregando…
+  <nav class="mg-nav">
+    <a class="mg-nav-btn" href="avaliacao.html"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+    <a class="mg-nav-btn active" href="atribuicao.html"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="elefante.html"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+    <a class="mg-nav-btn" href="fluencia.html"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+    <a class="mg-nav-btn" href="avaliacao.html#Configuracoes"><i class="bi bi-gear-fill"></i>Configurações</a>
+  </nav>
+  <div class="mg-actions">
+    <button id="btnAtualizar" class="mg-action-btn" onclick="atualizarPainel()" title="Atualizar dados do painel">
+      <i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span>
+    </button>
+  </div>
+</header>
+
+<!-- ── FAIXA TÍTULO (mesmo padrão de Elefante/Fluência) ── -->
+<header class="nav-header">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-2">
+      <i class="bi bi-diagram-3-fill" style="color:var(--neon-blue);font-size:1.4rem;filter:drop-shadow(0 0 6px rgba(0,229,255,.55));"></i>
+      <div>
+        <h5 class="m-0 fw-bold">Atribuição de Aulas</h5>
+        <div style="font-size:.63rem;color:rgba(255,255,255,.65);font-weight:800;letter-spacing:.08em;text-transform:uppercase;">
+          SME Ribeirão Preto · PPA · PRA · Disciplinas
+        </div>
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <button class="btn-modo" id="btn-PENDENTES" onclick="switchModo('PENDENTES')"
+              style="border-color:rgba(239,68,68,.6);color:rgba(255,255,255,.85);">
+        <i class="bi bi-exclamation-circle me-1"></i>Não Atribuídas
+      </button>
+      <button class="btn-modo" id="btn-GRADE" onclick="switchModo('GRADE')">
+        <i class="bi bi-grid-3x3-gap-fill me-1"></i>Por Escola / Disciplina
+      </button>
+      <button class="btn-modo d-none" id="btn-SaldoPPA" onclick="abrirRelatorioSaldo()"
+              style="background:#198754;border-color:#198754;color:#fff;">
+        <i class="bi bi-file-earmark-spreadsheet me-1"></i>Saldo PPA
+      </button>
     </div>
   </div>
 </header>
 
-<!-- ── SUBNAV ── -->
+<!-- statusLoad oculto: mantém o JS de carregamento funcionando -->
+<div id="statusLoad" style="display:none;"></div>
+
+<!-- ── BARRA DE CONTROLES (combo + filtro Mostrar), fixa abaixo do cabeçalho global ── -->
 <div class="sub-nav-bar" style="gap:.75rem;">
   <!-- Dropdown unificado Projetos + Disciplinas -->
   <div class="dropdown turmas-disc-dropdown">
@@ -280,19 +361,18 @@
     </div>
   </div>
 
-  <div class="ms-auto d-flex align-items-center gap-2">
-    <button class="btn-modo" id="btn-PENDENTES" onclick="switchModo('PENDENTES')"
-            style="border-color:rgba(239,68,68,.6);color:rgba(255,255,255,.85);">
-      <i class="bi bi-exclamation-circle me-1"></i>Não Atribuídas
-    </button>
-    <button class="btn-modo" id="btn-GRADE" onclick="switchModo('GRADE')">
-      <i class="bi bi-grid-3x3-gap-fill me-1"></i>Por Escola / Disciplina
-    </button>
-    <button class="btn-modo d-none" id="btn-SaldoPPA"
-            onclick="abrirRelatorioSaldo()"
-            style="background:#198754;border-color:#198754;color:#fff;">
-      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Saldo PPA
-    </button>
+  <!-- Filtro de status (oculto nos modos GRADE / PENDENTES) -->
+  <div id="chartsRow" class="d-flex align-items-center gap-2 ms-auto"
+       style="background:rgba(255,255,255,.08);border-radius:8px;padding:3px 10px;">
+    <span class="small fw-bold" style="color:rgba(255,255,255,.7);"><i class="bi bi-funnel-fill me-1"></i>Mostrar:</span>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Filtro de status">
+      <input type="radio" class="btn-check" name="statusFiltro" id="sf-tudo" autocomplete="off" checked onchange="setStatusFiltro('tudo')">
+      <label class="btn btn-outline-light fw-bold" for="sf-tudo"><i class="bi bi-grid me-1"></i>Tudo</label>
+      <input type="radio" class="btn-check" name="statusFiltro" id="sf-atr" autocomplete="off" onchange="setStatusFiltro('atribuidas')">
+      <label class="btn btn-outline-success fw-bold" for="sf-atr"><i class="bi bi-check-circle me-1"></i>Atribuídas</label>
+      <input type="radio" class="btn-check" name="statusFiltro" id="sf-nao" autocomplete="off" onchange="setStatusFiltro('nao')">
+      <label class="btn btn-outline-danger fw-bold" for="sf-nao"><i class="bi bi-x-circle me-1"></i>Não atribuídas</label>
+    </div>
   </div>
 </div>
 
@@ -301,23 +381,6 @@
 
   <!-- KPIs -->
   <div class="row g-3 mb-4" id="kpiRow"></div>
-
-  <!-- Filtro de status (oculto nos modos GRADE / PENDENTES) -->
-  <div class="row g-3 mb-4" id="chartsRow">
-    <div class="col-12">
-      <div class="table-container py-2 px-3 d-flex align-items-center gap-2 flex-wrap">
-        <span class="text-muted small fw-bold"><i class="bi bi-funnel-fill me-1"></i>Mostrar:</span>
-        <div class="btn-group btn-group-sm" role="group" aria-label="Filtro de status">
-          <input type="radio" class="btn-check" name="statusFiltro" id="sf-tudo" autocomplete="off" checked onchange="setStatusFiltro('tudo')">
-          <label class="btn btn-outline-secondary fw-bold" for="sf-tudo"><i class="bi bi-grid me-1"></i>Tudo</label>
-          <input type="radio" class="btn-check" name="statusFiltro" id="sf-atr" autocomplete="off" onchange="setStatusFiltro('atribuidas')">
-          <label class="btn btn-outline-success fw-bold" for="sf-atr"><i class="bi bi-check-circle me-1"></i>Atribuídas</label>
-          <input type="radio" class="btn-check" name="statusFiltro" id="sf-nao" autocomplete="off" onchange="setStatusFiltro('nao')">
-          <label class="btn btn-outline-danger fw-bold" for="sf-nao"><i class="bi bi-x-circle me-1"></i>Não atribuídas</label>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- Tabela principal (PPA / PRA / disciplina individual) -->
   <div class="table-container mb-4" id="tableContainer">
@@ -652,7 +715,26 @@ const renderGradeDebounced     = debounce(() => renderGrade(), 180);
 const renderPendentesDebounced = debounce(() => renderPendentes(), 180);
 
 // ── API ──────────────────────────────────────────────────────────
+// Cache em localStorage: reusa os dados entre abas/sessões (abre rápido), com validade
 async function fetchTurmas() {
+  const CACHE_KEY = 'mapa_atrib_turmas_v1';
+  const TTL = 10 * 60 * 1000; // 10 minutos (o botão "Atualizar" força dados frescos)
+  if (!window.__forcarRefetch) {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (raw) {
+        const o = JSON.parse(raw);
+        if (o && o.ts && (Date.now() - o.ts) < TTL && Array.isArray(o.rows)) return o.rows;
+      }
+    } catch (e) {}
+  }
+  window.__forcarRefetch = false;
+  const rows = await _fetchTurmasRede();
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), rows })); } catch (e) {}
+  return rows;
+}
+
+async function _fetchTurmasRede() {
   const PAGE = 1000;
   const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,situacao_professor_sub,funcao_professor,status_atribuicao';
   const H = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
@@ -816,21 +898,17 @@ function obterRazaoSaldo(row) {
   const codigoSub = String(row.codigo_professor_sub  || '').trim();
   const temSub = codigoSub && codigoSub !== '0';
 
-  // Titular em contratação (não deveria cair em saldo, mas por segurança)
   if (estaEmContracao(codigoTit)) return 'SALDO (Em processo de contratação)';
 
   const situacaoTit = obterNomeSituacao(row.situacao_professor);
 
-  // Sem substituto
   if (!temSub) {
     if (!codigoTit || codigoTit === '0') return 'SALDO (Sem professor)';
     return `SALDO (${situacaoTit})`;
   }
 
-  // Substituto em contratação
   if (estaEmContracao(codigoSub)) return 'SALDO (Substituto em processo de contratação)';
 
-  // Ambos inativos
   const situacaoSub = obterNomeSituacao(row.situacao_professor_sub);
   return `SALDO (Titular: ${situacaoTit}, Substituto: ${situacaoSub})`;
 }
@@ -2417,6 +2495,39 @@ async function init() {
 }
 
 init();
+
+// Atualiza o painel SEM recarregar a página: re-busca dados e re-renderiza o modo atual
+async function atualizarPainel() {
+  const btn  = document.getElementById('btnAtualizar');
+  const icon = btn?.querySelector('i');
+  const modoAtual = modo, discAtual = discAtiva;
+  if (btn)  btn.disabled = true;
+  if (icon) icon.classList.add('spin');
+  try {
+    window.__forcarRefetch = true; // "Atualizar" sempre busca dados frescos (ignora o cache)
+    const [rows] = await Promise.all([fetchTurmas(), fetchSeriesExcluidas()]);
+    D = montarDados(rows); // novo objeto → invalida memo de pendentes automaticamente
+    discAtiva = discAtual;
+    switchModo(modoAtual); // re-renderiza a visão em que o usuário estava
+  } catch (err) {
+    console.error(err);
+    alert('Falha ao atualizar: ' + err.message);
+  } finally {
+    if (btn)  btn.disabled = false;
+    if (icon) icon.classList.remove('spin');
+  }
+}
+
+// Mantém a barra de filtros fixa logo abaixo do cabeçalho global (robusto a quebras de linha)
+(function fixarSubNav() {
+  const mg  = document.querySelector('.mg-header');
+  const sub = document.querySelector('.sub-nav-bar');
+  if (!mg || !sub) return;
+  const ajustar = () => { sub.style.top = mg.offsetHeight + 'px'; };
+  ajustar();
+  window.addEventListener('resize', ajustar);
+  if (window.ResizeObserver) new ResizeObserver(ajustar).observe(mg);
+})();
 </script>
 </body>
 </html>
