@@ -17,33 +17,24 @@
   </script>
   <style>
     :root { --primary:#002b5e; --neon-blue:#00e5ff; }
-    html,body { background:#eef2f7; }
-    body { font-family:'Inter',sans-serif; }
-    .mg-header { background:var(--primary); color:#fff; border-bottom:5px solid var(--neon-blue);
-      padding:.9rem 1.6rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; position:sticky; top:0; z-index:1050; box-shadow:0 6px 18px rgba(0,43,94,.18); }
+    html,body { background:#eef2f7; } body { font-family:'Inter',sans-serif; }
+    .mg-header { background:var(--primary); color:#fff; border-bottom:5px solid var(--neon-blue); padding:.9rem 1.6rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; position:sticky; top:0; z-index:1050; box-shadow:0 6px 18px rgba(0,43,94,.18); }
     .mg-brand { display:flex; align-items:center; gap:.6rem; min-width:180px; cursor:pointer; }
     .mg-brand-icon { width:34px; height:34px; display:grid; place-items:center; color:var(--neon-blue); font-size:1.4rem; }
-    .mg-brand h4 { margin:0; font-weight:900; letter-spacing:.03em; font-size:1.4rem; line-height:1; }
+    .mg-brand h4 { margin:0; font-weight:900; font-size:1.4rem; line-height:1; }
     .mg-brand-sub { font-size:.63rem; color:rgba(255,255,255,.68); font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-top:2px; }
     .mg-nav { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; flex:1; min-width:280px; }
     .mg-nav-btn { display:inline-flex; align-items:center; gap:.4rem; justify-content:center; min-width:140px; font-size:.78rem; font-weight:900; padding:6px 14px; border-radius:8px; border:2px solid transparent; color:#fff; text-decoration:none; transition:.2s; white-space:nowrap; cursor:pointer; }
-    .mg-nav-btn:hover { border-color:rgba(255,255,255,.4); }
-    .mg-nav-btn.active { background:#fff; color:var(--primary); }
+    .mg-nav-btn:hover { border-color:rgba(255,255,255,.4); } .mg-nav-btn.active { background:#fff; color:var(--primary); }
     .mg-nav-icon { min-width:auto; padding:6px 10px; }
     .mg-action-btn { background:#fff; color:var(--primary); border:0; border-radius:8px; padding:6px 12px; font-weight:900; font-size:.78rem; display:inline-flex; align-items:center; gap:.4rem; cursor:pointer; }
     @media (max-width:992px){ .mg-nav-btn{ min-width:auto; } }
-
     .faixa { background:linear-gradient(90deg,#013a7d,#002b5e); color:#fff; padding:.6rem 1.6rem; display:flex; align-items:center; gap:.6rem; }
-    .faixa .ic { color:var(--neon-blue); font-size:1.3rem; }
-    .faixa h5 { margin:0; font-weight:900; }
+    .faixa .ic { color:var(--neon-blue); font-size:1.3rem; } .faixa h5 { margin:0; font-weight:900; }
     .faixa .sub { font-size:.62rem; color:rgba(255,255,255,.7); font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
-
     .subtabs { background:#fff; border-bottom:1px solid #dbe5ef; padding:.5rem 1.2rem; display:flex; gap:8px; flex-wrap:wrap; position:sticky; top:64px; z-index:1040; }
     .tab-btn { border:2px solid #cbd5e1; background:#fff; color:#334155; font-weight:800; font-size:.82rem; padding:6px 16px; border-radius:999px; cursor:pointer; transition:.15s; display:inline-flex; align-items:center; gap:.4rem; }
-    .tab-btn:hover { border-color:var(--primary); }
-    .tab-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
-    .tab-btn.soon { opacity:.6; }
-
+    .tab-btn:hover { border-color:var(--primary); } .tab-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
     .kpi { background:#fff; border-radius:14px; padding:.85rem 1rem; box-shadow:0 4px 14px rgba(0,0,0,.05); border-left:5px solid var(--primary); }
     .kpi .label { font-size:.68rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
     .kpi .val { font-size:1.7rem; font-weight:900; color:var(--primary); line-height:1.1; }
@@ -54,10 +45,8 @@
     table.mapa tbody td { padding:6px 10px; border-bottom:1px solid #eef2f7; }
     table.mapa tbody tr:hover { background:#f1f6ff; }
     .row-clic { cursor:pointer; }
-    .badge-st { font-weight:800; font-size:.68rem; padding:3px 9px; border-radius:999px; }
-    .badge-ok { background:#d1fae5; color:#047857; } .badge-pend { background:#fee2e2; color:#b91c1c; }
-    .bar { height:9px; border-radius:999px; background:#e5e7eb; overflow:hidden; min-width:54px; }
-    .bar > span { display:block; height:100%; }
+    .badge-st { font-weight:800; font-size:.68rem; padding:3px 9px; border-radius:999px; } .badge-ok{background:#d1fae5;color:#047857;} .badge-pend{background:#fee2e2;color:#b91c1c;}
+    .bar { height:9px; border-radius:999px; background:#e5e7eb; overflow:hidden; min-width:54px; } .bar > span { display:block; height:100%; }
   </style>
 </head>
 <body>
@@ -83,200 +72,192 @@
   <div><h5>Educação Especial</h5><div class="sub">SME Ribeirão Preto · Alunos com deficiência</div></div>
 </div>
 
-<div class="subtabs" id="subtabs">
+<div class="subtabs">
   <button class="tab-btn active" data-view="geral" onclick="trocarView('geral')"><i class="bi bi-grid-1x2-fill"></i>Visão Geral (AEE)</button>
   <button class="tab-btn" data-view="ec" onclick="trocarView('ec')"><i class="bi bi-clipboard2-pulse"></i>Estudo de Caso</button>
   <button class="tab-btn" data-view="pei" onclick="trocarView('pei')"><i class="bi bi-journal-text"></i>PEI</button>
-  <button class="tab-btn soon" data-view="liminar" onclick="trocarView('liminar')"><i class="bi bi-hammer"></i>Liminares</button>
-  <button class="tab-btn soon" data-view="apoio" onclick="trocarView('apoio')"><i class="bi bi-people"></i>Apoio Pedagógico</button>
+  <button class="tab-btn" data-view="liminar" onclick="trocarView('liminar')"><i class="bi bi-hammer"></i>Liminares</button>
+  <button class="tab-btn" data-view="apoio" onclick="trocarView('apoio')"><i class="bi bi-people"></i>Apoio Pedagógico</button>
 </div>
 
 <main class="container-fluid px-3 px-lg-4 py-3">
 
-  <!-- KPIs -->
-  <div class="row g-2 g-lg-3 mb-3" id="kpis"></div>
-
-  <!-- Gráficos -->
-  <div class="row g-3 mb-3">
-    <div class="col-lg-4">
-      <div class="card-box p-3 h-100">
-        <div class="sec-tt mb-2" id="ttDonut">Avaliados × Pendentes</div>
-        <div style="position:relative;height:240px;"><canvas id="donut"></canvas></div>
-      </div>
+  <!-- ══════ AEE (geral/ec/pei) ══════ -->
+  <section id="viewAEE">
+    <div class="row g-2 g-lg-3 mb-3" id="kpis"></div>
+    <div class="row g-3 mb-3">
+      <div class="col-lg-4"><div class="card-box p-3 h-100"><div class="sec-tt mb-2" id="ttDonut"></div><div style="position:relative;height:240px;"><canvas id="donut"></canvas></div></div></div>
+      <div class="col-lg-8"><div class="card-box p-3 h-100"><div class="sec-tt mb-2" id="ttBar"></div><div style="position:relative;height:240px;"><canvas id="barEscolas"></canvas></div></div></div>
     </div>
-    <div class="col-lg-8">
-      <div class="card-box p-3 h-100">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <div class="sec-tt" id="ttBar">% concluído por escola (10 menores)</div>
-          <span class="text-muted" style="font-size:.72rem;">menores % primeiro</span>
-        </div>
-        <div style="position:relative;height:240px;"><canvas id="barEscolas"></canvas></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Tabelas -->
-  <div class="row g-3">
-    <div class="col-xl-5">
-      <div class="card-box p-3 h-100">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <div class="sec-tt"><i class="bi bi-building me-1"></i>Por escola</div>
-          <input id="buscaUnidade" class="form-control form-control-sm" style="max-width:200px;" placeholder="Filtrar escola…">
-        </div>
-        <div style="max-height:70vh;overflow:auto;">
-          <table class="mapa"><thead><tr>
-            <th>Escola</th><th class="text-center">Total</th><th class="text-center">Feito</th><th class="text-center">Pend.</th><th style="min-width:90px;">%</th>
-          </tr></thead><tbody id="tbUnidades"><tr><td colspan="5" class="text-center text-muted p-3">Carregando…</td></tr></tbody></table>
-        </div>
-      </div>
-    </div>
-    <div class="col-xl-7">
-      <div class="card-box p-3 h-100">
+    <div class="row g-3">
+      <div class="col-xl-5"><div class="card-box p-3 h-100">
+        <div class="d-flex align-items-center justify-content-between mb-2"><div class="sec-tt"><i class="bi bi-building me-1"></i>Por escola</div><input id="buscaUnidade" class="form-control form-control-sm" style="max-width:200px;" placeholder="Filtrar escola…"></div>
+        <div style="max-height:70vh;overflow:auto;"><table class="mapa"><thead><tr><th>Escola</th><th class="text-center">Total</th><th class="text-center">Feito</th><th class="text-center">Pend.</th><th style="min-width:90px;">%</th></tr></thead><tbody id="tbUnidades"></tbody></table></div>
+      </div></div>
+      <div class="col-xl-7"><div class="card-box p-3 h-100">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
           <div class="sec-tt"><i class="bi bi-people-fill me-1"></i>Alunos <span id="escopo" class="text-muted fw-normal" style="font-size:.8rem;"></span></div>
           <div class="d-flex gap-2 flex-wrap">
-            <select id="filtroStatus" class="form-select form-select-sm" style="max-width:150px;">
-              <option value="">Todos</option><option value="Com respostas">Avaliados</option><option value="Sem respostas">Pendentes</option>
-            </select>
+            <select id="filtroStatus" class="form-select form-select-sm" style="max-width:150px;"><option value="">Todos</option><option value="Com respostas">Avaliados</option><option value="Sem respostas">Pendentes</option></select>
             <input id="buscaAluno" class="form-control form-control-sm" style="max-width:200px;" placeholder="Buscar aluno/RA…">
-            <button class="btn btn-sm btn-success fw-bold" onclick="exportarCSV()"><i class="bi bi-download me-1"></i>Excel</button>
+            <button class="btn btn-sm btn-success fw-bold" onclick="exportar('aee')"><i class="bi bi-download me-1"></i>Excel</button>
           </div>
         </div>
-        <div style="max-height:70vh;overflow:auto;">
-          <table class="mapa"><thead><tr>
-            <th>Escola</th><th>Série</th><th>Turma</th><th>RA</th><th>Aluno</th>
-            <th class="text-center">Estudo de Caso</th><th class="text-center">PEI</th>
-          </tr></thead><tbody id="tbAlunos"><tr><td colspan="7" class="text-center text-muted p-3">Carregando…</td></tr></tbody></table>
-        </div>
+        <div style="max-height:70vh;overflow:auto;"><table class="mapa"><thead><tr><th>Escola</th><th>Série</th><th>Turma</th><th>RA</th><th>Aluno</th><th class="text-center">Estudo de Caso</th><th class="text-center">PEI</th></tr></thead><tbody id="tbAlunos"></tbody></table></div>
         <div class="text-muted mt-2" style="font-size:.75rem;" id="contador"></div>
-      </div>
+      </div></div>
     </div>
-  </div>
+  </section>
+
+  <!-- ══════ LIMINARES ══════ -->
+  <section id="viewLiminar" style="display:none;">
+    <div class="row g-2 g-lg-3 mb-3" id="kpisLim"></div>
+    <div class="row g-3 mb-3">
+      <div class="col-lg-4"><div class="card-box p-3 h-100"><div class="sec-tt mb-2">Liminares atendidas</div><div style="position:relative;height:240px;"><canvas id="donutLim"></canvas></div></div></div>
+      <div class="col-lg-8"><div class="card-box p-3 h-100"><div class="sec-tt mb-2">Liminares por escola (15 maiores)</div><div style="position:relative;height:240px;"><canvas id="barLim"></canvas></div></div></div>
+    </div>
+    <div class="row g-3">
+      <div class="col-xl-4"><div class="card-box p-3 h-100">
+        <div class="sec-tt mb-2"><i class="bi bi-building me-1"></i>Por escola (liminares · PAP)</div>
+        <div style="max-height:70vh;overflow:auto;"><table class="mapa"><thead><tr><th>Tipo</th><th>Escola</th><th class="text-center">Lim.</th><th class="text-center">PAP</th></tr></thead><tbody id="tbLimEscolas"></tbody></table></div>
+      </div></div>
+      <div class="col-xl-8"><div class="card-box p-3 h-100">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div class="sec-tt"><i class="bi bi-people-fill me-1"></i>Alunos com liminar</div>
+          <div class="d-flex gap-2"><input id="buscaLim" class="form-control form-control-sm" style="max-width:220px;" placeholder="Buscar aluno/escola…"><button class="btn btn-sm btn-success fw-bold" onclick="exportar('lim')"><i class="bi bi-download me-1"></i>Excel</button></div>
+        </div>
+        <div style="max-height:70vh;overflow:auto;"><table class="mapa"><thead><tr><th>Aluno</th><th>RA</th><th>Escola</th><th>Turma/Período</th><th>Deficiência</th><th class="text-center">Laudo SED</th><th class="text-center">Atendida</th><th>Prof. apoio</th></tr></thead><tbody id="tbLimAlunos"></tbody></table></div>
+        <div class="text-muted mt-2" style="font-size:.75rem;" id="contadorLim"></div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ══════ APOIO PEDAGÓGICO ══════ -->
+  <section id="viewApoio" style="display:none;">
+    <div class="row g-2 g-lg-3 mb-3" id="kpisApoio"></div>
+    <div class="row g-3 mb-3">
+      <div class="col-lg-4"><div class="card-box p-3 h-100"><div class="sec-tt mb-2">Apoios por turno</div><div style="position:relative;height:240px;"><canvas id="donutApoio"></canvas></div></div></div>
+      <div class="col-lg-8"><div class="card-box p-3 h-100"><div class="sec-tt mb-2">Total de apoios por escola (15 maiores)</div><div style="position:relative;height:240px;"><canvas id="barApoio"></canvas></div></div></div>
+    </div>
+    <div class="row g-3">
+      <div class="col-12"><div class="card-box p-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div class="sec-tt"><i class="bi bi-building me-1"></i>Apoio pedagógico por escola</div>
+          <div class="d-flex gap-2">
+            <select id="filtroTipoApoio" class="form-select form-select-sm" style="max-width:130px;"><option value="">Todos os tipos</option><option>CEI</option><option>EMEI</option><option>EMEF</option></select>
+            <input id="buscaApoio" class="form-control form-control-sm" style="max-width:220px;" placeholder="Buscar escola…">
+            <button class="btn btn-sm btn-success fw-bold" onclick="exportar('apoio')"><i class="bi bi-download me-1"></i>Excel</button>
+          </div>
+        </div>
+        <div style="max-height:72vh;overflow:auto;"><table class="mapa"><thead><tr><th>Tipo</th><th>Escola</th><th class="text-center">Manhã</th><th class="text-center">Tarde</th><th class="text-center">Total</th><th class="text-center">ASSEJ</th></tr></thead><tbody id="tbApoio"></tbody></table></div>
+        <div class="text-muted mt-2" style="font-size:.75rem;" id="contadorApoio"></div>
+      </div></div>
+    </div>
+  </section>
 </main>
 
 <script>
   const SB = window.supabase.createClient(window.MAPA_SUPABASE.url, window.MAPA_SUPABASE.anonKey);
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const fmt = n => Number(n||0).toLocaleString('pt-BR');
-
-  let VIEW = 'geral';           // geral | ec | pei
-  let GERAL = {}, UNID = [], ALUNOS = [], _unidadeAtiva = null;
-  let chDonut = null, chBar = null;
-
-  // por_unidade = [unidade, total, aval, pend, ec, pei]
-  // configuração por view: índice de "feito" e cor
-  const CFG = {
-    geral: { idx:2, label:'Avaliados', cor:'#10b981', donut:['Avaliados','Pendentes'] },
-    ec:    { idx:4, label:'Estudo de Caso feito', cor:'#0ea5e9', donut:['Com Estudo de Caso','Sem'] },
-    pei:   { idx:5, label:'PEI feito', cor:'#8b5cf6', donut:['Com PEI','Sem'] },
-  };
-
-  function pctEsc(u){ const f=u[CFG[VIEW].idx]||0; return u[1] ? Math.round(f/u[1]*100) : 0; }
-
-  async function carregar() {
-    const { data, error } = await SB.rpc('ee_resumo');
-    if (error) { document.getElementById('tbUnidades').innerHTML = `<tr><td colspan="5" class="text-danger p-3">Erro: ${esc(error.message)}</td></tr>`; return; }
-    GERAL = data.geral || {}; UNID = data.por_unidade || [];
-    renderTudo();
-    await selecionarUnidade(null);
-  }
-
-  function renderTudo(){ renderKpis(); renderDonut(); renderBar(); renderUnidades(); }
-
-  function renderKpis(){
-    const g = GERAL;
-    let cards;
-    if (VIEW==='geral') cards=[['Alunos (únicos)',fmt(g.total),'var(--primary)'],['Avaliados',fmt(g.avaliados),'#10b981'],['Pendentes',fmt(g.pendentes),'#ef4444'],['% Avaliados',(g.total?Math.round(g.avaliados/g.total*100):0)+'%','#0ea5e9'],['Escolas',fmt(g.unidades),'#64748b']];
-    else if (VIEW==='ec') cards=[['Alunos (únicos)',fmt(g.total),'var(--primary)'],['Com Estudo de Caso',fmt(g.ec_aval),'#0ea5e9'],['Sem',fmt(g.total-g.ec_aval),'#ef4444'],['% Concluído',(g.total?Math.round(g.ec_aval/g.total*100):0)+'%','#0ea5e9'],['Escolas',fmt(g.unidades),'#64748b']];
-    else cards=[['Alunos (únicos)',fmt(g.total),'var(--primary)'],['Com PEI',fmt(g.pei_aval),'#8b5cf6'],['Sem',fmt(g.total-g.pei_aval),'#ef4444'],['% Concluído',(g.total?Math.round(g.pei_aval/g.total*100):0)+'%','#8b5cf6'],['Escolas',fmt(g.unidades),'#64748b']];
-    document.getElementById('kpis').innerHTML = cards.map(c=>`<div class="col-6 col-md-4 col-lg"><div class="kpi" style="border-left-color:${c[2]};"><div class="label">${c[0]}</div><div class="val" style="color:${c[2]};">${c[1]}</div></div></div>`).join('');
-  }
-
-  function renderDonut(){
-    const g=GERAL, c=CFG[VIEW];
-    let feito, resto;
-    if (VIEW==='geral'){ feito=g.avaliados||0; resto=g.pendentes||0; }
-    else if (VIEW==='ec'){ feito=g.ec_aval||0; resto=(g.total||0)-feito; }
-    else { feito=g.pei_aval||0; resto=(g.total||0)-feito; }
-    document.getElementById('ttDonut').textContent = c.donut.join(' × ');
-    const ctx=document.getElementById('donut'); if (chDonut) chDonut.destroy();
-    chDonut=new Chart(ctx,{ type:'doughnut',
-      data:{ labels:c.donut, datasets:[{ data:[feito,resto], backgroundColor:[c.cor,'#e5e7eb'], borderColor:'#fff', borderWidth:3, hoverOffset:14 }] },
-      options:{ maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{position:'bottom'},
-        tooltip:{callbacks:{label:x=>`${x.label}: ${fmt(x.raw)} (${g.total?Math.round(x.raw/g.total*100):0}%)`}} } } });
-  }
-
-  function renderBar(){
-    const c=CFG[VIEW];
-    const arr=[...UNID].map(u=>[u[0],pctEsc(u),u[1]]).filter(u=>u[2]>0).sort((a,b)=>a[1]-b[1]).slice(0,12);
-    document.getElementById('ttBar').textContent = `% concluído por escola (12 menores) — ${c.label}`;
-    const ctx=document.getElementById('barEscolas'); if (chBar) chBar.destroy();
-    chBar=new Chart(ctx,{ type:'bar',
-      data:{ labels:arr.map(a=>a[0].length>26?a[0].slice(0,24)+'…':a[0]), datasets:[{ data:arr.map(a=>a[1]), backgroundColor:c.cor, borderRadius:5 }] },
-      options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{ legend:{display:false},
-        tooltip:{callbacks:{label:x=>`${x.raw}% concluído`,title:i=>arr[i[0].dataIndex][0]}} },
-        scales:{ x:{ max:100, ticks:{callback:v=>v+'%'} }, y:{ ticks:{font:{size:10}} } } } });
-  }
-
-  function renderUnidades(){
-    const termo=(document.getElementById('buscaUnidade').value||'').toLowerCase();
-    const c=CFG[VIEW];
-    const tot=UNID.reduce((a,u)=>a+u[1],0), feito=UNID.reduce((a,u)=>a+u[CFG[VIEW].idx],0);
-    const lista=UNID.filter(u=>!termo||String(u[0]).toLowerCase().includes(termo)).sort((a,b)=>pctEsc(a)-pctEsc(b));
-    const linha=(nome,t,f,pct,ativo,onclick)=>`<tr class="row-clic${ativo?' table-active':''}" onclick="${onclick}">
-        <td title="${esc(nome)}">${esc(nome)}</td><td class="text-center fw-bold">${t}</td>
-        <td class="text-center" style="color:${c.cor};font-weight:700;">${f}</td><td class="text-center text-danger">${t-f}</td>
-        <td>${barra(pct,c.cor)}</td></tr>`;
-    document.getElementById('tbUnidades').innerHTML =
-      linha('🌐 Toda a rede',tot,feito,tot?Math.round(feito/tot*100):0,!_unidadeAtiva,"selecionarUnidade(null)") +
-      lista.map(u=>linha(u[0],u[1],u[CFG[VIEW].idx],pctEsc(u),_unidadeAtiva===u[0],`selecionarUnidade('${esc(String(u[0]).replace(/'/g,"\\'"))}')`)).join('') ||
-      `<tr><td colspan="5" class="text-center text-muted p-3">Nenhuma escola.</td></tr>`;
-  }
+  const charts = {};
+  function chart(id, cfg){ if (charts[id]) charts[id].destroy(); charts[id]=new Chart(document.getElementById(id),cfg); }
   function barra(p,cor){ p=Math.max(0,Math.min(100,p||0)); return `<div class="d-flex align-items-center gap-2"><div class="bar" style="flex:1;"><span style="width:${p}%;background:${cor};"></span></div><b style="font-size:.72rem;color:#475569;min-width:34px;">${p}%</b></div>`; }
+  function baixar(nome, head, linhas){ const csv='﻿'+head.join(';')+'\n'+linhas.map(l=>l.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'})); a.download=nome; a.click(); }
 
-  async function selecionarUnidade(u){
-    _unidadeAtiva=u; renderUnidades();
-    document.getElementById('escopo').textContent = u?`· ${u}`:'· Toda a rede';
+  let VIEW='geral';
+
+  /* ───────── AEE ───────── */
+  let GERAL={}, UNID=[], ALUNOS=[], _uAtiva=null;
+  const CFG={ geral:{idx:2,label:'Avaliados',cor:'#10b981',donut:['Avaliados','Pendentes']},
+              ec:{idx:4,label:'Estudo de Caso',cor:'#0ea5e9',donut:['Com Estudo de Caso','Sem']},
+              pei:{idx:5,label:'PEI',cor:'#8b5cf6',donut:['Com PEI','Sem']} };
+  const pctEsc=u=>{ const f=u[CFG[VIEW].idx]||0; return u[1]?Math.round(f/u[1]*100):0; };
+  async function carregarAEE(){ const {data,error}=await SB.rpc('ee_resumo'); if(error){alert('Erro AEE: '+error.message);return;} GERAL=data.geral||{}; UNID=data.por_unidade||[]; renderAEE(); await selUnidade(null); }
+  function renderAEE(){ renderKpis(); renderDonut(); renderBar(); renderUnidades(); }
+  function renderKpis(){ const g=GERAL; let c;
+    if(VIEW==='geral') c=[['Alunos (únicos)',fmt(g.total),'var(--primary)'],['Avaliados',fmt(g.avaliados),'#10b981'],['Pendentes',fmt(g.pendentes),'#ef4444'],['% Avaliados',(g.total?Math.round(g.avaliados/g.total*100):0)+'%','#0ea5e9'],['Escolas',fmt(g.unidades),'#64748b']];
+    else if(VIEW==='ec') c=[['Alunos (únicos)',fmt(g.total),'var(--primary)'],['Com Estudo de Caso',fmt(g.ec_aval),'#0ea5e9'],['Sem',fmt(g.total-g.ec_aval),'#ef4444'],['% Concluído',(g.total?Math.round(g.ec_aval/g.total*100):0)+'%','#0ea5e9'],['Escolas',fmt(g.unidades),'#64748b']];
+    else c=[['Alunos (únicos)',fmt(g.total),'var(--primary)'],['Com PEI',fmt(g.pei_aval),'#8b5cf6'],['Sem',fmt(g.total-g.pei_aval),'#ef4444'],['% Concluído',(g.total?Math.round(g.pei_aval/g.total*100):0)+'%','#8b5cf6'],['Escolas',fmt(g.unidades),'#64748b']];
+    document.getElementById('kpis').innerHTML=c.map(x=>`<div class="col-6 col-md-4 col-lg"><div class="kpi" style="border-left-color:${x[2]};"><div class="label">${x[0]}</div><div class="val" style="color:${x[2]};">${x[1]}</div></div></div>`).join(''); }
+  function renderDonut(){ const g=GERAL,c=CFG[VIEW]; let f,r; if(VIEW==='geral'){f=g.avaliados||0;r=g.pendentes||0;} else if(VIEW==='ec'){f=g.ec_aval||0;r=(g.total||0)-f;} else {f=g.pei_aval||0;r=(g.total||0)-f;}
+    document.getElementById('ttDonut').textContent=c.donut.join(' × ');
+    chart('donut',{type:'doughnut',data:{labels:c.donut,datasets:[{data:[f,r],backgroundColor:[c.cor,'#e5e7eb'],borderColor:'#fff',borderWidth:3,hoverOffset:14}]},options:{maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:x=>`${x.label}: ${fmt(x.raw)} (${g.total?Math.round(x.raw/g.total*100):0}%)`}}}}}); }
+  function renderBar(){ const c=CFG[VIEW]; const arr=[...UNID].map(u=>[u[0],pctEsc(u),u[1]]).filter(u=>u[2]>0).sort((a,b)=>a[1]-b[1]).slice(0,12);
+    document.getElementById('ttBar').textContent=`% concluído por escola (12 menores) — ${c.label}`;
+    chart('barEscolas',{type:'bar',data:{labels:arr.map(a=>a[0].length>26?a[0].slice(0,24)+'…':a[0]),datasets:[{data:arr.map(a=>a[1]),backgroundColor:c.cor,borderRadius:5}]},options:{indexAxis:'y',maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:x=>`${x.raw}%`,title:i=>arr[i[0].dataIndex][0]}}},scales:{x:{max:100,ticks:{callback:v=>v+'%'}},y:{ticks:{font:{size:10}}}}}}); }
+  function renderUnidades(){ const t=(document.getElementById('buscaUnidade').value||'').toLowerCase(),c=CFG[VIEW];
+    const tot=UNID.reduce((a,u)=>a+u[1],0),feito=UNID.reduce((a,u)=>a+u[c.idx],0);
+    const lista=UNID.filter(u=>!t||String(u[0]).toLowerCase().includes(t)).sort((a,b)=>pctEsc(a)-pctEsc(b));
+    const ln=(nome,tt,f,p,at,oc)=>`<tr class="row-clic${at?' table-active':''}" onclick="${oc}"><td title="${esc(nome)}">${esc(nome)}</td><td class="text-center fw-bold">${tt}</td><td class="text-center" style="color:${c.cor};font-weight:700;">${f}</td><td class="text-center text-danger">${tt-f}</td><td>${barra(p,c.cor)}</td></tr>`;
+    document.getElementById('tbUnidades').innerHTML=ln('🌐 Toda a rede',tot,feito,tot?Math.round(feito/tot*100):0,!_uAtiva,'selUnidade(null)')+lista.map(u=>ln(u[0],u[1],u[c.idx],pctEsc(u),_uAtiva===u[0],`selUnidade('${esc(String(u[0]).replace(/'/g,"\\'"))}')`)).join(''); }
+  async function selUnidade(u){ _uAtiva=u; renderUnidades(); document.getElementById('escopo').textContent=u?`· ${u}`:'· Toda a rede';
     document.getElementById('tbAlunos').innerHTML=`<tr><td colspan="7" class="text-center text-muted p-3"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</td></tr>`;
-    const { data, error } = await SB.rpc('ee_alunos',{ p_unidade:u, p_status:null });
-    if (error){ document.getElementById('tbAlunos').innerHTML=`<tr><td colspan="7" class="text-danger p-3">Erro: ${esc(error.message)}</td></tr>`; return; }
-    ALUNOS=data||[]; renderAlunos();
-  }
+    const {data,error}=await SB.rpc('ee_alunos',{p_unidade:u,p_status:null}); if(error){document.getElementById('tbAlunos').innerHTML=`<tr><td colspan="7" class="text-danger p-3">Erro: ${esc(error.message)}</td></tr>`;return;} ALUNOS=data||[]; renderAlunos(); }
+  const cel=(r,q)=>{ if(!q) return '<span class="text-muted">—</span>'; const p=Math.round(r/q*100); return barra(p,p>=100?'#10b981':'#f59e0b'); };
+  function renderAlunos(){ const st=document.getElementById('filtroStatus').value,t=(document.getElementById('buscaAluno').value||'').toLowerCase();
+    const l=ALUNOS.filter(a=>(!st||a[5]===st)&&(!t||String(a[4]).toLowerCase().includes(t)||String(a[3]).includes(t)));
+    document.getElementById('tbAlunos').innerHTML=l.map(a=>`<tr><td title="${esc(a[0])}" style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a[0])}</td><td>${esc(a[1])}</td><td class="text-center">${esc(a[2])}</td><td>${esc(a[3])}</td><td>${esc(a[4])}</td><td>${cel(a[6],a[7])}</td><td>${cel(a[8],a[9])}</td></tr>`).join('')||`<tr><td colspan="7" class="text-center text-muted p-3">Nenhum aluno.</td></tr>`;
+    document.getElementById('contador').textContent=`${l.length} aluno(s)`; }
 
-  // aluno = [unidade,serie,turma,ra,aluno,status,ec_resp,ec_quest,pei_resp,pei_quest,pct]
-  function cel(resp,quest){ if(!quest) return '<span class="text-muted">—</span>'; const p=Math.round(resp/quest*100); return barra(p, p>=100?'#10b981':'#f59e0b'); }
-  function renderAlunos(){
-    const st=document.getElementById('filtroStatus').value, termo=(document.getElementById('buscaAluno').value||'').toLowerCase();
-    const lista=ALUNOS.filter(a=>(!st||a[5]===st)&&(!termo||String(a[4]).toLowerCase().includes(termo)||String(a[3]).includes(termo)));
-    document.getElementById('tbAlunos').innerHTML = lista.map(a=>`<tr>
-        <td title="${esc(a[0])}" style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a[0])}</td>
-        <td>${esc(a[1])}</td><td class="text-center">${esc(a[2])}</td><td>${esc(a[3])}</td><td>${esc(a[4])}</td>
-        <td>${cel(a[6],a[7])}</td><td>${cel(a[8],a[9])}</td></tr>`).join('')
-      || `<tr><td colspan="7" class="text-center text-muted p-3">Nenhum aluno.</td></tr>`;
-    document.getElementById('contador').textContent=`${lista.length} aluno(s)`;
+  /* ───────── LIMINARES ───────── */
+  let LIM=null;
+  async function carregarLim(){ if(LIM) return renderLim(); const {data,error}=await SB.rpc('ee_liminar'); if(error){alert('Erro Liminares: '+error.message);return;} LIM=data; renderLim(); }
+  function renderLim(){ const g=LIM.geral||{}, esc_=LIM.escolas||[], al=LIM.alunos||[];
+    const naoAt=(g.total||0)-(g.atendidas||0);
+    document.getElementById('kpisLim').innerHTML=[['Alunos com liminar',fmt(g.total),'var(--primary)'],['Atendidas',fmt(g.atendidas),'#10b981'],['Não atendidas',fmt(naoAt),'#ef4444'],['Escolas',fmt(g.escolas),'#64748b']].map(x=>`<div class="col-6 col-md-3"><div class="kpi" style="border-left-color:${x[2]};"><div class="label">${x[0]}</div><div class="val" style="color:${x[2]};">${x[1]}</div></div></div>`).join('');
+    chart('donutLim',{type:'doughnut',data:{labels:['Atendidas','Não atendidas'],datasets:[{data:[g.atendidas||0,naoAt],backgroundColor:['#10b981','#ef4444'],borderColor:'#fff',borderWidth:3,hoverOffset:14}]},options:{maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom'}}}});
+    const top=[...esc_].filter(e=>e[2]>0).sort((a,b)=>b[2]-a[2]).slice(0,15);
+    chart('barLim',{type:'bar',data:{labels:top.map(e=>e[1].length>24?e[1].slice(0,22)+'…':e[1]),datasets:[{data:top.map(e=>e[2]),backgroundColor:'#0ea5e9',borderRadius:5}]},options:{indexAxis:'y',maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>top[i[0].dataIndex][1]}}},scales:{y:{ticks:{font:{size:10}}}}}});
+    document.getElementById('tbLimEscolas').innerHTML=esc_.filter(e=>e[2]>0).sort((a,b)=>b[2]-a[2]).map(e=>`<tr><td><span class="badge bg-secondary">${esc(e[0])}</span></td><td title="${esc(e[1])}">${esc(e[1])}</td><td class="text-center fw-bold">${e[2]}</td><td class="text-center">${esc(e[3])||'—'}</td></tr>`).join('')||'<tr><td colspan="4" class="text-muted p-3 text-center">Sem dados</td></tr>';
+    renderLimAlunos();
   }
+  function renderLimAlunos(){ const t=(document.getElementById('buscaLim').value||'').toLowerCase(); const al=(LIM.alunos||[]).filter(a=>!t||String(a[0]).toLowerCase().includes(t)||String(a[2]).toLowerCase().includes(t)||String(a[1]).includes(t));
+    const at=v=>{const s=String(v||'').toUpperCase(); return s==='SIM'?'<span class="badge-st badge-ok">SIM</span>':s?`<span class="badge-st badge-pend">${esc(v)}</span>`:'—';};
+    document.getElementById('tbLimAlunos').innerHTML=al.map(a=>`<tr><td>${esc(a[0])}</td><td>${esc(a[1])}</td><td title="${esc(a[2])}" style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a[2])}</td><td>${esc(a[3])}</td><td>${esc(a[4])}</td><td class="text-center">${esc(a[5])||'—'}</td><td class="text-center">${at(a[6])}</td><td>${esc(a[7])||'—'}</td></tr>`).join('')||'<tr><td colspan="8" class="text-muted p-3 text-center">Nenhum aluno.</td></tr>';
+    document.getElementById('contadorLim').textContent=`${al.length} aluno(s)`; }
 
+  /* ───────── APOIO ───────── */
+  let APOIO=null;
+  async function carregarApoio(){ if(APOIO) return renderApoio(); const {data,error}=await SB.rpc('ee_apoio'); if(error){alert('Erro Apoio: '+error.message);return;} APOIO=data; renderApoio(); }
+  function renderApoio(){ const g=APOIO.geral||{}, esc_=APOIO.escolas||[];
+    document.getElementById('kpisApoio').innerHTML=[['Escolas',fmt(g.escolas),'var(--primary)'],['Apoios manhã',fmt(g.manha),'#f59e0b'],['Apoios tarde',fmt(g.tarde),'#0ea5e9'],['Total apoios',fmt(g.total),'#10b981'],['ASSEJ',fmt(g.assej),'#8b5cf6']].map(x=>`<div class="col-6 col-md-4 col-lg"><div class="kpi" style="border-left-color:${x[2]};"><div class="label">${x[0]}</div><div class="val" style="color:${x[2]};">${x[1]}</div></div></div>`).join('');
+    chart('donutApoio',{type:'doughnut',data:{labels:['Manhã','Tarde'],datasets:[{data:[g.manha||0,g.tarde||0],backgroundColor:['#f59e0b','#0ea5e9'],borderColor:'#fff',borderWidth:3,hoverOffset:14}]},options:{maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom'}}}});
+    const top=[...esc_].filter(e=>e[4]>0).sort((a,b)=>b[4]-a[4]).slice(0,15);
+    chart('barApoio',{type:'bar',data:{labels:top.map(e=>e[1].length>24?e[1].slice(0,22)+'…':e[1]),datasets:[{data:top.map(e=>e[4]),backgroundColor:'#10b981',borderRadius:5}]},options:{indexAxis:'y',maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>top[i[0].dataIndex][1]}}},scales:{y:{ticks:{font:{size:10}}}}}});
+    renderApoioTabela();
+  }
+  function renderApoioTabela(){ const tp=document.getElementById('filtroTipoApoio').value, t=(document.getElementById('buscaApoio').value||'').toLowerCase();
+    const l=(APOIO.escolas||[]).filter(e=>(!tp||e[0]===tp)&&(!t||String(e[1]).toLowerCase().includes(t)));
+    document.getElementById('tbApoio').innerHTML=l.map(e=>`<tr><td><span class="badge bg-secondary">${esc(e[0])}</span></td><td title="${esc(e[1])}">${esc(e[1])}</td><td class="text-center">${e[2]||0}</td><td class="text-center">${e[3]||0}</td><td class="text-center fw-bold">${e[4]||0}</td><td class="text-center">${e[5]||0}</td></tr>`).join('')||'<tr><td colspan="6" class="text-muted p-3 text-center">Sem dados</td></tr>';
+    document.getElementById('contadorApoio').textContent=`${l.length} escola(s)`; }
+
+  /* ───────── navegação ───────── */
   function trocarView(v){
-    if (v==='liminar'||v==='apoio'){ alert('Liminares e Apoio Pedagógico entram na próxima etapa (Fase 2), após confirmação da leitura das planilhas.'); return; }
     VIEW=v;
-    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
-    renderTudo(); renderAlunos();
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+    const aee=['geral','ec','pei'].includes(v);
+    document.getElementById('viewAEE').style.display=aee?'':'none';
+    document.getElementById('viewLiminar').style.display=v==='liminar'?'':'none';
+    document.getElementById('viewApoio').style.display=v==='apoio'?'':'none';
+    if(aee){ renderAEE(); renderAlunos(); }
+    else if(v==='liminar') carregarLim();
+    else if(v==='apoio') carregarApoio();
   }
 
-  function exportarCSV(){
-    const st=document.getElementById('filtroStatus').value, termo=(document.getElementById('buscaAluno').value||'').toLowerCase();
-    const lista=ALUNOS.filter(a=>(!st||a[5]===st)&&(!termo||String(a[4]).toLowerCase().includes(termo)||String(a[3]).includes(termo)));
-    const head=['Escola','Serie','Turma','RA','Aluno','Status','EC_Respostas','EC_Questoes','PEI_Respostas','PEI_Questoes','Pct'];
-    const linhas=lista.map(a=>a.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';'));
-    const csv='﻿'+head.join(';')+'\n'+linhas.join('\n');
-    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
-    a.download=`educacao_especial_${_unidadeAtiva||'rede'}.csv`; a.click();
+  function exportar(qual){
+    if(qual==='aee'){ const st=document.getElementById('filtroStatus').value,t=(document.getElementById('buscaAluno').value||'').toLowerCase(); const l=ALUNOS.filter(a=>(!st||a[5]===st)&&(!t||String(a[4]).toLowerCase().includes(t)||String(a[3]).includes(t))); baixar(`aee_${_uAtiva||'rede'}.csv`,['Escola','Serie','Turma','RA','Aluno','Status','EC_Resp','EC_Quest','PEI_Resp','PEI_Quest','Pct'],l); }
+    else if(qual==='lim'){ const t=(document.getElementById('buscaLim').value||'').toLowerCase(); const l=(LIM.alunos||[]).filter(a=>!t||String(a[0]).toLowerCase().includes(t)||String(a[2]).toLowerCase().includes(t)); baixar('liminares.csv',['Aluno','RA','Escola','Turma','Deficiencia','LaudoSED','Atendida','ProfApoio'],l); }
+    else { const tp=document.getElementById('filtroTipoApoio').value,t=(document.getElementById('buscaApoio').value||'').toLowerCase(); const l=(APOIO.escolas||[]).filter(e=>(!tp||e[0]===tp)&&(!t||String(e[1]).toLowerCase().includes(t))); baixar('apoio_pedagogico.csv',['Tipo','Escola','Manha','Tarde','Total','ASSEJ'],l); }
   }
 
   document.getElementById('buscaUnidade').addEventListener('input',renderUnidades);
   document.getElementById('filtroStatus').addEventListener('change',renderAlunos);
   document.getElementById('buscaAluno').addEventListener('input',renderAlunos);
-  carregar();
+  document.getElementById('buscaLim').addEventListener('input',renderLimAlunos);
+  document.getElementById('filtroTipoApoio').addEventListener('change',renderApoioTabela);
+  document.getElementById('buscaApoio').addEventListener('input',renderApoioTabela);
+  carregarAEE();
 </script>
 </body>
 </html>
