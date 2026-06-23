@@ -7897,7 +7897,12 @@ function _renderTabelaTotal(linhas) {
       getDetalhesTurmasDisciplina(disciplina, unidade, periodo) { return this._exec(api.getDetalhesTurmasDisciplina(disciplina, unidade, periodo)); },
       getTurmasPPASemProfessor() { return this._exec(api.getTurmasPPASemProfessor()); },
       salvarNovaAtribuicaoPPA() { return this._exec(api.salvarNovaAtribuicaoPPA()); },
-      salvarAtribuicaoPPAExistente() { return this._exec(api.salvarAtribuicaoPPAExistente()); }
+      salvarAtribuicaoPPAExistente() { return this._exec(api.salvarAtribuicaoPPAExistente()); },
+      getAlunosPorRespostaBimestre(key, filtros) { return this._exec(api.getAlunosPorRespostaBimestre(key, filtros)); },
+      getConfiguracoesMapa() { return this._exec(api.getConfiguracoesMapa()); },
+      salvarUsuarioConfiguracao(payload) { return this._exec(api.salvarUsuarioConfiguracao(payload)); },
+      removerUsuarioConfiguracao(email) { return this._exec(api.removerUsuarioConfiguracao(email)); },
+      salvarSeriesExcluidas(series) { return this._exec(api.salvarSeriesExcluidas(series)); }
     };
   }
 
