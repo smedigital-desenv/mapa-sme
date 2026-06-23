@@ -389,17 +389,15 @@
         <i class="bi bi-list-task me-2"></i>Detalhamento
       </h5>
       <div class="d-flex gap-2 align-items-center flex-wrap">
-        <div class="input-group input-group-sm shadow-sm" style="width:230px;">
-          <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
-          <input type="text" id="buscaProfessor" class="form-control"
-                 placeholder="Filtrar por professor…" autocomplete="off" oninput="setProfFiltro()">
+        <div class="input-group input-group-sm shadow-sm" style="width:280px;">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="text" id="buscaTabela" class="form-control"
+                 placeholder="Pesquisar unidade ou professor…" autocomplete="off" oninput="filtrarTabela()">
           <button class="btn btn-outline-secondary" type="button" title="Limpar"
-                  onclick="document.getElementById('buscaProfessor').value='';setProfFiltro();">
+                  onclick="document.getElementById('buscaTabela').value='';filtrarTabela();">
             <i class="bi bi-x-lg"></i>
           </button>
         </div>
-        <input type="text" id="buscaTabela" class="form-control shadow-sm" style="max-width:220px;"
-               placeholder="Pesquisar unidade…" oninput="filtrarTabela()">
         <button class="btn btn-outline-success btn-sm fw-bold text-nowrap" onclick="exportarTabelaExcel()" title="Exportar para Excel">
           <i class="bi bi-download me-1"></i>Excel
         </button>
@@ -1263,27 +1261,31 @@ function _detStatusOk(d) {
   return true;
 }
 
-// Filtro por nome de professor (campo digitável); armazenado já normalizado
-let _profFiltro = '';
+// Busca livre (campo digitável): casa por unidade OU por nome de professor.
+// Armazenado já normalizado.
+let _buscaFiltro = '';
 function _detProfOk(d) {
-  if (!_profFiltro) return true;
+  if (!_buscaFiltro) return true;
   const alvo = normalizar([d.profTitular, d.profSub, d.profName].filter(Boolean).join(' '));
-  return alvo.includes(_profFiltro);
+  return alvo.includes(_buscaFiltro);
 }
 
 // Aplica filtros de ano (só não-PPA) e status (todos os modos)
 function _aplicarFiltros(data) {
   const filtraAno    = (modo !== 'PPA') && !!_anosSelecionados;
   const filtraStatus = _statusFiltro !== 'tudo';
-  const filtraProf   = !!_profFiltro;
-  if (!filtraAno && !filtraStatus && !filtraProf) return data;
+  const filtraBusca  = !!_buscaFiltro;
+  if (!filtraAno && !filtraStatus && !filtraBusca) return data;
   const ehPPA = (modo === 'PPA');
   const out = [];
   data.forEach(r => {
     let dets = r.details || [];
     if (filtraAno)    dets = dets.filter(d => _anosSelecionados.has(d.ano));
     if (filtraStatus) dets = dets.filter(_detStatusOk);
-    if (filtraProf)   dets = dets.filter(_detProfOk);
+    // Busca: se a unidade casa, mantém todos os detalhes; senão, filtra por professor
+    if (filtraBusca && !normalizar(r.unit).includes(_buscaFiltro)) {
+      dets = dets.filter(_detProfOk);
+    }
     if (!dets.length) return;
     if (ehPPA) {
       out.push({ ...r, details: dets }); // PPA: mantém métricas (salas/meta), só filtra os detalhes
@@ -1306,10 +1308,11 @@ function setStatusFiltro(v) {
   renderTable();
 }
 
-const setProfFiltro = debounce(function () {
-  _profFiltro = normalizar(document.getElementById('buscaProfessor')?.value || '');
-  // Com filtro ativo, abre automaticamente as escolas com correspondência
-  _tabelaEscolasAbertas = _profFiltro
+// Busca livre por unidade OU professor: filtra no nível de dados (reflete em
+// tabela e KPIs) e abre automaticamente as escolas com correspondência.
+const filtrarTabela = debounce(function () {
+  _buscaFiltro = normalizar(document.getElementById('buscaTabela')?.value || '');
+  _tabelaEscolasAbertas = _buscaFiltro
     ? new Set(_dadosModo().map(r => r.unit))
     : new Set();
   renderKPIs();
@@ -1630,20 +1633,6 @@ function toggleRow(id) {
   tr.classList.remove('d-none');
   const visivel = tr.style.display === 'table-row';
   tr.style.setProperty('display', visivel ? 'none' : 'table-row', 'important');
-}
-
-function filtrarTabela() {
-  const termo = (document.getElementById('buscaTabela')?.value || '').toLowerCase().trim();
-  document.querySelectorAll('#mainBody > tr.tbl-escola-header').forEach(tr => {
-    const vis = !termo || tr.innerText.toLowerCase().includes(termo);
-    tr.style.display = vis ? '' : 'none';
-    const safe = tr.dataset.safe;
-    if (safe) {
-      document.querySelectorAll(`.period-row.escola-${safe}`).forEach(p => {
-        p.style.display = vis && _tabelaEscolasAbertas.has(safe) ? 'table-row' : 'none';
-      });
-    }
-  });
 }
 
 // ── TIPO DE ESCOLA ───────────────────────────────────────────────
