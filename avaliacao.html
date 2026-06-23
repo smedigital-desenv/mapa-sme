@@ -7243,15 +7243,20 @@ function _renderTabelaTotal(linhas) {
     const disciplinas = new Set();
     const anos = new Set();
 
+    // Cada grupo vem como array (economiza banda): [bimestre, unidade, ano,
+    // turma, disciplina, eixo, valor_resposta, codigo_resposta, qtd].
+    // Aceita também o formato antigo (objeto) por segurança.
     grupos.forEach(r => {
-      const u = cleanUnit(r.nome_unidade || 'Sem unidade');
-      const a = normalizar(r.ano_escolar || 'TODOS') || 'TODOS';
-      const t = String(r.turma || 'Sem turma').trim().toUpperCase();
-      const d = normalizarDisciplina(r.fnc_disciplina || 'Sem disciplina');
-      const e = corrigirTextoLegivel(r.descricao_fne || 'Sem eixo');
-      const resp = respostaLabel(r);
+      const arr = Array.isArray(r);
+      const ds = arr ? r[5] : r.descricao_fne;
+      const u = cleanUnit((arr ? r[1] : r.nome_unidade) || 'Sem unidade');
+      const a = normalizar((arr ? r[2] : r.ano_escolar) || 'TODOS') || 'TODOS';
+      const t = String((arr ? r[3] : r.turma) || 'Sem turma').trim().toUpperCase();
+      const d = normalizarDisciplina((arr ? r[4] : r.fnc_disciplina) || 'Sem disciplina');
+      const e = corrigirTextoLegivel(ds || 'Sem eixo');
+      const resp = respostaLabel({ descricao_fne: ds, valor_resposta: arr ? r[6] : r.valor_resposta, codigo_resposta: arr ? r[7] : r.codigo_resposta });
       const k = [u, a, t, d, e, resp].join('||');
-      ag.set(k, (ag.get(k) || 0) + Number(r.qtd || 0));
+      ag.set(k, (ag.get(k) || 0) + Number((arr ? r[8] : r.qtd) || 0));
       disciplinas.add(d);
       if (a) anos.add(a);
     });
@@ -7278,23 +7283,26 @@ function _renderTabelaTotal(linhas) {
 
   // Monta a lista da Diagnóstica/Rede a partir do pivô por aluno (RPC alunos_diagnostica).
   // Mesma lógica do caminho cru (dict por aluno) — rótulos via respostaLabel.
+  // Cada aluno vem como array: [unidade, ano, turma, rema, nome,
+  // e_valor, e_codigo, l_valor, l_codigo, p_valor, p_codigo]
   function montarAlunosDiag(rows) {
     const dict = {};
-    const temResp = (a, b, c) => a != null || b != null || c != null;
+    const temResp = (a, b) => a != null || b != null;
     rows.forEach(r => {
-      const u = cleanUnit(r.nome_unidade || 'Sem unidade');
-      const a = normalizar(r.ano_escolar || '');
-      const t = String(r.turma || '').trim().toUpperCase();
-      const n = String(r.nome_aluno || '').trim();
-      const ra = String(r.rema_aluno || n).trim();
+      const arr = Array.isArray(r);
+      const u = cleanUnit((arr ? r[0] : r.nome_unidade) || 'Sem unidade');
+      const a = normalizar((arr ? r[1] : r.ano_escolar) || '');
+      const t = String((arr ? r[2] : r.turma) || '').trim().toUpperCase();
+      const n = String((arr ? r[4] : r.nome_aluno) || '').trim();
+      const ra = String((arr ? r[3] : r.rema_aluno) || n).trim();
+      const eV = arr ? r[5] : r.e_valor, eC = arr ? r[6] : r.e_codigo;
+      const lV = arr ? r[7] : r.l_valor, lC = arr ? r[8] : r.l_codigo;
+      const pV = arr ? r[9] : r.p_valor, pC = arr ? r[10] : r.p_codigo;
       const key = `${ra}|${u}|${a}|${t}`;
       if (!dict[key]) dict[key] = { u, a, t, n, e: 'Não Avaliado', l: 'Não Avaliado', p: 'Não Avaliado' };
-      if (temResp(r.e_valor, r.e_codigo, r.e_texto))
-        dict[key].e = respostaLabel({ descricao_fne: 'ESCRITA', valor_resposta: r.e_valor, codigo_resposta: r.e_codigo, texto_resposta: r.e_texto });
-      if (temResp(r.l_valor, r.l_codigo, r.l_texto))
-        dict[key].l = respostaLabel({ descricao_fne: 'LEITURA', valor_resposta: r.l_valor, codigo_resposta: r.l_codigo, texto_resposta: r.l_texto });
-      if (temResp(r.p_valor, r.p_codigo, r.p_texto))
-        dict[key].p = respostaLabel({ descricao_fne: 'PRODUCAO TEXTUAL', valor_resposta: r.p_valor, codigo_resposta: r.p_codigo, texto_resposta: r.p_texto });
+      if (temResp(eV, eC)) dict[key].e = respostaLabel({ descricao_fne: 'ESCRITA', valor_resposta: eV, codigo_resposta: eC });
+      if (temResp(lV, lC)) dict[key].l = respostaLabel({ descricao_fne: 'LEITURA', valor_resposta: lV, codigo_resposta: lC });
+      if (temResp(pV, pC)) dict[key].p = respostaLabel({ descricao_fne: 'PRODUCAO TEXTUAL', valor_resposta: pV, codigo_resposta: pC });
     });
     return Object.values(dict);
   }
@@ -7685,13 +7693,20 @@ function _renderTabelaTotal(linhas) {
       alunosRows.forEach(r => addTotal(r, 'diag', 'disciplina_fnc', 'Língua Portuguesa'));
 
       // Bimestres alimentam b1/b2/b3/b4.
-      const addBimestre = r => {
-        const b = Number(r.bimestre || 1);
-        const campo = b === 1 ? 'b1' : b === 2 ? 'b2' : b === 3 ? 'b3' : b === 4 ? 'b4' : 'b1';
-        addTotal(r, campo, 'fnc_disciplina', null, r.qtd);
-      };
-      if (bimestreGrupos) bimestreGrupos.forEach(addBimestre);
-      else (bimestresRows || []).forEach(addBimestre);
+      const campoBim = b => (b === 1 ? 'b1' : b === 2 ? 'b2' : b === 3 ? 'b3' : b === 4 ? 'b4' : 'b1');
+      if (bimestreGrupos) {
+        // Grupos vêm como array: [bimestre, unidade, ano, turma, disc, eixo, valor, codigo, qtd]
+        // (aceita objeto antigo por segurança)
+        bimestreGrupos.forEach(r => {
+          const arr = Array.isArray(r);
+          addTotal(
+            arr ? { nome_unidade: r[1], ano_escolar: r[2], turma: r[3], fnc_disciplina: r[4], descricao_fne: r[5], valor_resposta: r[6], codigo_resposta: r[7] } : r,
+            campoBim(Number((arr ? r[0] : r.bimestre) || 1)), 'fnc_disciplina', null, (arr ? r[8] : r.qtd)
+          );
+        });
+      } else {
+        (bimestresRows || []).forEach(r => addTotal(r, campoBim(Number(r.bimestre || 1)), 'fnc_disciplina', null, 1));
+      }
 
       if (pacote) {
         const linhas = Array.from(ag.entries()).map(([k, v]) => {
