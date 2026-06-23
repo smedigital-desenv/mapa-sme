@@ -388,7 +388,16 @@
       <h5 class="fw-bold m-0 text-primary" id="tabelaTitulo">
         <i class="bi bi-list-task me-2"></i>Detalhamento
       </h5>
-      <div class="d-flex gap-2 align-items-center">
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <div class="input-group input-group-sm shadow-sm" style="width:230px;">
+          <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
+          <input type="text" id="buscaProfessor" class="form-control"
+                 placeholder="Filtrar por professor…" autocomplete="off" oninput="setProfFiltro()">
+          <button class="btn btn-outline-secondary" type="button" title="Limpar"
+                  onclick="document.getElementById('buscaProfessor').value='';setProfFiltro();">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
         <input type="text" id="buscaTabela" class="form-control shadow-sm" style="max-width:220px;"
                placeholder="Pesquisar unidade…" oninput="filtrarTabela()">
         <button class="btn btn-outline-success btn-sm fw-bold text-nowrap" onclick="exportarTabelaExcel()" title="Exportar para Excel">
@@ -1254,17 +1263,27 @@ function _detStatusOk(d) {
   return true;
 }
 
+// Filtro por nome de professor (campo digitável); armazenado já normalizado
+let _profFiltro = '';
+function _detProfOk(d) {
+  if (!_profFiltro) return true;
+  const alvo = normalizar([d.profTitular, d.profSub, d.profName].filter(Boolean).join(' '));
+  return alvo.includes(_profFiltro);
+}
+
 // Aplica filtros de ano (só não-PPA) e status (todos os modos)
 function _aplicarFiltros(data) {
   const filtraAno    = (modo !== 'PPA') && !!_anosSelecionados;
   const filtraStatus = _statusFiltro !== 'tudo';
-  if (!filtraAno && !filtraStatus) return data;
+  const filtraProf   = !!_profFiltro;
+  if (!filtraAno && !filtraStatus && !filtraProf) return data;
   const ehPPA = (modo === 'PPA');
   const out = [];
   data.forEach(r => {
     let dets = r.details || [];
     if (filtraAno)    dets = dets.filter(d => _anosSelecionados.has(d.ano));
     if (filtraStatus) dets = dets.filter(_detStatusOk);
+    if (filtraProf)   dets = dets.filter(_detProfOk);
     if (!dets.length) return;
     if (ehPPA) {
       out.push({ ...r, details: dets }); // PPA: mantém métricas (salas/meta), só filtra os detalhes
@@ -1286,6 +1305,16 @@ function setStatusFiltro(v) {
   renderKPIs();
   renderTable();
 }
+
+const setProfFiltro = debounce(function () {
+  _profFiltro = normalizar(document.getElementById('buscaProfessor')?.value || '');
+  // Com filtro ativo, abre automaticamente as escolas com correspondência
+  _tabelaEscolasAbertas = _profFiltro
+    ? new Set(_dadosModo().map(r => r.unit))
+    : new Set();
+  renderKPIs();
+  renderTable();
+}, 200);
 
 function _dadosModo() {
   return _aplicarFiltros(_dadosBaseModo());
