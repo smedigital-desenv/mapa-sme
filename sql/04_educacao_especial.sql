@@ -19,6 +19,9 @@ CREATE TABLE educacao_especial (
 CREATE INDEX ix_ee_unidade ON educacao_especial (unidade);
 CREATE INDEX ix_ee_status  ON educacao_especial (status);
 
+-- Leitura pública (anon) como as demais tabelas do MAPA — sem RLS bloqueando.
+ALTER TABLE educacao_especial DISABLE ROW LEVEL SECURITY;
+
 INSERT INTO educacao_especial (ra,unidade,curso,serie,turma,aluno,status,num_formularios,respostas,questoes,pct) VALUES
 ('277385','ADRIANA COUTINHO BRANDANI CAMILO, EMEI','EDINFCR','CIC 4','B','GUILHERME MATTOS DE JESUS SILVA','Com respostas',2,77,77,100.0),
 ('283563','ADRIANA COUTINHO BRANDANI CAMILO, EMEI','EDINFCR','CIC 4','B','ANGELO GABRIEL DOS SANTOS','Com respostas',2,77,77,100.0),
