@@ -7,6 +7,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     window.MAPA_SUPABASE = {
@@ -16,45 +17,47 @@
   </script>
   <style>
     :root { --primary:#002b5e; --neon-blue:#00e5ff; }
-    body { background:#f0f4f8; font-family:'Inter',sans-serif; padding-bottom:50px; }
-
+    html,body { background:#eef2f7; }
+    body { font-family:'Inter',sans-serif; }
     .mg-header { background:var(--primary); color:#fff; border-bottom:5px solid var(--neon-blue);
-      padding:.95rem 1.6rem; display:flex; align-items:center; justify-content:space-between;
-      gap:1rem; flex-wrap:wrap; position:sticky; top:0; z-index:1050; box-shadow:0 6px 18px rgba(0,43,94,.18); }
+      padding:.9rem 1.6rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; position:sticky; top:0; z-index:1050; box-shadow:0 6px 18px rgba(0,43,94,.18); }
     .mg-brand { display:flex; align-items:center; gap:.6rem; min-width:180px; cursor:pointer; }
-    .mg-brand-icon { width:34px; height:34px; display:grid; place-items:center; color:var(--neon-blue); font-size:1.4rem; filter:drop-shadow(0 0 6px rgba(0,229,255,.55)); }
+    .mg-brand-icon { width:34px; height:34px; display:grid; place-items:center; color:var(--neon-blue); font-size:1.4rem; }
     .mg-brand h4 { margin:0; font-weight:900; letter-spacing:.03em; font-size:1.4rem; line-height:1; }
     .mg-brand-sub { font-size:.63rem; color:rgba(255,255,255,.68); font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-top:2px; }
     .mg-nav { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; flex:1; min-width:280px; }
-    .mg-nav-btn { display:inline-flex; align-items:center; gap:.4rem; justify-content:center; min-width:150px;
-      font-size:.78rem; font-weight:900; padding:6px 14px; border-radius:8px; border:2px solid transparent;
-      color:#fff; text-decoration:none; transition:.2s; white-space:nowrap; cursor:pointer; }
+    .mg-nav-btn { display:inline-flex; align-items:center; gap:.4rem; justify-content:center; min-width:140px; font-size:.78rem; font-weight:900; padding:6px 14px; border-radius:8px; border:2px solid transparent; color:#fff; text-decoration:none; transition:.2s; white-space:nowrap; cursor:pointer; }
     .mg-nav-btn:hover { border-color:rgba(255,255,255,.4); }
-    .mg-nav-btn.active { background:#fff; color:var(--primary); box-shadow:0 2px 10px rgba(0,0,0,.18); }
+    .mg-nav-btn.active { background:#fff; color:var(--primary); }
     .mg-nav-icon { min-width:auto; padding:6px 10px; }
-    .mg-actions { min-width:86px; display:flex; justify-content:flex-end; }
     .mg-action-btn { background:#fff; color:var(--primary); border:0; border-radius:8px; padding:6px 12px; font-weight:900; font-size:.78rem; display:inline-flex; align-items:center; gap:.4rem; cursor:pointer; }
     @media (max-width:992px){ .mg-nav-btn{ min-width:auto; } }
 
-    .faixa-titulo { background:linear-gradient(90deg,#013a7d,#002b5e); color:#fff; padding:.7rem 1.6rem; display:flex; align-items:center; gap:.6rem; }
-    .faixa-titulo .ic { color:var(--neon-blue); font-size:1.3rem; }
-    .faixa-titulo h5 { margin:0; font-weight:900; }
-    .faixa-titulo .sub { font-size:.62rem; color:rgba(255,255,255,.7); font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .faixa { background:linear-gradient(90deg,#013a7d,#002b5e); color:#fff; padding:.6rem 1.6rem; display:flex; align-items:center; gap:.6rem; }
+    .faixa .ic { color:var(--neon-blue); font-size:1.3rem; }
+    .faixa h5 { margin:0; font-weight:900; }
+    .faixa .sub { font-size:.62rem; color:rgba(255,255,255,.7); font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
 
-    .kpi { background:#fff; border-radius:14px; padding:1rem 1.1rem; box-shadow:0 4px 15px rgba(0,0,0,.05); border-left:5px solid var(--primary); height:100%; }
-    .kpi .label { font-size:.7rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+    .subtabs { background:#fff; border-bottom:1px solid #dbe5ef; padding:.5rem 1.2rem; display:flex; gap:8px; flex-wrap:wrap; position:sticky; top:64px; z-index:1040; }
+    .tab-btn { border:2px solid #cbd5e1; background:#fff; color:#334155; font-weight:800; font-size:.82rem; padding:6px 16px; border-radius:999px; cursor:pointer; transition:.15s; display:inline-flex; align-items:center; gap:.4rem; }
+    .tab-btn:hover { border-color:var(--primary); }
+    .tab-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+    .tab-btn.soon { opacity:.6; }
+
+    .kpi { background:#fff; border-radius:14px; padding:.85rem 1rem; box-shadow:0 4px 14px rgba(0,0,0,.05); border-left:5px solid var(--primary); }
+    .kpi .label { font-size:.68rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
     .kpi .val { font-size:1.7rem; font-weight:900; color:var(--primary); line-height:1.1; }
-    .card-box { background:#fff; border-radius:16px; box-shadow:0 4px 15px rgba(0,0,0,.05); }
+    .card-box { background:#fff; border-radius:16px; box-shadow:0 4px 14px rgba(0,0,0,.05); }
+    .sec-tt { font-weight:900; color:var(--primary); font-size:.95rem; }
     table.mapa { width:100%; font-size:.82rem; }
-    table.mapa thead th { position:sticky; top:0; background:var(--primary); color:#fff; font-weight:800; font-size:.72rem; text-transform:uppercase; letter-spacing:.03em; padding:8px 10px; }
+    table.mapa thead th { position:sticky; top:0; background:var(--primary); color:#fff; font-weight:800; font-size:.7rem; text-transform:uppercase; letter-spacing:.03em; padding:8px 10px; white-space:nowrap; }
     table.mapa tbody td { padding:6px 10px; border-bottom:1px solid #eef2f7; }
     table.mapa tbody tr:hover { background:#f1f6ff; }
     .row-clic { cursor:pointer; }
-    .badge-ok { background:#d1fae5; color:#047857; }
-    .badge-pend { background:#fee2e2; color:#b91c1c; }
-    .badge-st { font-weight:800; font-size:.7rem; padding:3px 9px; border-radius:999px; }
-    .bar { height:8px; border-radius:999px; background:#e5e7eb; overflow:hidden; min-width:60px; }
-    .bar > span { display:block; height:100%; background:#10b981; }
+    .badge-st { font-weight:800; font-size:.68rem; padding:3px 9px; border-radius:999px; }
+    .badge-ok { background:#d1fae5; color:#047857; } .badge-pend { background:#fee2e2; color:#b91c1c; }
+    .bar { height:9px; border-radius:999px; background:#e5e7eb; overflow:hidden; min-width:54px; }
+    .bar > span { display:block; height:100%; }
   </style>
 </head>
 <body>
@@ -72,64 +75,80 @@
     <a class="mg-nav-btn active" href="educacao_especial.html"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
     <a class="mg-nav-btn mg-nav-icon" href="avaliacao.html#Configuracoes" title="Configurações"><i class="bi bi-gear-fill"></i></a>
   </nav>
-  <div class="mg-actions">
-    <button class="mg-action-btn" onclick="location.reload()" title="Atualizar"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button>
-  </div>
+  <div><button class="mg-action-btn" onclick="location.reload()" title="Atualizar"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button></div>
 </header>
 
-<div class="faixa-titulo">
+<div class="faixa">
   <i class="bi bi-universal-access-circle ic"></i>
-  <div><h5>Educação Especial</h5><div class="sub">SME Ribeirão Preto · Alunos com deficiência · AEE</div></div>
+  <div><h5>Educação Especial</h5><div class="sub">SME Ribeirão Preto · Alunos com deficiência</div></div>
 </div>
 
-<main class="container-fluid px-3 px-lg-4 py-4" style="max-width:1300px;">
+<div class="subtabs" id="subtabs">
+  <button class="tab-btn active" data-view="geral" onclick="trocarView('geral')"><i class="bi bi-grid-1x2-fill"></i>Visão Geral (AEE)</button>
+  <button class="tab-btn" data-view="ec" onclick="trocarView('ec')"><i class="bi bi-clipboard2-pulse"></i>Estudo de Caso</button>
+  <button class="tab-btn" data-view="pei" onclick="trocarView('pei')"><i class="bi bi-journal-text"></i>PEI</button>
+  <button class="tab-btn soon" data-view="liminar" onclick="trocarView('liminar')"><i class="bi bi-hammer"></i>Liminares</button>
+  <button class="tab-btn soon" data-view="apoio" onclick="trocarView('apoio')"><i class="bi bi-people"></i>Apoio Pedagógico</button>
+</div>
+
+<main class="container-fluid px-3 px-lg-4 py-3">
 
   <!-- KPIs -->
-  <div class="row g-3 mb-3" id="kpis">
-    <div class="col-6 col-md-3"><div class="kpi"><div class="label">Alunos (únicos)</div><div class="val" id="kTotal">—</div></div></div>
-    <div class="col-6 col-md-3"><div class="kpi" style="border-left-color:#10b981;"><div class="label">Avaliados</div><div class="val" id="kAval" style="color:#047857;">—</div></div></div>
-    <div class="col-6 col-md-3"><div class="kpi" style="border-left-color:#ef4444;"><div class="label">Pendentes</div><div class="val" id="kPend" style="color:#b91c1c;">—</div></div></div>
-    <div class="col-6 col-md-3"><div class="kpi" style="border-left-color:#00e5ff;"><div class="label">% Avaliados</div><div class="val" id="kPct" style="color:#0369a1;">—</div></div></div>
-  </div>
+  <div class="row g-2 g-lg-3 mb-3" id="kpis"></div>
 
-  <div class="row g-3">
-    <!-- Por unidade -->
-    <div class="col-lg-5">
+  <!-- Gráficos -->
+  <div class="row g-3 mb-3">
+    <div class="col-lg-4">
+      <div class="card-box p-3 h-100">
+        <div class="sec-tt mb-2" id="ttDonut">Avaliados × Pendentes</div>
+        <div style="position:relative;height:240px;"><canvas id="donut"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-8">
       <div class="card-box p-3 h-100">
         <div class="d-flex align-items-center justify-content-between mb-2">
-          <h6 class="fw-bold text-primary m-0"><i class="bi bi-building me-1"></i>Por unidade</h6>
-          <input id="buscaUnidade" class="form-control form-control-sm" style="max-width:200px;" placeholder="Filtrar unidade…">
+          <div class="sec-tt" id="ttBar">% concluído por escola (10 menores)</div>
+          <span class="text-muted" style="font-size:.72rem;">menores % primeiro</span>
         </div>
-        <div style="max-height:62vh;overflow:auto;">
-          <table class="mapa"><thead><tr><th>Unidade</th><th class="text-center">Total</th><th class="text-center">Aval.</th><th class="text-center">Pend.</th></tr></thead>
-            <tbody id="tbUnidades"><tr><td colspan="4" class="text-center text-muted p-3">Carregando…</td></tr></tbody>
-          </table>
+        <div style="position:relative;height:240px;"><canvas id="barEscolas"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabelas -->
+  <div class="row g-3">
+    <div class="col-xl-5">
+      <div class="card-box p-3 h-100">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="sec-tt"><i class="bi bi-building me-1"></i>Por escola</div>
+          <input id="buscaUnidade" class="form-control form-control-sm" style="max-width:200px;" placeholder="Filtrar escola…">
+        </div>
+        <div style="max-height:70vh;overflow:auto;">
+          <table class="mapa"><thead><tr>
+            <th>Escola</th><th class="text-center">Total</th><th class="text-center">Feito</th><th class="text-center">Pend.</th><th style="min-width:90px;">%</th>
+          </tr></thead><tbody id="tbUnidades"><tr><td colspan="5" class="text-center text-muted p-3">Carregando…</td></tr></tbody></table>
         </div>
       </div>
     </div>
-
-    <!-- Alunos -->
-    <div class="col-lg-7">
+    <div class="col-xl-7">
       <div class="card-box p-3 h-100">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-          <h6 class="fw-bold text-primary m-0"><i class="bi bi-people-fill me-1"></i>Alunos <span id="escopoAlunos" class="text-muted fw-normal" style="font-size:.8rem;"></span></h6>
+          <div class="sec-tt"><i class="bi bi-people-fill me-1"></i>Alunos <span id="escopo" class="text-muted fw-normal" style="font-size:.8rem;"></span></div>
           <div class="d-flex gap-2 flex-wrap">
-            <select id="filtroStatus" class="form-select form-select-sm" style="max-width:160px;">
-              <option value="">Todos os status</option>
-              <option value="Com respostas">Avaliados</option>
-              <option value="Sem respostas">Pendentes</option>
+            <select id="filtroStatus" class="form-select form-select-sm" style="max-width:150px;">
+              <option value="">Todos</option><option value="Com respostas">Avaliados</option><option value="Sem respostas">Pendentes</option>
             </select>
             <input id="buscaAluno" class="form-control form-control-sm" style="max-width:200px;" placeholder="Buscar aluno/RA…">
             <button class="btn btn-sm btn-success fw-bold" onclick="exportarCSV()"><i class="bi bi-download me-1"></i>Excel</button>
           </div>
         </div>
-        <div style="max-height:62vh;overflow:auto;">
-          <table class="mapa">
-            <thead><tr><th>Unidade</th><th>Série</th><th>Turma</th><th>RA</th><th>Aluno</th><th class="text-center">Status</th><th class="text-center">Form.</th><th style="min-width:120px;">Conclusão</th></tr></thead>
-            <tbody id="tbAlunos"><tr><td colspan="8" class="text-center text-muted p-3">Carregando…</td></tr></tbody>
-          </table>
+        <div style="max-height:70vh;overflow:auto;">
+          <table class="mapa"><thead><tr>
+            <th>Escola</th><th>Série</th><th>Turma</th><th>RA</th><th>Aluno</th>
+            <th class="text-center">Estudo de Caso</th><th class="text-center">PEI</th>
+          </tr></thead><tbody id="tbAlunos"><tr><td colspan="7" class="text-center text-muted p-3">Carregando…</td></tr></tbody></table>
         </div>
-        <div class="text-muted mt-2" style="font-size:.75rem;" id="contadorAlunos"></div>
+        <div class="text-muted mt-2" style="font-size:.75rem;" id="contador"></div>
       </div>
     </div>
   </div>
@@ -138,99 +157,126 @@
 <script>
   const SB = window.supabase.createClient(window.MAPA_SUPABASE.url, window.MAPA_SUPABASE.anonKey);
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const fmt = n => Number(n||0).toLocaleString('pt-BR');
 
-  let _unidades = [];      // [unidade, total, aval, pend]
-  let _alunos = [];        // [unidade, serie, turma, ra, aluno, status, nForm, resp, quest, pct]
-  let _unidadeAtiva = null;
+  let VIEW = 'geral';           // geral | ec | pei
+  let GERAL = {}, UNID = [], ALUNOS = [], _unidadeAtiva = null;
+  let chDonut = null, chBar = null;
 
-  function barra(pct) {
-    const p = Math.max(0, Math.min(100, Number(pct) || 0));
-    return `<div class="d-flex align-items-center gap-2"><div class="bar" style="flex:1;"><span style="width:${p}%;"></span></div><span style="font-size:.72rem;font-weight:700;color:#475569;min-width:38px;">${p}%</span></div>`;
-  }
-  function badgeStatus(st) {
-    const ok = st === 'Com respostas';
-    return `<span class="badge-st ${ok ? 'badge-ok' : 'badge-pend'}">${ok ? 'Avaliado' : 'Pendente'}</span>`;
-  }
+  // por_unidade = [unidade, total, aval, pend, ec, pei]
+  // configuração por view: índice de "feito" e cor
+  const CFG = {
+    geral: { idx:2, label:'Avaliados', cor:'#10b981', donut:['Avaliados','Pendentes'] },
+    ec:    { idx:4, label:'Estudo de Caso feito', cor:'#0ea5e9', donut:['Com Estudo de Caso','Sem'] },
+    pei:   { idx:5, label:'PEI feito', cor:'#8b5cf6', donut:['Com PEI','Sem'] },
+  };
 
-  async function carregarResumo() {
+  function pctEsc(u){ const f=u[CFG[VIEW].idx]||0; return u[1] ? Math.round(f/u[1]*100) : 0; }
+
+  async function carregar() {
     const { data, error } = await SB.rpc('ee_resumo');
-    if (error) { document.getElementById('tbUnidades').innerHTML = `<tr><td colspan="4" class="text-danger p-3">Erro ao carregar: ${esc(error.message)}</td></tr>`; return; }
-    const g = data.geral || {};
-    document.getElementById('kTotal').textContent = (g.total || 0).toLocaleString('pt-BR');
-    document.getElementById('kAval').textContent = (g.avaliados || 0).toLocaleString('pt-BR');
-    document.getElementById('kPend').textContent = (g.pendentes || 0).toLocaleString('pt-BR');
-    document.getElementById('kPct').textContent = (g.total ? Math.round(g.avaliados / g.total * 100) : 0) + '%';
-    _unidades = data.por_unidade || [];
-    renderUnidades();
+    if (error) { document.getElementById('tbUnidades').innerHTML = `<tr><td colspan="5" class="text-danger p-3">Erro: ${esc(error.message)}</td></tr>`; return; }
+    GERAL = data.geral || {}; UNID = data.por_unidade || [];
+    renderTudo();
+    await selecionarUnidade(null);
   }
 
-  function renderUnidades() {
-    const termo = (document.getElementById('buscaUnidade').value || '').toLowerCase();
-    const tb = document.getElementById('tbUnidades');
-    const lista = _unidades.filter(u => !termo || String(u[0]).toLowerCase().includes(termo));
-    tb.innerHTML = `<tr class="row-clic${!_unidadeAtiva ? ' table-active' : ''}" onclick="selecionarUnidade(null)">
-        <td class="fw-bold"><i class="bi bi-globe me-1 text-success"></i>Toda a rede</td>
-        <td class="text-center fw-bold">${_unidades.reduce((s,u)=>s+u[1],0)}</td>
-        <td class="text-center text-success">${_unidades.reduce((s,u)=>s+u[2],0)}</td>
-        <td class="text-center text-danger">${_unidades.reduce((s,u)=>s+u[3],0)}</td></tr>` +
-      lista.map(u => `<tr class="row-clic${_unidadeAtiva === u[0] ? ' table-active' : ''}" onclick="selecionarUnidade('${esc(String(u[0]).replace(/'/g,"\\'"))}')">
-        <td title="${esc(u[0])}">${esc(u[0])}</td>
-        <td class="text-center">${u[1]}</td>
-        <td class="text-center text-success">${u[2]}</td>
-        <td class="text-center text-danger">${u[3]}</td></tr>`).join('') ||
-      `<tr><td colspan="4" class="text-center text-muted p-3">Nenhuma unidade.</td></tr>`;
+  function renderTudo(){ renderKpis(); renderDonut(); renderBar(); renderUnidades(); }
+
+  function renderKpis(){
+    const g = GERAL;
+    let cards;
+    if (VIEW==='geral') cards=[['Alunos (únicos)',fmt(g.total),'var(--primary)'],['Avaliados',fmt(g.avaliados),'#10b981'],['Pendentes',fmt(g.pendentes),'#ef4444'],['% Avaliados',(g.total?Math.round(g.avaliados/g.total*100):0)+'%','#0ea5e9'],['Escolas',fmt(g.unidades),'#64748b']];
+    else if (VIEW==='ec') cards=[['Alunos (únicos)',fmt(g.total),'var(--primary)'],['Com Estudo de Caso',fmt(g.ec_aval),'#0ea5e9'],['Sem',fmt(g.total-g.ec_aval),'#ef4444'],['% Concluído',(g.total?Math.round(g.ec_aval/g.total*100):0)+'%','#0ea5e9'],['Escolas',fmt(g.unidades),'#64748b']];
+    else cards=[['Alunos (únicos)',fmt(g.total),'var(--primary)'],['Com PEI',fmt(g.pei_aval),'#8b5cf6'],['Sem',fmt(g.total-g.pei_aval),'#ef4444'],['% Concluído',(g.total?Math.round(g.pei_aval/g.total*100):0)+'%','#8b5cf6'],['Escolas',fmt(g.unidades),'#64748b']];
+    document.getElementById('kpis').innerHTML = cards.map(c=>`<div class="col-6 col-md-4 col-lg"><div class="kpi" style="border-left-color:${c[2]};"><div class="label">${c[0]}</div><div class="val" style="color:${c[2]};">${c[1]}</div></div></div>`).join('');
   }
 
-  async function selecionarUnidade(unidade) {
-    _unidadeAtiva = unidade;
-    renderUnidades();
-    document.getElementById('escopoAlunos').textContent = unidade ? `· ${unidade}` : '· Toda a rede';
-    document.getElementById('tbAlunos').innerHTML = `<tr><td colspan="8" class="text-center text-muted p-3"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</td></tr>`;
-    const { data, error } = await SB.rpc('ee_alunos', { p_unidade: unidade, p_status: null });
-    if (error) { document.getElementById('tbAlunos').innerHTML = `<tr><td colspan="8" class="text-danger p-3">Erro: ${esc(error.message)}</td></tr>`; return; }
-    _alunos = data || [];
-    renderAlunos();
+  function renderDonut(){
+    const g=GERAL, c=CFG[VIEW];
+    let feito, resto;
+    if (VIEW==='geral'){ feito=g.avaliados||0; resto=g.pendentes||0; }
+    else if (VIEW==='ec'){ feito=g.ec_aval||0; resto=(g.total||0)-feito; }
+    else { feito=g.pei_aval||0; resto=(g.total||0)-feito; }
+    document.getElementById('ttDonut').textContent = c.donut.join(' × ');
+    const ctx=document.getElementById('donut'); if (chDonut) chDonut.destroy();
+    chDonut=new Chart(ctx,{ type:'doughnut',
+      data:{ labels:c.donut, datasets:[{ data:[feito,resto], backgroundColor:[c.cor,'#e5e7eb'], borderColor:'#fff', borderWidth:3, hoverOffset:14 }] },
+      options:{ maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{position:'bottom'},
+        tooltip:{callbacks:{label:x=>`${x.label}: ${fmt(x.raw)} (${g.total?Math.round(x.raw/g.total*100):0}%)`}} } } });
   }
 
-  function renderAlunos() {
-    const st = document.getElementById('filtroStatus').value;
-    const termo = (document.getElementById('buscaAluno').value || '').toLowerCase();
-    const lista = _alunos.filter(a =>
-      (!st || a[5] === st) &&
-      (!termo || String(a[4]).toLowerCase().includes(termo) || String(a[3]).includes(termo)));
-    const tb = document.getElementById('tbAlunos');
-    tb.innerHTML = lista.map(a => `<tr>
-        <td title="${esc(a[0])}" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a[0])}</td>
-        <td>${esc(a[1])}</td><td class="text-center">${esc(a[2])}</td>
-        <td>${esc(a[3])}</td><td>${esc(a[4])}</td>
-        <td class="text-center">${badgeStatus(a[5])}</td>
-        <td class="text-center">${a[6] || 0}</td>
-        <td>${a[5] === 'Com respostas' ? barra(a[9]) : '<span class="text-muted">—</span>'}</td>
-      </tr>`).join('') || `<tr><td colspan="8" class="text-center text-muted p-3">Nenhum aluno.</td></tr>`;
-    document.getElementById('contadorAlunos').textContent = `${lista.length} aluno(s)`;
+  function renderBar(){
+    const c=CFG[VIEW];
+    const arr=[...UNID].map(u=>[u[0],pctEsc(u),u[1]]).filter(u=>u[2]>0).sort((a,b)=>a[1]-b[1]).slice(0,12);
+    document.getElementById('ttBar').textContent = `% concluído por escola (12 menores) — ${c.label}`;
+    const ctx=document.getElementById('barEscolas'); if (chBar) chBar.destroy();
+    chBar=new Chart(ctx,{ type:'bar',
+      data:{ labels:arr.map(a=>a[0].length>26?a[0].slice(0,24)+'…':a[0]), datasets:[{ data:arr.map(a=>a[1]), backgroundColor:c.cor, borderRadius:5 }] },
+      options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{ legend:{display:false},
+        tooltip:{callbacks:{label:x=>`${x.raw}% concluído`,title:i=>arr[i[0].dataIndex][0]}} },
+        scales:{ x:{ max:100, ticks:{callback:v=>v+'%'} }, y:{ ticks:{font:{size:10}} } } } });
   }
 
-  function exportarCSV() {
-    const st = document.getElementById('filtroStatus').value;
-    const termo = (document.getElementById('buscaAluno').value || '').toLowerCase();
-    const lista = _alunos.filter(a =>
-      (!st || a[5] === st) &&
-      (!termo || String(a[4]).toLowerCase().includes(termo) || String(a[3]).includes(termo)));
-    const head = ['Unidade','Serie','Turma','RA','Aluno','Status','Formularios','Respostas','Questoes','PctConcluido'];
-    const linhas = lista.map(a => a.map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(';'));
-    const csv = '﻿' + head.join(';') + '\n' + linhas.join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `educacao_especial_${_unidadeAtiva || 'rede'}.csv`;
-    a.click(); URL.revokeObjectURL(url);
+  function renderUnidades(){
+    const termo=(document.getElementById('buscaUnidade').value||'').toLowerCase();
+    const c=CFG[VIEW];
+    const tot=UNID.reduce((a,u)=>a+u[1],0), feito=UNID.reduce((a,u)=>a+u[CFG[VIEW].idx],0);
+    const lista=UNID.filter(u=>!termo||String(u[0]).toLowerCase().includes(termo)).sort((a,b)=>pctEsc(a)-pctEsc(b));
+    const linha=(nome,t,f,pct,ativo,onclick)=>`<tr class="row-clic${ativo?' table-active':''}" onclick="${onclick}">
+        <td title="${esc(nome)}">${esc(nome)}</td><td class="text-center fw-bold">${t}</td>
+        <td class="text-center" style="color:${c.cor};font-weight:700;">${f}</td><td class="text-center text-danger">${t-f}</td>
+        <td>${barra(pct,c.cor)}</td></tr>`;
+    document.getElementById('tbUnidades').innerHTML =
+      linha('🌐 Toda a rede',tot,feito,tot?Math.round(feito/tot*100):0,!_unidadeAtiva,"selecionarUnidade(null)") +
+      lista.map(u=>linha(u[0],u[1],u[CFG[VIEW].idx],pctEsc(u),_unidadeAtiva===u[0],`selecionarUnidade('${esc(String(u[0]).replace(/'/g,"\\'"))}')`)).join('') ||
+      `<tr><td colspan="5" class="text-center text-muted p-3">Nenhuma escola.</td></tr>`;
+  }
+  function barra(p,cor){ p=Math.max(0,Math.min(100,p||0)); return `<div class="d-flex align-items-center gap-2"><div class="bar" style="flex:1;"><span style="width:${p}%;background:${cor};"></span></div><b style="font-size:.72rem;color:#475569;min-width:34px;">${p}%</b></div>`; }
+
+  async function selecionarUnidade(u){
+    _unidadeAtiva=u; renderUnidades();
+    document.getElementById('escopo').textContent = u?`· ${u}`:'· Toda a rede';
+    document.getElementById('tbAlunos').innerHTML=`<tr><td colspan="7" class="text-center text-muted p-3"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</td></tr>`;
+    const { data, error } = await SB.rpc('ee_alunos',{ p_unidade:u, p_status:null });
+    if (error){ document.getElementById('tbAlunos').innerHTML=`<tr><td colspan="7" class="text-danger p-3">Erro: ${esc(error.message)}</td></tr>`; return; }
+    ALUNOS=data||[]; renderAlunos();
   }
 
-  document.getElementById('buscaUnidade').addEventListener('input', renderUnidades);
-  document.getElementById('filtroStatus').addEventListener('change', renderAlunos);
-  document.getElementById('buscaAluno').addEventListener('input', renderAlunos);
+  // aluno = [unidade,serie,turma,ra,aluno,status,ec_resp,ec_quest,pei_resp,pei_quest,pct]
+  function cel(resp,quest){ if(!quest) return '<span class="text-muted">—</span>'; const p=Math.round(resp/quest*100); return barra(p, p>=100?'#10b981':'#f59e0b'); }
+  function renderAlunos(){
+    const st=document.getElementById('filtroStatus').value, termo=(document.getElementById('buscaAluno').value||'').toLowerCase();
+    const lista=ALUNOS.filter(a=>(!st||a[5]===st)&&(!termo||String(a[4]).toLowerCase().includes(termo)||String(a[3]).includes(termo)));
+    document.getElementById('tbAlunos').innerHTML = lista.map(a=>`<tr>
+        <td title="${esc(a[0])}" style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a[0])}</td>
+        <td>${esc(a[1])}</td><td class="text-center">${esc(a[2])}</td><td>${esc(a[3])}</td><td>${esc(a[4])}</td>
+        <td>${cel(a[6],a[7])}</td><td>${cel(a[8],a[9])}</td></tr>`).join('')
+      || `<tr><td colspan="7" class="text-center text-muted p-3">Nenhum aluno.</td></tr>`;
+    document.getElementById('contador').textContent=`${lista.length} aluno(s)`;
+  }
 
-  (async () => { await carregarResumo(); await selecionarUnidade(null); })();
+  function trocarView(v){
+    if (v==='liminar'||v==='apoio'){ alert('Liminares e Apoio Pedagógico entram na próxima etapa (Fase 2), após confirmação da leitura das planilhas.'); return; }
+    VIEW=v;
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
+    renderTudo(); renderAlunos();
+  }
+
+  function exportarCSV(){
+    const st=document.getElementById('filtroStatus').value, termo=(document.getElementById('buscaAluno').value||'').toLowerCase();
+    const lista=ALUNOS.filter(a=>(!st||a[5]===st)&&(!termo||String(a[4]).toLowerCase().includes(termo)||String(a[3]).includes(termo)));
+    const head=['Escola','Serie','Turma','RA','Aluno','Status','EC_Respostas','EC_Questoes','PEI_Respostas','PEI_Questoes','Pct'];
+    const linhas=lista.map(a=>a.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';'));
+    const csv='﻿'+head.join(';')+'\n'+linhas.join('\n');
+    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+    a.download=`educacao_especial_${_unidadeAtiva||'rede'}.csv`; a.click();
+  }
+
+  document.getElementById('buscaUnidade').addEventListener('input',renderUnidades);
+  document.getElementById('filtroStatus').addEventListener('change',renderAlunos);
+  document.getElementById('buscaAluno').addEventListener('input',renderAlunos);
+  carregar();
 </script>
 </body>
 </html>
