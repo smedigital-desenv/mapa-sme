@@ -791,7 +791,7 @@ const renderPendentesDebounced = debounce(() => renderPendentes(), 180);
 // ── API ──────────────────────────────────────────────────────────
 // Cache em localStorage: reusa os dados entre abas/sessões (abre rápido), com validade
 async function fetchTurmas() {
-  const CACHE_KEY = 'mapa_atrib_turmas_v1';
+  const CACHE_KEY = 'mapa_atrib_turmas_v2';
   const TTL = 10 * 60 * 1000; // 10 minutos (o botão "Atualizar" força dados frescos)
   if (!window.__forcarRefetch) {
     try {
@@ -810,7 +810,7 @@ async function fetchTurmas() {
 
 async function _fetchTurmasRede() {
   const PAGE = 1000;
-  const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,situacao_professor_sub,funcao_professor,status_atribuicao';
+  const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,situacao_professor_sub,vinculo_funcao_prop,vinculo_funcao_sub,funcao_professor,status_atribuicao';
   const H = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
   const pageUrl = off => `${SUPABASE_URL}/rest/v1/turmas?select=${SELECT}&order=nome_unidade.asc&limit=${PAGE}&offset=${off}`;
 
@@ -968,12 +968,15 @@ function obterNomeSituacao(textoSituacao) {
 }
 
 // ═══ CLASSIFICAR INATIVOS (Exonerado / Rescindido / Aposentado) ═══
+// No banco a situação vem combinada como "EXONERADO/RESCINDIDO"; o que
+// diferencia é o VÍNCULO: EFETIVO → Exonerado, CONTRATADO → Rescindido.
 // Retorna a categoria normalizada ou null quando não se aplica.
-function classificarInatividade(textoSituacao) {
+function classificarInatividade(textoSituacao, vinculo) {
   const texto = String(textoSituacao || '').toUpperCase();
   if (texto.includes('APOSENTAD')) return 'APOSENTADO';
-  if (texto.includes('RESCINDID')) return 'RESCINDIDO';
-  if (texto.includes('EXONERAD'))  return 'EXONERADO';
+  if (texto.includes('EXONERAD') || texto.includes('RESCINDID')) {
+    return String(vinculo || '').toUpperCase().includes('EFETIVO') ? 'EXONERADO' : 'RESCINDIDO';
+  }
   return null;
 }
 
@@ -1118,17 +1121,18 @@ function montarDados(rows) {
     // ── Professores Inativos (Exonerado/Rescindido/Aposentado) ──
     // Avalia titular e substituto separadamente; só entra quem tem código (vínculo real).
     [
-      { nome: row.nome_professor_prop, cod: _cT, sit: row.situacao_professor,     papel: 'Titular',    tem: _temTit },
-      { nome: row.nome_professor_sub,  cod: _cS, sit: row.situacao_professor_sub, papel: 'Substituto', tem: _temSub }
+      { nome: row.nome_professor_prop, cod: _cT, sit: row.situacao_professor,     vinc: row.vinculo_funcao_prop, papel: 'Titular',    tem: _temTit },
+      { nome: row.nome_professor_sub,  cod: _cS, sit: row.situacao_professor_sub, vinc: row.vinculo_funcao_sub,  papel: 'Substituto', tem: _temSub }
     ].forEach(p => {
       if (!p.tem || estaEmContracao(p.cod)) return;
-      const cat = classificarInatividade(p.sit);
+      const cat = classificarInatividade(p.sit, p.vinc);
       if (!cat) return;
       profsInativos.push({
         nome: String(p.nome || '—').trim(),
         cod: String(p.cod || '').trim(),
         situacao: cat,
         situacaoTxt: String(p.sit || '').trim(),
+        vinculo: String(p.vinc || '').trim(),
         papel: p.papel,
         unit, disc, turma: turmaKey, periodo: per
       });
@@ -2533,10 +2537,10 @@ async function exportarInativosExcel() {
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Inativos');
-  ws.addRow(['Professor', 'Código', 'Situação', 'Papel', 'Unidade', 'Disciplina', 'Turma', 'Período']);
+  ws.addRow(['Professor', 'Código', 'Situação', 'Vínculo', 'Papel', 'Unidade', 'Disciplina', 'Turma', 'Período']);
   ws.getRow(1).fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF002B5E' } };
   ws.getRow(1).font = { bold:true, color:{ argb:'FFFFFFFF' } };
-  lista.forEach(o => ws.addRow([o.nome, o.cod || '', o.situacao, o.papel, o.unit, o.disc, o.turma, o.periodo]));
+  lista.forEach(o => ws.addRow([o.nome, o.cod || '', o.situacao, o.vinculo || '', o.papel, o.unit, o.disc, o.turma, o.periodo]));
   ws.columns.forEach(c => { c.width = 24; });
 
   const buf = await wb.xlsx.writeBuffer();
