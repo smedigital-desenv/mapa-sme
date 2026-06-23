@@ -1,0 +1,997 @@
+<script>
+// ===========================================================
+// JS_Turmas.html — PPA/PRA + todas as disciplinas da aba Turmas
+// Disciplina vem da coluna P: "Descrição da Disciplina-Atribuição"
+// ===========================================================
+
+function _projetoSeguroId(value) {
+  return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+function _normalizarMenuTurmasTexto(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+function _isProjetoDisciplina(type) {
+  return String(type || '').indexOf('DISC::') === 0;
+}
+
+function _disciplinaDoProjeto(type) {
+  return String(type || '').replace(/^DISC::/, '');
+}
+
+const TURMAS_PROJETOS_MENU = [
+  {
+    type: 'PPA',
+    label: 'PROJ. PROF. ALFABETIZADOR',
+    titulo: 'PROJ. PROF. ALFABETIZADOR',
+    subtitulo: 'Projeto Professor Alfabetizador · usa a função PPA',
+    grupo: 'Projetos',
+    icon: 'bi-journal-check',
+    aliases: [
+      'PROJ. PROF. ALFABETIZADOR',
+      'PROJ PROF ALFABETIZADOR',
+      'PROJETO PROFESSOR ALFABETIZADOR',
+      'PPA'
+    ]
+  },
+  {
+    type: 'PRA',
+    label: 'PROJ. RECUP. APREND. ANOS INIC',
+    titulo: 'PROJ. RECUP. APREND. ANOS INIC',
+    subtitulo: 'Projeto Recuperação da Aprendizagem · usa a função PRA',
+    grupo: 'Projetos',
+    icon: 'bi-arrow-repeat',
+    aliases: [
+      'PROJ. RECUP. APREND. ANOS INIC',
+      'PROJ RECUP APREND ANOS INIC',
+      'PROJ. RECUP. APREND. ANOS INICIAIS',
+      'PROJETO RECUPERACAO APRENDIZAGEM ANOS INICIAIS',
+      'PRA'
+    ]
+  },
+  {
+    type: null,
+    label: 'PRO. RECUP. PARALELA',
+    titulo: 'PRO. RECUP. PARALELA',
+    subtitulo: 'Projeto de Recuperação Paralela',
+    grupo: 'Projetos',
+    icon: 'bi-life-preserver',
+    aliases: [
+      'PRO. RECUP. PARALELA',
+      'PROJ. RECUP. PARALELA',
+      'PROJ RECUP PARALELA',
+      'PROJETO RECUPERACAO PARALELA',
+      'RECUP. PARALELA',
+      'RECUPERACAO PARALELA'
+    ]
+  },
+  {
+    type: null,
+    label: 'PRÁTICAS PEDAGÓGICAS',
+    titulo: 'PRÁTICAS PEDAGÓGICAS',
+    subtitulo: 'Projeto de Práticas Pedagógicas',
+    grupo: 'Projetos',
+    icon: 'bi-lightbulb',
+    aliases: [
+      'PRÁTICAS PEDAGÓGICAS',
+      'PRATICAS PEDAGOGICAS'
+    ]
+  }
+];
+
+function _disciplinaCombinaComProjeto(disciplina, projeto) {
+  const d = _normalizarMenuTurmasTexto(disciplina);
+  return (projeto.aliases || []).some(alias => {
+    const a = _normalizarMenuTurmasTexto(alias);
+    return d === a || d.indexOf(a) !== -1 || a.indexOf(d) !== -1;
+  });
+}
+
+function _encontrarDisciplinaProjeto(projeto, disciplinas) {
+  return (disciplinas || []).find(d => _disciplinaCombinaComProjeto(d, projeto)) || '';
+}
+
+function _ehDisciplinaDeProjeto(disciplina) {
+  return TURMAS_PROJETOS_MENU.some(p => _disciplinaCombinaComProjeto(disciplina, p));
+}
+
+function _labelProjetoTurmas(type) {
+  const op = _opcaoTurmasAtual(type);
+  return op ? op.label : (type || 'PPA');
+}
+
+function _dadosProjetoTurmas() {
+  if (!rawData) return [];
+  if (currentProject === 'PPA') return rawData.ppa || [];
+  if (currentProject === 'PRA') return rawData.pra || [];
+  if (_isProjetoDisciplina(currentProject)) {
+    const disc = _disciplinaDoProjeto(currentProject);
+    return (rawData.disciplinasTurmas && rawData.disciplinasTurmas[disc]) ? rawData.disciplinasTurmas[disc] : [];
+  }
+  return [];
+}
+
+function _opcoesTurmasMenu() {
+  const disciplinas = (rawData?.disciplinasLista || []).filter(Boolean);
+
+  const opcoesProjetos = TURMAS_PROJETOS_MENU.map(projeto => {
+    if (projeto.type === 'PPA' || projeto.type === 'PRA') {
+      return {
+        type: projeto.type,
+        label: projeto.label,
+        titulo: projeto.titulo,
+        subtitulo: projeto.subtitulo,
+        grupo: 'Projetos',
+        icon: projeto.icon
+      };
+    }
+
+    const disciplinaReal = _encontrarDisciplinaProjeto(projeto, disciplinas);
+
+    if (!disciplinaReal) return null;
+
+    return {
+      type: `DISC::${disciplinaReal}`,
+      label: projeto.label,
+      titulo: projeto.titulo,
+      subtitulo: projeto.subtitulo,
+      grupo: 'Projetos',
+      icon: projeto.icon,
+      disciplinaReal
+    };
+  }).filter(Boolean);
+
+  const opcoesDisciplinas = disciplinas
+    .filter(d => !_ehDisciplinaDeProjeto(d))
+    .map(d => ({
+      type: `DISC::${d}`,
+      label: d,
+      titulo: d,
+      subtitulo: 'Disciplina da coluna P',
+      grupo: 'Disciplinas',
+      icon: 'bi-book'
+    }));
+
+  return [...opcoesProjetos, ...opcoesDisciplinas];
+}
+
+function _opcaoTurmasAtual(type) {
+  const alvo = type || currentProject;
+  const opcoes = _opcoesTurmasMenu();
+  return opcoes.find(op => op.type === alvo) || opcoes[0] || {
+    type: 'PPA',
+    label: 'PROJ. PROF. ALFABETIZADOR',
+    titulo: 'PROJ. PROF. ALFABETIZADOR',
+    subtitulo: 'Projeto Professor Alfabetizador · usa a função PPA',
+    grupo: 'Projetos',
+    icon: 'bi-journal-check'
+  };
+}
+
+function renderTurmasMenu() {
+  const nav = document.getElementById('subNavTurmas');
+  if (!nav || !rawData) return;
+
+  const opcoes = _opcoesTurmasMenu();
+  const opcoesTypes = opcoes.map(op => op.type);
+
+  if (!opcoesTypes.includes(currentProject)) {
+    currentProject = 'PPA';
+  }
+
+  const atual = _opcaoTurmasAtual();
+  const totalOpcoes = opcoes.length;
+
+  const grupos = opcoes.reduce((acc, op) => {
+    if (!acc[op.grupo]) acc[op.grupo] = [];
+    acc[op.grupo].push(op);
+    return acc;
+  }, {});
+
+  const renderGrupo = (grupo, itens) => `
+    <div class="turmas-dropdown-section" data-menu-section="${escapeHtml(grupo)}">
+      <div class="turmas-dropdown-section-title">${escapeHtml(grupo)}</div>
+      ${itens.map(op => {
+        const ativo = op.type === currentProject;
+        const busca = [op.label, op.titulo, op.subtitulo, op.grupo].join(' ').toUpperCase();
+
+        return `
+          <button type="button"
+                  class="turmas-disciplina-item ${ativo ? 'active' : ''}"
+                  data-disciplina-label="${escapeHtml(busca)}"
+                  data-menu-option="true"
+                  title="${escapeHtml(op.titulo)}"
+                  onclick="selecionarOpcaoTurmasMenu('${escapeJs(op.type)}')">
+            <span class="turmas-item-left">
+              <span class="turmas-item-icon"><i class="bi ${escapeHtml(op.icon)}"></i></span>
+              <span class="turmas-item-text">
+                <span class="turmas-disciplina-nome">${escapeHtml(op.label)}</span>
+                <small>${escapeHtml(op.subtitulo)}</small>
+              </span>
+            </span>
+            ${ativo ? '<i class="bi bi-check2-circle turmas-item-check"></i>' : ''}
+          </button>
+        `;
+      }).join('')}
+    </div>
+  `;
+
+  const menuItensHtml = Object.keys(grupos)
+    .sort((a, b) => a === 'Projetos' ? -1 : b === 'Projetos' ? 1 : a.localeCompare(b))
+    .map(grupo => renderGrupo(grupo, grupos[grupo]))
+    .join('');
+
+  nav.innerHTML = `
+    <div class="turmas-menu-shell turmas-menu-shell-unificado">
+      <div class="dropdown turmas-disc-dropdown turmas-disc-dropdown-main">
+        <button type="button"
+                class="turmas-menu-btn turmas-menu-select-btn dropdown-toggle"
+                data-bs-toggle="dropdown"
+                data-bs-auto-close="outside"
+                aria-expanded="false"
+                id="btnTurmasDropdown">
+          <span class="turmas-select-icon"><i class="bi ${escapeHtml(atual.icon)}"></i></span>
+          <span class="turmas-select-copy">
+            <span class="turmas-select-label">Visualizando</span>
+            <strong>${escapeHtml(atual.label)}</strong>
+          </span>
+          <span class="turmas-count">${totalOpcoes}</span>
+        </button>
+
+        <div class="dropdown-menu turmas-dropdown-menu turmas-dropdown-menu-unificado shadow-lg">
+          <div class="turmas-dropdown-head">
+            <div>
+              <div class="turmas-dropdown-title">Selecionar projeto ou disciplina</div>
+              <div class="turmas-dropdown-subtitle">Projetos e disciplinas da coluna P da aba Turmas</div>
+            </div>
+          </div>
+
+          <div class="turmas-dropdown-search" onclick="event.stopPropagation()">
+            <i class="bi bi-search"></i>
+            <input type="text"
+                   id="turmasBuscaDropdown"
+                   placeholder="Pesquisar projeto ou disciplina..."
+                   autocomplete="off"
+                   oninput="filtrarDisciplinasTurmasMenu(this.value)">
+          </div>
+
+          <div class="turmas-dropdown-list" id="turmasDisciplinasDropdownList">
+            ${menuItensHtml || '<div class="text-muted small p-3">Nenhuma opção encontrada.</div>'}
+          </div>
+        </div>
+      </div>
+
+      <div class="turmas-current-chip turmas-current-chip-clean" title="${escapeHtml(atual.titulo)}">
+        <span class="turmas-current-label">Atual</span>
+        <span class="turmas-current-value">
+          ${escapeHtml(atual.titulo.length > 46 ? atual.titulo.substring(0, 46) + '…' : atual.titulo)}
+        </span>
+      </div>
+    </div>
+  `;
+}
+
+function selecionarOpcaoTurmasMenu(type) {
+  switchProject(type);
+
+  const btn = document.getElementById('btnTurmasDropdown');
+  if (btn && window.bootstrap) {
+    const instance = bootstrap.Dropdown.getInstance(btn) || bootstrap.Dropdown.getOrCreateInstance(btn);
+    instance.hide();
+  }
+}
+
+function filtrarDisciplinasTurmasMenu(termo) {
+  const lista = document.getElementById('turmasDisciplinasDropdownList');
+  if (!lista) return;
+
+  const q = String(termo || '')
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  let visiveis = 0;
+
+  lista.querySelectorAll('[data-menu-option="true"]').forEach(btn => {
+    const label = String(btn.dataset.disciplinaLabel || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+    const show = !q || label.includes(q);
+    btn.classList.toggle('d-none', !show);
+
+    if (show) visiveis++;
+  });
+
+  lista.querySelectorAll('.turmas-dropdown-section').forEach(sec => {
+    const possuiVisivel = !!sec.querySelector('[data-menu-option="true"]:not(.d-none)');
+    sec.classList.toggle('d-none', !possuiVisivel);
+  });
+
+  let empty = lista.querySelector('.turmas-dropdown-empty');
+
+  if (!visiveis) {
+    if (!empty) {
+      empty = document.createElement('div');
+      empty.className = 'turmas-dropdown-empty text-muted small p-3 text-center';
+      empty.innerText = 'Nenhuma opção encontrada.';
+      lista.appendChild(empty);
+    }
+  } else if (empty) {
+    empty.remove();
+  }
+}
+
+function switchProject(type) {
+  currentProject = type || 'PPA';
+  renderTurmasMenu();
+  renderKPIs();
+  renderTable();
+  renderCharts();
+}
+
+function renderKPIs() {
+  if (!rawData) return;
+
+  const d = _dadosProjetoTurmas();
+  const row = document.getElementById('kpiRow');
+  if (!row) return;
+
+  if (!d.length) {
+    row.innerHTML = `
+      <div class="col-12">
+        <div class="card-kpi text-muted">
+          Nenhum dado encontrado para ${escapeHtml(_labelProjetoTurmas(currentProject))}.
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (currentProject === 'PPA') {
+    const t = d.reduce((s, x) => s + Number(x.meta || 0), 0);
+    const r = d.reduce((s, x) => s + Number(x.cargaAtribuida || 0), 0);
+    row.innerHTML = `
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="label-mini">Meta (12h)</div><div class="kpi-val">${t}h</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="label-mini">Atribuído</div><div class="kpi-val text-success">${r}h</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="label-mini">Déficit</div><div class="kpi-val text-danger">${t - r}h</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="label-mini">Eficácia</div><div class="kpi-val" style="color:var(--neon-pink)">${t > 0 ? Math.round((r / t) * 100) : 0}%</div></div></div>`;
+    return;
+  }
+
+  const criadas = d.reduce((s, x) => s + Number(x.criadas || 0), 0);
+  const atribuidas = d.reduce((s, x) => s + Number(x.atribuidas || 0), 0);
+  const cargaCriada = d.reduce((s, x) => s + Number(x.cargaCriada || 0), 0);
+  const cargaAtribuida = d.reduce((s, x) => s + Number(x.cargaAtribuida || 0), 0);
+
+  row.innerHTML = `
+    <div class="col-6 col-md-3"><div class="card-kpi"><div class="label-mini">Turmas / Aulas</div><div class="kpi-val">${criadas}</div></div></div>
+    <div class="col-6 col-md-3"><div class="card-kpi"><div class="label-mini">Atribuídas</div><div class="kpi-val text-success">${atribuidas}</div></div></div>
+    <div class="col-6 col-md-3"><div class="card-kpi"><div class="label-mini">Pendentes</div><div class="kpi-val text-danger">${criadas - atribuidas}</div></div></div>
+    <div class="col-6 col-md-3"><div class="card-kpi"><div class="label-mini">Carga Atribuída</div><div class="kpi-val" style="color:var(--neon-pink)">${Math.round(cargaAtribuida)}h</div></div></div>`;
+}
+
+function _normalizarUnidadeGraficoTurmas(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+function _agruparTurmasPorUnidadeParaGrafico(data, isPPA) {
+  const mapa = {};
+
+  (data || []).forEach(row => {
+    const unitOriginal = String(row.unit || 'Sem unidade').trim() || 'Sem unidade';
+    const key = _normalizarUnidadeGraficoTurmas(unitOriginal);
+
+    if (!mapa[key]) {
+      mapa[key] = {
+        unit: unitOriginal,
+        valor: 0,
+        cargaAtribuida: 0,
+        pendente: 0,
+        meta: 0,
+        criadas: 0,
+        atribuidas: 0
+      };
+    }
+
+    if (isPPA) {
+      const falta = Number(row.faltaAtribuir || 0);
+      const atribuida = Number(row.cargaAtribuida || 0);
+      const meta = Number(row.meta || 0);
+
+      mapa[key].valor += falta;
+      mapa[key].pendente += falta;
+      mapa[key].cargaAtribuida += atribuida;
+      mapa[key].meta += meta;
+    } else {
+      const criadas = Number(row.criadas || 0);
+      const atribuidas = Number(row.atribuidas || 0);
+      const pendentes = Math.max(0, criadas - atribuidas);
+      const cargaAtribuida = Number(row.cargaAtribuida || 0);
+
+      mapa[key].valor += pendentes;
+      mapa[key].pendente += pendentes;
+      mapa[key].criadas += criadas;
+      mapa[key].atribuidas += atribuidas;
+      mapa[key].cargaAtribuida += cargaAtribuida;
+    }
+  });
+
+  return Object.values(mapa)
+    .sort((a, b) => Number(b.valor || 0) - Number(a.valor || 0))
+    .slice(0, 8);
+}
+
+function renderCharts() {
+  const data = _dadosProjetoTurmas();
+  const isPPA = currentProject === 'PPA';
+  const sorted = _agruparTurmasPorUnidadeParaGrafico(data, isPPA);
+
+  const barEl = document.getElementById('barChart');
+  const pieEl = document.getElementById('pieChart');
+  if (!barEl || !pieEl) return;
+
+  if (myBarChart) myBarChart.destroy();
+  myBarChart = new Chart(barEl, {
+    type: 'bar',
+    data: {
+      labels: sorted.map(x => {
+        const nome = String(x.unit || '').trim();
+        return nome.length > 22 ? nome.substring(0, 22) + '…' : nome;
+      }),
+      datasets: [{
+        label: isPPA ? 'Horas Faltantes' : 'Pendentes',
+        data: sorted.map(x => Number(x.valor || 0)),
+        backgroundColor: '#FF007F',
+        borderRadius: 4
+      }]
+    },
+    options: {
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: false },
+        datalabels: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => {
+              const i = items && items.length ? items[0].dataIndex : 0;
+              return sorted[i]?.unit || '';
+            },
+            label: c => {
+              const item = sorted[c.dataIndex] || {};
+              if (isPPA) {
+                return [
+                  `Déficit: ${Number(item.pendente || 0)}h`,
+                  `Atribuído: ${Number(item.cargaAtribuida || 0)}h`,
+                  `Meta: ${Number(item.meta || 0)}h`
+                ];
+              }
+              return [
+                `Pendentes: ${Number(item.pendente || 0)}`,
+                `Atribuídas: ${Number(item.atribuidas || 0)}`,
+                `Criadas: ${Number(item.criadas || 0)}`
+              ];
+            }
+          }
+        }
+      },
+      scales: {
+        x: { beginAtZero: true },
+        y: { ticks: { autoSkip: false } }
+      }
+    }
+  });
+
+  const atribuido = data.reduce((s, x) => s + (isPPA ? Number(x.cargaAtribuida || 0) : Number(x.atribuidas || 0)), 0);
+  const pendente = data.reduce((s, x) => s + (isPPA ? Number(x.faltaAtribuir || 0) : Math.max(0, Number(x.criadas || 0) - Number(x.atribuidas || 0))), 0);
+
+  if (myPieChart) myPieChart.destroy();
+  myPieChart = new Chart(pieEl, {
+    type: 'doughnut',
+    data: {
+      labels: ['Atribuído', 'Pendente'],
+      datasets: [{ data: [atribuido, pendente], backgroundColor: ['#39FF14', '#eaedf0'], borderWidth: 0 }]
+    },
+    options: { maintainAspectRatio: false, cutout: '75%', plugins: { legend: { position: 'bottom' }, datalabels: { display: false } } }
+  });
+}
+
+function _renderDetalhesRowsTurmas(details, lazy) {
+  if (lazy) {
+    return `<tr><td colspan="6" class="text-center p-3 text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Clique para carregar detalhes…</td></tr>`;
+  }
+
+  return (details || []).map(det => `
+    <tr>
+      <td><span class="badge bg-primary text-wrap">${escapeHtml(det.disc)}</span></td>
+      <td class="fw-bold text-center text-nowrap">${escapeHtml(det.turma)}</td>
+      <td class="text-nowrap">${escapeHtml(det.profName)}</td>
+      <td class="text-center">${escapeHtml(det.profCode)}</td>
+      <td class="text-center"><span class="badge ${String(det.profStatus).includes('ATIVA') ? 'bg-success' : 'bg-danger'}">${escapeHtml(det.profStatus)}</span></td>
+      <td class="text-center fw-bold">${escapeHtml(det.workload)}h</td>
+    </tr>`).join('') || '<tr><td colspan="6" class="text-center">Sem dados</td></tr>';
+}
+
+function renderTable() {
+  const d = _dadosProjetoTurmas();
+  const body = document.getElementById('mainTable');
+  const head = document.getElementById('tableHead');
+  if (!body || !head) return;
+
+  const podeAtribuir = modoApp === 'atribuicao' && (isVIP || isAtribuicao) && currentProject === 'PPA';
+  const isPPA = currentProject === 'PPA';
+  const isGenerico = _isProjetoDisciplina(currentProject);
+
+  head.innerHTML = `
+    <th>Unidade / Período</th>
+    <th class="text-center">${isPPA ? 'Salas' : 'Turmas'}</th>
+    <th>Progresso</th>
+    <th class="text-center">Status</th>
+    ${podeAtribuir ? '<th class="text-center">Ação</th>' : ''}`;
+
+  if (!d.length) {
+    body.innerHTML = `<tr><td colspan="${podeAtribuir ? 5 : 4}" class="text-center p-4 text-muted">Nenhum dado encontrado.</td></tr>`;
+    return;
+  }
+
+  const projId = _projetoSeguroId(currentProject);
+
+  body.innerHTML = d.map((r, idx) => {
+    const perc = isPPA ? Number(r.percAtribuido || 0) : (Number(r.criadas || 0) > 0 ? (Number(r.atribuidas || 0) / Number(r.criadas || 0)) * 100 : 0);
+    const pend = isPPA ? `${r.faltaAtribuir}h` : (Number(r.criadas || 0) - Number(r.atribuidas || 0));
+    const atri = isPPA ? `${r.cargaAtribuida}h` : Number(r.atribuidas || 0);
+    const valMain = isPPA ? Number(r.magisterio || 0) : Number(r.criadas || 0);
+    const barColor = perc >= 100 ? 'var(--neon-green)' : (perc >= 50 ? 'var(--neon-yellow)' : 'var(--neon-pink)');
+    const statusText = perc >= 100 ? 'IDEAL' : (perc >= 50 ? 'MÍNIMO' : 'CRÍTICO');
+    const statusClass = perc >= 100 ? 'bg-success-subtle text-success' : (perc >= 50 ? 'bg-warning-subtle text-warning' : 'bg-danger-subtle text-danger');
+    const detailId = `detail-${projId}-${idx}`;
+    const tbodyId = `detail-body-${projId}-${idx}`;
+
+    const lazy = !!r.lazyDetails && !(r.details && r.details.length);
+    const detailsHtml = _renderDetalhesRowsTurmas(r.details || [], lazy);
+
+    const botaoAtribuir = podeAtribuir && Number(r.faltaAtribuir || 0) > 0
+      ? `<td class="text-center align-middle"><button class="btn btn-atribuir-vip btn-sm fw-bold" onclick="abrirModalAtribuicaoPPA(${idx});event.stopPropagation();"><i class="bi bi-person-plus-fill me-1"></i>Atribuir</button></td>`
+      : podeAtribuir ? `<td class="text-center align-middle"><span class="badge bg-success-subtle text-success border">Completo</span></td>` : '';
+
+    return `
+      <tr class="main-row" ${isGenerico ? `onmouseenter="preAquecerDetalhesTurmas(${idx})"` : ''} onclick="toggleRow(${idx})">
+        <td><div class="unit-name">${escapeHtml(r.unit)}</div><div class="badge bg-light text-dark border mt-1">${escapeHtml(r.period)}</div></td>
+        <td class="text-center align-middle"><span class="fs-4 fw-bold text-primary">${valMain}</span></td>
+        <td class="align-middle">
+          <div class="bloco-info w-100">
+            <div class="d-flex justify-content-between mb-1">
+              <span class="small">Atribuído: <b>${atri}</b></span>
+              <span class="small" style="color:var(--neon-pink);">Faltam: <b>${pend}</b></span>
+            </div>
+            <div class="progress"><div class="progress-bar" style="width:${Math.min(perc, 100)}%;background:${barColor}!important;"></div></div>
+          </div>
+        </td>
+        <td class="text-center align-middle"><div class="p-2 border rounded ${statusClass} fw-bold small">${statusText}</div></td>
+        ${botaoAtribuir}
+      </tr>
+      <tr id="${detailId}" class="detail-row d-none">
+        <td colspan="${podeAtribuir ? 5 : 4}" class="p-3">
+          <div class="detail-box table-responsive">
+            <table class="table table-sm small m-0">
+              <thead class="table-light">
+                <tr><th>Disciplina</th><th class="text-center">Turma</th><th>Professor</th><th class="text-center">Código</th><th class="text-center">Situação</th><th class="text-center">Carga</th></tr>
+              </thead>
+              <tbody id="${tbodyId}">${detailsHtml}</tbody>
+            </table>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function toggleRow(idx) {
+  const id = `detail-${_projetoSeguroId(currentProject)}-${idx}`;
+  const r = document.getElementById(id);
+  if (!r) return;
+
+  r.classList.toggle('d-none');
+
+  if (!r.classList.contains('d-none') && _isProjetoDisciplina(currentProject)) {
+    carregarDetalhesTurmasDisciplina(idx);
+  }
+}
+
+function _chaveDetalheTurmas(idx) {
+  const row = _dadosProjetoTurmas()[idx];
+  if (!row) return '';
+  return ['det_turmas_front_v2', _disciplinaDoProjeto(currentProject), row.unit, row.period].join('|');
+}
+
+function preAquecerDetalhesTurmas(idx) {
+  if (!_isProjetoDisciplina(currentProject)) return;
+  const row = _dadosProjetoTurmas()[idx];
+  if (!row || row._detalhesCarregando || row._detalhesCarregados) return;
+
+  const chave = _chaveDetalheTurmas(idx);
+  _preload(
+    chave,
+    cb => google.script.run
+      .withSuccessHandler(r => cb(r))
+      .withFailureHandler(err => { console.error('Detalhes turmas:', err); cb({ ok: false, details: [] }); })
+      .getDetalhesTurmasDisciplina(_disciplinaDoProjeto(currentProject), row.unit, row.period),
+    12
+  );
+}
+
+function carregarDetalhesTurmasDisciplina(idx) {
+  const row = _dadosProjetoTurmas()[idx];
+  if (!row || row._detalhesCarregados) return;
+
+  const projId = _projetoSeguroId(currentProject);
+  const tbody = document.getElementById(`detail-body-${projId}-${idx}`);
+  const chave = _chaveDetalheTurmas(idx);
+
+  if (tbody) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center p-3 text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Carregando detalhes…</td></tr>`;
+  }
+
+  row._detalhesCarregando = true;
+
+  _withCache(
+    chave,
+    cb => google.script.run
+      .withSuccessHandler(r => cb(r))
+      .withFailureHandler(err => { console.error('Detalhes turmas:', err); cb({ ok: false, details: [] }); })
+      .getDetalhesTurmasDisciplina(_disciplinaDoProjeto(currentProject), row.unit, row.period),
+    res => {
+      row._detalhesCarregando = false;
+      row._detalhesCarregados = true;
+      row.lazyDetails = false;
+      row.details = (res && res.ok) ? (res.details || []) : [];
+
+      if (tbody) tbody.innerHTML = _renderDetalhesRowsTurmas(row.details, false);
+    }
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// ATRIBUIÇÃO PPA (modo VIP)
+// ═══════════════════════════════════════════════════════════
+function abrirModalAtribuicaoPPA(idx) {
+  if (modoApp !== 'atribuicao' || !(isVIP || isAtribuicao) || currentProject !== 'PPA') {
+    alert('Atribuição disponível apenas para usuários autorizados no modo atribuição.');
+    return;
+  }
+
+  const row = (rawData.ppa || [])[idx];
+  if (!row) return alert('Não foi possível localizar a unidade selecionada.');
+
+  window.atribuicaoSelecionada = {
+    idx,
+    unidade: row.unit,
+    periodo: row.period,
+    faltaAtribuir: Number(row.faltaAtribuir || 0),
+    details: row.details || []
+  };
+
+  window._turmasPPASemProfessorCache = [];
+
+  document.getElementById('unidadeModalText').innerText = window.atribuicaoSelecionada.unidade;
+  document.getElementById('periodoModalText').innerText = window.atribuicaoSelecionada.periodo;
+  document.getElementById('limiteModalText').innerText = window.atribuicaoSelecionada.faltaAtribuir + 'h';
+  document.getElementById('inputCodigoProfessor').value = '';
+  document.getElementById('inputQtdTurmas').value = 1;
+  document.getElementById('inputCargaTotal').value = window.atribuicaoSelecionada.faltaAtribuir || 12;
+
+  const tipoNova = document.getElementById('tipoAtribNova');
+  if (tipoNova) tipoNova.checked = true;
+  alternarTipoAtribuicaoPPA();
+
+  const lista = document.getElementById('listaTurmasPPAExistentes');
+  if (lista) lista.innerHTML = '<div class="text-muted small p-2">Selecione essa opção para carregar as turmas disponíveis.</div>';
+
+  new bootstrap.Modal(document.getElementById('modalAtribuicao')).show();
+}
+
+function confirmarAtribuicao() {
+  const tipo = document.querySelector('input[name="tipoAtribuicaoPPA"]:checked')?.value || 'nova';
+
+  if (tipo === 'existente') {
+    confirmarAtribuicaoPPAExistente();
+    return;
+  }
+
+  confirmarCriacaoNovaTurmaPPA();
+}
+
+function confirmarCriacaoNovaTurmaPPA() {
+  if (!window.atribuicaoSelecionada) return alert('Nenhuma unidade selecionada.');
+
+  const codigo = String(document.getElementById('inputCodigoProfessor').value || '').trim();
+  const qtdTurmas = parseInt(document.getElementById('inputQtdTurmas').value, 10) || 0;
+  const cargaTotal = parseFloat(String(document.getElementById('inputCargaTotal').value).replace(',', '.')) || 0;
+
+  if (!codigo) return alert('Informe o código do professor.');
+  if (!qtdTurmas || qtdTurmas < 1) return alert('Informe a quantidade de turmas.');
+  if (!cargaTotal || cargaTotal <= 0) return alert('Informe a carga total.');
+
+  if (window.atribuicaoSelecionada.faltaAtribuir > 0 && cargaTotal > window.atribuicaoSelecionada.faltaAtribuir) {
+    if (!confirm('A carga informada é maior que o saldo disponível. Continuar?')) return;
+  }
+
+  const turmasMagisterio = (window.atribuicaoSelecionada.details || [])
+    .filter(det => String(det.disc || '').toUpperCase().indexOf('MAGISTERIO II') !== -1)
+    .map(det => det.turma)
+    .filter(Boolean);
+
+  const turmasSelecionadas = [];
+  for (let i = 0; i < qtdTurmas; i++) {
+    turmasSelecionadas.push(turmasMagisterio[i] || ('PPA ' + window.atribuicaoSelecionada.periodo + ' - Turma ' + (i + 1)));
+  }
+
+  const cargaPorTurma = Math.round((cargaTotal / qtdTurmas) * 100) / 100;
+  const btnSalvar = document.getElementById('btnSalvar');
+  const textoOriginal = btnSalvar ? btnSalvar.innerHTML : '';
+
+  if (btnSalvar) {
+    btnSalvar.disabled = true;
+    btnSalvar.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Salvando...';
+  }
+
+  google.script.run
+    .withSuccessHandler((res) => {
+      if (btnSalvar) {
+        btnSalvar.disabled = false;
+        btnSalvar.innerHTML = textoOriginal;
+      }
+      const modal = bootstrap.Modal.getInstance(document.getElementById('modalAtribuicao'));
+      if (modal) modal.hide();
+      alert((res && res.message) || 'Atribuição salva com sucesso.');
+      atualizarDados();
+    })
+    .withFailureHandler(err => {
+      if (btnSalvar) {
+        btnSalvar.disabled = false;
+        btnSalvar.innerHTML = textoOriginal;
+      }
+      alert('Erro ao salvar: ' + (err?.message || err));
+    })
+    .salvarNovaAtribuicaoPPA(window.atribuicaoSelecionada.unidade, window.atribuicaoSelecionada.periodo, codigo, turmasSelecionadas, cargaPorTurma);
+}
+
+function alternarTipoAtribuicaoPPA() {
+  const tipo = document.querySelector('input[name="tipoAtribuicaoPPA"]:checked')?.value || 'nova';
+  const painelNova = document.getElementById('painelAtribNova');
+  const painelExistente = document.getElementById('painelAtribExistente');
+  const boxQtd = document.getElementById('boxQtdTurmasNova');
+
+  if (painelNova) painelNova.classList.toggle('d-none', tipo !== 'nova');
+  if (painelExistente) painelExistente.classList.toggle('d-none', tipo !== 'existente');
+  if (boxQtd) boxQtd.classList.toggle('d-none', tipo !== 'nova');
+
+  if (tipo === 'existente') {
+    carregarTurmasPPASemProfessorModal();
+  }
+}
+
+function carregarTurmasPPASemProfessorModal() {
+  if (!window.atribuicaoSelecionada) {
+    alert('Nenhuma unidade selecionada.');
+    return;
+  }
+
+  const unidade = window.atribuicaoSelecionada.unidade;
+  const periodo = window.atribuicaoSelecionada.periodo;
+  const box = document.getElementById('listaTurmasPPAExistentes');
+
+  if (!box) return;
+
+  box.innerHTML = `
+    <div class="text-muted small p-3">
+      <span class="spinner-border spinner-border-sm me-2"></span>
+      Buscando turmas PPA sem professor...
+    </div>
+  `;
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (!res || !res.ok || !res.turmas || !res.turmas.length) {
+        window._turmasPPASemProfessorCache = [];
+        box.innerHTML = `
+          <div class="alert alert-info small m-0">
+            Nenhuma turma PPA sem professor encontrada para esta unidade/período.
+          </div>
+        `;
+        return;
+      }
+
+      window._turmasPPASemProfessorCache = res.turmas;
+
+      box.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2 small text-muted">
+          <span>${res.turmas.length} turma(s) disponível(is)</span>
+          <button type="button" class="btn btn-sm btn-link p-0" onclick="selecionarTodasTurmasPPAExistentes(true)">Selecionar todas</button>
+        </div>
+        <div class="d-grid gap-2">
+          ${res.turmas.map(function(t, idx) {
+            const cargaTxt = t.carga ? `${t.carga}h` : 'carga não informada';
+            return `
+              <label class="p-2 rounded-3 border bg-white d-flex align-items-center gap-2" style="cursor:pointer;">
+                <input type="checkbox"
+                       class="form-check-input m-0 chkTurmaPPAExistente"
+                       data-idx="${idx}"
+                       onchange="atualizarCargaTotalExistente()">
+                <span style="min-width:0;">
+                  <b class="text-primary">${escapeHtml(t.turmaNome || t.turma)}</b>
+                  <small class="text-muted d-block">
+                    ${escapeHtml(t.periodo || periodo)} · ${escapeHtml(t.status || 'Sem professor')} · ${escapeHtml(cargaTxt)}
+                  </small>
+                </span>
+              </label>
+            `;
+          }).join('')}
+        </div>
+      `;
+    })
+    .withFailureHandler(function(err) {
+      box.innerHTML = `
+        <div class="alert alert-danger small m-0">
+          Erro ao buscar turmas: ${escapeHtml(err?.message || err)}
+        </div>
+      `;
+    })
+    .listarTurmasPPASemProfessor(unidade, periodo);
+}
+
+function selecionarTodasTurmasPPAExistentes(checked) {
+  document.querySelectorAll('.chkTurmaPPAExistente').forEach(chk => {
+    chk.checked = !!checked;
+  });
+  atualizarCargaTotalExistente();
+}
+
+function atualizarCargaTotalExistente() {
+  const turmas = window._turmasPPASemProfessorCache || [];
+  let total = 0;
+  let qtd = 0;
+
+  document.querySelectorAll('.chkTurmaPPAExistente:checked').forEach(function(chk) {
+    const idx = Number(chk.getAttribute('data-idx'));
+    const t = turmas[idx];
+    if (t) {
+      qtd++;
+      total += Number(t.carga || 0);
+    }
+  });
+
+  const inputQtd = document.getElementById('inputQtdTurmas');
+  const inputCarga = document.getElementById('inputCargaTotal');
+
+  if (inputQtd) inputQtd.value = qtd || 1;
+  if (inputCarga && total > 0) inputCarga.value = total;
+}
+
+function confirmarAtribuicaoPPAExistente() {
+  if (!window.atribuicaoSelecionada) return alert('Nenhuma unidade selecionada.');
+
+  const codigo = String(document.getElementById('inputCodigoProfessor').value || '').trim();
+  if (!codigo) return alert('Informe o código funcional.');
+
+  const selecionadas = [];
+  document.querySelectorAll('.chkTurmaPPAExistente:checked').forEach(function(chk) {
+    const idx = Number(chk.getAttribute('data-idx'));
+    const turma = (window._turmasPPASemProfessorCache || [])[idx];
+    if (turma) selecionadas.push(turma);
+  });
+
+  if (!selecionadas.length) return alert('Selecione pelo menos uma turma PPA existente.');
+
+  const cargaTotal = parseFloat(String(document.getElementById('inputCargaTotal').value || '0').replace(',', '.')) || 0;
+  const cargaPorTurma = selecionadas.length ? Math.round((cargaTotal / selecionadas.length) * 100) / 100 : 0;
+
+  const btnSalvar = document.getElementById('btnSalvar');
+  const textoOriginal = btnSalvar ? btnSalvar.innerHTML : '';
+
+  if (btnSalvar) {
+    btnSalvar.disabled = true;
+    btnSalvar.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Salvando...';
+  }
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (btnSalvar) {
+        btnSalvar.disabled = false;
+        btnSalvar.innerHTML = textoOriginal;
+      }
+      const modal = bootstrap.Modal.getInstance(document.getElementById('modalAtribuicao'));
+      if (modal) modal.hide();
+      alert((res && res.message) || 'Atribuição salva com sucesso.');
+      atualizarDados();
+    })
+    .withFailureHandler(function(err) {
+      if (btnSalvar) {
+        btnSalvar.disabled = false;
+        btnSalvar.innerHTML = textoOriginal;
+      }
+      alert('Erro: ' + (err?.message || err));
+    })
+    .salvarAtribuicaoTurmaPPAExistente({
+      unidade: window.atribuicaoSelecionada.unidade,
+      periodo: window.atribuicaoSelecionada.periodo,
+      codigoFuncional: codigo,
+      cargaPorTurma: cargaPorTurma,
+      turmas: selecionadas
+    });
+}
+
+// ═══════════════════════════════════════════════════════════
+// RELATÓRIO SALDO PPA
+// ═══════════════════════════════════════════════════════════
+function abrirRelatorioSaldo() {
+  const lista = (rawData?.ppa || []).filter(r => Number(r.faltaAtribuir || 0) > 0);
+  const tbody = document.getElementById('tbodyRelatorioSaldo');
+  if (!tbody) return;
+
+  if (!lista.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4">Todas as unidades estão completas.</td></tr>`;
+  } else {
+    tbody.innerHTML = lista.map(r => `
+      <tr>
+        <td>${escapeHtml(r.unit)}</td>
+        <td class="text-center"><span class="badge bg-primary">${escapeHtml(r.period)}</span></td>
+        <td>PROJ. PROF. ALFABETIZADOR</td>
+        <td class="text-center fw-bold">${Number(r.magisterio || 0) - Math.floor(Number(r.cargaAtribuida || 0) / 12)}</td>
+        <td class="text-center fw-bold text-danger">${escapeHtml(r.faltaAtribuir)}h</td>
+        <td class="text-center"><span class="badge bg-danger">PENDENTE</span></td>
+      </tr>`).join('');
+  }
+
+  const total = lista.reduce((s, r) => s + Number(r.faltaAtribuir || 0), 0);
+  document.getElementById('totalSaldoTexto').innerText = `Total a atribuir: ${total}h em ${lista.length} unidades`;
+  new bootstrap.Modal(document.getElementById('modalRelatorioSaldo')).show();
+}
+
+function copiarRelatorio() {
+  const linhas = [...document.querySelectorAll('#tbodyRelatorioSaldo tr')].map(tr => {
+    return [...tr.children].map(td => td.innerText.trim()).join('\t');
+  }).join('\n');
+  navigator.clipboard.writeText('Unidade\tPeríodo\tDisciplina\tTurmas\tCarga\tStatus\n' + linhas);
+  alert('Relatório copiado para a área de transferência.');
+}
+
+async function baixarRelatorioExcel() {
+  if (typeof ExcelJS === 'undefined') {
+    alert('Biblioteca Excel não carregada.');
+    return;
+  }
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Saldo PPA');
+  ws.addRow(['Unidade', 'Período', 'Disciplina', 'Turmas a Criar', 'Carga', 'Status']);
+  ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF002B5E' } };
+  ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+
+  [...document.querySelectorAll('#tbodyRelatorioSaldo tr')].forEach(tr => {
+    ws.addRow([...tr.children].map(td => td.innerText.trim()));
+  });
+
+  ws.columns.forEach(col => { col.width = 22; });
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'Saldo_PPA_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>

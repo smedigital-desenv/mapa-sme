@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Elefante Letrado | SME Ribeirão Preto</title>
+
+  <!-- Bootstrap + Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐘</text></svg>">
+  <!-- Chart.js + SheetJS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    /* ── Variáveis (mesmo padrão do index.html) ────────── */
+    :root {
+      --primary:    #002b5e;
+      --neon-blue:  #00e5ff;
+      --neon-pink:  #FF007F;
+      --neon-green: #39FF14;
+    }
+
+    body {
+      background: #f0f4f8;
+      font-family: 'Inter', 'Segoe UI', sans-serif;
+      padding-bottom: 60px;
+    }
+
+    /* ── Header ────────────────────────────────────────── */
+    .nav-header {
+      background: var(--primary);
+      color: white;
+      border-bottom: 5px solid var(--neon-blue);
+      padding: .95rem 1.6rem;
+      position: sticky;
+      top: 0;
+      z-index: 1020;
+      box-shadow: 0 6px 18px rgba(0,43,94,.18);
+    }
+    .brand-icon {
+      width: 34px; height: 34px;
+      display: grid; place-items: center;
+      color: var(--neon-blue);
+      font-size: 1.4rem;
+      filter: drop-shadow(0 0 6px rgba(0,229,255,.55));
+    }
+
+    /* ── KPIs ──────────────────────────────────────────── */
+    .card-kpi {
+      background: white; border-radius: 12px;
+      padding: 1.2rem;
+      box-shadow: 0 4px 15px rgba(0,0,0,.05);
+      height: 100%;
+    }
+    .kpi-val   { font-size: 1.6rem; font-weight: 900; line-height: 1.1; }
+    .label-mini {
+      font-size: .7rem; font-weight: 800; color: #64748b;
+      text-transform: uppercase; letter-spacing: .04em;
+    }
+
+    /* ── Gráficos ───────────────────────────────────────── */
+    .chart-container {
+      background: white; border-radius: 15px; padding: 1.2rem;
+      box-shadow: 0 4px 15px rgba(0,0,0,.05); margin-bottom: 20px;
+    }
+    .chart-canvas-wrapper { position: relative; height: 300px; width: 100%; }
+
+    /* ── Tabela ─────────────────────────────────────────── */
+    .table-container {
+      background: white; border-radius: 15px; padding: 1.5rem;
+      box-shadow: 0 4px 15px rgba(0,0,0,.05);
+    }
+
+    /* ── Chips de engajamento — cores vivas do padrão MAPA ─ */
+    .el-chip {
+      display: inline-flex; align-items: center;
+      font-size: .68rem; font-weight: 900;
+      padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+    }
+    .el-chip-alto  { background: #10B981; color: #fff; }
+    .el-chip-medio { background: #F59E0B; color: #fff; }
+    .el-chip-baixo { background: #FF007F; color: #fff; }
+    .el-chip-zero  { background: #94a3b8; color: #fff; }
+
+    /* ── Dropzone ───────────────────────────────────────── */
+    .el-dropzone {
+      border: 2px dashed #cbd5e1; border-radius: 12px;
+      padding: 28px 20px; text-align: center;
+      cursor: pointer; transition: .2s; background: white;
+    }
+    .el-dropzone:hover, .el-dropzone.dragover {
+      border-color: var(--primary); background: #f0f4ff;
+    }
+
+    /* ── Toggle visão ───────────────────────────────────── */
+    .btn-toggle-visao {
+      border: 2px solid var(--neon-blue); color: white;
+      font-weight: 700; border-radius: 8px;
+      transition: .3s; background: transparent;
+      font-size: .78rem; padding: 5px 14px;
+    }
+    .btn-toggle-visao.active {
+      background: var(--neon-blue); color: var(--primary);
+      box-shadow: 0 0 12px var(--neon-blue);
+    }
+
+    /* ── Loading ────────────────────────────────────────── */
+    .loading-soft {
+      color: #64748b; font-size: .85rem;
+    }
+
+    /* ── Agrupamento por escola na visão turmas ─────────── */
+    .el-grp-header {
+      background: #f0f4ff;
+      border-left: 4px solid #002b5e;
+    }
+    .el-grp-header:hover { background: #e6ecff !important; }
+    .el-grp-row { background: white; }
+    .el-grp-row td:first-child { border-left: 4px solid #e2e8f0; }
+
+    /* ── Responsive ─────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .nav-header { padding: .75rem 1rem; }
+      .kpi-val    { font-size: 1.3rem; }
+      .chart-canvas-wrapper { height: 220px !important; }
+      .table-container { padding: 1rem; }
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- ══════════════════════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════════════════════ -->
+<header class="nav-header">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+
+    <div class="d-flex align-items-center gap-2">
+      <div class="brand-icon"><i class="bi bi-book-fill"></i></div>
+      <div>
+        <h5 class="m-0 fw-900">Elefante Letrado</h5>
+        <div style="font-size:.63rem;color:rgba(255,255,255,.68);font-weight:800;
+                    letter-spacing:.08em;text-transform:uppercase;">
+          SME Ribeirão Preto
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-sm btn-success d-flex align-items-center gap-2 shadow-sm"
+            onclick="abrirImport()">
+      <i class="bi bi-cloud-arrow-up-fill"></i>Importar planilha
+    </button>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════════════════
+     MAIN
+══════════════════════════════════════════════════════════ -->
+<main class="container-fluid p-3 p-md-4" style="max-width:1600px;margin:0 auto;">
+
+  <!-- ── KPIs + Donut lado a lado ─────────────────────────── -->
+  <div class="row g-3 mb-4 align-items-stretch">
+
+    <!-- Donut -->
+    <div class="col-12 col-md-4">
+      <div class="chart-container h-100 text-center">
+        <h6 class="fw-bold mb-1 text-muted">
+          <i class="bi bi-pie-chart-fill me-2 text-primary"></i>Situação da Rede
+        </h6>
+        <div class="text-muted mb-3" style="font-size:.7rem;">
+          Clique em um setor para ver as escolas
+        </div>
+        <div style="position:relative;height:220px;"><canvas id="elPieChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="col-12 col-md-8">
+      <div class="row g-3 h-100" id="elKpis">
+        <div class="col-12 d-flex align-items-center justify-content-center">
+          <div class="spinner-border spinner-border-sm text-muted"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Visão principal ────────────────────────────────── -->
+  <div id="viewPrincipal">
+
+    <div class="table-container">
+
+      <!-- Linha 1: título + mês + botões -->
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+        <h5 class="fw-bold m-0 text-primary">
+          <i class="bi bi-list-task me-2"></i>Escolas e Turmas
+        </h5>
+        <div class="d-flex align-items-center gap-3">
+          <span id="elContador"
+                class="badge bg-primary bg-opacity-10 text-primary fw-bold px-3 py-2"></span>
+
+          <!-- Seletor de mês -->
+          <div class="d-flex align-items-center gap-2"
+               style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:5px 12px;">
+            <i class="bi bi-calendar3 text-muted" style="font-size:.8rem;"></i>
+            <select id="elMesFiltro" class="border-0 bg-transparent fw-bold p-0"
+                    style="font-size:.82rem;color:#002b5e;outline:none;cursor:pointer;"
+                    onchange="trocarMes()">
+              <option>Carregando…</option>
+            </select>
+          </div>
+
+          <!-- Expandir / Colapsar -->
+          <div class="d-flex gap-1">
+            <button class="btn btn-sm btn-outline-secondary" onclick="expandirTodos()" title="Expandir tudo">
+              <i class="bi bi-arrows-expand"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="colapsarTodos()" title="Colapsar tudo">
+              <i class="bi bi-arrows-collapse"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Linha 2: campo de busca -->
+      <div class="d-flex align-items-center gap-2 mb-3 px-1"
+           style="border-bottom:1.5px solid #e2e8f0;padding-bottom:10px;">
+        <i class="bi bi-search text-muted" style="font-size:.85rem;flex-shrink:0;"></i>
+        <input type="text" id="elBusca"
+               class="form-control border-0 shadow-none p-0"
+               style="font-size:.85rem;color:#334155;background:transparent;"
+               placeholder="Pesquisar escola…" oninput="filtrar()">
+      </div>
+
+      <div class="table-responsive">
+        <table class="table align-middle table-hover">
+          <thead class="table-light"
+                 style="font-size:.75rem;color:#666;text-transform:uppercase;">
+            <tr>
+              <th style="min-width:260px;">Escola / Turma</th>
+              <th class="text-center" style="width:80px;">Turno</th>
+              <th style="min-width:180px;">Professor(es)</th>
+              <th class="text-center" style="width:90px;">Estudantes</th>
+              <th class="text-center" style="width:120px;">Leitores / Livros</th>
+              <th class="text-center" style="width:110px;">Tempo Leitura</th>
+              <th class="text-center" style="width:100px;">Engajamento</th>
+            </tr>
+          </thead>
+          <tbody id="elTbPrincipal"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── Modal lista de escolas por faixa ───────────────── -->
+<div class="modal fade" id="modalFaixa" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width:540px;">
+    <div class="modal-content border-0 shadow-lg" style="border-radius:16px;overflow:hidden;">
+      <div class="modal-header border-0 p-0">
+        <div id="modalFaixaHeader" style="width:100%;padding:16px 22px 12px;border-bottom:3px solid;">
+          <div class="d-flex align-items-center justify-content-between">
+            <div>
+              <div id="modalFaixaTitulo" style="font-weight:900;font-size:1rem;"></div>
+              <div id="modalFaixaSub" style="font-size:.7rem;opacity:.75;margin-top:2px;"></div>
+            </div>
+            <button type="button" class="btn-close" id="modalFaixaClose" data-bs-dismiss="modal"></button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-body p-0">
+        <ul class="list-group list-group-flush" id="modalFaixaLista"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL ESCOLA
+══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalEscola" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg" style="border-radius:18px;overflow:hidden;">
+
+      <!-- Header -->
+      <div class="modal-header border-0 p-0" id="modalEscolaHeader">
+        <div style="background:#002b5e;color:white;width:100%;
+                    padding:18px 24px 14px;border-bottom:3px solid var(--neon-blue);">
+          <div class="d-flex align-items-start justify-content-between gap-3">
+            <div class="d-flex align-items-center gap-3">
+              <div style="width:44px;height:44px;background:rgba(0,229,255,.15);
+                          border-radius:12px;display:grid;place-items:center;flex-shrink:0;">
+                <i class="bi bi-building-fill" style="color:var(--neon-blue);font-size:1.3rem;"></i>
+              </div>
+              <div>
+                <div id="modalEscolaNome" style="font-weight:900;font-size:1.05rem;line-height:1.2;"></div>
+                <div id="modalEscolaSub" style="font-size:.7rem;opacity:.7;font-weight:600;
+                              text-transform:uppercase;letter-spacing:.08em;margin-top:3px;"></div>
+              </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <button class="btn btn-sm d-flex align-items-center gap-2"
+                      style="background:rgba(0,229,255,.15);color:var(--neon-blue);
+                             border:1px solid rgba(0,229,255,.4);border-radius:8px;"
+                      onclick="gerarPDF()">
+                <i class="bi bi-file-earmark-pdf-fill"></i>Gerar PDF
+              </button>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="modal-body p-4" style="background:#f8fafc;" id="modalEscolaBody">
+
+        <!-- KPIs da escola -->
+        <div class="row g-3 mb-4" id="escolaKpis"></div>
+
+        <!-- Alerta turmas zero -->
+        <div id="escolaAlertaZero"></div>
+
+        <!-- Gráfico 1: engajamento por turma -->
+        <div class="chart-container mb-3">
+          <h6 class="fw-bold mb-1" style="font-size:.8rem;color:#64748b;">
+            <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Engajamento por Turma
+          </h6>
+          <p class="text-muted mb-3" style="font-size:.7rem;">
+            % de estudantes leitores por turma ·
+            <span style="color:#EC4899;font-weight:700;">— — média da escola</span> ·
+            <span style="color:#6366F1;font-weight:700;">— — média da rede</span>
+          </p>
+          <div style="position:relative;height:260px;"><canvas id="chartTurmasEngaj"></canvas></div>
+        </div>
+
+        <!-- Gráfico 2: livros lidos por turma -->
+        <div class="chart-container mb-2">
+          <h6 class="fw-bold mb-1" style="font-size:.8rem;color:#64748b;">
+            <i class="bi bi-book me-2 text-primary"></i>Livros Lidos por Turma
+          </h6>
+          <p class="text-muted mb-3" style="font-size:.7rem;">
+            Total de leituras concluídas no período
+          </p>
+          <div style="position:relative;height:260px;"><canvas id="chartTurmasLivros"></canvas></div>
+        </div>
+
+        <!-- Tabela de turmas -->
+        <div class="table-container mt-3">
+          <h6 class="fw-bold mb-3" style="font-size:.82rem;color:#64748b;">
+            <i class="bi bi-list-ul me-2 text-primary"></i>Detalhe por Turma
+          </h6>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle" style="font-size:.78rem;">
+              <thead class="table-light" style="font-size:.68rem;color:#666;text-transform:uppercase;">
+                <tr>
+                  <th>Turma</th>
+                  <th>Professor(es)</th>
+                  <th class="text-center">Turno</th>
+                  <th class="text-center">Estudantes</th>
+                  <th class="text-center">Leitores</th>
+                  <th class="text-center">Livros</th>
+                  <th class="text-center">Tempo</th>
+                  <th class="text-center">Engajamento</th>
+                </tr>
+              </thead>
+              <tbody id="escolaTbTurmas"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- /modal-body -->
+    </div>
+  </div>
+</div>
+
+<!-- CSS de impressão -->
+<style>
+  @media print {
+    body > *                   { display: none !important; }
+    #areaPrint                 { display: block !important; }
+    .modal                     { display: none !important; }
+  }
+</style>
+<div id="areaPrint" style="display:none;"></div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL IMPORTAÇÃO
+══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalImport" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:480px;">
+    <div class="modal-content border-0 shadow-lg" style="border-radius:18px;overflow:hidden;">
+
+      <div class="modal-header border-0 p-0">
+        <div style="background:#002b5e;color:white;width:100%;
+                    padding:18px 24px 14px;border-bottom:3px solid var(--neon-blue);">
+          <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-3">
+              <div style="width:38px;height:38px;background:rgba(0,229,255,.15);
+                          border-radius:10px;display:grid;place-items:center;">
+                <i class="bi bi-cloud-arrow-up-fill"
+                   style="color:var(--neon-blue);font-size:1.2rem;"></i>
+              </div>
+              <div>
+                <div style="font-weight:900;font-size:1rem;">Importar Planilha</div>
+                <div style="font-size:.68rem;opacity:.65;font-weight:600;
+                            text-transform:uppercase;letter-spacing:.08em;">
+                  Elefante Letrado → Supabase
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn-close btn-close-white"
+                    data-bs-dismiss="modal"></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-body p-4" style="background:#f8fafc;">
+
+        <div class="mb-3">
+          <label class="form-label fw-bold text-muted small text-uppercase"
+                 style="letter-spacing:.05em;">Mês de referência</label>
+          <input type="month" id="importMes" class="form-control shadow-sm">
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold text-muted small text-uppercase"
+                 style="letter-spacing:.05em;">Arquivo (.xlsx)</label>
+          <div class="el-dropzone"
+               onclick="document.getElementById('importFile').click()"
+               ondragover="event.preventDefault();this.classList.add('dragover')"
+               ondragleave="this.classList.remove('dragover')"
+               ondrop="dropFile(event)">
+            <i class="bi bi-file-earmark-spreadsheet"
+               style="font-size:2rem;color:var(--primary);opacity:.5;"></i>
+            <div class="mt-2 fw-bold text-muted">Clique ou arraste o arquivo aqui</div>
+            <div class="small text-muted">Apenas .xlsx — mesmo formato do Elefante Letrado</div>
+            <input type="file" id="importFile" accept=".xlsx" style="display:none;"
+                   onchange="selecionarArquivo(this.files[0])">
+          </div>
+          <div id="importArqInfo" class="d-none mt-2 alert alert-success py-2 mb-0">
+            <i class="bi bi-check-circle me-2"></i>
+            <span id="importArqNome"></span>
+          </div>
+        </div>
+
+        <div id="importProgresso" class="d-none">
+          <div class="progress mb-1" style="height:5px;">
+            <div id="importBar"
+                 class="progress-bar progress-bar-striped progress-bar-animated"
+                 style="width:0%;transition:width .3s;"></div>
+          </div>
+          <div id="importMsg" class="small text-muted text-center mt-1"></div>
+        </div>
+
+        <div id="importResultado" class="d-none"></div>
+      </div>
+
+      <div class="modal-footer border-0 bg-white px-4 pb-4 pt-0">
+        <button type="button" class="btn btn-outline-secondary rounded-pill px-4"
+                data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="btnImportar"
+                class="btn btn-primary rounded-pill px-4"
+                onclick="confirmarImport()">
+          <i class="bi bi-cloud-arrow-up me-2"></i>Importar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════════ -->
+<script>
+// ── Config Supabase ────────────────────────────────────────
+const SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk';
+
+// ── Estado ─────────────────────────────────────────────────
+const S = {
+  mesAtual: null,
+  escolas:  [],
+  turmas:   [],
+  visao:    'escolas',
+  barChart: null,
+  pieChart: null,
+  arquivoImport: null,
+};
+
+const MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+// ── Inicialização ──────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const meses = await getMeses();
+    renderSeletorMes(meses);
+    if (meses.length) {
+      S.mesAtual = meses[0];
+      await carregarMes(S.mesAtual);
+    } else {
+      semDados();
+    }
+  } catch (e) {
+    document.getElementById('elKpis').innerHTML =
+      `<div class="col-12"><div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle me-2"></i>${e.message}
+      </div></div>`;
+  }
+});
+
+// ── API Supabase ───────────────────────────────────────────
+async function apiFetch(path) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+  });
+  if (!r.ok) throw new Error(`Supabase ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
+async function apiUpsert(tabela, registros, onConflict) {
+  if (!registros.length) return;
+  const LOTE = 500;
+  for (let i = 0; i < registros.length; i += LOTE) {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/${tabela}?on_conflict=${onConflict.join(',')}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          apikey:          SUPABASE_KEY,
+          Authorization:   `Bearer ${SUPABASE_KEY}`,
+          Prefer:          'resolution=merge-duplicates,return=minimal',
+        },
+        body: JSON.stringify(registros.slice(i, i + LOTE)),
+      }
+    );
+    if (!r.ok) throw new Error(`${tabela} → ${r.status}: ${await r.text()}`);
+  }
+}
+
+async function getMeses() {
+  const d = await apiFetch('elefante_escolas?select=mes_referencia&order=mes_referencia.desc');
+  return [...new Set((d || []).map(r => r.mes_referencia))];
+}
+
+async function getEscolas(mes) {
+  return apiFetch(`elefante_escolas?mes_referencia=eq.${mes}&order=nome_escola.asc`);
+}
+
+async function getTurmas(mes) {
+  return apiFetch(`elefante_turmas?mes_referencia=eq.${mes}&order=livros_lidos.desc`);
+}
+
+// ── Controles ──────────────────────────────────────────────
+async function trocarMes() {
+  const mes = document.getElementById('elMesFiltro').value;
+  if (!mes || mes === S.mesAtual) return;
+  S.mesAtual = mes;
+  await carregarMes(mes);
+}
+
+function filtrar() {
+  const q = document.getElementById('elBusca').value.toLowerCase().trim();
+  renderTabela(q);
+}
+
+function expandirTodos() {
+  document.querySelectorAll('.el-grp-row').forEach(r => r.style.display = '');
+  document.querySelectorAll('.el-grp-icon').forEach(i => i.style.transform = 'rotate(0deg)');
+}
+
+function colapsarTodos() {
+  document.querySelectorAll('.el-grp-row').forEach(r => r.style.display = 'none');
+  document.querySelectorAll('.el-grp-icon').forEach(i => i.style.transform = 'rotate(-90deg)');
+}
+
+// ── Carregamento ───────────────────────────────────────────
+async function carregarMes(mes) {
+  document.getElementById('elKpis').innerHTML = `
+    <div class="col-12 text-center py-4 loading-soft">
+      <div class="spinner-border spinner-border-sm mb-2"></div>
+      <div>Carregando…</div>
+    </div>`;
+
+  const [escolas, turmas] = await Promise.all([getEscolas(mes), getTurmas(mes)]);
+  S.escolas = escolas || [];
+  S.turmas  = turmas  || [];
+
+  renderKpis();
+  renderTabela('');
+  renderGraficos();
+}
+
+function semDados() {
+  document.getElementById('elKpis').innerHTML = '';
+  document.getElementById('elTbPrincipal').innerHTML =
+    '<tr><td colspan="7" class="text-center text-muted py-5">Nenhum dado importado ainda.</td></tr>';
+}
+
+function renderSeletorMes(meses) {
+  const sel = document.getElementById('elMesFiltro');
+  sel.innerHTML = meses.length
+    ? meses.map(m => {
+        const [ano, mes] = m.split('-');
+        return `<option value="${m}">${MESES_PT[+mes-1]}/${ano}</option>`;
+      }).join('')
+    : '<option value="">Nenhum dado</option>';
+}
+
+// ── Tabela principal ───────────────────────────────────────
+function renderTabela(busca) {
+  busca = (busca || '').toLowerCase().trim();
+
+  const escolas = busca
+    ? S.escolas.filter(e => e.nome_escola.toLowerCase().includes(busca))
+    : S.escolas;
+
+  const contador = document.getElementById('elContador');
+  if (contador) contador.textContent = `${escolas.length} escola${escolas.length!==1?'s':''}`;
+
+  if (!escolas.length) {
+    document.getElementById('elTbPrincipal').innerHTML =
+      '<tr><td colspan="7" class="text-center text-muted py-4">Nenhum resultado encontrado.</td></tr>';
+    return;
+  }
+
+  const turmasPorEscola = {};
+  S.turmas.forEach(t => {
+    if (!turmasPorEscola[t.escola]) turmasPorEscola[t.escola] = [];
+    turmasPorEscola[t.escola].push(t);
+  });
+
+  const escolasOrdenadas = [...escolas].sort((a, b) => {
+    const ta = turmasPorEscola[a.nome_escola] || [];
+    const tb = turmasPorEscola[b.nome_escola] || [];
+    const estA = ta.reduce((s,t)=>s+(t.estudantes||0),0), leiA = ta.reduce((s,t)=>s+(t.leitores||0),0);
+    const estB = tb.reduce((s,t)=>s+(t.estudantes||0),0), leiB = tb.reduce((s,t)=>s+(t.leitores||0),0);
+    return (estB>0?leiB/estB:0) - (estA>0?leiA/estA:0);
+  });
+
+  const html = escolasOrdenadas.map((e, gi) => {
+    const grpId   = `grp_${gi}`;
+    const idxReal = S.escolas.indexOf(e);
+    const turmas  = turmasPorEscola[e.nome_escola] || [];
+
+    const totalEstud    = turmas.reduce((s,t)=>s+(t.estudantes||0),0);
+    const totalLeitores = turmas.reduce((s,t)=>s+(t.leitores||0),0);
+    const totalLivros   = turmas.reduce((s,t)=>s+(t.livros_lidos||0),0);
+    const totalSeg      = turmas.reduce((s,t)=>s+(t.tempo_leitura_seg||0),0);
+    const pctEsc        = totalEstud>0 ? Math.round((totalLeitores/totalEstud)*100) : 0;
+    const engajCls = engajChip(pctEsc);
+
+    const linhaEscola = `
+      <tr class="el-grp-header" data-escola-idx="${idxReal}">
+        <td style="font-weight:900;font-size:.83rem;color:#002b5e;padding-left:12px;">
+          <i class="bi bi-chevron-right el-grp-icon" id="icon_${grpId}"
+             style="font-size:.7rem;margin-right:6px;transition:transform .2s;cursor:pointer;"
+             onclick="event.stopPropagation();toggleGrupo('${grpId}')"></i>
+          <span style="cursor:pointer;"
+                onclick="event.stopPropagation();abrirModalEscola(${idxReal})"
+                title="Ver detalhes da escola">${esc(e.nome_escola)}</span>
+          <span class="badge ms-2" style="background:#e0e7ff;color:#3730a3;font-size:.6rem;font-weight:800;vertical-align:middle;">
+            ${turmas.length} turma${turmas.length!==1?'s':''}
+          </span>
+          <i class="bi bi-box-arrow-up-right ms-2 text-primary"
+             style="font-size:.65rem;opacity:.5;cursor:pointer;"
+             onclick="event.stopPropagation();abrirModalEscola(${idxReal})"></i>
+        </td>
+        <td class="text-center text-muted small">—</td>
+        <td class="text-muted small">—</td>
+        <td class="text-center fw-bold">${totalEstud.toLocaleString('pt-BR')}</td>
+        <td class="text-center">
+          <span style="color:#0062ff;font-weight:700;">${totalLeitores.toLocaleString('pt-BR')}</span>
+          <span class="text-muted"> / ${totalLivros.toLocaleString('pt-BR')}</span>
+        </td>
+        <td class="text-center text-muted small">${hms(totalSeg)}</td>
+        <td class="text-center"><span class="el-chip ${engajCls}">${pctEsc>0?pctEsc+'%':'—'}</span></td>
+      </tr>`;
+
+    const linhasTurma = turmas.map(t => {
+      const pct    = t.estudantes>0 ? Math.round((t.leitores/t.estudantes)*100) : 0;
+      const eCls   = engajChip(pct);
+      const turnoBg= t.turno==='MANHA'?'background:#dbeafe;color:#1e40af':'background:#fef9c3;color:#854d0e';
+      return `
+        <tr class="el-grp-row" data-grp="${grpId}" style="display:none;">
+          <td style="padding-left:32px;font-size:.78rem;">
+            <i class="bi bi-arrow-return-right me-1" style="font-size:.65rem;opacity:.3;"></i>
+            <span class="text-muted">${esc(t.ano_escolar)}</span>
+            <strong class="ms-2">${esc(t.turma)}</strong>
+          </td>
+          <td class="text-center">
+            <span class="badge" style="${turnoBg};font-size:.62rem;font-weight:800;">
+              ${t.turno==='MANHA'?'Manhã':t.turno==='TARDE'?'Tarde':esc(t.turno)}
+            </span>
+          </td>
+          <td style="font-size:.72rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+              title="${esc(t.professores)}">${esc(t.professores)||'—'}</td>
+          <td class="text-center small">${t.estudantes||0}</td>
+          <td class="text-center small">
+            <span style="color:#0062ff;font-weight:700;">${t.leitores||0}</span>
+            <span class="text-muted"> / ${(t.livros_lidos||0).toLocaleString('pt-BR')}</span>
+          </td>
+          <td class="text-center text-muted small">${hms(t.tempo_leitura_seg)}</td>
+          <td class="text-center"><span class="el-chip ${eCls}">${pct>0?pct+'%':'—'}</span></td>
+        </tr>`;
+    }).join('');
+
+    return linhaEscola + linhasTurma;
+  }).join('');
+
+  document.getElementById('elTbPrincipal').innerHTML = html;
+}
+
+function toggleGrupo(grpId) {
+  const rows   = document.querySelectorAll(`[data-grp="${grpId}"]`);
+  const icon   = document.getElementById(`icon_${grpId}`);
+  const aberto = rows[0]?.style.display !== 'none';
+  rows.forEach(r => r.style.display = aberto ? 'none' : '');
+  if (icon) icon.style.transform = aberto ? 'rotate(0deg)' : 'rotate(90deg)';
+}
+
+// ── KPIs (6 cards) ─────────────────────────────────────────
+function renderKpis() {
+  const esc    = S.escolas;
+  const turmas = S.turmas;
+  const leituras = esc.reduce((s,e) => s+(e.leituras_concluidas||0), 0);
+  const alunos   = esc.reduce((s,e) => s+(e.estudantes_leitura||0), 0);
+  const horas    = Math.round(esc.reduce((s,e) => s+(e.tempo_total_leitura_seg||0), 0)/3600);
+  const ativas   = esc.filter(e => (e.leituras_concluidas||0) > 0).length;
+  const livros   = turmas.reduce((s,t) => s+(t.livros_lidos||0), 0);
+  const totalEstud = turmas.reduce((s,t) => s+(t.estudantes||0), 0);
+  const totalLeit  = turmas.reduce((s,t) => s+(t.leitores||0), 0);
+  const engajRede  = totalEstud > 0 ? Math.round((totalLeit/totalEstud)*100) : 0;
+
+  const eCor = engajRede>=50?'#10B981':engajRede>=30?'#F59E0B':'#FF007F';
+  const items = [
+    { icon:'bi-book-fill',      cor:'#002b5e', label:'Leituras Concluídas', val:leituras.toLocaleString('pt-BR') },
+    { icon:'bi-journals',       cor:'#6366F1', label:'Livros Lidos',        val:livros.toLocaleString('pt-BR') },
+    { icon:'bi-people-fill',    cor:'#0062ff', label:'Estudantes Ativos',   val:alunos.toLocaleString('pt-BR') },
+    { icon:'bi-clock-fill',     cor:'#7c3aed', label:'Horas de Leitura',    val:`${horas.toLocaleString('pt-BR')}h` },
+    { icon:'bi-building-check', cor:'#059669', label:'Escolas Engajadas',   val:`${ativas} / ${esc.length}` },
+    { icon:'bi-percent',        cor:eCor,      label:'Engajamento da Rede', val:`${engajRede}%` },
+  ];
+
+  document.getElementById('elKpis').innerHTML = items.map(k => `
+    <div class="col-6">
+      <div class="card-kpi d-flex align-items-center gap-3 h-100">
+        <div style="width:40px;height:40px;border-radius:10px;background:${k.cor}18;
+                    display:grid;place-items:center;flex-shrink:0;">
+          <i class="bi ${k.icon}" style="color:${k.cor};font-size:1.1rem;"></i>
+        </div>
+        <div>
+          <div class="kpi-val" style="color:${k.cor};font-size:1.2rem;">${k.val}</div>
+          <div class="label-mini">${k.label}</div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ── Gráfico donut clicável ──────────────────────────────────
+function renderGraficos() {
+  if (S.pieChart) { S.pieChart.destroy(); S.pieChart = null; }
+  if (S.barChart) { S.barChart.destroy(); S.barChart = null; }
+
+  const escolas = S.escolas;
+  if (!escolas.length) return;
+
+  const tpe = {};
+  S.turmas.forEach(t => {
+    if (!tpe[t.escola]) tpe[t.escola] = { leitores:0, estudantes:0 };
+    tpe[t.escola].leitores   += t.leitores   || 0;
+    tpe[t.escola].estudantes += t.estudantes || 0;
+  });
+
+  const comEngaj = escolas.map(e => {
+    const tp  = tpe[e.nome_escola] || { leitores:0, estudantes:0 };
+    const pct = tp.estudantes > 0 ? Math.round((tp.leitores/tp.estudantes)*100) : 0;
+    return { nome: e.nome_escola, pct };
+  });
+
+  const mediaEngaj = Math.round(comEngaj.reduce((s,e)=>s+e.pct,0)/comEngaj.length);
+
+  const FAIXAS = [
+    { label:'Zero leituras',   cor:'#FF007F', escolas: comEngaj.filter(e=>e.pct===0) },
+    { label:'Abaixo da média', cor:'#F59E0B', escolas: comEngaj.filter(e=>e.pct>0 && e.pct<mediaEngaj-3) },
+    { label:'Na média',        cor:'#3B82F6', escolas: comEngaj.filter(e=>e.pct>=mediaEngaj-3 && e.pct<=mediaEngaj+3) },
+    { label:'Acima da média',  cor:'#10B981', escolas: comEngaj.filter(e=>e.pct>mediaEngaj+3) },
+  ];
+  S._faixas     = FAIXAS;
+  S._mediaEngaj = mediaEngaj;
+
+  const ctxPie = document.getElementById('elPieChart')?.getContext('2d');
+  if (!ctxPie) return;
+
+  S.pieChart = new Chart(ctxPie, {
+    type: 'doughnut',
+    data: {
+      labels:   FAIXAS.map(f => f.label),
+      datasets: [{
+        data:            FAIXAS.map(f => f.escolas.length),
+        backgroundColor: FAIXAS.map(f => f.cor),
+        borderColor:     '#fff',
+        borderWidth:     3,
+        hoverOffset:     10,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '58%',
+      plugins: {
+        legend: { position:'bottom', labels:{ font:{size:10,weight:'700'}, padding:12 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} escola${ctx.raw!==1?'s':''}` } },
+      },
+      onClick: (_evt, elements) => {
+        if (elements.length) abrirModalFaixa(elements[0].index);
+      },
+    },
+  });
+}
+
+// ── Modal de faixa de escolas ──────────────────────────────
+function abrirModalFaixa(idx) {
+  const faixa = S._faixas?.[idx];
+  if (!faixa) return;
+
+  const CORES_BG = { '#FF007F':'#fff0f5', '#F59E0B':'#fffbeb', '#3B82F6':'#eff6ff', '#10B981':'#f0fdf4' };
+  const hdr = document.getElementById('modalFaixaHeader');
+  if (hdr) {
+    hdr.style.background    = CORES_BG[faixa.cor] || '#f8fafc';
+    hdr.style.borderColor   = faixa.cor;
+    hdr.style.color         = '#1e293b';
+  }
+  const closeBtn = document.getElementById('modalFaixaClose');
+  if (closeBtn) closeBtn.style.filter = 'none';
+
+  document.getElementById('modalFaixaTitulo').textContent = faixa.label;
+  document.getElementById('modalFaixaSub').textContent =
+    `${faixa.escolas.length} escola${faixa.escolas.length!==1?'s':''} · média da rede: ${S._mediaEngaj}%`;
+
+  const lista = document.getElementById('modalFaixaLista');
+  lista.innerHTML = faixa.escolas.length
+    ? faixa.escolas
+        .sort((a,b) => b.pct - a.pct)
+        .map(e => {
+          const idxReal = S.escolas.findIndex(x => x.nome_escola === e.nome);
+          return `
+            <li class="list-group-item d-flex justify-content-between align-items-center px-4 py-3"
+                style="cursor:pointer;border-left:3px solid ${faixa.cor};"
+                onclick="bootstrap.Modal.getInstance(document.getElementById('modalFaixa'))?.hide();
+                         setTimeout(()=>abrirModalEscola(${idxReal}),300);">
+              <span style="font-size:.82rem;font-weight:700;">${esc(e.nome)}</span>
+              <span class="el-chip ${engajChip(e.pct)}">
+                ${e.pct>0?e.pct+'%':'—'}
+              </span>
+            </li>`;
+        }).join('')
+    : '<li class="list-group-item text-center text-muted py-4">Nenhuma escola nesta faixa.</li>';
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFaixa')).show();
+}
+
+
+// ── Importação ─────────────────────────────────────────────
+function abrirImport() {
+  S.arquivoImport = null;
+  document.getElementById('importArqInfo').classList.add('d-none');
+  document.getElementById('importProgresso').classList.add('d-none');
+  document.getElementById('importResultado').classList.add('d-none');
+  document.getElementById('importFile').value = '';
+
+  const hoje = new Date();
+  document.getElementById('importMes').value =
+    `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalImport')).show();
+}
+
+function dropFile(ev) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('dragover');
+  const f = ev.dataTransfer?.files?.[0];
+  if (f) selecionarArquivo(f);
+}
+
+function selecionarArquivo(f) {
+  if (!f?.name.endsWith('.xlsx')) { alert('Selecione um arquivo .xlsx'); return; }
+  S.arquivoImport = f;
+  document.getElementById('importArqNome').textContent = f.name;
+  document.getElementById('importArqInfo').classList.remove('d-none');
+}
+
+async function confirmarImport() {
+  if (!S.arquivoImport) { alert('Selecione um arquivo .xlsx primeiro.'); return; }
+  const mesInput = document.getElementById('importMes').value;
+  if (!mesInput) { alert('Informe o mês de referência.'); return; }
+  const mesRef = mesInput + '-01';
+
+  const btn = document.getElementById('btnImportar');
+  const bar = document.getElementById('importBar');
+  const msg = document.getElementById('importMsg');
+  const res = document.getElementById('importResultado');
+
+  btn.disabled = true;
+  document.getElementById('importProgresso').classList.remove('d-none');
+  res.classList.add('d-none');
+
+  try {
+    msg.textContent = 'Lendo planilha…'; bar.style.width = '15%';
+    const { escolas, turmas } = await lerXlsx(S.arquivoImport);
+
+    msg.textContent = 'Enviando escolas…'; bar.style.width = '50%';
+    await apiUpsert('elefante_escolas',
+      escolas.map(e => ({ ...e, mes_referencia: mesRef, arquivo_origem: S.arquivoImport.name })),
+      ['mes_referencia','nome_escola']
+    );
+
+    msg.textContent = 'Enviando turmas…'; bar.style.width = '80%';
+    await apiUpsert('elefante_turmas',
+      turmas.map(t => ({ ...t, mes_referencia: mesRef, arquivo_origem: S.arquivoImport.name })),
+      ['mes_referencia','escola','turma']
+    );
+
+    bar.style.width = '100%';
+    msg.textContent = 'Concluído!';
+    res.innerHTML = `
+      <div class="alert alert-success mt-3 mb-0">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        <strong>Importado com sucesso!</strong><br>
+        <small>${escolas.length} escolas · ${turmas.length} turmas</small>
+      </div>`;
+    res.classList.remove('d-none');
+
+    setTimeout(async () => {
+      bootstrap.Modal.getInstance(document.getElementById('modalImport'))?.hide();
+      const meses = await getMeses();
+      renderSeletorMes(meses);
+      document.getElementById('elMesFiltro').value = mesRef;
+      S.mesAtual = mesRef;
+      await carregarMes(mesRef);
+    }, 1500);
+
+  } catch (e) {
+    res.innerHTML = `<div class="alert alert-danger mt-3 mb-0">
+      <i class="bi bi-x-circle me-2"></i>${e.message}</div>`;
+    res.classList.remove('d-none');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Leitor xlsx (SheetJS) ──────────────────────────────────
+async function lerXlsx(file) {
+  const buf = await file.arrayBuffer();
+  const wb  = XLSX.read(buf, { type:'array' });
+
+  const nE = wb.SheetNames.find(n => n.toLowerCase().includes('escola'));
+  const nT = wb.SheetNames.find(n => n.toLowerCase().includes('turma'));
+  if (!nE) throw new Error('Aba "Por Escola" não encontrada.');
+  if (!nT) throw new Error('Aba "Por Turma" não encontrada.');
+
+  const rawE = XLSX.utils.sheet_to_json(wb.Sheets[nE]);
+  const rawT = XLSX.utils.sheet_to_json(wb.Sheets[nT]);
+
+  const escolas = rawE.map(r => ({
+    nome_escola:             String(r['Nome da Escola']       ||'').trim(),
+    estudantes_leitura:      n(r['Estudantes (Leitura)']),
+    leituras_concluidas:     n(r['Leituras Concluídas']),
+    tempo_medio_leitura_seg: t(r['Tempo Médio de Leitura']),
+    tempo_total_leitura_seg: t(r['Tempo Total de Leitura']),
+    estudantes_escuta:       n(r['Estudantes (Escuta)']),
+    escutas_concluidas:      n(r['Escutas Concluídas']),
+    tempo_medio_escuta_seg:  t(r['Tempo Médio de Escuta']),
+    tempo_total_escuta_seg:  t(r['Tempo Total de Escuta']),
+  })).filter(e => e.nome_escola);
+
+  const turmas = rawT.map(r => ({
+    escola:            String(r['Escola']     ||'').trim(),
+    ano_escolar:       String(r['Ano']        ||'').trim(),
+    turma:             String(r['Turma']       ||'').trim(),
+    turno:             String(r['Turno']       ||'').trim(),
+    tipo:              String(r['Tipo']        ||'').trim(),
+    professores:       String(r['Professores'] ||'').trim(),
+    estudantes:        n(r['Estudantes']),
+    leitores:          n(r['Leitores']),
+    livros_lidos:      n(r['Livros Lidos']),
+    tempo_leitura_seg: t(r['Tempo de Leitura']),
+  })).filter(t => t.escola && t.turma);
+
+  return { escolas, turmas };
+}
+
+// ── Modal da Escola ────────────────────────────────────────
+let _chartTurmasEngaj  = null;
+let _chartTurmasLivros = null;
+
+function abrirModalEscola(idx) {
+  const e = S.escolas[idx];
+  if (!e) { console.error('Escola não encontrada, idx:', idx); return; }
+  const nomeEscola = e.nome_escola;
+
+  const turmas  = S.turmas.filter(t => t.escola === nomeEscola);
+
+  // Usa a média da rede já calculada em renderGraficos (ou recalcula)
+  const mediaRede = S._mediaEngaj || Math.round(
+    [...S.escolas].map(e => {
+      const ts = S.turmas.filter(t => t.escola === e.nome_escola);
+      const est = ts.reduce((s,t)=>s+(t.estudantes||0),0);
+      const lei = ts.reduce((s,t)=>s+(t.leitores||0),0);
+      return est>0 ? (lei/est)*100 : 0;
+    }).reduce((s,p,_,a)=>s+p/a.length, 0)
+  );
+
+  const totalEstud = turmas.reduce((s,t)=>s+(t.estudantes||0),0);
+  const totalLeit  = turmas.reduce((s,t)=>s+(t.leitores||0),0);
+  const totalLivros= turmas.reduce((s,t)=>s+(t.livros_lidos||0),0);
+  const totalSeg   = turmas.reduce((s,t)=>s+(t.tempo_leitura_seg||0),0);
+  const engajEsc   = totalEstud > 0 ? Math.round((totalLeit/totalEstud)*100) : 0;
+  const mediaLivros= totalEstud > 0 ? (totalLivros/totalEstud).toFixed(1) : '—';
+
+  const MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const [ano, mes] = (S.mesAtual||'').split('-');
+  const mesLabel = mes ? `${MESES_PT[+mes-1]}/${ano}` : '';
+
+  // ── Header ────────────────────────────────────────────────
+  document.getElementById('modalEscolaNome').textContent = nomeEscola;
+  document.getElementById('modalEscolaSub').textContent  =
+    `${mesLabel} · ${turmas.length} turmas · média da rede: ${mediaRede}%`;
+
+  // ── KPIs ─────────────────────────────────────────────────
+  const engajCor = engajEsc >= mediaRede ? '#10B981' : engajEsc >= mediaRede*0.6 ? '#F59E0B' : '#FF007F';
+  document.getElementById('escolaKpis').innerHTML = [
+    { icon:'bi-percent',        cor:engajCor,  label:'Engajamento da escola', val:`${engajEsc}%` },
+    { icon:'bi-people-fill',    cor:'#0062ff', label:'Estudantes',            val:totalEstud.toLocaleString('pt-BR') },
+    { icon:'bi-book-fill',      cor:'#002b5e', label:'Livros lidos',          val:totalLivros.toLocaleString('pt-BR') },
+    { icon:'bi-graph-up-arrow', cor:'#7c3aed', label:'Média livros/aluno',    val:mediaLivros },
+  ].map(k=>`
+    <div class="col-6 col-md-3">
+      <div class="card-kpi d-flex align-items-center gap-3">
+        <div style="width:42px;height:42px;border-radius:10px;background:${k.cor}18;
+                    display:grid;place-items:center;flex-shrink:0;">
+          <i class="bi ${k.icon}" style="color:${k.cor};font-size:1.2rem;"></i>
+        </div>
+        <div>
+          <div class="kpi-val" style="color:${k.cor};font-size:1.3rem;">${k.val}</div>
+          <div class="label-mini">${k.label}</div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  // ── Alerta turmas com zero ────────────────────────────────
+  const turmasZero = turmas.filter(t => (t.leitores||0) === 0);
+  document.getElementById('escolaAlertaZero').innerHTML = turmasZero.length
+    ? `<div class="alert alert-warning d-flex gap-2 align-items-start mb-4" style="border-radius:10px;">
+        <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+        <div><strong>${turmasZero.length} turma${turmasZero.length>1?'s':''} sem leituras:</strong>
+        <span class="ms-1">${turmasZero.map(t=>esc(t.turma)).join(', ')}</span></div>
+       </div>` : '';
+
+  // ── Destrói gráficos anteriores ──────────────────────────
+  [_chartTurmasEngaj, _chartTurmasLivros].forEach(c => c?.destroy());
+
+  // Aguarda modal abrir antes de criar gráficos
+  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscola'));
+  modal.show();
+
+  setTimeout(() => {
+    // ── Engajamento por turma: colunas verticais com linhas de referência ──
+    const ctx2 = document.getElementById('chartTurmasEngaj')?.getContext('2d');
+    if (ctx2) {
+      const turmasOrd = [...turmas].sort((a,b) => {
+        const pa = a.estudantes>0 ? a.leitores/a.estudantes : 0;
+        const pb = b.estudantes>0 ? b.leitores/b.estudantes : 0;
+        return pb - pa;
+      });
+      const pcts = turmasOrd.map(t => t.estudantes>0 ? Math.round((t.leitores/t.estudantes)*100) : 0);
+
+      const pluginLinhas = {
+        id: 'linhasRef',
+        afterDraw(chart) {
+          const { ctx: c, scales: { x, y } } = chart;
+          const desenhar = (val, cor, label) => {
+            const yPos = y.getPixelForValue(val);
+            c.save();
+            c.beginPath();
+            c.setLineDash([6,4]);
+            c.strokeStyle = cor;
+            c.lineWidth = 2;
+            c.moveTo(x.left, yPos);
+            c.lineTo(x.right, yPos);
+            c.stroke();
+            c.setLineDash([]);
+            c.fillStyle = cor;
+            c.font = 'bold 9px sans-serif';
+            c.textAlign = 'right';
+            c.fillText(label + ' ' + val + '%', x.right - 4, yPos - 4);
+            c.textAlign = 'left';
+            c.restore();
+          };
+          desenhar(engajEsc, '#EC4899', 'Escola');
+          desenhar(mediaRede, '#6366F1', 'Rede');
+        }
+      };
+
+      _chartTurmasEngaj = new Chart(ctx2, {
+        type: 'bar',
+        data: {
+          labels: turmasOrd.map(t => t.turma),
+          datasets: [{
+            label: 'Engajamento',
+            data:  pcts,
+            backgroundColor: pcts.map(p =>
+              p >= 80 ? '#10B981' :
+              p >= 40 ? '#3B82F6' :
+              p >  0  ? '#F59E0B' : '#FF007F'
+            ),
+            borderRadius: 5,
+            borderSkipped: false,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: ctx => ' ' + ctx.raw + '%',
+                afterLabel: () => [`Escola: ${engajEsc}%`, `Rede: ${mediaRede}%`],
+              },
+            },
+          },
+          scales: {
+            y: { beginAtZero: true, max: 100,
+                 ticks: { callback: v => v+'%', font: {size:9} },
+                 grid: { color: '#f1f5f9' } },
+            x: { ticks: { font: {size:9}, maxRotation: 45 } },
+          },
+        },
+        plugins: [pluginLinhas],
+      });
+    }
+
+    // ── Livros lidos por turma ──────────────────────────────
+    const ctx3 = document.getElementById('chartTurmasLivros')?.getContext('2d');
+    if (ctx3) {
+      const turmasOrd2 = [...turmas].sort((a,b) => (b.livros_lidos||0)-(a.livros_lidos||0));
+      const CORES = ['#6366F1','#3B82F6','#10B981','#F59E0B','#EC4899','#8B5CF6','#06B6D4','#F97316'];
+      _chartTurmasLivros = new Chart(ctx3, {
+        type: 'bar',
+        data: {
+          labels: turmasOrd2.map(t => t.turma),
+          datasets: [{
+            label: 'Livros lidos',
+            data:  turmasOrd2.map(t => t.livros_lidos||0),
+            backgroundColor: turmasOrd2.map((_,i) => CORES[i % CORES.length]),
+            borderRadius: 5,
+            borderSkipped: false,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+            x: { ticks: { font: {size:9}, maxRotation: 45 } },
+          },
+        },
+      });
+    }
+  }, 350);
+
+  // ── Tabela de turmas ──────────────────────────────────────
+  const turmasOrdTabela = [...turmas].sort((a,b)=>{
+    const pa = a.estudantes>0?a.leitores/a.estudantes:0;
+    const pb = b.estudantes>0?b.leitores/b.estudantes:0;
+    return pb-pa;
+  });
+  document.getElementById('escolaTbTurmas').innerHTML = turmasOrdTabela.map(t=>{
+    const pct = t.estudantes>0?Math.round((t.leitores/t.estudantes)*100):0;
+    const cls = engajChip(pct);
+    const tbg = t.turno==='MANHA'?'background:#dbeafe;color:#1e40af':'background:#fef9c3;color:#854d0e';
+    return `
+      <tr>
+        <td class="fw-bold">${esc(t.turma)}</td>
+        <td style="font-size:.72rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+            title="${esc(t.professores)}">${esc(t.professores)||'—'}</td>
+        <td class="text-center">
+          <span class="badge" style="${tbg};font-size:.62rem;font-weight:800;">
+            ${t.turno==='MANHA'?'Manhã':t.turno==='TARDE'?'Tarde':esc(t.turno)}
+          </span>
+        </td>
+        <td class="text-center">${t.estudantes||0}</td>
+        <td class="text-center fw-bold" style="color:#0062ff">${t.leitores||0}</td>
+        <td class="text-center">${(t.livros_lidos||0).toLocaleString('pt-BR')}</td>
+        <td class="text-center text-muted">${hms(t.tempo_leitura_seg)}</td>
+        <td class="text-center"><span class="el-chip ${cls}">${pct>0?pct+'%':'—'}</span></td>
+      </tr>`;
+  }).join('');
+}
+
+// ── PDF via print ──────────────────────────────────────────
+function gerarPDF() {
+  const nome    = document.getElementById('modalEscolaNome').textContent;
+  const sub     = document.getElementById('modalEscolaSub').textContent;
+  const alerta  = document.getElementById('escolaAlertaZero').textContent.trim();
+  const tabela  = document.getElementById('escolaTbTurmas').innerHTML;
+
+  const imgEngaj  = document.getElementById('chartEngajRede')?.toDataURL('image/png') || '';
+  const imgTurmas = document.getElementById('chartTurmasEngaj')?.toDataURL('image/png') || '';
+  const imgLivros = document.getElementById('chartTurmasLivros')?.toDataURL('image/png') || '';
+
+  const agora   = new Date();
+  const dataGer = agora.getDate() + '/' + (agora.getMonth()+1) + '/' + agora.getFullYear();
+
+  // Coleta KPIs como texto simples
+  const kpiEls = document.querySelectorAll('#escolaKpis .card-kpi');
+  let kpisHtml = '';
+  kpiEls.forEach(el => {
+    const val   = el.querySelector('.kpi-val')?.textContent   || '';
+    const label = el.querySelector('.label-mini')?.textContent || '';
+    const cor   = el.querySelector('.kpi-val')?.style?.color  || '#002b5e';
+    kpisHtml += '<div class="kpi"><div class="kpi-val" style="color:' + cor + '">' + val + '</div>'
+              + '<div class="kpi-label">' + label + '</div></div>';
+  });
+
+  const css = [
+    '* { box-sizing:border-box; margin:0; padding:0; }',
+    'body { font-family:Segoe UI,sans-serif; background:white; color:#1e293b; padding:28px; font-size:12px; }',
+    '.hdr { background:#002b5e; color:white; padding:18px 22px; border-radius:10px; margin-bottom:20px; border-bottom:4px solid #00e5ff; display:flex; justify-content:space-between; align-items:flex-end; }',
+    '.hdr h1 { font-size:15px; font-weight:900; margin-bottom:3px; }',
+    '.hdr p  { font-size:9px; opacity:.7; text-transform:uppercase; letter-spacing:.06em; }',
+    '.hdr-data { font-size:9px; opacity:.55; white-space:nowrap; }',
+    '.kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px; }',
+    '.kpi  { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px; }',
+    '.kpi-val   { font-size:18px; font-weight:900; }',
+    '.kpi-label { font-size:8px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }',
+    '.graficos { display:grid; grid-template-columns:1fr 1.4fr; gap:14px; margin-bottom:16px; }',
+    '.gbox { border:1px solid #e2e8f0; border-radius:8px; padding:10px; }',
+    '.gbox h3 { font-size:9px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }',
+    '.gbox img, .gfull img { width:100%; height:auto; }',
+    '.gfull { border:1px solid #e2e8f0; border-radius:8px; padding:10px; margin-bottom:16px; }',
+    '.gfull h3 { font-size:9px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }',
+    'table { width:100%; border-collapse:collapse; font-size:9px; }',
+    'th { background:#f1f5f9; padding:6px 7px; text-align:left; font-size:8px; font-weight:700; color:#64748b; text-transform:uppercase; border-bottom:2px solid #e2e8f0; }',
+    'td { padding:6px 7px; border-bottom:1px solid #f1f5f9; }',
+    '.stitle { font-size:10px; font-weight:800; color:#002b5e; margin-bottom:7px; text-transform:uppercase; letter-spacing:.05em; }',
+    '.warn { background:#fef9c3; border:1px solid #d97706; border-radius:6px; padding:7px 10px; font-size:9px; margin-bottom:14px; }',
+    '.footer { margin-top:20px; font-size:8px; color:#94a3b8; text-align:center; border-top:1px solid #e2e8f0; padding-top:10px; }',
+    '@page { margin:1.4cm; }',
+  ].join('\n');
+
+  const parts = [
+    '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">',
+    '<title>Relatorio - ' + nome + '</title>',
+    '<style>' + css + '</style></head><body>',
+    '<div class="hdr"><div><div style="font-size:9px;opacity:.6;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;">SME Ribeirao Preto - Elefante Letrado</div>',
+    '<h1>' + nome + '</h1><p>' + sub + '</p></div>',
+    '<div class="hdr-data">Gerado em ' + dataGer + '</div></div>',
+    alerta ? '<div class="warn"><strong>Atencao: </strong>' + alerta + '</div>' : '',
+    '<div class="kpis">' + kpisHtml + '</div>',
+    '<div class="graficos">',
+    '<div class="gbox"><h3>Engajamento vs Rede</h3>' + (imgEngaj ? '<img src="' + imgEngaj + '">' : '') + '</div>',
+    '<div class="gbox"><h3>Engajamento por Turma</h3>' + (imgTurmas ? '<img src="' + imgTurmas + '">' : '') + '</div>',
+    '</div>',
+    '<div class="gfull"><h3>Livros Lidos por Turma</h3>' + (imgLivros ? '<img src="' + imgLivros + '">' : '') + '</div>',
+    '<div class="stitle">Detalhe por Turma</div>',
+    '<table><thead><tr><th>Turma</th><th>Professor(es)</th><th>Turno</th><th>Estudantes</th><th>Leitores</th><th>Livros</th><th>Tempo</th><th>Engajamento</th></tr></thead>',
+    '<tbody>' + tabela + '</tbody></table>',
+    '<div class="footer">Sistema MAPA - SME Ribeirao Preto - ' + sub.split('·')[0].trim() + '</div>',
+    '</body></html>',
+  ];
+
+  const janela = window.open('', '_blank');
+  if (!janela) { alert('Permita pop-ups para gerar o PDF.'); return; }
+  janela.document.open();
+  janela.document.write(parts.join(''));
+  janela.document.close();
+  setTimeout(() => janela.print(), 600);
+}
+
+// ── Helpers ────────────────────────────────────────────────
+function hms(seg) {
+  if (!seg) return '—';
+  const h = Math.floor(seg/3600), m = Math.floor((seg%3600)/60);
+  if (h > 0) return `${h}h ${String(m).padStart(2,'0')}min`;
+  if (m > 0) return `${m}min`;
+  return `${seg}s`;
+}
+
+function n(v) { const x = parseFloat(String(v||0).replace(',','.')); return isNaN(x)?0:Math.round(x); }
+
+function t(v) {
+  if (!v && v!==0) return 0;
+  const s = String(v).toLowerCase().replace(/\s+/g,'');
+  if (!s||s==='00s') return 0;
+  const h=s.match(/(\d+)h/), m=s.match(/(\d+)min/), sc=s.match(/(\d+)s/);
+  return (h?+h[1]*3600:0)+(m?+m[1]*60:0)+(sc?+sc[1]:0);
+}
+
+function esc(s) {
+  return String(s??'').replace(/[&<>"']/g,
+    c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function engajChip(pct) {
+  if (!pct || pct === 0) return 'el-chip-zero';
+  const m = S._mediaEngaj || 0;
+  if (m > 0) {
+    if (pct > m + 3)  return 'el-chip-alto';
+    if (pct >= m - 3) return 'el-chip-medio';
+    return 'el-chip-baixo';
+  }
+  // Fallback se a média ainda não foi calculada
+  if (pct >= 80) return 'el-chip-alto';
+  if (pct >= 40) return 'el-chip-medio';
+  return 'el-chip-baixo';
+}
+</script>
+</body>
+</html>

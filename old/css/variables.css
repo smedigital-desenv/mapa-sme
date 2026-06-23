@@ -1,0 +1,37 @@
+/* ============================================================
+   VARIABLES.CSS - Variáveis de Tema (CSS Custom Properties)
+   ============================================================
+   Altere as cores aqui para mudar todo o visual do sistema.
+*/
+
+:root {
+  /* Cores principais (SME Ribeirão Preto) */
+  --mapa-primary: #0d6efd;
+  --mapa-primary-dark: #0a58ca;
+  --mapa-success: #28a745;
+  --mapa-warning: #ffc107;
+  --mapa-danger: #dc3545;
+  --mapa-info: #0dcaf0;
+
+  /* Tons neutros */
+  --mapa-light: #f8f9fa;
+  --mapa-dark: #343a40;
+  --mapa-gray: #6c757d;
+  --mapa-border: #dee2e6;
+
+  /* Fundo */
+  --mapa-bg: #f4f6fb;
+  --mapa-card-bg: #ffffff;
+
+  /* Sombras */
+  --mapa-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --mapa-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --mapa-shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.12);
+
+  /* Espaçamentos */
+  --mapa-radius: 10px;
+  --mapa-radius-sm: 6px;
+
+  /* Tipografia */
+  --mapa-font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}

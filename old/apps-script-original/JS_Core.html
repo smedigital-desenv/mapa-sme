@@ -1,0 +1,853 @@
+<script>
+// ===========================================================
+// JS_Core.html — Estado global + helpers compartilhados
+// Versão final: cache front, fila de preload, cores/legendas e loaders
+// ===========================================================
+
+var rawData = window.rawData || null;
+var currentProject = window.currentProject || 'PPA';
+
+var modoApp      = window.__MODO_APP__      || '';
+var isVIP        = !!window.__IS_VIP__;
+var isAtribuicao = !!window.__IS_ATRIBUICAO__;
+var emailUsuario = window.__EMAIL_USUARIO__ || '';
+
+// ── CONTROLE DE ACESSO POR UNIDADE ──────────────────────────
+// filtroUnidadeEscola : nome da unidade escolar (vazio = acesso total)
+// tipoAcesso          : '' | 'unidade' | 'usuario'
+var filtroUnidadeEscola = (window.__UNIDADE_ESCOLA__ || '').trim();
+var tipoAcesso          = (window.__TIPO_ACESSO__    || '').trim();
+window.filtroUnidadeEscola = filtroUnidadeEscola;
+window.tipoAcesso          = tipoAcesso;
+// ────────────────────────────────────────────────────────────
+
+window.rawData        = rawData;
+window.currentProject = currentProject;
+window.isVIP          = isVIP;
+window.isAtribuicao   = isAtribuicao;
+window.emailUsuario   = emailUsuario;
+
+Chart.register(ChartDataLabels);
+
+let myBarChart = null;
+let myPieChart = null;
+let alunosBarChart = null;
+let alunosPieChart = null;
+let alunosProdChart = null;
+let dynCharts = [];
+let _detalheCharts = [];
+let totalMainChartInst = null;
+
+let currentAlunosViewList = [];
+let avaliacaoCache = {};
+let avaliacaoAtual = 'AnoEscolar';
+
+let bimestreAtualKey = 'primeiroBimestre';
+let bimestreAtualLabel = '1º Bimestre';
+let currentBimestreDisciplina = '';
+
+let totalAvaliacoesCache = [];
+let totalDisciplinaSelecionada = '';
+let totalTipoGrafico = 'bar';
+let totalEixoAtual = 'TODOS';
+
+let anoFiltroAtual = 'TODOS';
+
+let _hierUnidadeAtiva = 'TODAS';
+let _hierTurmaAtiva = 'TODAS';
+let _hierArvore = {};
+let _hierArvoreDiag = {};
+let _hierArvoreTotal = {};
+
+window.atribuicaoSelecionada = window.atribuicaoSelecionada || null;
+
+const BIMESTRE_LABELS = {
+  primeiroBimestre: '1º Bimestre',
+  segundoBimestre: '2º Bimestre',
+  terceiroBimestre: '3º Bimestre',
+  quartoBimestre: '4º Bimestre'
+};
+
+const CAMPOS_TOTAL = ['diag', 'b1', 'b2', 'b3', 'b4'];
+const LABELS_TOTAL = ['Diag.', '1º Bim.', '2º Bim.', '3º Bim.', '4º Bim.'];
+
+// ===========================================================
+// HELPERS DE FILTRO POR UNIDADE ESCOLAR
+// Centraliza a lógica de correspondência para cobrir truncamentos
+// e variações de escrita (com/sem sufixo após a vírgula).
+// Usados por JS_Nav ao receber o dashboard e filtrar os dados
+// antes de renderizar qualquer tela.
+// ===========================================================
+function _unidadeMatchFiltro(nomeUnidade) {
+  if (!filtroUnidadeEscola) return true; // sem filtro = exibe tudo
+  const u = filtroUnidadeEscola.toUpperCase();
+  const n = String(nomeUnidade || '').toUpperCase();
+  const uBase = u.split(',')[0].trim();
+  const nBase = n.split(',')[0].trim();
+  return n === u || nBase === uBase || n.startsWith(uBase) || uBase.startsWith(nBase);
+}
+
+function _filtrarArrayPorUnidade(arr) {
+  if (!filtroUnidadeEscola || !arr) return arr;
+  return arr.filter(r => _unidadeMatchFiltro(r.unit || r.unidade || r.u || ''));
+}
+
+function _filtrarDisciplinasTurmasPorUnidade(obj) {
+  if (!filtroUnidadeEscola || !obj) return obj;
+  const resultado = {};
+  Object.keys(obj).forEach(disc => {
+    resultado[disc] = _filtrarArrayPorUnidade(obj[disc]);
+  });
+  return resultado;
+}
+
+function _filtrarDashPorUnidade(res) {
+  if (!res || !filtroUnidadeEscola) return res;
+  return Object.assign({}, res, {
+    ppa: _filtrarArrayPorUnidade(res.ppa),
+    pra: _filtrarArrayPorUnidade(res.pra),
+    disciplinasTurmas: _filtrarDisciplinasTurmasPorUnidade(res.disciplinasTurmas)
+  });
+}
+
+function _filtrarAlunosPorUnidade(lista) {
+  if (!filtroUnidadeEscola || !lista) return lista;
+  return lista.filter(a => _unidadeMatchFiltro(a.u || a.unidade || ''));
+}
+
+// ===========================================================
+// CACHE FRONT — memória + sessionStorage + fila de preload
+// ===========================================================
+const _cache = {};
+const _cacheCallbacks = {};
+const _cacheStatus = {};
+const _cacheTTL = 1000 * 60 * 45;
+const _prefetchQueue = [];
+let _prefetchRunning = 0;
+const _prefetchMaxConcurrent = 2;
+
+function _cacheStorageKey(chave) {
+  return 'MAPA_CACHE_' + String(chave);
+}
+
+function _cacheSet(chave, valor) {
+  _cache[chave] = valor;
+  _cacheStatus[chave] = { loadedAt: Date.now() };
+
+  try {
+    sessionStorage.setItem(_cacheStorageKey(chave), JSON.stringify({
+      loadedAt: Date.now(),
+      data: valor
+    }));
+  } catch (e) {}
+}
+
+function _cacheGet(chave) {
+  if (_cache[chave] && _cache[chave] !== 'loading') return _cache[chave];
+
+  try {
+    const raw = sessionStorage.getItem(_cacheStorageKey(chave));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.loadedAt) return null;
+
+    if (Date.now() - parsed.loadedAt > _cacheTTL) {
+      sessionStorage.removeItem(_cacheStorageKey(chave));
+      return null;
+    }
+
+    _cache[chave] = parsed.data;
+    _cacheStatus[chave] = { loadedAt: parsed.loadedAt };
+    return parsed.data;
+  } catch (e) {
+    return null;
+  }
+}
+
+function _cacheIsFresh(chave) {
+  const st = _cacheStatus[chave];
+  return !!(st && st.loadedAt && Date.now() - st.loadedAt <= _cacheTTL);
+}
+
+function _withCache(chave, fetchFn, cb, options) {
+  options = options || {};
+
+  const cached = _cacheGet(chave);
+  if (cached && !options.force) {
+    cb(cached);
+    if (!options.refreshBackground || _cacheIsFresh(chave)) return;
+  }
+
+  if (!_cacheCallbacks[chave]) _cacheCallbacks[chave] = [];
+  _cacheCallbacks[chave].push(cb);
+
+  if (_cache[chave] === 'loading') return;
+  _cache[chave] = 'loading';
+
+  fetchFn(data => {
+    _cacheSet(chave, data);
+    (_cacheCallbacks[chave] || []).forEach(fn => {
+      try { fn(data); } catch (e) { console.error('Erro em callback de cache:', e); }
+    });
+    _cacheCallbacks[chave] = [];
+  });
+}
+
+function _preload(chave, fetchFn, prioridade) {
+  if (_cacheGet(chave) || _cache[chave] === 'loading') return;
+
+  _prefetchQueue.push({
+    chave,
+    fetchFn,
+    prioridade: prioridade || 50
+  });
+
+  _prefetchQueue.sort((a, b) => a.prioridade - b.prioridade);
+  _rodarFilaPreload();
+}
+
+function _rodarFilaPreload() {
+  if (_prefetchRunning >= _prefetchMaxConcurrent || !_prefetchQueue.length) return;
+
+  const job = _prefetchQueue.shift();
+  if (!job) return;
+
+  if (_cacheGet(job.chave)) {
+    setTimeout(_rodarFilaPreload, 50);
+    return;
+  }
+
+  if (_cache[job.chave] === 'loading') {
+    setTimeout(_rodarFilaPreload, 50);
+    return;
+  }
+
+  _prefetchRunning++;
+  _cache[job.chave] = 'loading';
+
+  try {
+    job.fetchFn(data => {
+      _cacheSet(job.chave, data);
+
+      // IMPORTANTE: quando uma tela chama _withCache enquanto o preload já está
+      // carregando a mesma chave, o callback fica em _cacheCallbacks.
+      // Sem este bloco, a tela pode ficar presa em "Carregando..." para sempre.
+      const pendentes = _cacheCallbacks[job.chave] || [];
+      pendentes.forEach(fn => {
+        try { fn(data); } catch (e) { console.error('Erro em callback de preload:', e); }
+      });
+      _cacheCallbacks[job.chave] = [];
+
+      _prefetchRunning--;
+      setTimeout(_rodarFilaPreload, 60);
+    });
+  } catch (e) {
+    console.error('Erro preload:', e);
+    delete _cache[job.chave];
+
+    const pendentes = _cacheCallbacks[job.chave] || [];
+    pendentes.forEach(fn => {
+      try { fn({ ok: false, erro: String(e) }); } catch (err) { console.error('Erro em callback de preload:', err); }
+    });
+    _cacheCallbacks[job.chave] = [];
+
+    _prefetchRunning--;
+    setTimeout(_rodarFilaPreload, 150);
+  }
+}
+
+function limparCacheFrontPorPrefixo(prefixo) {
+  Object.keys(_cache).forEach(k => {
+    if (String(k).startsWith(prefixo)) {
+      delete _cache[k];
+      delete _cacheStatus[k];
+      try { sessionStorage.removeItem(_cacheStorageKey(k)); } catch (e) {}
+    }
+  });
+
+  try {
+    Object.keys(sessionStorage).forEach(k => {
+      if (k.indexOf('MAPA_CACHE_' + prefixo) === 0) sessionStorage.removeItem(k);
+    });
+  } catch (e) {}
+}
+
+function limparTodoCacheFront() {
+  Object.keys(_cache).forEach(k => delete _cache[k]);
+  Object.keys(_cacheStatus).forEach(k => delete _cacheStatus[k]);
+
+  try {
+    Object.keys(sessionStorage).forEach(k => {
+      if (k.indexOf('MAPA_CACHE_') === 0) sessionStorage.removeItem(k);
+    });
+  } catch (e) {}
+}
+
+function _chaveBimestre(key, filtros) {
+  return ['bim', key, filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
+}
+
+function _chavePacoteBimestre(key, filtrosBase) {
+  filtrosBase = filtrosBase || {};
+  return ['pacote_bim_v3', key, filtrosBase.ano || 'TODOS'].join('|');
+}
+
+function _chaveTotal(filtros) {
+  return ['total', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
+}
+
+function _chaveDetalhe(key, filtros) {
+  return ['det', key, filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS', filtros.disciplina || 'TODAS', filtros.eixo || 'TODOS'].join('|');
+}
+
+function _chaveHier(key) {
+  return `hier|${key}`;
+}
+
+function _chaveBimestreCompleto(key) {
+  return `bim_completo|${key}`;
+}
+
+function _chaveHierarquiaTotal(ano) {
+  return ['hier_total_v6', ano || 'TODOS'].join('|');
+}
+
+// ===========================================================
+// HELPERS GERAIS
+// ===========================================================
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>'"]/g, c => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;'
+  }[c]));
+}
+
+function escapeJs(s) {
+  return String(s ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, ' ');
+}
+
+function padronizar(texto) {
+  if (!texto || texto === '-') return 'Sem Dado';
+  let t = String(texto).trim();
+  if (t.includes(' - ')) t = t.split(' - ')[0].trim();
+  return t || 'Sem Dado';
+}
+
+function normalizarTextoSemAcento(txt) {
+  return String(txt || '')
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function normalizarAnoFiltroFront(ano) {
+  if (!ano || ano === 'TODOS') return 'TODOS';
+  const n = String(ano).match(/[1-5]/);
+  return n ? `${n[0]} ANO` : 'TODOS';
+}
+
+function numeroAnoFront(ano) {
+  const n = String(ano || '').match(/[1-5]/);
+  return n ? n[0] : '';
+}
+
+function isCritico(texto) {
+  const t = normalizarTextoSemAcento(texto);
+  return t.includes('PRE') || t.includes('N1') || t.includes('NIVEL 1') ||
+         t.includes('NAO PRODUZ') || t === 'NAO';
+}
+
+function isFluente(texto) {
+  const t = normalizarTextoSemAcento(texto);
+  return t.includes('FLUENTE') || t.includes('ORTOGR') || t.includes('NIVEL 5') || t === 'SIM';
+}
+
+// ===========================================================
+// SISTEMA DE CORES
+// ===========================================================
+const COR_FIXA = {
+  'Pré-silábica': '#FF2D55',
+  'Silábica': '#FF6B35',
+  'Silábico-alf.': '#FFD60A',
+  'Alfabética': '#30D158',
+  'Ortográfica': '#00C7BE',
+  'N1 Pré-leitor': '#BF5AF2',
+  'N2 Pré-leitor': '#FF6B35',
+  'N3 Pré-leitor': '#FFD60A',
+  'N4 Pré-leitor': '#34C759',
+  'L. Iniciante': '#00C7BE',
+  'L. Fluente': '#0A84FF',
+  'Não produz': '#FF2D55',
+  'Nível 1': '#FF6B35',
+  'Nível 2': '#FFD60A',
+  'Nível 3': '#34C759',
+  'Nível 4': '#00C7BE',
+  'Nível 5': '#0A84FF',
+  'Sim': '#30D158',
+  'Não': '#FF2D55',
+  'Não Avaliado': '#8E8E93',
+  'Sem Dado': '#8E8E93',
+  'Autônomo': '#0A84FF',
+  'Apoio leve': '#34C759',
+  'Apoio frequente': '#FFD60A',
+  'Dependente': '#FF2D55'
+};
+
+const PALETA_POSTIT = [
+  '#FFD700', '#FFB300', '#FF8C00', '#FF6B35', '#FF69B4', '#FF1493',
+  '#FF4757', '#7ED321', '#00C853', '#00BFA5', '#1DE9B6', '#40C4FF',
+  '#448AFF', '#7C4DFF', '#E040FB', '#C6FF00', '#69F0AE', '#00E5FF',
+  '#18FFFF', '#FF6E40', '#FFAB40', '#FFD740', '#B2FF59', '#EA80FC',
+  '#80D8FF', '#CCFF90', '#FFD180', '#FF80AB', '#82B1FF', '#B9F6CA',
+  '#FFFF8D', '#FF9E80', '#A7FFEB', '#CFD8DC'
+];
+
+const _coresUsadas = new Set(Object.values(COR_FIXA));
+const _rotuloParaCor = {};
+let _postitIdx = 0;
+
+function _normalizarRotuloCor(rotulo) {
+  const r = String(rotulo || '').trim();
+  const n = normalizarTextoSemAcento(r);
+  if (!r) return 'Sem Dado';
+  if (n === 'X' || n.includes('NAO AVAL')) return 'Não Avaliado';
+  if (n === 'S' || n === 'SIM') return 'Sim';
+  if (n === 'N' || n === 'NAO') return 'Não';
+  return r;
+}
+
+function _proximaCorPostit() {
+  while (_postitIdx < PALETA_POSTIT.length) {
+    const cor = PALETA_POSTIT[_postitIdx++];
+    if (!_coresUsadas.has(cor)) {
+      _coresUsadas.add(cor);
+      return cor;
+    }
+  }
+  const cor = `hsl(${(_postitIdx++ * 47) % 360},90%,55%)`;
+  _coresUsadas.add(cor);
+  return cor;
+}
+
+function getCorParaRotulo(rotulo) {
+  const r = _normalizarRotuloCor(rotulo);
+  if (COR_FIXA[r]) return COR_FIXA[r];
+  if (!_rotuloParaCor[r]) _rotuloParaCor[r] = _proximaCorPostit();
+  return _rotuloParaCor[r];
+}
+
+function getDynamicColor(t) { return getCorParaRotulo(t); }
+function getChartColorAlunos(t) { return getCorParaRotulo(t); }
+
+function getTextColor(hex) {
+  const h = String(hex || '').trim();
+  if (h.startsWith('hsl')) return '#000000';
+  const clean = h.replace('#', '');
+  if (clean.length !== 6) return '#000000';
+  const r = parseInt(clean.substr(0, 2), 16);
+  const g = parseInt(clean.substr(2, 2), 16);
+  const b = parseInt(clean.substr(4, 2), 16);
+  return ((r * 299 + g * 587 + b * 114) / 1000) > 155 ? '#000000' : '#ffffff';
+}
+
+const bimestreColorMap = new Proxy({}, { get: (_, rotulo) => getCorParaRotulo(rotulo) });
+
+// ===========================================================
+// LEGENDA DESCRITIVA COLORIDA
+// ===========================================================
+const LEGENDA_FNE = {
+  ESCRITA: [
+    { label: 'Pré-silábica', texto: 'Escreve sem relação entre letras e sons.' },
+    { label: 'Silábica', texto: 'Usa uma letra para representar cada sílaba.' },
+    { label: 'Silábico-alf.', texto: 'Transição: mistura letras e sílabas.' },
+    { label: 'Alfabética', texto: 'Relação letra-som estabelecida.' },
+    { label: 'Ortográfica', texto: 'Domina as convenções ortográficas.' },
+    { label: 'Não Avaliado', texto: 'Aluno não avaliado neste período.' }
+  ],
+  LEITURA: [
+    { label: 'N1 Pré-leitor', texto: 'Nível inicial de leitura.' },
+    { label: 'N2 Pré-leitor', texto: 'Reconhece parcialmente elementos da leitura.' },
+    { label: 'N3 Pré-leitor', texto: 'Em desenvolvimento.' },
+    { label: 'N4 Pré-leitor', texto: 'Próximo da leitura autônoma.' },
+    { label: 'L. Iniciante', texto: 'Leitor iniciante.' },
+    { label: 'L. Fluente', texto: 'Leitor fluente.' },
+    { label: 'Não Avaliado', texto: 'Aluno não avaliado neste período.' }
+  ],
+  PRODUCAO_TEXTUAL: [
+    { label: 'Não produz', texto: 'Não produz texto escrito.' },
+    { label: 'Nível 1', texto: 'Produção textual inicial.' },
+    { label: 'Nível 2', texto: 'Texto com poucos elementos de coesão.' },
+    { label: 'Nível 3', texto: 'Texto coerente com coesão inicial.' },
+    { label: 'Nível 4', texto: 'Texto com coesão e pontuação.' },
+    { label: 'Nível 5', texto: 'Texto autônomo, coeso e adequado ao gênero.' },
+    { label: 'Não Avaliado', texto: 'Aluno não avaliado neste período.' }
+  ],
+  SIM_NAO: [
+    { label: 'Sim', texto: 'Habilidade desenvolvida / alcançada.' },
+    { label: 'Não', texto: 'Habilidade ainda não alcançada.' },
+    { label: 'Não Avaliado', texto: 'Aluno não avaliado neste período.' }
+  ],
+  AEE: [
+    { label: 'Autônomo', texto: 'Realiza de forma independente.' },
+    { label: 'Apoio leve', texto: 'Precisa de orientação ocasional.' },
+    { label: 'Apoio frequente', texto: 'Precisa de apoio constante.' },
+    { label: 'Dependente', texto: 'Depende de ajuda contínua.' },
+    { label: 'Não Avaliado', texto: 'Aluno não avaliado neste período.' }
+  ]
+};
+
+function _legendaParaFne(fne) {
+  const f = normalizarTextoSemAcento(fne);
+  if (f === 'ESCRITA') return LEGENDA_FNE.ESCRITA;
+  if (f === 'LEITURA') return LEGENDA_FNE.LEITURA;
+  if (f.includes('PRODUCAO TEXTUAL')) return LEGENDA_FNE.PRODUCAO_TEXTUAL;
+  if (['AUTONOMIA', 'AUTORREGUL', 'COMUNICA', 'ENGAJAMENTO', 'POTENCIALIDADES', 'SEGURANCA'].some(a => f.includes(a))) return LEGENDA_FNE.AEE;
+  return LEGENDA_FNE.SIM_NAO;
+}
+
+function _htmlLegenda(fne, pergunta, contagem) {
+  return htmlLegendaColorida(fne, pergunta, contagem);
+}
+
+function htmlLegendaColorida(fne, pergunta, contagem) {
+  const itens = _legendaParaFne(fne);
+  const tituloLeg = pergunta
+    ? `Legenda · <span style="font-weight:400;font-style:italic;">${escapeHtml(String(pergunta).substring(0, 70))}${String(pergunta).length > 70 ? '…' : ''}</span>`
+    : `Legenda — ${escapeHtml(fne || '')}`;
+
+  const total = contagem
+    ? Object.values(contagem).reduce((a, b) => a + Number(b || 0), 0)
+    : 0;
+
+  const linhasUsadas = total
+    ? itens.filter(it => contagem[it.label] !== undefined || Object.prototype.hasOwnProperty.call(contagem, it.label))
+    : itens;
+
+  const linhasFinais = linhasUsadas.length ? linhasUsadas : itens;
+
+  return `
+    <div class="legenda-grafico legend-box">
+      <div class="legenda-grafico-titulo legend-title">
+        <i class="bi bi-info-circle me-1"></i>${tituloLeg}
+      </div>
+      ${linhasFinais.map(it => {
+        const cor = getCorParaRotulo(it.label);
+        const qtd = total ? Number(contagem[it.label] || 0) : null;
+        const pct = total ? Math.round((qtd / total) * 100) : null;
+
+        return `
+          <div class="legenda-item legend-row" style="justify-content:space-between;gap:10px;">
+            <span style="display:flex;align-items:flex-start;gap:8px;min-width:0;">
+              <span class="legenda-cor legend-dot" style="background:${cor};"></span>
+              <span style="min-width:0;"><b>${escapeHtml(it.label)}</b> — ${escapeHtml(it.texto)}</span>
+            </span>
+            ${total ? `
+              <span style="flex:0 0 auto;font-weight:900;color:#0f172a;background:#ffffff;border:1px solid #dbe5ef;border-radius:999px;padding:2px 8px;white-space:nowrap;">
+                ${pct}%
+              </span>
+            ` : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+// ===========================================================
+// STATUS ADEQUAÇÃO
+// ===========================================================
+function statusAdequacao(pct) {
+  pct = Number(pct || 0);
+  if (pct >= 70) return { texto: 'Adequado', cor: '#00C853', textoCor: '#000000', classe: 'adequado', mensagem: 'Resultado adequado para o eixo avaliado.' };
+  if (pct >= 40) return { texto: 'Alerta', cor: '#FFB300', textoCor: '#000000', classe: 'alerta', mensagem: 'Resultado em atenção. Precisa de acompanhamento.' };
+  return { texto: 'Crítico', cor: '#FF4757', textoCor: '#ffffff', classe: 'critico', mensagem: 'Resultado crítico. Priorizar intervenção pedagógica.' };
+}
+
+function htmlStatusAdequacao(pct) {
+  const st = statusAdequacao(pct);
+  return `<span title="${escapeHtml(st.mensagem)}" class="status-chip ${st.classe}" style="background:${st.cor};color:${st.textoCor};">Adequação ${pct}% · ${st.texto}</span>`;
+}
+
+function calcularAdequacaoDetalhada(labels, values) {
+  const total = (values || []).reduce((a, b) => a + Number(b || 0), 0);
+  const partes = [];
+  let qtdAdeq = 0;
+
+  (labels || []).forEach((label, i) => {
+    const valor = Number((values || [])[i] || 0);
+    if (ehRespostaAdequada(label)) {
+      qtdAdeq += valor;
+      partes.push({
+        label,
+        valor,
+        pct: total ? Math.round((valor / total) * 100) : 0
+      });
+    }
+  });
+
+  return {
+    total,
+    qtdAdeq,
+    pct: total ? Math.round((qtdAdeq / total) * 100) : 0,
+    partes
+  };
+}
+
+function htmlExplicacaoAdequacao(fne, info) {
+  info = info || { pct: 0, partes: [], qtdAdeq: 0, total: 0 };
+  const st = statusAdequacao(info.pct || 0);
+
+  const formula = info.partes && info.partes.length
+    ? info.partes.map(p => `${escapeHtml(p.label)} (${p.pct}%)`).join(' + ')
+    : 'nenhum nível adequado encontrado no filtro atual';
+
+  return `
+    <div class="adequacao-explicacao" style="
+      margin-top:10px;
+      padding:9px 11px;
+      border-radius:12px;
+      background:#fff;
+      border:1px dashed #cbd5e1;
+      font-size:.74rem;
+      color:#334155;
+      line-height:1.35;
+    ">
+      <div style="font-weight:950;color:#0f172a;margin-bottom:3px;">
+        <i class="bi bi-calculator me-1"></i>Como ler a adequação
+      </div>
+      <div>
+        <b>Adequação ${info.pct || 0}% · ${escapeHtml(st.texto)}</b> = ${formula}.
+      </div>
+      <div style="margin-top:3px;color:#64748b;">
+        Esse indicador soma somente os níveis considerados adequados para este eixo. O gráfico acima continua mostrando a distribuição completa de todos os níveis.
+      </div>
+    </div>
+  `;
+}
+
+function ehRespostaAdequada(rotulo) {
+  return new Set(['Sim', 'Nível 4', 'Nível 5', 'Ortográfica', 'Alfabética', 'L. Fluente', 'L. Iniciante', 'Autônomo']).has(_normalizarRotuloCor(rotulo));
+}
+
+// ===========================================================
+// PRELOAD — SISTEMA DE CAMADAS
+// ===========================================================
+const PREFETCH_ANOS = ['TODOS', '1 ANO', '2 ANO', '3 ANO', '4 ANO', '5 ANO'];
+const PREFETCH_BIMS = ['primeiroBimestre', 'segundoBimestre', 'terceiroBimestre', 'quartoBimestre'];
+
+function _filtroBasePrefetch(ano, unidade, turma) {
+  return { unidade: unidade || 'TODAS', ano: ano || 'TODOS', turma: turma || 'TODAS' };
+}
+
+function _prefetchPacoteBimestre(key, filtrosBase, prioridade) {
+  if (!key) return;
+  filtrosBase = filtrosBase || { ano: 'TODOS' };
+  _preload(
+    _chavePacoteBimestre(key, filtrosBase),
+    cb => google.script.run
+      .withSuccessHandler(r => cb(r))
+      .withFailureHandler(err => {
+        console.error('Prefetch pacote bimestre:', key, filtrosBase, err);
+        cb({ ok: false, linhas: [], arvore: {}, disciplinas: [] });
+      })
+      .getPacoteBimestreRapido(key, filtrosBase),
+    prioridade || 10
+  );
+}
+
+// Alias mantido para compatibilidade com chamadas antigas.
+function _prefetchBimestreCompleto(key, prioridade) {
+  _prefetchPacoteBimestre(key, { ano: 'TODOS' }, prioridade || 10);
+}
+
+function _prefetchBimestreFiltro(key, filtros, prioridade) {
+  _preload(
+    _chaveBimestre(key, filtros),
+    cb => google.script.run
+      .withSuccessHandler(r => cb(r))
+      .withFailureHandler(err => { console.error('Prefetch bimestre:', key, err); cb({ ok: false, disciplinas: [], resumo: {} }); })
+      .getAvaliacaoBimestreRapida(key, filtros),
+    prioridade || 20
+  );
+}
+
+function _prefetchHierarquiaBimestre(key, prioridade) {
+  _preload(
+    _chaveHier(key),
+    cb => google.script.run
+      .withSuccessHandler(r => cb(r))
+      .withFailureHandler(err => { console.error('Prefetch hierarquia:', key, err); cb({ ok: false, arvore: {} }); })
+      .getHierarquiaBimestre(key, {}),
+    prioridade || 15
+  );
+}
+
+function _prefetchTotalFiltro(filtros, prioridade) {
+  _preload(
+    _chaveTotal(filtros),
+    cb => google.script.run
+      .withSuccessHandler(r => cb(r))
+      .withFailureHandler(err => { console.error('Prefetch total:', err); cb({ ok: false, linhas: [] }); })
+      .getTotalAvaliacoesRapido(filtros),
+    prioridade || 50
+  );
+}
+
+function _prefetchHierarquiaTotal(ano, prioridade) {
+  const anoNorm = ano || 'TODOS';
+  _preload(
+    _chaveHierarquiaTotal(anoNorm),
+    cb => google.script.run
+      .withSuccessHandler(r => cb(r))
+      .withFailureHandler(err => { console.error('Prefetch hier total:', err); cb({ ok: false, arvore: {} }); })
+      .getHierarquiaTotal({ ano: anoNorm }),
+    prioridade || 40
+  );
+}
+
+function preAquecerFiltroBimestre(unidade, turma) {
+  _prefetchPacoteBimestre(
+    bimestreAtualKey,
+    { ano: bimestreAtualKey === 'primeiroBimestre' ? 'TODOS' : (anoFiltroAtual || 'TODOS') },
+    1
+  );
+}
+
+function preAquecerFiltroTotal(unidade, turma) {
+  _prefetchTotalFiltro(_filtroBasePrefetch(anoFiltroAtual || 'TODOS', unidade || 'TODAS', turma || 'TODAS'), 1);
+}
+
+function preCarregarTudoEmSegundoPlano() {
+  // Preload enxuto para não competir com a Diagnóstica.
+  // O 1º Bimestre continua quase instantâneo; o Total é aquecido logo depois.
+  _prefetchPacoteBimestre('primeiroBimestre', { ano: 'TODOS' }, 1);
+
+  setTimeout(() => {
+    _prefetchPacoteTotal({ ano: 'TODOS' }, 6);
+  }, 1400);
+
+  // Demais bimestres ficam para depois, sem disputar rede com Diagnóstica/Total.
+  setTimeout(() => {
+    ['segundoBimestre', 'terceiroBimestre', 'quartoBimestre'].forEach((key, idx) => {
+      _prefetchPacoteBimestre(key, { ano: 'TODOS' }, 30 + idx);
+    });
+  }, 4500);
+}
+
+function preAquecerMenuAoPassarMouse(tipo) {
+  if (!tipo || tipo === 'AnoEscolar') return;
+  if (tipo === 'Total') {
+    const anoAtual = _anoFiltroAtualSeguro();
+    _prefetchPacoteTotal({ ano: anoAtual }, 1);
+    _prefetchPacoteTotal({ ano: 'TODOS' }, 2);
+    _prefetchTotalFiltro(_filtroBasePrefetch(anoAtual, 'TODAS', 'TODAS'), 5);
+    _prefetchHierarquiaTotal(anoAtual, 5);
+    return;
+  }
+  _prefetchPacoteBimestre(tipo, { ano: tipo === 'primeiroBimestre' ? 'TODOS' : (anoFiltroAtual || 'TODOS') }, 1);
+}
+
+
+
+// ===========================================================
+// TOTAL LOCAL PACKAGE + ANO SEGURO
+// ===========================================================
+function _anoFiltroAtualSeguro() {
+  const ativo = document.querySelector('#anoFilterBar .btn-ano.active');
+  if (ativo) return normalizarAnoFiltroFront(ativo.innerText || ativo.textContent || 'TODOS');
+  return normalizarAnoFiltroFront(anoFiltroAtual || 'TODOS');
+}
+
+function _setAnoFiltroAtualSeguro(ano, btn) {
+  anoFiltroAtual = normalizarAnoFiltroFront(ano || 'TODOS');
+  document.querySelectorAll('#anoFilterBar .btn-ano').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  else {
+    document.querySelectorAll('#anoFilterBar .btn-ano').forEach(b => {
+      const txt = String(b.innerText || '').toUpperCase();
+      if ((anoFiltroAtual === 'TODOS' && txt.includes('TODOS')) ||
+          (anoFiltroAtual !== 'TODOS' && txt.includes(anoFiltroAtual.charAt(0)))) {
+        b.classList.add('active');
+      }
+    });
+  }
+  const sel = document.getElementById('filtroAvAno');
+  if (sel) {
+    const existe = [...sel.options].some(o => o.value === anoFiltroAtual);
+    if (!existe && anoFiltroAtual !== 'TODOS') {
+      sel.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(anoFiltroAtual)}">${escapeHtml(anoFiltroAtual)}</option>`);
+    }
+    sel.value = anoFiltroAtual;
+  }
+  return anoFiltroAtual;
+}
+
+function _chavePacoteTotal(filtrosBase) {
+  filtrosBase = filtrosBase || {};
+  return ['pacoteTotal', filtrosBase.ano || 'TODOS'].join('|');
+}
+
+function _backendTemPacoteTotal() {
+  // Em Apps Script, a lista de funções do google.script.run pode variar por implantação.
+  // Para produção, NÃO dependemos mais de getPacoteTotalRapido no front.
+  // O pacote do Total é solicitado pela função estável getTotalAvaliacoesRapido({__pacote:true}).
+  return false;
+}
+
+function _prefetchPacoteTotal(filtrosBase, prioridade) {
+  filtrosBase = filtrosBase || { ano: 'TODOS' };
+
+  const ano = filtrosBase.ano || 'TODOS';
+  const payload = Object.assign({}, filtrosBase, { __pacote: true });
+
+  _preload(
+    _chavePacoteTotal({ ano }),
+    cb => google.script.run
+      .withSuccessHandler(r => cb(r))
+      .withFailureHandler(err => {
+        console.error('Prefetch Total via getTotalAvaliacoesRapido:', err);
+        cb({ ok: false, linhas: [] });
+      })
+      .getTotalAvaliacoesRapido(payload),
+    prioridade || 35
+  );
+}
+
+// ===========================================================
+// MODAL UNIVERSAL
+// ===========================================================
+function garantirModalDetalhes() {
+  if (document.getElementById('modalChartDetails')) return;
+
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal fade" id="modalChartDetails" tabindex="-1">
+      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header border-0 bg-light" style="border-bottom:2px solid var(--neon-blue)">
+            <h5 class="modal-title fw-bold text-primary" id="modalChartTitle">Detalhes</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-0">
+            <div class="table-responsive">
+              <table class="table table-sm table-hover m-0 align-middle text-nowrap">
+                <thead class="table-light" id="theadChartDetails"></thead>
+                <tbody id="tbodyChartDetails"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+}
+
+garantirModalDetalhes();
+</script>
