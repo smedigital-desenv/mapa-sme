@@ -1317,9 +1317,9 @@ function renderCharts() {
     type: 'doughnut',
     data: {
       labels: ['Atribuído', 'Pendente'],
-      datasets: [{ data: [totAtrib, totPend], backgroundColor: ['#39FF14', '#eaedf0'], borderWidth: 0 }]
+      datasets: [{ data: [totAtrib, totPend], backgroundColor: ['#39FF14', '#eaedf0'], borderWidth: 2, borderColor: '#fff', hoverOffset: 14, hoverBorderWidth: 4 }]
     },
-    options: { maintainAspectRatio: false, cutout: '72%', plugins: { legend: { position: 'bottom' } } }
+    options: { maintainAspectRatio: false, cutout: '55%', layout: { padding: 14 }, spacing: 2, interaction: { mode: 'nearest', intersect: false }, plugins: { legend: { position: 'bottom' } } }
   });
 }
 
