@@ -6765,9 +6765,11 @@ function _renderTabelaTotal(linhas) {
   function corrigirTextoLegivel(valor) {
     const raw = String(valor || '').trim();
     if (!raw) return '';
-    const teste = normalizar(raw.replace(/�/g, 'U'));
-    if (teste.includes('MUSICA') || teste.includes('M SICA')) return 'MÚSICA';
-    return raw;
+    // Colapsa sequências de � (1 ou mais) — importações quebradas podem ter vários.
+    const teste = normalizar(raw.replace(/�+/g, 'U'));
+    if (teste.includes('MUSICA') || teste.includes('M SICA') || teste.includes('MSICA')) return 'MÚSICA';
+    // Remove os � que sobrarem, para não exibir lixo de codificação.
+    return raw.replace(/�+/g, '').replace(/\s{2,}/g, ' ').trim();
   }
 
   function unidadeChaveFlex(valor) {
@@ -6861,8 +6863,8 @@ function _renderTabelaTotal(linhas) {
     if (n.includes('ESCRITA')) return 'ESCRITA';
     if (n.includes('ORALIDADE')) return 'ORALIDADE';
     if (n.includes('COMPLEMENTAR')) return 'COMPLEMENTAR';
-    if (normalizar(raw.replace(/�/g, 'U')).includes('MUSICA')) return 'MÚSICA';
-    return corrigirTextoLegivel(raw).toUpperCase();
+    if (normalizar(raw.replace(/�+/g, 'U')).includes('MUSICA') || n.includes('MSICA')) return 'MÚSICA';
+    return corrigirTextoLegivel(raw).replace(/�+/g, '').replace(/\s{2,}/g, ' ').trim().toUpperCase();
   }
 
   function compactar(txt) {
