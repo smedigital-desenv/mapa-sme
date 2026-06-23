@@ -321,6 +321,10 @@
       <button class="btn-modo" id="btn-GRADE" onclick="switchModo('GRADE')">
         <i class="bi bi-grid-3x3-gap-fill me-1"></i>Por Escola / Disciplina
       </button>
+      <button class="btn-modo" id="btn-INATIVOS" onclick="switchModo('INATIVOS')"
+              style="border-color:rgba(245,158,11,.6);color:rgba(255,255,255,.85);">
+        <i class="bi bi-person-x-fill me-1"></i>Exonerados / Aposentados
+      </button>
       <button class="btn-modo d-none" id="btn-SaldoPPA" onclick="abrirRelatorioSaldo()"
               style="background:#198754;border-color:#198754;color:#fff;">
         <i class="bi bi-file-earmark-spreadsheet me-1"></i>Saldo PPA
@@ -335,7 +339,7 @@
 <!-- ── BARRA DE CONTROLES (combo + filtro Mostrar), fixa abaixo do cabeçalho global ── -->
 <div class="sub-nav-bar" style="gap:.75rem;">
   <!-- Dropdown unificado Projetos + Disciplinas -->
-  <div class="dropdown turmas-disc-dropdown">
+  <div class="dropdown turmas-disc-dropdown" id="dropdownProjDisc">
     <button type="button" class="turmas-menu-select-btn dropdown-toggle"
             data-bs-toggle="dropdown" data-bs-auto-close="outside" id="btnModoDropdown">
       <span class="turmas-select-icon"><i class="bi bi-journal-check" id="dropIconAtual"></i></span>
@@ -573,6 +577,69 @@
       </div>
     </div>
     <div id="gradeEscolas"></div>
+  </div>
+
+  <!-- Professores Inativos (Exonerado / Rescindido / Aposentado) -->
+  <div id="inativosContainer" class="d-none">
+    <div class="table-container mb-3">
+
+      <!-- Título + total -->
+      <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
+        <h5 class="fw-bold m-0" style="color:#b45309;">
+          <i class="bi bi-person-x-fill me-2"></i>Professores Exonerados / Rescindidos / Aposentados
+          <span id="inativosTotal" class="badge bg-warning text-dark ms-2" style="font-size:.75rem;"></span>
+        </h5>
+        <button class="btn btn-sm btn-outline-success fw-bold" onclick="exportarInativosExcel()">
+          <i class="bi bi-download me-1"></i>Excel
+        </button>
+      </div>
+
+      <!-- Controles: pesquisa + filtros de situação -->
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="input-group input-group-sm shadow-sm" style="width:260px;">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="text" id="buscaInativos" class="form-control"
+                 placeholder="Pesquisar professor, código ou escola…" autocomplete="off"
+                 oninput="renderInativosDebounced()">
+        </div>
+
+        <div class="vr mx-1" style="height:24px;"></div>
+
+        <span class="text-muted small fw-bold"><i class="bi bi-funnel-fill me-1"></i>Situação:</span>
+        <div class="d-flex gap-1 flex-wrap" id="filtroInativosSitGroup">
+          <label class="pend-check-chip" style="--chip-cor:#dc2626;--chip-bg:#fee2e2;">
+            <input type="checkbox" value="EXONERADO"  checked onchange="renderInativos()"><span>Exonerado</span>
+          </label>
+          <label class="pend-check-chip" style="--chip-cor:#b45309;--chip-bg:#fef3c7;">
+            <input type="checkbox" value="RESCINDIDO" checked onchange="renderInativos()"><span>Rescindido</span>
+          </label>
+          <label class="pend-check-chip" style="--chip-cor:#7c3aed;--chip-bg:#ede9fe;">
+            <input type="checkbox" value="APOSENTADO" checked onchange="renderInativos()"><span>Aposentado</span>
+          </label>
+        </div>
+      </div><!-- /controles -->
+    </div>
+
+    <div class="table-container">
+      <div class="table-responsive">
+        <table class="table align-middle" id="inativosTable" style="width:100%;">
+          <thead class="table-light">
+            <tr style="font-size:.75rem;color:#666;text-transform:uppercase;">
+              <th>Professor</th>
+              <th>Código</th>
+              <th>Situação</th>
+              <th class="text-center">Papel</th>
+              <th>Unidade(s)</th>
+              <th>Disciplina(s)</th>
+              <th class="text-center">Ocorr.</th>
+            </tr>
+          </thead>
+          <tbody id="inativosBody">
+            <tr><td colspan="7" class="text-center text-muted p-4">Carregando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
 </main>
@@ -900,6 +967,16 @@ function obterNomeSituacao(textoSituacao) {
   return String(textoSituacao).trim();
 }
 
+// ═══ CLASSIFICAR INATIVOS (Exonerado / Rescindido / Aposentado) ═══
+// Retorna a categoria normalizada ou null quando não se aplica.
+function classificarInatividade(textoSituacao) {
+  const texto = String(textoSituacao || '').toUpperCase();
+  if (texto.includes('APOSENTAD')) return 'APOSENTADO';
+  if (texto.includes('RESCINDID')) return 'RESCINDIDO';
+  if (texto.includes('EXONERAD'))  return 'EXONERADO';
+  return null;
+}
+
 function obterRazaoSaldo(row) {
   const codigoTit = String(row.codigo_professor_prop || '').trim();
   const codigoSub = String(row.codigo_professor_sub  || '').trim();
@@ -935,6 +1012,7 @@ function montarDados(rows) {
   const praSumm  = {};
   const discMap  = {};  // disc → { key → rowObj }
   const matrice  = {};  // escola → turma → disc → {profName, atribuido}
+  const profsInativos = [];  // professores Exonerado/Rescindido/Aposentado (titular e substituto)
 
   rows.forEach(row => {
     if (serieExcluida(row.ano_escolar)) return;
@@ -1036,6 +1114,25 @@ function montarDados(rows) {
     } else if (!matrice[unit][turmaKey][disc].atribuido && atrib) {
       matrice[unit][turmaKey][disc] = { profName, atribuido: true, profTitular, profSub };
     }
+
+    // ── Professores Inativos (Exonerado/Rescindido/Aposentado) ──
+    // Avalia titular e substituto separadamente; só entra quem tem código (vínculo real).
+    [
+      { nome: row.nome_professor_prop, cod: _cT, sit: row.situacao_professor,     papel: 'Titular',    tem: _temTit },
+      { nome: row.nome_professor_sub,  cod: _cS, sit: row.situacao_professor_sub, papel: 'Substituto', tem: _temSub }
+    ].forEach(p => {
+      if (!p.tem || estaEmContracao(p.cod)) return;
+      const cat = classificarInatividade(p.sit);
+      if (!cat) return;
+      profsInativos.push({
+        nome: String(p.nome || '—').trim(),
+        cod: String(p.cod || '').trim(),
+        situacao: cat,
+        situacaoTxt: String(p.sit || '').trim(),
+        papel: p.papel,
+        unit, disc, turma: turmaKey, periodo: per
+      });
+    });
   });
 
   // Finalizar PPA
@@ -1062,7 +1159,8 @@ function montarDados(rows) {
     disciplinas: discObj,
     disciplinasLista: Object.keys(discObj).sort(),
     matrice,
-    escolasLista: Object.keys(matrice).sort()
+    escolasLista: Object.keys(matrice).sort(),
+    profsInativos
   };
 }
 
@@ -1137,6 +1235,14 @@ function renderKPIs() {
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Escolas Afetadas</div><div class="kpi-val text-primary">${escSet.size}</div></div></div>
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Disciplinas</div><div class="kpi-val text-primary">${discSetP.size}</div></div></div>
       <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Carga Descoberta</div><div class="kpi-val" style="color:#ef4444;">${cargaTotal}h</div></div></div>`;
+  } else if (modo === 'INATIVOS') {
+    const grupos = _inativosDedup(D.profsInativos || []);
+    const cont = sit => grupos.filter(g => g.situacao === sit).length;
+    html = `
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Total Professores</div><div class="kpi-val" style="color:#b45309;">${grupos.length}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Exonerados</div><div class="kpi-val" style="color:#dc2626;">${cont('EXONERADO')}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Rescindidos</div><div class="kpi-val" style="color:#b45309;">${cont('RESCINDIDO')}</div></div></div>
+      <div class="col-6 col-md-3"><div class="card-kpi"><div class="kpi-lbl">Aposentados</div><div class="kpi-val" style="color:#7c3aed;">${cont('APOSENTADO')}</div></div></div>`;
   }
   row.innerHTML = html;
 }
@@ -2319,15 +2425,20 @@ function switchModo(novoModo) {
 
   const isGrade     = (modo === 'GRADE');
   const isPendentes = (modo === 'PENDENTES');
-  const isTabela    = !isGrade && !isPendentes;
+  const isInativos  = (modo === 'INATIVOS');
+  const isTabela    = !isGrade && !isPendentes && !isInativos;
 
   document.getElementById('chartsRow').classList.toggle('d-none', !isTabela);
   document.getElementById('tableContainer').classList.toggle('d-none', !isTabela);
   document.getElementById('gradeContainer').classList.toggle('d-none', !isGrade);
   document.getElementById('pendentesContainer').classList.toggle('d-none', !isPendentes);
+  document.getElementById('inativosContainer').classList.toggle('d-none', !isInativos);
+  // O seletor Projeto/Disciplina não se aplica ao modo Inativos
+  document.getElementById('dropdownProjDisc').classList.toggle('d-none', isInativos);
 
   document.getElementById('btn-GRADE').classList.toggle('active', isGrade);
   document.getElementById('btn-PENDENTES').classList.toggle('active', isPendentes);
+  document.getElementById('btn-INATIVOS').classList.toggle('active', isInativos);
   document.getElementById('btn-SaldoPPA').classList.toggle('d-none', modo !== 'PPA');
 
   // Reseta o filtro de status ao trocar de modo
@@ -2339,9 +2450,101 @@ function switchModo(novoModo) {
   renderDropdown();
   renderKPIs();
 
-  if (isTabela)     renderTable();
-  else if (isGrade) renderGrade();
-  else              renderPendentes();
+  if (isTabela)        renderTable();
+  else if (isGrade)    renderGrade();
+  else if (isInativos) renderInativos();
+  else                 renderPendentes();
+}
+
+// ── PROFESSORES INATIVOS (Exonerado / Rescindido / Aposentado) ────
+// Agrupa as ocorrências por professor (código quando houver, senão nome) + situação.
+function _inativosDedup(lista) {
+  const map = {};
+  (lista || []).forEach(o => {
+    const idProf = (o.cod && o.cod !== '0') ? 'C' + o.cod : 'N' + normalizar(o.nome);
+    const key = idProf + '|' + o.situacao;
+    if (!map[key]) map[key] = { nome: o.nome, cod: o.cod, situacao: o.situacao, ocorr: [] };
+    map[key].ocorr.push(o);
+  });
+  return Object.values(map).sort((a, b) => a.nome.localeCompare(b.nome));
+}
+
+function _inativosBadge(sit) {
+  const m = {
+    EXONERADO:  ['#dc2626', '#fee2e2'],
+    RESCINDIDO: ['#b45309', '#fef3c7'],
+    APOSENTADO: ['#7c3aed', '#ede9fe']
+  }[sit] || ['#64748b', '#f1f5f9'];
+  return `<span class="badge" style="background:${m[1]};color:${m[0]};border:1px solid ${m[0]}40;font-weight:800;">${escapeHtml(sit)}</span>`;
+}
+
+function renderInativos() {
+  const body    = document.getElementById('inativosBody');
+  const totalEl = document.getElementById('inativosTotal');
+  if (!D || !body) return;
+
+  const sitAtivos = [...document.querySelectorAll('#filtroInativosSitGroup input:checked')].map(c => c.value);
+  const termo     = normalizar(document.getElementById('buscaInativos')?.value || '');
+
+  let grupos = _inativosDedup(D.profsInativos || []).filter(g => sitAtivos.includes(g.situacao));
+  if (termo) {
+    grupos = grupos.filter(g =>
+      normalizar(g.nome).includes(termo) ||
+      String(g.cod || '').includes(termo) ||
+      g.ocorr.some(o => normalizar(o.unit).includes(termo) || normalizar(o.disc).includes(termo))
+    );
+  }
+
+  if (totalEl) totalEl.textContent = `${grupos.length} professor${grupos.length !== 1 ? 'es' : ''}`;
+
+  if (!grupos.length) {
+    body.innerHTML = `<tr><td colspan="7" class="text-center text-muted p-4">Nenhum professor encontrado.</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = grupos.map(g => {
+    const papeis = [...new Set(g.ocorr.map(o => o.papel))].join(', ');
+    const units  = [...new Set(g.ocorr.map(o => o.unit))];
+    const discs  = [...new Set(g.ocorr.map(o => o.disc))];
+    const unitsHtml = units.slice(0, 3).map(u => escapeHtml(u)).join('<br>') +
+      (units.length > 3 ? `<br><span class="text-muted small">+${units.length - 3} unidade(s)</span>` : '');
+    const discsHtml = discs.slice(0, 4).map(d =>
+      `<span class="chip-disc" style="background:#f1f5f9;color:#475569;">${escapeHtml(d)}</span>`).join(' ') +
+      (discs.length > 4 ? ` <span class="text-muted small">+${discs.length - 4}</span>` : '');
+    return `<tr>
+      <td class="unit-name">${escapeHtml(g.nome)}</td>
+      <td>${escapeHtml(g.cod || '—')}</td>
+      <td>${_inativosBadge(g.situacao)}</td>
+      <td class="text-center"><span class="small fw-bold">${escapeHtml(papeis)}</span></td>
+      <td style="font-size:.82rem;">${unitsHtml}</td>
+      <td>${discsHtml}</td>
+      <td class="text-center fw-bold">${g.ocorr.length}</td>
+    </tr>`;
+  }).join('');
+}
+const renderInativosDebounced = debounce(() => renderInativos(), 180);
+
+async function exportarInativosExcel() {
+  if (typeof ExcelJS === 'undefined') { alert('Biblioteca Excel não carregada.'); return; }
+  const sitAtivos = [...document.querySelectorAll('#filtroInativosSitGroup input:checked')].map(c => c.value);
+  const lista = (D?.profsInativos || [])
+    .filter(o => sitAtivos.includes(o.situacao))
+    .sort((a, b) => a.nome.localeCompare(b.nome) || a.unit.localeCompare(b.unit));
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Inativos');
+  ws.addRow(['Professor', 'Código', 'Situação', 'Papel', 'Unidade', 'Disciplina', 'Turma', 'Período']);
+  ws.getRow(1).fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF002B5E' } };
+  ws.getRow(1).font = { bold:true, color:{ argb:'FFFFFFFF' } };
+  lista.forEach(o => ws.addRow([o.nome, o.cod || '', o.situacao, o.papel, o.unit, o.disc, o.turma, o.periodo]));
+  ws.columns.forEach(c => { c.width = 24; });
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = `Professores_Inativos_${new Date().toISOString().slice(0,10)}.xlsx`;
+  a.click(); URL.revokeObjectURL(url);
 }
 
 // ── SALDO PPA ────────────────────────────────────────────────────
