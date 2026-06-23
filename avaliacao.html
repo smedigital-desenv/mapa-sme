@@ -275,6 +275,17 @@
     flex-shrink: 0; margin-top: 1px;
     box-shadow: 0 1px 3px rgba(0,0,0,.15);
   }
+  /* Legenda clicável (sincronizada com o gráfico) */
+  .legend-clicavel {
+    cursor: pointer; border-radius: 8px; padding: 4px 6px; margin: 0 -6px 3px;
+    transition: background .12s, transform .12s; outline: none;
+  }
+  .legend-clicavel:hover, .legend-clicavel:focus-visible {
+    background: #eef4ff; transform: translateX(2px);
+  }
+  .legend-clicavel:hover .legenda-cor, .legend-clicavel:focus-visible .legenda-cor {
+    box-shadow: 0 0 0 3px rgba(0,43,94,.18);
+  }
 
   /* ── DETALHE POR PERGUNTA ────────────────────────────── */
   .btn-detalhe-eixo {
@@ -3094,7 +3105,7 @@ function _htmlLegenda(fne, pergunta, contagem) {
   return htmlLegendaColorida(fne, pergunta, contagem);
 }
 
-function htmlLegendaColorida(fne, pergunta, contagem) {
+function htmlLegendaColorida(fne, pergunta, contagem, link) {
   const itens = _legendaParaFne(fne);
   const tituloLeg = pergunta
     ? `Legenda · <span style="font-weight:400;font-style:italic;">${escapeHtml(String(pergunta).substring(0, 70))}${String(pergunta).length > 70 ? '…' : ''}</span>`
@@ -3119,16 +3130,20 @@ function htmlLegendaColorida(fne, pergunta, contagem) {
         const cor = getCorParaRotulo(it.label);
         const qtd = total ? Number(contagem[it.label] || 0) : null;
         const pct = total ? Math.round((qtd / total) * 100) : null;
+        const interativa = !!(link && link.canvasId && total && qtd > 0);
+        const attrs = interativa
+          ? ` data-cv="${escapeHtml(link.canvasId)}" data-label="${escapeHtml(it.label)}" role="button" tabindex="0" title="Clique para ver os alunos desta categoria"`
+          : '';
 
         return `
-          <div class="legenda-item legend-row" style="justify-content:space-between;gap:10px;">
+          <div class="legenda-item legend-row${interativa ? ' legend-clicavel' : ''}" style="justify-content:space-between;gap:10px;"${attrs}>
             <span style="display:flex;align-items:flex-start;gap:8px;min-width:0;">
               <span class="legenda-cor legend-dot" style="background:${cor};"></span>
               <span style="min-width:0;"><b>${escapeHtml(it.label)}</b> — ${escapeHtml(it.texto)}</span>
             </span>
             ${total ? `
               <span style="flex:0 0 auto;font-weight:900;color:#0f172a;background:#ffffff;border:1px solid #dbe5ef;border-radius:999px;padding:2px 8px;white-space:nowrap;">
-                ${pct}%
+                ${qtd} · ${pct}%
               </span>
             ` : ''}
           </div>
@@ -3137,6 +3152,45 @@ function htmlLegendaColorida(fne, pergunta, contagem) {
     </div>
   `;
 }
+
+// ── Legenda interativa: clique/hover na legenda controla a fatia do gráfico ──
+const _legendActions = {};   // canvasId -> (label) => void
+
+function _realcarFatia(canvasId, label, ativo) {
+  const ch = (window.Chart && Chart.getChart) ? Chart.getChart(canvasId) : null;
+  if (!ch) return;
+  const idx = (ch.data.labels || []).indexOf(label);
+  if (idx < 0 || !ativo) {
+    ch.setActiveElements([]);
+    if (ch.tooltip) ch.tooltip.setActiveElements([], { x: 0, y: 0 });
+    ch.update();
+    return;
+  }
+  ch.setActiveElements([{ datasetIndex: 0, index: idx }]);
+  try {
+    const meta = ch.getDatasetMeta(0).data[idx];
+    if (ch.tooltip && meta) ch.tooltip.setActiveElements([{ datasetIndex: 0, index: idx }], meta.tooltipPosition());
+  } catch (e) {}
+  ch.update();
+}
+
+document.addEventListener('mouseover', e => {
+  const row = e.target.closest ? e.target.closest('.legend-clicavel') : null;
+  if (row) _realcarFatia(row.dataset.cv, row.dataset.label, true);
+});
+document.addEventListener('mouseout', e => {
+  const row = e.target.closest ? e.target.closest('.legend-clicavel') : null;
+  if (row) _realcarFatia(row.dataset.cv, row.dataset.label, false);
+});
+document.addEventListener('click', e => {
+  const row = e.target.closest ? e.target.closest('.legend-clicavel') : null;
+  if (row && _legendActions[row.dataset.cv]) _legendActions[row.dataset.cv](row.dataset.label);
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const row = e.target.closest ? e.target.closest('.legend-clicavel') : null;
+  if (row && _legendActions[row.dataset.cv]) { e.preventDefault(); _legendActions[row.dataset.cv](row.dataset.label); }
+});
 
 // ===========================================================
 // STATUS ADEQUAÇÃO
@@ -4528,24 +4582,24 @@ function prepararLayoutDiagnostica(titulo) {
             <div class="bg-white border rounded-3 shadow-sm p-3 d-flex flex-column" style="border-left:4px solid #002b5e!important;">
               <h6 class="fw-bold mb-2 text-primary text-center m-0">Leitura</h6>
               <div class="chart-canvas-wrapper"><canvas id="alunosBarChart"></canvas></div>
-              <div class="text-center mt-2 small text-muted"><i class="bi bi-info-circle me-1"></i>Clique na fatia</div>
-              ${_htmlLegenda('LEITURA', null)}
+              <div class="text-center mt-2 small text-muted"><i class="bi bi-info-circle me-1"></i>Clique na fatia ou na legenda</div>
+              <div id="legAlunosL">${_htmlLegenda('LEITURA', null)}</div>
             </div>
           </div>
           <div class="col-md-4">
             <div class="bg-white border rounded-3 shadow-sm p-3 d-flex flex-column" style="border-left:4px solid #002b5e!important;">
               <h6 class="fw-bold mb-2 text-primary text-center m-0">Escrita</h6>
               <div class="chart-canvas-wrapper"><canvas id="alunosPieChart"></canvas></div>
-              <div class="text-center mt-2 small text-muted"><i class="bi bi-info-circle me-1"></i>Clique na fatia</div>
-              ${_htmlLegenda('ESCRITA', null)}
+              <div class="text-center mt-2 small text-muted"><i class="bi bi-info-circle me-1"></i>Clique na fatia ou na legenda</div>
+              <div id="legAlunosE">${_htmlLegenda('ESCRITA', null)}</div>
             </div>
           </div>
           <div class="col-md-4">
             <div class="bg-white border rounded-3 shadow-sm p-3 d-flex flex-column" style="border-left:4px solid #002b5e!important;">
               <h6 class="fw-bold mb-2 text-primary text-center m-0">Produção Textual</h6>
               <div class="chart-canvas-wrapper"><canvas id="alunosProdChart"></canvas></div>
-              <div class="text-center mt-2 small text-muted"><i class="bi bi-info-circle me-1"></i>Clique na fatia</div>
-              ${_htmlLegenda('PRODUCAO TEXTUAL', null)}
+              <div class="text-center mt-2 small text-muted"><i class="bi bi-info-circle me-1"></i>Clique na fatia ou na legenda</div>
+              <div id="legAlunosP">${_htmlLegenda('PRODUCAO TEXTUAL', null)}</div>
             </div>
           </div>
         </div>
@@ -4769,7 +4823,9 @@ function _ordenarRotulosDiag(fne, rotulos) {
 function renderAlunosCharts(countsL, countsE, countsP) {
   const commonOptions = {
     maintainAspectRatio: false,
-    layout: { padding: { right: 5, left: 5 } },
+    layout: { padding: 20 },
+    spacing: 2,
+    interaction: { mode: 'nearest', intersect: false },
     onClick: (event, elements, chart) => {
       if (elements.length > 0) {
         const idx = elements[0].index;
@@ -4817,9 +4873,9 @@ function renderAlunosCharts(countsL, countsE, countsP) {
     data: {
       labels: cL.rawLabels,
       rawLabels: cL.rawLabels,
-      datasets: [{ data: cL.data, backgroundColor: cL.bgColors, borderWidth: 1, borderColor: '#ffffff', hoverOffset: 10 }]
+      datasets: [{ data: cL.data, backgroundColor: cL.bgColors, borderWidth: 2, borderColor: '#ffffff', hoverOffset: 18, hoverBorderWidth: 4 }]
     },
-    options: { ...commonOptions, cutout: '50%' }
+    options: { ...commonOptions, cutout: '42%' }
   });
 
   if (alunosPieChart) alunosPieChart.destroy();
@@ -4828,9 +4884,9 @@ function renderAlunosCharts(countsL, countsE, countsP) {
     data: {
       labels: cE.rawLabels,
       rawLabels: cE.rawLabels,
-      datasets: [{ data: cE.data, backgroundColor: cE.bgColors, borderWidth: 1, borderColor: '#ffffff', hoverOffset: 10 }]
+      datasets: [{ data: cE.data, backgroundColor: cE.bgColors, borderWidth: 2, borderColor: '#ffffff', hoverOffset: 18, hoverBorderWidth: 4 }]
     },
-    options: { ...commonOptions, cutout: '50%' }
+    options: { ...commonOptions, cutout: '42%' }
   });
 
   if (alunosProdChart) alunosProdChart.destroy();
@@ -4839,10 +4895,22 @@ function renderAlunosCharts(countsL, countsE, countsP) {
     data: {
       labels: cP.rawLabels,
       rawLabels: cP.rawLabels,
-      datasets: [{ data: cP.data, backgroundColor: cP.bgColors, borderWidth: 1, borderColor: '#ffffff', hoverOffset: 10 }]
+      datasets: [{ data: cP.data, backgroundColor: cP.bgColors, borderWidth: 2, borderColor: '#ffffff', hoverOffset: 18, hoverBorderWidth: 4 }]
     },
-    options: { ...commonOptions, cutout: '50%' }
+    options: { ...commonOptions, cutout: '42%' }
   });
+
+  // Legendas clicáveis + ações (clicar/hover na legenda controla a fatia)
+  _legendActions['alunosBarChart']  = l => abrirModalAlunos('L', l);
+  _legendActions['alunosPieChart']  = l => abrirModalAlunos('E', l);
+  _legendActions['alunosProdChart'] = l => abrirModalAlunos('P', l);
+  const _legAluno = (id, fne, cObj, cv) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = htmlLegendaColorida(fne, null, cObj, { canvasId: cv });
+  };
+  _legAluno('legAlunosL', 'LEITURA', countsL, 'alunosBarChart');
+  _legAluno('legAlunosE', 'ESCRITA', countsE, 'alunosPieChart');
+  _legAluno('legAlunosP', 'PRODUCAO TEXTUAL', countsP, 'alunosProdChart');
 }
 
 
@@ -5438,17 +5506,20 @@ function renderGraficosBimestreRapido(disciplina, dadosDisciplina, tipos) {
           <div style="position:relative;height:380px;margin:8px 0;flex-shrink:0;">
             <canvas id="${canvasId}"></canvas>
           </div>
-          ${htmlLegendaColorida(tipo, null, contagem)}
+          ${htmlLegendaColorida(tipo, null, contagem, { canvasId })}
           ${htmlExplicacaoAdequacao(tipo, adequacaoInfo)}
         </div>
       </div>`);
 
     const ch = new Chart(document.getElementById(canvasId), {
       type: 'doughnut',
-      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff', hoverOffset: 10 }] },
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff', hoverOffset: 18, hoverBorderWidth: 4 }] },
       options: {
         maintainAspectRatio: false,
-        cutout: '50%',
+        cutout: '42%',
+        layout: { padding: 20 },
+        spacing: 2,
+        interaction: { mode: 'nearest', intersect: false },
         onClick: (ev, els) => { if (els.length) abrirModalBimestreRapido(disciplina, tipo, labels[els[0].index]); },
         plugins: {
           legend: { display: false },
@@ -5462,6 +5533,7 @@ function renderGraficosBimestreRapido(disciplina, dadosDisciplina, tipos) {
       }
     });
     dynCharts.push(ch);
+    _legendActions[canvasId] = l => abrirModalBimestreRapido(disciplina, tipo, l);
   });
 }
 
@@ -5526,10 +5598,13 @@ function abrirDetalheEixo(disciplina, eixo) {
 
         const ch = new Chart(document.getElementById(canvasId), {
           type: 'doughnut',
-          data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff', hoverOffset: 8 }] },
+          data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff', hoverOffset: 18, hoverBorderWidth: 4 }] },
           options: {
             maintainAspectRatio: false,
-            cutout: '50%',
+            cutout: '42%',
+            layout: { padding: 16 },
+            spacing: 2,
+            interaction: { mode: 'nearest', intersect: false },
             plugins: {
               legend: { display: false },
               datalabels: {
