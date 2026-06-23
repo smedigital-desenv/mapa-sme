@@ -6840,12 +6840,15 @@ function _renderTabelaTotal(linhas) {
     if (flat.includes('HISTORIA')) return 'História';
     if (flat.includes('GEOGRAFIA')) return 'Geografia';
     if (flat.includes('ARTESVISUAIS')) return 'Artes Visuais';
+    if ((flat.includes('EDUCACAO') || flat.includes('EDUCA')) &&
+        (flat.includes('FISICA') || flat.includes('FSICA') || flat.includes('FIS'))) return 'Educação Física';
     if (flat === 'ARTE' || flat.includes('ARTE')) return 'Arte';
-    if ((flat.includes('EDUCACAO') || flat.includes('EDUCA')) && (flat.includes('FISICA') || flat.includes('FIS'))) return 'Educação Física';
     if ((flat.includes('LINGUA') || flat.includes('LNGUA') || flat.includes('INGUA')) && (flat.includes('INGLESA') || flat.includes('INGLES'))) return 'Língua Inglesa';
     if (flat.includes('ATENDIMENTOEDUCACIONAL') || flat.includes('EDUCACIONALESPECIALIZADO') || flat === 'AEE') return 'Atendimento Educacional Especializado';
 
-    return txt;
+    // Fallback: remove o caractere de substituição (�) de nomes não mapeados,
+    // para não exibir lixo de codificação na tela.
+    return txt.replace(/�/g, '').replace(/\s{2,}/g, ' ').trim();
   }
 
 
