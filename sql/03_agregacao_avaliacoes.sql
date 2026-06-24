@@ -26,17 +26,17 @@ DROP MATERIALIZED VIEW IF EXISTS mv_bimestres_grupos CASCADE;
 CREATE MATERIALIZED VIEW mv_bimestres_grupos AS
   SELECT b.bimestre, b.nome_unidade, b.ano_escolar, b.turma,
          b.fnc_disciplina, b.descricao_fne,
-         b.valor_resposta, b.codigo_resposta, b.texto_resposta,
+         b.valor_resposta, b.codigo_resposta,
          COUNT(*)::int AS qtd
   FROM bimestres b
   GROUP BY b.bimestre, b.nome_unidade, b.ano_escolar, b.turma,
            b.fnc_disciplina, b.descricao_fne,
-           b.valor_resposta, b.codigo_resposta, b.texto_resposta;
+           b.valor_resposta, b.codigo_resposta;
 
 -- índice único (integridade do agrupamento) + índice de filtro por bimestre
 CREATE UNIQUE INDEX ux_mv_grupos ON mv_bimestres_grupos
   (bimestre, nome_unidade, ano_escolar, turma, fnc_disciplina, descricao_fne,
-   valor_resposta, codigo_resposta, texto_resposta);
+   valor_resposta, codigo_resposta);
 CREATE INDEX ix_mv_grupos_bim ON mv_bimestres_grupos (bimestre);
 
 -- MV 2: alunos DISTINTOS por (bimestre, unidade, ano, turma) — alimenta o `hier`.
@@ -79,13 +79,10 @@ CREATE MATERIALIZED VIEW mv_alunos_diag AS
     MAX(nome_aluno) AS nome_aluno,
     MAX(valor_resposta)  FILTER (WHERE descricao_fne ILIKE '%ESCRITA%') AS e_valor,
     MAX(codigo_resposta) FILTER (WHERE descricao_fne ILIKE '%ESCRITA%') AS e_codigo,
-    MAX(texto_resposta)  FILTER (WHERE descricao_fne ILIKE '%ESCRITA%') AS e_texto,
     MAX(valor_resposta)  FILTER (WHERE descricao_fne ILIKE '%LEITURA%') AS l_valor,
     MAX(codigo_resposta) FILTER (WHERE descricao_fne ILIKE '%LEITURA%') AS l_codigo,
-    MAX(texto_resposta)  FILTER (WHERE descricao_fne ILIKE '%LEITURA%') AS l_texto,
     MAX(valor_resposta)  FILTER (WHERE descricao_fne ILIKE '%PRODU%')   AS p_valor,
-    MAX(codigo_resposta) FILTER (WHERE descricao_fne ILIKE '%PRODU%')   AS p_codigo,
-    MAX(texto_resposta)  FILTER (WHERE descricao_fne ILIKE '%PRODU%')   AS p_texto
+    MAX(codigo_resposta) FILTER (WHERE descricao_fne ILIKE '%PRODU%')   AS p_codigo
   FROM alunos
   GROUP BY nome_unidade, ano_escolar, turma, COALESCE(rema_aluno, nome_aluno);
 
@@ -106,15 +103,15 @@ CREATE OR REPLACE FUNCTION agrupar_bimestres(
   p_incluir_hier BOOLEAN DEFAULT TRUE
 ) RETURNS json LANGUAGE sql STABLE AS $$
   SELECT json_build_object(
-    'grupos', COALESCE((SELECT json_agg(g) FROM (
-      SELECT bimestre, nome_unidade, ano_escolar, turma, fnc_disciplina, descricao_fne,
-             valor_resposta, codigo_resposta, texto_resposta, qtd
-      FROM mv_bimestres_grupos
+    'grupos', COALESCE((SELECT json_agg(json_build_array(
+        bimestre, nome_unidade, ano_escolar, turma, fnc_disciplina, descricao_fne,
+        valor_resposta, codigo_resposta, qtd
+      )) FROM mv_bimestres_grupos
       WHERE (p_bimestre IS NULL OR bimestre = p_bimestre)
         AND (p_ano_like IS NULL OR ano_escolar ILIKE p_ano_like)
         AND (p_unidade  IS NULL OR nome_unidade = p_unidade)
         AND (p_turma    IS NULL OR turma = p_turma)
-    ) g), '[]'::json),
+    ), '[]'::json),
     'hier', CASE WHEN p_incluir_hier THEN COALESCE((SELECT json_agg(h) FROM (
       SELECT bimestre, nome_unidade, ano_escolar, turma, qtd_alunos
       FROM mv_bimestres_hier
@@ -135,13 +132,11 @@ $$;
 -- Diagnóstica/Rede: devolve o pivô por aluno em um único json (sem paginação).
 CREATE OR REPLACE FUNCTION alunos_diagnostica()
 RETURNS json LANGUAGE sql STABLE AS $$
-  SELECT COALESCE(json_agg(a), '[]'::json) FROM (
-    SELECT nome_unidade, ano_escolar, turma, rema_aluno, nome_aluno,
-           e_valor, e_codigo, e_texto,
-           l_valor, l_codigo, l_texto,
-           p_valor, p_codigo, p_texto
-    FROM mv_alunos_diag
-  ) a;
+  SELECT COALESCE(json_agg(json_build_array(
+    nome_unidade, ano_escolar, turma, rema_aluno, nome_aluno,
+    e_valor, e_codigo, l_valor, l_codigo, p_valor, p_codigo
+  )), '[]'::json)
+  FROM mv_alunos_diag;
 $$;
 
 -- Atualiza as 3 views. (REFRESH simples — CONCURRENTLY não é permitido dentro
