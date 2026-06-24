@@ -1227,6 +1227,7 @@
       <button type="button" class="btn-toggle" data-avaliacao="terceiroBimestre" onclick="abrirAvaliacao('terceiroBimestre', this)">3º Bim.</button>
       <button type="button" class="btn-toggle" data-avaliacao="quartoBimestre" onclick="abrirAvaliacao('quartoBimestre', this)">4º Bim.</button>
       <button type="button" class="btn-toggle" data-avaliacao="Total" onclick="abrirAvaliacao('Total', this)">Total</button>
+      <button type="button" class="btn-toggle" data-avaliacao="Auditoria" onclick="abrirAvaliacao('Auditoria', this)"><i class="bi bi-shield-check me-1"></i>Auditoria</button>
     </div>
   </div>
 
@@ -1401,6 +1402,80 @@
 
 
 
+
+    <!-- ═════════════════════════════════════════════════════
+         VIEW AUDITORIA DE CONSISTÊNCIA
+         Detecta turmas com avaliações homogêneas demais e
+         alunos "chapados" (mesma resposta em todos os eixos).
+         ═════════════════════════════════════════════════════ -->
+    <section id="viewAuditoria" class="d-none">
+      <div class="avaliacao-header-card mb-3">
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
+          <div>
+            <div class="mini-label mb-1">Qualidade dos dados</div>
+            <h5 class="avaliacao-title m-0"><i class="bi bi-shield-check me-2"></i>Auditoria de Consistência</h5>
+            <p class="text-muted small mb-0 mt-1" style="max-width:640px;">
+              Sinaliza turmas em que quase todos os alunos receberam o mesmo conceito
+              (homogeneidade) e alunos com a mesma resposta em todos os eixos
+              (preenchimento "chapado"). Sinais de alerta, não conclusões — confira cada caso.
+            </p>
+          </div>
+        </div>
+
+        <div class="row g-2 align-items-end mt-2">
+          <div class="col-6 col-md-3">
+            <label class="mini-label d-block mb-1">Avaliação</label>
+            <select id="audAvaliacao" class="form-select form-select-sm">
+              <option value="diagnostica">Diagnóstica</option>
+              <option value="primeiroBimestre">1º Bimestre</option>
+              <option value="segundoBimestre">2º Bimestre</option>
+              <option value="terceiroBimestre">3º Bimestre</option>
+              <option value="quartoBimestre">4º Bimestre</option>
+            </select>
+          </div>
+          <div class="col-6 col-md-2">
+            <label class="mini-label d-block mb-1">Ano escolar</label>
+            <select id="audAno" class="form-select form-select-sm">
+              <option value="TODOS">Todos</option>
+              <option value="1º ANO">1º Ano</option>
+              <option value="2º ANO">2º Ano</option>
+              <option value="3º ANO">3º Ano</option>
+              <option value="4º ANO">4º Ano</option>
+              <option value="5º ANO">5º Ano</option>
+            </select>
+          </div>
+          <div class="col-6 col-md-2">
+            <label class="mini-label d-block mb-1">Mín. alunos</label>
+            <input id="audMinAlunos" type="number" min="2" value="10" class="form-control form-control-sm">
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="mini-label d-block mb-1">Limiar homog. (%)</label>
+            <input id="audLimiar" type="number" min="50" max="100" value="90" class="form-control form-control-sm">
+          </div>
+          <div class="col-12 col-md-2">
+            <button id="audBtnAnalisar" type="button" class="btn btn-primary btn-sm w-100" onclick="iniciarAuditoria()">
+              <i class="bi bi-search me-1"></i>Analisar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="audKpis" class="row g-3 mb-3"></div>
+
+      <div class="table-container shadow-sm">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+          <h5 class="fw-bold text-primary m-0">
+            <i class="bi bi-list-check me-2"></i>Turmas sinalizadas
+          </h5>
+          <span id="audResumoTexto" class="small text-muted"></span>
+        </div>
+        <div id="audConteudo">
+          <div class="text-center text-muted p-4">
+            Escolha a avaliação e o ano e clique em <b>Analisar</b>.
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- Atribuição, Elefante e Fluência agora são páginas próprias (opção 2):
          atribuicao.html, elefante.html, fluencia.html — acessadas pelos links do menu. -->
@@ -7908,6 +7983,13 @@ function _renderTabelaTotal(linhas) {
   }
 
   window.MAPA_SUPABASE_CLIENT = supa;
+  // Ponte para a Auditoria de Consistência (escopo global) reaproveitar a
+  // camada de dados/normalização que vive dentro deste IIFE.
+  window.MAPA_AUDIT = {
+    fetchAll, respostaLabel, respostaScore,
+    normalizar, normalizarDisciplina, corrigirTextoLegivel, cleanUnit,
+    BIM_KEY_TO_NUM
+  };
   window.google = window.google || {};
   window.google.script = window.google.script || {};
   window.google.script.run = createRunner(null, null);
@@ -8237,7 +8319,8 @@ function switchMainView(view) {
   const vAtribuicao = document.getElementById('viewAtribuicao');
 
   [subNavAvaliacoes].forEach(el => el && el.classList.add('d-none'));
-  [vAlunos, vBimestre, vTotal, vConfig, vElefante, vFluencia, vAtribuicao].forEach(el => el && el.classList.add('d-none'));
+  const vAuditoria = document.getElementById('viewAuditoria');
+  [vAlunos, vBimestre, vTotal, vConfig, vElefante, vFluencia, vAtribuicao, vAuditoria].forEach(el => el && el.classList.add('d-none'));
   mostrarAnoFilterBar(false);
   if (typeof setModuloTopActions === 'function') setModuloTopActions(null);
 
@@ -8323,10 +8406,17 @@ function abrirAvaliacao(tipo, btn) {
   _preAquecerAvaliacao(tipo);
   marcarSubAvaliacao(tipo, btn);
 
-  ['viewTurmas','viewAlunos','viewBimestre1','viewTotal','viewConfiguracoes','viewElefante','viewFluencia','viewAtribuicao'].forEach(id => {
+  ['viewTurmas','viewAlunos','viewBimestre1','viewTotal','viewConfiguracoes','viewElefante','viewFluencia','viewAtribuicao','viewAuditoria'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.add('d-none');
   });
+
+  // Auditoria tem seus próprios controles de bimestre — não usa a barra de ano global.
+  if (tipo === 'Auditoria') {
+    mostrarAnoFilterBar(false);
+    document.getElementById('viewAuditoria').classList.remove('d-none');
+    return;
+  }
 
   mostrarAnoFilterBar(true);
 
@@ -8353,7 +8443,7 @@ function abrirAvaliacao(tipo, btn) {
 }
 
 function _preAquecerAvaliacao(tipo) {
-  if (!tipo || tipo === 'AnoEscolar') return;
+  if (!tipo || tipo === 'AnoEscolar' || tipo === 'Auditoria') return;
 
   if (tipo === 'Total') {
     const anoAtual = _anoFiltroAtualSeguro();
@@ -8388,6 +8478,369 @@ function limparAreaAvaliacao() {
   ['pillsDisciplinasContainer','bimestre1Kpis','bimestre1Charts','bimestre1TableHead','bimestre1TableBody']
     .forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
   if (typeof fecharDetalheEixo === 'function') fecharDetalheEixo();
+}
+
+// ===========================================================
+// AUDITORIA DE CONSISTÊNCIA
+// Detecta turmas homogêneas demais (% do "modo" por item) e
+// alunos "chapados" (mesma resposta em todos os eixos).
+// ===========================================================
+// Camada de dados/normalização exposta pelo IIFE de dados (ver window.MAPA_AUDIT).
+const {
+  fetchAll: _audFetchAll, respostaLabel: _audRespLabel, respostaScore: _audRespScore,
+  normalizar: _audNorm, normalizarDisciplina: _audNormDisc,
+  corrigirTextoLegivel: _audCorrigir, cleanUnit: _audCleanUnit,
+  BIM_KEY_TO_NUM: _AUD_BIM_NUM
+} = (window.MAPA_AUDIT || {});
+
+const _AUD_RESP_VAZIA = new Set(['', 'NAO AVALIADO', 'NAO AVAL', 'X']);
+const _AUD_AVAL_LABEL = {
+  primeiroBimestre: '1º Bimestre', segundoBimestre: '2º Bimestre',
+  terceiroBimestre: '3º Bimestre', quartoBimestre: '4º Bimestre'
+};
+let _audDados = null;       // resultado da última análise (para expandir turmas)
+let _audTurmaCache = null;  // Map cru de turmas, usado ao expandir o detalhe
+let _audCarregando = false;
+
+function _audRespEhVazia(resp) {
+  return _AUD_RESP_VAZIA.has(_audNorm(resp || ''));
+}
+
+// Cor estável por rótulo de resposta — respostas iguais ganham a mesma cor,
+// então a homogeneidade "salta aos olhos" no heatmap.
+function _audCorResposta(resp) {
+  if (_audRespEhVazia(resp)) return '#f1f3f5';
+  let h = 0;
+  const s = String(resp);
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+  return `hsl(${h}, 70%, 86%)`;
+}
+
+async function iniciarAuditoria() {
+  if (_audCarregando) return;
+  const conteudo = document.getElementById('audConteudo');
+  const kpis = document.getElementById('audKpis');
+  const resumo = document.getElementById('audResumoTexto');
+  const btn = document.getElementById('audBtnAnalisar');
+
+  const avaliacao = document.getElementById('audAvaliacao').value;   // 'diagnostica' | 'primeiroBimestre' | …
+  const ano = document.getElementById('audAno').value;               // 'TODOS' | '1º ANO' | …
+  const minAlunos = Math.max(2, parseInt(document.getElementById('audMinAlunos').value, 10) || 10);
+  const limiar = Math.min(100, Math.max(50, parseInt(document.getElementById('audLimiar').value, 10) || 90));
+
+  const ehDiag = avaliacao === 'diagnostica';
+  // Filtro de ano é aplicado NO CLIENTE: o ilike('%N%') no servidor estoura o
+  // statement timeout do Postgres (wildcard à esquerda = varredura completa).
+  const anoNum = (ano && ano !== 'TODOS') ? _audNorm(ano).replace(' ANO', '').trim() : null;
+  const rotuloAval = ehDiag ? 'Diagnóstica' : (_AUD_AVAL_LABEL[avaliacao] || avaliacao);
+
+  _audCarregando = true;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Analisando…'; }
+  if (kpis) kpis.innerHTML = '';
+  if (resumo) resumo.textContent = '';
+  if (conteudo) conteudo.innerHTML = `<div class="text-center text-muted p-4"><div class="spinner-border spinner-border-sm mb-2"></div><br>Baixando avaliações (${escapeHtml(rotuloAval)})…</div>`;
+
+  try {
+    if (typeof _audFetchAll !== 'function') throw new Error('Fonte de dados (Supabase) indisponível nesta versão.');
+
+    let rows;
+    if (ehDiag) {
+      // Diagnóstica vem da tabela `alunos` (formato longo, 3 eixos graduados).
+      const cols = 'nome_unidade,ano_escolar,turma,rema_aluno,nome_aluno,descricao_fne,disciplina_fnc,valor_resposta,codigo_resposta,texto_resposta';
+      rows = await _audFetchAll('alunos', cols);
+    } else {
+      const bimestre = (_AUD_BIM_NUM && _AUD_BIM_NUM[avaliacao]) || 1;
+      rows = await _audFetchAll('bimestres', '*', q => q.eq('bimestre', bimestre));
+    }
+
+    if (anoNum) rows = rows.filter(r => _audNorm(r.ano_escolar).replace(' ANO', '').trim() === anoNum);
+
+    if (!rows || !rows.length) {
+      if (conteudo) conteudo.innerHTML = '<div class="alert alert-info mb-0">Nenhuma avaliação encontrada para esta seleção.</div>';
+      _audDados = null;
+      return;
+    }
+
+    const turmas = _audAgregarTurmas(rows);
+    _audTurmaCache = turmas;
+    const analise = _audAnalisar(turmas, { minAlunos, limiar });
+    _audDados = { analise, minAlunos, limiar, avaliacao, ano, rotuloAval };
+    _audRenderizar(analise, { minAlunos, limiar, rotuloAval, ano });
+  } catch (err) {
+    console.error('Erro na auditoria:', err);
+    if (conteudo) conteudo.innerHTML = `<div class="alert alert-warning mb-0">Erro ao analisar: ${escapeHtml(err?.message || String(err))}</div>`;
+  } finally {
+    _audCarregando = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-search me-1"></i>Analisar'; }
+  }
+}
+
+// Agrupa as linhas cruas por turma (unidade + ano + turma).
+function _audAgregarTurmas(rows) {
+  const turmas = new Map();
+
+  rows.forEach(r => {
+    const u = _audCleanUnit(r.nome_unidade || 'Sem unidade');
+    const a = _audNorm(r.ano_escolar || 'TODOS') || 'TODOS';
+    const t = String(r.turma || 'Sem turma').trim().toUpperCase();
+    const tk = [u, a, t].join('||');
+
+    const aluno = String(r.rema_aluno || r.nome_aluno || '').trim();
+    if (!aluno) return;
+
+    const disc = _audNormDisc(r.fnc_disciplina || r.disciplina_fnc || 'Sem disciplina');
+    const eixoLabel = _audCorrigir(r.descricao_fne || 'Sem eixo');
+    const itemKey = disc + '||' + _audNorm(eixoLabel);
+    const resp = _audRespLabel(r);
+    const score = _audRespScore(r);
+
+    let T = turmas.get(tk);
+    if (!T) {
+      T = { u, a, t, alunos: new Set(), itens: new Map(), respAluno: new Map(), nomeAluno: new Map() };
+      turmas.set(tk, T);
+    }
+    T.alunos.add(aluno);
+    if (r.nome_aluno) T.nomeAluno.set(aluno, String(r.nome_aluno).trim());
+
+    let item = T.itens.get(itemKey);
+    if (!item) { item = { disc, eixo: eixoLabel, porAluno: new Map() }; T.itens.set(itemKey, item); }
+    item.porAluno.set(aluno, resp);
+
+    let ra = T.respAluno.get(aluno);
+    if (!ra) { ra = new Map(); T.respAluno.set(aluno, ra); }
+    ra.set(itemKey, { resp, score });
+  });
+
+  return turmas;
+}
+
+// Calcula métricas por turma: índice de homogeneidade e alunos "chapados".
+const _AUD_BINARIO = new Set(['SIM', 'NAO']);
+const _AUD_CHAP_SHARE = 0.5;   // fração da turma "chapada" que dispara o alerta
+
+function _audAnalisar(turmas, { minAlunos, limiar }) {
+  const out = [];
+
+  turmas.forEach((T, tk) => {
+    const nAlunos = T.alunos.size;
+    if (nAlunos < minAlunos) return;   // turma pequena: amostra insuficiente
+
+    // ── Homogeneidade por item (% do modo entre alunos avaliados) ──
+    // Itens binários (só Sim/Não) são EXCLUÍDOS do índice: são naturalmente
+    // concentrados e inflariam a homogeneidade de quase toda turma. A turma com
+    // todos "Sim" ainda é capturada pelo sinal de alunos chapados.
+    const itensElegiveis = [];
+    T.itens.forEach((item, ik) => {
+      const contagem = new Map();
+      let avaliados = 0;
+      item.porAluno.forEach(resp => {
+        if (_audRespEhVazia(resp)) return;
+        avaliados++;
+        contagem.set(resp, (contagem.get(resp) || 0) + 1);
+      });
+      if (avaliados < minAlunos) return;
+      if (Array.from(contagem.keys()).every(d => _AUD_BINARIO.has(_audNorm(d)))) return;
+      let modo = 0, respModo = '';
+      contagem.forEach((c, resp) => { if (c > modo) { modo = c; respModo = resp; } });
+      const pct = modo / avaliados;
+      itensElegiveis.push({ disc: item.disc, eixo: item.eixo, avaliados, pct, respModo });
+    });
+
+    let indice = 0, pctItensFlag = 0, itensFlag = 0;
+    if (itensElegiveis.length) {
+      indice = itensElegiveis.reduce((s, x) => s + x.pct, 0) / itensElegiveis.length;
+      itensFlag = itensElegiveis.filter(x => x.pct * 100 >= limiar).length;
+      pctItensFlag = itensFlag / itensElegiveis.length;
+    }
+
+    // ── Alunos "chapados" ──
+    // "Chapado" = mesmo VALOR numérico em todos os eixos avaliados. Compara-se
+    // o score (não o rótulo) porque cada eixo usa uma escala/rótulo diferente
+    // (ex.: valor 4 = "Alfabética" em Escrita, "N4" em Leitura) — o sinal de
+    // preenchimento em massa é o professor repetir o mesmo nível em tudo.
+    let chapados = 0;
+    const chapadosSet = new Set();
+    const chapadosLista = [];
+    T.respAluno.forEach((ra, aluno) => {
+      const scores = [];
+      let labelEx = '';
+      ra.forEach(v => {
+        if (_audRespEhVazia(v.resp) || v.score == null) return;
+        scores.push(v.score);
+        if (!labelEx) labelEx = v.resp;
+      });
+      if (scores.length >= 3 && new Set(scores).size === 1) {
+        chapados++;
+        chapadosSet.add(aluno);
+        chapadosLista.push({ aluno, nome: T.nomeAluno.get(aluno) || aluno, resp: labelEx, itens: scores.length });
+      }
+    });
+
+    const chapShare = nAlunos ? chapados / nAlunos : 0;
+    const homogFlag = itensElegiveis.length > 0 && indice * 100 >= limiar;
+    const chapFlag = chapShare >= _AUD_CHAP_SHARE;
+    const sinalizada = homogFlag || chapFlag;
+
+    out.push({
+      tk, u: T.u, a: T.a, t: T.t, nAlunos,
+      indice, pctItensFlag, itensFlag, itensElegiveis: itensElegiveis.length,
+      chapados, chapShare, chapadosLista, homogFlag, chapFlag, sinalizada
+    });
+  });
+
+  // Ordena: sinalizadas primeiro; depois por gravidade (índice + fração chapada).
+  out.sort((x, y) =>
+    (Number(y.sinalizada) - Number(x.sinalizada)) ||
+    (Math.max(y.indice, y.chapShare) - Math.max(x.indice, x.chapShare)));
+  return out;
+}
+
+function _audRenderizar(analise, { minAlunos, limiar, rotuloAval, ano }) {
+  const conteudo = document.getElementById('audConteudo');
+  const kpis = document.getElementById('audKpis');
+  const resumo = document.getElementById('audResumoTexto');
+
+  const comDados = analise;   // já filtradas por mín. de alunos em _audAnalisar
+  const sinalizadas = analise.filter(x => x.sinalizada);
+  const totalChapados = analise.reduce((s, x) => s + x.chapados, 0);
+
+  const ctx = [rotuloAval || '', (ano && ano !== 'TODOS') ? ano : 'todos os anos'].filter(Boolean).join(' · ');
+  if (resumo) resumo.textContent = `${ctx} — ${comDados.length} turmas · mín. ${minAlunos} alunos · limiar ${limiar}%`;
+
+  if (kpis) {
+    const card = (cor, icone, valor, rotulo) => `
+      <div class="col-6 col-md-3">
+        <div class="bg-white border rounded-3 shadow-sm p-3 h-100">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi ${icone} fs-4" style="color:${cor};"></i>
+            <div>
+              <div class="fw-bold" style="font-size:1.4rem;line-height:1;">${valor}</div>
+              <div class="text-muted small">${rotulo}</div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    kpis.innerHTML =
+      card('#0d6efd', 'bi-collection', comDados.length, 'Turmas analisadas') +
+      card('#dc3545', 'bi-flag-fill', sinalizadas.length, 'Turmas sinalizadas') +
+      card('#fd7e14', 'bi-person-exclamation', totalChapados, 'Alunos "chapados"') +
+      card('#6f42c1', 'bi-bullseye', `${limiar}%`, 'Limiar de homogeneidade');
+  }
+
+  if (!conteudo) return;
+
+  if (!comDados.length) {
+    conteudo.innerHTML = '<div class="alert alert-info mb-0">Nenhuma turma atingiu o mínimo de alunos para ser avaliada. Tente reduzir o mínimo de alunos.</div>';
+    return;
+  }
+  if (!sinalizadas.length) {
+    conteudo.innerHTML = '<div class="alert alert-success mb-0"><i class="bi bi-check-circle me-1"></i>Nenhuma turma ultrapassou os critérios de alerta. As avaliações parecem variadas.</div>';
+    return;
+  }
+
+  const linhas = sinalizadas.map((x) => {
+    const temIndice = x.itensElegiveis > 0;
+    const idx = Math.round(x.indice * 100);
+    const corIdx = idx >= limiar ? '#dc3545' : (idx >= limiar - 10 ? '#fd7e14' : '#198754');
+    const chapPct = Math.round(x.chapShare * 100);
+    const badges = [];
+    if (x.homogFlag) badges.push('<span class="badge bg-danger">Homogênea</span>');
+    if (x.chapFlag) badges.push(`<span class="badge bg-warning text-dark">${chapPct}% chapada</span>`);
+    return `
+      <tr style="cursor:pointer;" onclick="_audToggleDetalhe('${escapeJs(x.tk)}', this)">
+        <td class="text-center text-muted"><i class="bi bi-chevron-right aud-chevron"></i></td>
+        <td><div class="fw-bold small">${escapeHtml(x.u)}</div><div class="text-muted small">${escapeHtml(x.a)} · Turma ${escapeHtml(x.t)}</div></td>
+        <td class="text-center">${x.nAlunos}</td>
+        <td class="text-center fw-bold" style="color:${temIndice ? corIdx : '#adb5bd'};">${temIndice ? idx + '%' : '—'}</td>
+        <td class="text-center">${temIndice ? x.itensFlag + '/' + x.itensElegiveis : '—'}</td>
+        <td class="text-center ${x.chapFlag ? 'fw-bold text-warning' : ''}">${x.chapados ? x.chapados + '/' + x.nAlunos : '—'}</td>
+        <td>${badges.join(' ') || '—'}</td>
+      </tr>
+      <tr class="aud-detalhe d-none" data-detalhe="${escapeHtml(x.tk)}"><td colspan="7" class="p-0"></td></tr>`;
+  }).join('');
+
+  conteudo.innerHTML = `
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width:32px;"></th>
+            <th>Turma</th>
+            <th class="text-center">Alunos</th>
+            <th class="text-center" title="Média do % do conceito mais comum em cada item (itens Sim/Não são ignorados). '—' = a turma só tem itens binários.">Homog.</th>
+            <th class="text-center" title="Itens com homogeneidade acima do limiar">Itens ≥ lim.</th>
+            <th class="text-center" title="Alunos com o mesmo valor em todos os eixos / total de alunos">Chapados</th>
+            <th>Alertas</th>
+          </tr>
+        </thead>
+        <tbody>${linhas}</tbody>
+      </table>
+    </div>
+    <p class="text-muted small mt-3 mb-0">
+      <i class="bi bi-info-circle me-1"></i><b>Homog.</b> = média, entre os itens graduados da turma, do % de alunos que receberam o conceito mais frequente
+      (itens Sim/Não são ignorados por serem naturalmente concentrados).
+      <b>Chapados</b> = alunos com o mesmo valor numérico em todos os eixos; a turma é marcada quando ≥ 50% dela está chapada.
+      Clique numa turma para ver o detalhe aluno × eixo.
+    </p>`;
+}
+
+function _audToggleDetalhe(tk, tr) {
+  const linhaDet = document.querySelector(`tr.aud-detalhe[data-detalhe="${CSS.escape(tk)}"]`);
+  if (!linhaDet) return;
+  const chevron = tr.querySelector('.aud-chevron');
+  const aberto = !linhaDet.classList.contains('d-none');
+  if (aberto) {
+    linhaDet.classList.add('d-none');
+    if (chevron) chevron.className = 'bi bi-chevron-right aud-chevron';
+    return;
+  }
+  linhaDet.classList.remove('d-none');
+  if (chevron) chevron.className = 'bi bi-chevron-down aud-chevron';
+  const cell = linhaDet.querySelector('td');
+  if (cell && !cell.dataset.render) {
+    cell.innerHTML = _audRenderDetalhe(tk);
+    cell.dataset.render = '1';
+  }
+}
+
+// Heatmap aluno × eixo da turma selecionada (recomputa a partir dos dados crus).
+function _audRenderDetalhe(tk) {
+  const reg = (_audDados && _audDados.analise || []).find(x => x.tk === tk);
+  const T = _audTurmaCache && _audTurmaCache.get(tk);
+  if (!T) return '<div class="p-3 text-muted small">Detalhe indisponível.</div>';
+
+  const itens = Array.from(T.itens.entries())
+    .sort((a, b) => (a[1].disc + a[1].eixo).localeCompare(b[1].disc + b[1].eixo));
+  const alunos = Array.from(T.alunos).sort((a, b) =>
+    (T.nomeAluno.get(a) || a).localeCompare(T.nomeAluno.get(b) || b));
+  const chapadosSet = new Set((reg?.chapadosLista || []).map(c => c.aluno));
+
+  const cabecalho = itens.map(([ik, it]) =>
+    `<th class="small text-nowrap" style="font-size:.68rem;" title="${escapeHtml(it.disc)} — ${escapeHtml(it.eixo)}">${escapeHtml(it.eixo)}</th>`).join('');
+
+  const corpo = alunos.map(aluno => {
+    const ra = T.respAluno.get(aluno) || new Map();
+    const cels = itens.map(([ik]) => {
+      const v = ra.get(ik);
+      const resp = v && v.resp;
+      const vazia = _audRespEhVazia(resp);
+      return `<td class="text-center small" style="background:${_audCorResposta(resp)};font-size:.68rem;${vazia ? 'color:#adb5bd;' : ''}">${escapeHtml(vazia ? '—' : resp)}</td>`;
+    }).join('');
+    const nome = T.nomeAluno.get(aluno) || aluno;
+    const marca = chapadosSet.has(aluno) ? ' <i class="bi bi-exclamation-triangle-fill text-warning" title="Aluno chapado: mesma resposta em todos os eixos"></i>' : '';
+    return `<tr><td class="small text-nowrap fw-bold" style="position:sticky;left:0;background:#fff;font-size:.7rem;">${escapeHtml(nome)}${marca}</td>${cels}</tr>`;
+  }).join('');
+
+  return `
+    <div class="p-3" style="background:#f8f9fa;">
+      <div class="table-responsive" style="max-height:480px;overflow:auto;">
+        <table class="table table-sm table-bordered mb-0" style="background:#fff;">
+          <thead class="table-light"><tr><th class="small" style="position:sticky;left:0;background:#e9ecef;">Aluno</th>${cabecalho}</tr></thead>
+          <tbody>${corpo}</tbody>
+        </table>
+      </div>
+      <p class="text-muted mb-0 mt-2" style="font-size:.7rem;">Células com a mesma cor = mesma resposta. ⚠ marca alunos com resposta idêntica em todos os eixos.</p>
+    </div>`;
 }
 </script>
 
