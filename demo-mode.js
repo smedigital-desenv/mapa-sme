@@ -124,11 +124,20 @@
   var SET_ESCOLA = { nome_unidade: 1, escola: 1, nome_escola: 1, unidade_escolar: 1, ue: 1 };
   var SET_EMAIL = { email: 1, email_usuario: 1, e_mail: 1 };
   var SET_NOME_GEN = { nome: 1 }; // em config = nome da unidade → trata como escola
+  // Campos que podem conter VÁRIOS nomes de professor num único texto
+  // (ex.: elefante_turmas.professores = "FULANA, BELTRANO").
+  var SET_NOME_PROF_MULTI = { professores: 1, docentes: 1, nomes_professores: 1 };
+
+  function pseudonimizarLista(val) {
+    return String(val).split(/\s*[;,/]\s*/).filter(function (nm) { return nm; })
+      .map(function (nm) { return nomePessoa('t|' + nm); }).join(', ');
+  }
 
   function substituirChave(key, val) {
     if (vazio(val)) return val;
     if (SET_NOME_ALUNO[key]) return nomePessoa('a|' + val);
     if (SET_NOME_PROF[key]) return nomePessoa('t|' + val);
+    if (SET_NOME_PROF_MULTI[key]) return pseudonimizarLista(val);
     if (SET_NOME_GEN[key]) return nomeEscola('u|' + val);
     if (SET_ESCOLA[key]) return nomeEscola('s|' + val);
     if (SET_RA[key]) return raAluno(val);
@@ -197,9 +206,28 @@
     }
   }
 
+  // ---- 4b. Tratadores das arrays posicionais (Avaliação/Diagnóstica) -----
+  function tratarAval(url, data) {
+    if (url.indexOf('/rpc/alunos_diagnostica') !== -1 && Array.isArray(data)) {
+      // [unidade, ano, turma, rema, nome, e_valor, e_codigo, l_valor, ...]
+      data.forEach(function (r) {
+        setRow(r, 0, function (v) { return nomeEscola('s|' + v); });
+        setRow(r, 3, function (v) { return raAluno(v); });
+        setRow(r, 4, function (v) { return nomePessoa('a|' + v); });
+      });
+    } else if (url.indexOf('/rpc/agrupar_bimestres') !== -1 && data) {
+      // grupos = [bimestre, unidade, ano, turma, disciplina, eixo, ...] (posicional)
+      (data.grupos || []).forEach(function (r) {
+        setRow(r, 1, function (v) { return nomeEscola('s|' + v); });
+      });
+      // data.hier são objetos (nome_unidade) — tratados pelo walk() abaixo.
+    }
+  }
+
   function transformar(url, data) {
-    if (url.indexOf('/rpc/ee_') !== -1) tratarEE(url, data); // arrays posicionais
-    else walk(data, 0);                                       // objetos por chave
+    if (url.indexOf('/rpc/ee_') !== -1) { tratarEE(url, data); return data; } // arrays posicionais EE
+    tratarAval(url, data); // arrays posicionais (Diagnóstica/Bimestres), se aplicável
+    walk(data, 0);         // objetos por chave (demais RPCs e tabelas)
     return data;
   }
 
