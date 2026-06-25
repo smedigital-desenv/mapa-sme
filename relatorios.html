@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base target="_top">
+  <title>Relatórios de Acompanhamento</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <style>
+    /* ── Variáveis ── */
+    :root {
+      --primary: #002b5e;
+      --neon-green: #39FF14;
+      --neon-pink: #FF007F;
+      --neon-yellow: #FFD300;
+      --neon-blue: #00e5ff;
+      --bg: #f0f4f8;
+    }
+    body { background-color: var(--bg); font-family: 'Inter', sans-serif; padding-bottom: 50px; min-height: 100vh; display: flex; flex-direction: column; }
+    .nav-header { background: var(--primary); color: white; padding: 1.2rem 2rem; border-bottom: 5px solid var(--neon-blue); position: sticky; top: 0; z-index: 1040; }
+    .btn-toggle { border: 2px solid var(--neon-blue); color: white; font-weight: 700; margin-right: 10px; border-radius: 8px; transition: 0.3s; background: transparent; padding: 6px 16px; }
+    .btn-toggle:hover { background: rgba(0,229,255,0.1); color: white; }
+    .btn-toggle.active { background: var(--neon-blue); color: var(--primary); box-shadow: 0 0 12px var(--neon-blue); }
+    .tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; border-radius: 20px; background: var(--neon-pink); color: white; font-size: 0.7rem; font-weight: 800; padding: 0 6px; margin-left: 6px; }
+    .card-kpi { border: none; border-radius: 12px; background: white; padding: 1.2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    .chart-container { background: white; border-radius: 15px; padding: 1.2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    .table-container { background: white; border-radius: 15px; padding: 1.5rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    .btn-action { font-weight: 700; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; transition: 0.2s; border-radius: 8px; }
+    .btn-action-primary { background-color: var(--primary); color: white; border: 1px solid var(--primary); }
+    .btn-action-primary:hover { background-color: #001a3d; color: white; box-shadow: 0 4px 10px rgba(0,43,94,0.3); transform: scale(1.02); }
+    .btn-action-ia { background-color: white; color: var(--primary); border: 2px solid var(--neon-blue); }
+    .btn-action-ia:hover { background-color: var(--neon-blue); color: var(--primary); box-shadow: 0 0 10px var(--neon-blue); transform: scale(1.02); }
+    .layout-wrapper { display: flex; gap: 1.5rem; padding: 1.5rem; max-width: 1600px; margin: 0 auto; width: 100%; align-items: flex-start; }
+    aside { width: 300px; flex-shrink: 0; position: sticky; top: calc(80px + 1.5rem); display: flex; flex-direction: column; gap: 1rem; }
+    main { flex-grow: 1; min-width: 0; }
+    .sel-bar { background: #f8faff; border: 1px solid var(--neon-blue); border-radius: 12px; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+    .sel-bar-titulo { font-size: 0.75rem; font-weight: 800; color: var(--primary); text-transform: uppercase; }
+    #contadorSel { font-size: 0.85rem; font-weight: 700; color: var(--neon-pink); }
+    .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; }
+    .rel-card { cursor: pointer; transition: all 0.2s ease; border: 2px solid transparent; position: relative; display: flex; flex-direction: column; gap: 10px; }
+    .rel-card:hover { border-color: var(--neon-blue); transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
+    .rel-card.selecionado { border-color: var(--neon-pink); background-color: #fffafc; box-shadow: 0 0 0 3px rgba(255,0,127,0.1); }
+    .card-checkbox-wrap { position: absolute; top: 15px; right: 15px; z-index: 2; }
+    .card-checkbox { width: 20px; height: 20px; cursor: pointer; accent-color: var(--neon-pink); }
+    .card-title-escola { font-weight: 800; font-size: 0.95rem; color: var(--primary); line-height: 1.2; padding-right: 30px; }
+    .card-meta-info { font-size: 0.75rem; font-weight: 600; color: #6c757d; }
+    .estado { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4rem 2rem; text-align: center; color: #adb5bd; }
+    .estado i { font-size: 3rem; margin-bottom: 1rem; color: #dee2e6; }
+    .estado p { font-weight: 600; font-size: 1.1rem; }
+    .spinner-wrapper { display: flex; justify-content: center; padding: 4rem; }
+    #toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: var(--primary); color: white; padding: 12px 25px; border-radius: 30px; font-weight: 700; display: flex; align-items: center; gap: 10px; box-shadow: 0 10px 25px rgba(0,43,94,0.3); border: 2px solid var(--neon-green); opacity: 0; pointer-events: none; transition: 0.3s; z-index: 9999; }
+    #toast.visivel { opacity: 1; transform: translateX(-50%) translateY(-10px); }
+    .search-wrap { position: relative; }
+    .search-wrap i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #adb5bd; }
+    .search-wrap input { padding-left: 36px; font-weight: 500; }
+    @media (max-width: 768px) { .layout-wrapper { flex-direction: column; } aside { width: 100%; position: static; } }
+  </style>
+</head>
+<body>
+
+<div id="toast">
+  <i class="bi bi-check-circle-fill" style="color: var(--neon-green);"></i>
+  <span id="toast-msg">Devolutiva salva!</span>
+</div>
+
+<div class="nav-header d-flex justify-content-between align-items-center">
+  <div class="d-flex align-items-center">
+    <h4 class="m-0 me-4 d-flex align-items-center">
+      <i class="bi bi-file-earmark-text-fill me-2" style="color:var(--neon-blue);"></i> RELATÓRIOS
+    </h4>
+    <div class="btn-group me-4 shadow-sm" role="group">
+      <button class="btn btn-toggle active" id="tab-fundamental"  onclick="mudarSecao('fundamental')"><i class="bi bi-building me-2"></i> Fundamental</button>
+      <button class="btn btn-toggle"        id="tab-infantil"     onclick="mudarSecao('infantil')"><i class="bi bi-balloon-fill me-2"></i> Infantil</button>
+      <button class="btn btn-toggle"        id="tab-devolutivas"  onclick="mudarSecao('devolutivas')"><i class="bi bi-robot me-2"></i> Devolutivas <span class="tab-badge" id="badge-dev" style="display:none">0</span></button>
+    </div>
+  </div>
+  <div class="d-flex align-items-center gap-3">
+    <span id="badgeCount" class="badge bg-light text-dark fw-bold px-3 py-2" style="display:none; font-size: 0.8rem;"></span>
+    <div id="user-indicator" style="display:none; align-items:center; gap:8px;">
+      <div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.12);border-radius:20px;padding:4px 12px;">
+        <i class="bi bi-person-circle" style="color:var(--neon-blue);font-size:0.9rem;"></i>
+        <span id="user-email-display" style="font-size:0.75rem;font-weight:700;color:white;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+        <span id="user-admin-badge" style="display:none;background:var(--neon-green);color:#002b5e;font-size:0.65rem;font-weight:800;border-radius:20px;padding:1px 7px;">ADMIN</span>
+      </div>
+    </div>
+    <button class="btn btn-action" id="btnEntrar" onclick="entrarComGoogle()"
+      style="background:rgba(255,255,255,0.15);color:white;border:1.5px solid rgba(255,255,255,0.4);font-size:0.8rem;">
+      <i class="bi bi-google me-1"></i> Entrar
+    </button>
+  </div>
+</div>
+
+<div class="layout-wrapper">
+  <aside id="aside-principal" class="table-container">
+    <div class="sel-bar">
+      <div class="d-flex flex-column">
+        <span class="sel-bar-titulo"><i class="bi bi-stars text-warning me-1"></i> Análise em Lote IA</span>
+        <span id="contadorSel">0 selecionados</span>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary fw-bold flex-grow-1" onclick="selecionarTodos()">Marcar Todos</button>
+        <button class="btn btn-sm btn-outline-danger fw-bold" onclick="limparSelecao()">Limpar</button>
+      </div>
+      <button class="btn btn-action btn-action-ia w-100 justify-content-center mt-2" id="btnAnalisarLote" onclick="analisarLote()" disabled>
+        <i class="bi bi-cpu"></i> Analisar com IA
+      </button>
+    </div>
+    <div class="mb-3">
+      <label class="form-label"><i class="bi bi-map me-1"></i> Regional</label>
+      <select id="filtroRegional" class="form-select fw-bold shadow-sm" onchange="filtrar()">
+        <option value="">Todas as Regionais</option>
+      </select>
+    </div>
+    <div class="mb-3">
+      <label class="form-label"><i class="bi bi-building-check me-1"></i> Unidade Escolar</label>
+      <select id="filtroEscola" class="form-select fw-bold shadow-sm" onchange="filtrar()">
+        <option value="">Todas as Escolas</option>
+      </select>
+    </div>
+    <div class="mb-4">
+      <label class="form-label"><i class="bi bi-search me-1"></i> Buscar Registros</label>
+      <div class="search-wrap shadow-sm">
+        <i class="bi bi-search"></i>
+        <input type="text" id="busca" class="form-control fw-bold" placeholder="Nome, data, período…" oninput="filtrar()" />
+      </div>
+    </div>
+  </aside>
+
+  <aside id="aside-dev" class="table-container" style="display: none;">
+    <div class="mb-3">
+      <label class="form-label">Tipo</label>
+      <select id="filtroDevTipo" class="form-select fw-bold shadow-sm" onchange="filtrarDevolutivas()">
+        <option value="">Todos</option>
+        <option value="individual">Individual</option>
+      </select>
+    </div>
+    <div class="mb-3">
+      <label class="form-label"><i class="bi bi-map me-1"></i> Regional</label>
+      <select id="filtroDevRegional" class="form-select fw-bold shadow-sm" onchange="filtrarDevolutivas()">
+        <option value="">Todas as Regionais</option>
+      </select>
+    </div>
+    <div class="mb-4">
+      <label class="form-label">Buscar</label>
+      <div class="search-wrap shadow-sm">
+        <i class="bi bi-search"></i>
+        <input type="text" id="buscaDev" class="form-control fw-bold" placeholder="Escola, regional, data…" oninput="filtrarDevolutivas()" />
+      </div>
+    </div>
+  </aside>
+
+  <main id="main">
+    <div class="spinner-wrapper">
+      <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+    </div>
+  </main>
+</div>
+
+<div id="print-area"></div>
+
+<div class="modal fade" id="modalRelatorio" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" style="max-width: 1350px;">
+    <div class="modal-content border-0 shadow-lg" style="border-radius: 15px; background: white;">
+      <div class="modal-header border-bottom border-info border-opacity-25 bg-white">
+        <h5 class="modal-title fw-bold text-primary">
+          <i class="bi bi-file-earmark-text-fill me-2" style="color:var(--neon-blue);"></i>
+          <span id="modalTitulo">Relatório da Visita</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body p-4 p-md-5" id="relatorio-container"></div>
+      <div class="modal-footer border-top bg-white" id="modalRelatorioFooter"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// ── Configuração ──
+const COL_REGIONAL = "Marque a Regional a qual pertente a unidade escolar.";
+const COLS_FICHA = [
+  "Carimbo de data/hora","Data da Visita:","Data da visita:",
+  "Assinale o período da visita.",
+  "Nome(s) do(s) responsável(is) pelo acompanhamento pedagógico.",
+  "Endereço de e-mail",
+  COL_REGIONAL
+];
+const ROTULOS = {
+  "Carimbo de data/hora":"Enviado em",
+  "Data da Visita:":"Data da visita",
+  "Data da visita:":"Data da visita",
+  "Assinale o período da visita.":"Período",
+  "Nome(s) do(s) responsável(is) pelo acompanhamento pedagógico.":"Responsável(is)",
+  "Endereço de e-mail":"E-mail"
+};
+
+// ── Estado global ──
+let dadosPorSegmento = { fundamental: [], infantil: [] };
+let isAdmin = false;
+let estaLogado = false;
+let emailUsuario = '';
+let escolasOficiais = { fundamental: [], infantil: [] };
+let mapaRegionalOficial = { fundamental: {}, infantil: {} };
+let segmentoAtual = 'fundamental';
+let secaoAtual = 'fundamental';
+let todos = [], filtrados = [], selecionados = new Set();
+let todasDevolutivas = [], devolutivasFiltradas = [];
+
+// ── Toast ──
+function mostrarToast(msg) {
+  const el = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  el.classList.add('visivel');
+  setTimeout(() => el.classList.remove('visivel'), 3000);
+}
+
+// ── Utilitários ──
+function escapar(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function mostrarEstado(msg, icone) {
+  document.getElementById('main').innerHTML = `<div class="estado"><i class="bi ${icone}"></i><p>${msg}</p></div>`;
+}
+
+// ── Navegação ──
+function mudarSecao(sec) {
+  secaoAtual = sec;
+  ['fundamental','infantil','devolutivas'].forEach(t => {
+    const b = document.getElementById('tab-'+t);
+    if (b) b.classList.toggle('active', t === sec);
+  });
+  const aP = document.getElementById('aside-principal');
+  const aD = document.getElementById('aside-dev');
+  if (sec === 'devolutivas') {
+    aP.style.display='none'; aD.style.display='flex'; carregarDevolutivas();
+  } else {
+    aP.style.display='flex'; aD.style.display='none'; mudarSegmento(sec);
+  }
+}
+
+// ── Carregamento ──
+function carregarDados() {
+  document.getElementById('main').innerHTML = '<div class="spinner-wrapper"><div class="spinner-border text-primary" role="status" style="width:3rem;height:3rem;"></div></div>';
+  google.script.run.withSuccessHandler(onDados).withFailureHandler(onErro).getDadosCompletos();
+}
+
+function onDados(res) {
+  if (res && (res.fundamental||res.infantil)) {
+    dadosPorSegmento = res;
+    escolasOficiais.fundamental = res.escolasEMEF||[];
+    escolasOficiais.infantil = res.escolasEMEI||[];
+    mapaRegionalOficial.fundamental = res.regionalMapEMEF||{};
+    mapaRegionalOficial.infantil = res.regionalMapEMEI||{};
+    isAdmin = !!res.isAdmin;
+    estaLogado = !!res.estaLogado;
+    emailUsuario = res.emailUsuario || '';
+  } else {
+    dadosPorSegmento.fundamental = Array.isArray(res) ? res : [];
+    dadosPorSegmento.infantil = [];
+  }
+  _atualizarHeaderUsuario();
+  carregarDevolutivas(() => mudarSegmento('fundamental'));
+}
+
+function onErro(err) {
+  document.getElementById('main').innerHTML = `<div class="alert alert-danger shadow-sm fw-bold"><i class="bi bi-exclamation-triangle-fill me-2"></i> Erro: ${err.message||JSON.stringify(err)}</div>`;
+}
+
+function mudarSegmento(seg) {
+  segmentoAtual = seg;
+  todos = dadosPorSegmento[seg]||[];
+  selecionados.clear();
+  atualizarContadorSel();
+  document.getElementById('busca').value = '';
+  document.getElementById('filtroRegional').value = '';
+  document.getElementById('filtroEscola').value = '';
+  if (todos.length === 0) {
+    document.getElementById('filtroEscola').innerHTML = '<option value="">Sem dados</option>';
+    document.getElementById('badgeCount').style.display = 'none';
+    mostrarEstado(`Nenhum registro para Educação ${seg==='fundamental'?'Fundamental':'Infantil'}.`, 'bi-folder-x');
+  } else {
+    popularFiltros();
+    filtrar();
+  }
+}
+
+function popularFiltros() {
+  const regionais = [...new Set(todos.map(d => (d[COL_REGIONAL]||'').toString().trim()).filter(Boolean))].sort();
+  const selR = document.getElementById('filtroRegional');
+  selR.innerHTML = '<option value="">Todas as Regionais</option>';
+  regionais.forEach(r => {
+    const o = document.createElement('option');
+    o.value = o.textContent = r;
+    selR.appendChild(o);
+  });
+  popularFiltroEscola();
+}
+
+function popularFiltroEscola() {
+  const regional = document.getElementById('filtroRegional').value;
+  const base = regional ? todos.filter(d => (d[COL_REGIONAL]||'').toString().trim() === regional) : todos;
+  const escolas = [...new Set(base.map(d => d['_ESCOLA_']||''))].filter(Boolean).sort();
+  const sel = document.getElementById('filtroEscola');
+  sel.innerHTML = '<option value="">Todas as Escolas</option>';
+  escolas.forEach(e => {
+    const o = document.createElement('option');
+    o.value = o.textContent = e;
+    sel.appendChild(o);
+  });
+}
+
+function filtrar() {
+  popularFiltroEscola();
+  const regional = document.getElementById('filtroRegional').value;
+  const escola = document.getElementById('filtroEscola').value;
+  const busca = document.getElementById('busca').value.trim().toLowerCase();
+  const badge = document.getElementById('badgeCount');
+
+  filtrados = todos.filter(d => {
+    if (regional && (d[COL_REGIONAL]||'').toString().trim() !== regional) return false;
+    if (escola && (d['_ESCOLA_']||'') !== escola) return false;
+    if (busca && !Object.values(d).some(v => v.toString().toLowerCase().includes(busca))) return false;
+    return true;
+  });
+
+  selecionados.clear();
+  atualizarContadorSel();
+  badge.innerHTML = `<i class="bi bi-file-earmark-check-fill text-success me-1"></i> ${filtrados.length} Visita${filtrados.length!==1?'s':''}`;
+  badge.style.display = 'inline-block';
+
+  if (filtrados.length === 0) {
+    mostrarEstado('Nenhum registro encontrado.', 'bi-search');
+    return;
+  }
+  renderizarCards();
+}
+
+function renderizarCards() {
+  const main = document.getElementById('main');
+  const badges = `<span class="badge bg-white text-dark border shadow-sm px-3 py-2 fw-bold"><i class="bi bi-list-ol me-1 text-primary"></i> ${filtrados.length} listados</span>`;
+  const statsBar = `<div class="d-flex flex-wrap gap-2 mb-4 align-items-center">${badges}</div>`;
+  const cardsHtml = filtrados.map((item,idx) => _renderCard(item,idx)).join('');
+  main.innerHTML = statsBar + `<div class="cards-grid">${cardsHtml}</div>`;
+}
+
+function _renderCard(item, idx) {
+  const dataVisita = item["Data da Visita:"]||item["Data da visita:"]||item["Carimbo de data/hora"]||'Data não informada';
+  const responsavel = item["Nome(s) do(s) responsável(is) pelo acompanhamento pedagógico."]||'Não informado';
+  const periodo = item["Assinale o período da visita."]||'';
+  const nomeEscola = item['_ESCOLA_']||'Escola não informada';
+  const reg = (item[COL_REGIONAL]||'').toString().trim();
+  const isSel = selecionados.has(idx);
+
+  return `
+    <div class="card-kpi rel-card ${isSel?'selecionado':''}" id="card-${idx}" onclick="abrirRelatorio(${idx})">
+      <div class="card-checkbox-wrap" onclick="event.stopPropagation()">
+        <input type="checkbox" class="card-checkbox" ${isSel?'checked':''} onchange="toggleSelecao(event,${idx})" />
+      </div>
+      <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2 pe-4">
+        <div class="card-title-escola">${escapar(nomeEscola)}</div>
+        ${reg?`<span class="badge bg-light text-primary border" style="font-size:0.65rem;font-weight:800;">${escapar(reg)}</span>`:''}
+      </div>
+      <div class="card-meta-info mb-2">
+        <span><i class="bi bi-calendar3 me-1"></i> ${escapar(dataVisita)}</span>
+      </div>
+      <div style="font-size:0.8rem;color:#495057;line-height:1.4;flex-grow:1;"><b>Resp:</b> ${escapar(responsavel)}</div>
+      <div class="d-flex justify-content-between align-items-end mt-2 pt-2 border-top">
+        <span style="font-size:0.75rem;font-weight:800;color:var(--neon-blue);"><i class="bi bi-box-arrow-in-right me-1"></i> Abrir</span>
+      </div>
+    </div>`;
+}
+
+// ── Seleção ──
+function toggleSelecao(event, idx) {
+  event.stopPropagation();
+  if (selecionados.has(idx)) selecionados.delete(idx); else selecionados.add(idx);
+  const c = document.getElementById('card-'+idx);
+  if (c) c.classList.toggle('selecionado', selecionados.has(idx));
+  atualizarContadorSel();
+}
+
+function selecionarTodos() {
+  filtrados.forEach((_,i) => {
+    selecionados.add(i);
+    const c = document.getElementById('card-'+i);
+    if(c) { c.classList.add('selecionado'); const cb = c.querySelector('.card-checkbox'); if(cb) cb.checked = true; }
+  });
+  atualizarContadorSel();
+}
+
+function limparSelecao() {
+  selecionados.clear();
+  filtrados.forEach((_,i) => {
+    const c = document.getElementById('card-'+i);
+    if(c) { c.classList.remove('selecionado'); const cb = c.querySelector('.card-checkbox'); if(cb) cb.checked = false; }
+  });
+  atualizarContadorSel();
+}
+
+function atualizarContadorSel() {
+  const n = selecionados.size;
+  document.getElementById('contadorSel').textContent = n===0?'0 selecionados':`${n} selecionado${n!==1?'s':''}`;
+  document.getElementById('btnAnalisarLote').disabled = n===0;
+}
+
+// ── Modal Relatório ──
+function abrirRelatorio(idx) {
+  const item = filtrados[idx];
+  const escola = item['_ESCOLA_']||'';
+  const dataHoje = new Date().toLocaleDateString('pt-BR');
+  const anoAtual = new Date().getFullYear();
+  const camposSecao = Object.keys(item).filter(k => k!=='_ESCOLA_' && k!=='_SEGMENTO_' && !COLS_FICHA.includes(k));
+
+  const fichaItens = COLS_FICHA.filter(col => item[col]!==undefined).map(col => {
+    const val = item[col]||'—';
+    return `<div style="display:flex;flex-direction:column;"><span style="font-size:0.7rem;font-weight:800;color:var(--primary);">${escapar(ROTULOS[col]||col)}</span><span style="font-weight:600;">${escapar(val)}</span></div>`;
+  }).join('');
+
+  const secoes = camposSecao.map(col => {
+    const val = item[col]||'';
+    return `<div style="border-left:4px solid #00e5ff;padding-left:12px;margin-bottom:12px;"><div style="font-size:0.75rem;font-weight:800;color:var(--primary);margin-bottom:4px;">${escapar(col)}</div><div>${val?escapar(val):'<span style="color:#adb5bd;font-style:italic;">Não informado</span>'}</div></div>`;
+  }).join('');
+
+  document.getElementById('relatorio-container').innerHTML = `
+    <div style="border-bottom:3px solid var(--primary);padding-bottom:14px;margin-bottom:16px;">
+      <div style="font-size:1.1rem;font-weight:800;color:var(--primary);">Acompanhamento Pedagógico</div>
+      <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:#6c757d;margin-top:4px;">${segmentoAtual==='fundamental'?'Ensino Fundamental':'Educação Infantil'} ${anoAtual}</div>
+      <div style="font-size:1rem;font-weight:800;margin-top:6px;color:#002b5e;">${escapar(escola)}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;background:#f8faff;border-radius:8px;padding:14px;margin-bottom:16px;">${fichaItens}</div>
+    <div style="display:flex;flex-direction:column;gap:12px;">${secoes}</div>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee;font-size:0.75rem;color:#adb5bd;font-family:monospace;">Gerado em ${dataHoje}</div>`;
+
+  document.getElementById('modalTitulo').textContent = escola;
+  document.getElementById('modalRelatorioFooter').innerHTML = `<button class="btn btn-action btn-action-primary" onclick="imprimir()"><i class="bi bi-printer-fill"></i> Imprimir</button>`;
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalRelatorio')).show();
+}
+
+// ── Autenticação ──
+function entrarComGoogle() {
+  const btn = document.getElementById('btnEntrar');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Verificando...'; }
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.ok) {
+        isAdmin = !!res.isAdmin;
+        estaLogado = !!res.estaLogado;
+        emailUsuario = res.email || '';
+        _atualizarHeaderUsuario();
+        mostrarToast(isAdmin ? 'Admin ativado!' : (estaLogado ? 'Logado!' : 'Erro ao identificar'));
+      }
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-google me-1"></i> Entrar'; }
+    })
+    .withFailureHandler(function(err) {
+      mostrarToast('Erro: ' + (err.message||''));
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-google me-1"></i> Entrar'; }
+    })
+    .autenticarUsuario();
+}
+
+function _atualizarHeaderUsuario() {
+  const indicator = document.getElementById('user-indicator');
+  const btnEntrar = document.getElementById('btnEntrar');
+  const emailDisplay = document.getElementById('user-email-display');
+  const adminBadge = document.getElementById('user-admin-badge');
+
+  if (estaLogado && emailUsuario) {
+    if (indicator) { indicator.style.display = 'flex'; }
+    if (btnEntrar) { btnEntrar.style.display = 'none'; }
+    if (emailDisplay) { emailDisplay.textContent = emailUsuario; }
+    if (adminBadge) { adminBadge.style.display = isAdmin ? 'inline-block' : 'none'; }
+  } else {
+    if (indicator) { indicator.style.display = 'none'; }
+    if (btnEntrar) { btnEntrar.style.display = ''; }
+  }
+}
+
+// ── Devolutivas ──
+function carregarDevolutivas(cb) {
+  const main = document.getElementById('main');
+  main.innerHTML = '<div class="spinner-wrapper"><div class="spinner-border text-primary" role="status"></div></div>';
+  google.script.run
+    .withSuccessHandler(res => {
+      if (!res.ok) { main.innerHTML = `<div class="alert alert-danger fw-bold">Erro: ${escapar(res.erro)}</div>`; if(cb) cb(); return; }
+      todasDevolutivas = res.registros || [];
+      const n = todasDevolutivas.length;
+      const b = document.getElementById('badge-dev');
+      if (b) { b.textContent = n; b.style.display = n > 0 ? 'inline-flex' : 'none'; }
+      popularFiltrosDevolutivas();
+      filtrarDevolutivas();
+      if(cb) cb();
+    })
+    .lerDevolutivas();
+}
+
+function popularFiltrosDevolutivas() {
+  const selReg = document.getElementById('filtroDevRegional');
+  const regionaisSet = new Set();
+  todasDevolutivas.forEach(d => {
+    if (d["Regional"]) regionaisSet.add(d["Regional"]);
+    else {
+      const escola = d["Escola"] || '';
+      for (const seg of ['fundamental', 'infantil']) {
+        const reg = (mapaRegionalOficial[seg] || {})[escola] || '';
+        if (reg) { regionaisSet.add(reg); break; }
+      }
+    }
+  });
+  selReg.innerHTML = '<option value="">Todas as Regionais</option>';
+  [...regionaisSet].sort().forEach(r => {
+    const o = document.createElement('option');
+    o.value = o.textContent = r;
+    selReg.appendChild(o);
+  });
+}
+
+function filtrarDevolutivas() {
+  const tipo = document.getElementById('filtroDevTipo').value;
+  const regFil = document.getElementById('filtroDevRegional').value;
+  const busca = document.getElementById('buscaDev').value.trim().toLowerCase();
+
+  devolutivasFiltradas = todasDevolutivas.filter(d => {
+    if (tipo && d._tipo !== tipo) return false;
+    if (regFil && (d["Regional"]||'') !== regFil) return false;
+    if (busca && !(d["Escola"] + d["Data da Visita"]).toLowerCase().includes(busca)) return false;
+    return true;
+  });
+
+  const main = document.getElementById('main');
+  if (devolutivasFiltradas.length === 0) { mostrarEstado('Nenhuma devolutiva salva.', 'bi-robot'); return; }
+
+  const cardsHtml = devolutivasFiltradas.map(dev => `
+    <div class="card-kpi rel-card" onclick="abrirDevolutiva(this)">
+      <div class="card-title-escola">${escapar(dev["Escola"])}</div>
+      <div class="card-meta-info">${escapar(dev["Data da Visita"])}</div>
+      <div style="font-size:0.75rem;color:#adb5bd;">Salvo em ${escapar(dev["Salvo em"])}</div>
+    </div>`).join('');
+
+  main.innerHTML = `<div class="cards-grid">${cardsHtml}</div>`;
+}
+
+function abrirDevolutiva(cardEl) {
+  const escola = cardEl.querySelector('.card-title-escola').textContent;
+  const dev = devolutivasFiltradas.find(d => d["Escola"] === escola);
+  if (!dev) return;
+
+  document.getElementById('relatorio-container').innerHTML = `
+    <div style="border-bottom:3px solid var(--primary);padding-bottom:14px;margin-bottom:16px;">
+      <div style="font-size:1.1rem;font-weight:800;color:var(--primary);">Análise Salva</div>
+      <div style="font-size:1rem;margin-top:6px;color:#002b5e;">${escapar(dev["Escola"])}</div>
+    </div>
+    <pre style="background:#f8faff;padding:12px;border-radius:8px;overflow-x:auto;font-size:0.85rem;">${escapar(JSON.stringify(dev._dados, null, 2))}</pre>`;
+
+  document.getElementById('modalTitulo').textContent = dev["Escola"];
+  document.getElementById('modalRelatorioFooter').innerHTML = `<button class="btn btn-action btn-action-primary" onclick="imprimir()"><i class="bi bi-printer-fill"></i> Imprimir</button>`;
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalRelatorio')).show();
+}
+
+// ── Impressão ──
+function imprimir() {
+  window.print();
+}
+
+// ── Análise em Lote (stub) ──
+function analisarLote() {
+  if (!isAdmin) { mostrarToast('Apenas admins podem usar IA.'); return; }
+  if (selecionados.size === 0) return;
+  mostrarToast('Análise em lote — em breve!');
+}
+
+// ── Inicialização ──
+carregarDados();
+</script>
+
+</body>
+</html>
