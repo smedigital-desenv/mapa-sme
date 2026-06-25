@@ -278,9 +278,10 @@ async function chamarAPI(action, params = {}) {
     url.searchParams.append('action', action);
     Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
 
+    // text/plain evita o preflight CORS (OPTIONS) que o Apps Script não responde
     const response = await fetch(url.toString(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }
     });
 
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -561,20 +562,41 @@ function _atualizarHeaderUsuario() {
 
 // ── Devolutivas ──
 function carregarDevolutivas(cb) {
-  const main = document.getElementById('main');
-  main.innerHTML = '<div class="spinner-wrapper"><div class="spinner-border text-primary" role="status"></div></div>';
-  google.script.run
-    .withSuccessHandler(res => {
-      if (!res.ok) { main.innerHTML = `<div class="alert alert-danger fw-bold">Erro: ${escapar(res.erro)}</div>`; if(cb) cb(); return; }
-      todasDevolutivas = res.registros || [];
-      const n = todasDevolutivas.length;
-      const b = document.getElementById('badge-dev');
-      if (b) { b.textContent = n; b.style.display = n > 0 ? 'inline-flex' : 'none'; }
+  // Só mostra o spinner quando a aba Devolutivas está ativa; em carga inicial
+  // esta função roda em segundo plano e não deve sobrescrever o main.
+  if (secaoAtual === 'devolutivas') {
+    const main = document.getElementById('main');
+    main.innerHTML = '<div class="spinner-wrapper"><div class="spinner-border text-primary" role="status"></div></div>';
+  }
+
+  const onSucesso = res => {
+    if (!res || !res.ok) {
+      if (secaoAtual === 'devolutivas') {
+        document.getElementById('main').innerHTML = `<div class="alert alert-danger fw-bold">Erro: ${escapar((res && res.erro) || 'falha ao carregar devolutivas')}</div>`;
+      }
+      if (cb) cb();
+      return;
+    }
+    todasDevolutivas = res.registros || [];
+    const n = todasDevolutivas.length;
+    const b = document.getElementById('badge-dev');
+    if (b) { b.textContent = n; b.style.display = n > 0 ? 'inline-flex' : 'none'; }
+    if (secaoAtual === 'devolutivas') {
       popularFiltrosDevolutivas();
       filtrarDevolutivas();
-      if(cb) cb();
-    })
-    .lerDevolutivas();
+    }
+    if (cb) cb();
+  };
+
+  if (typeof google !== 'undefined' && google.script) {
+    // Modo Google Apps Script
+    google.script.run.withSuccessHandler(onSucesso).lerDevolutivas();
+  } else {
+    // Modo externo: API ou fallback silencioso (sem devolutivas)
+    chamarAPI('lerDevolutivas')
+      .then(onSucesso)
+      .catch(() => onSucesso({ ok: true, registros: [] }));
+  }
 }
 
 function popularFiltrosDevolutivas() {
