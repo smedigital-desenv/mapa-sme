@@ -245,7 +245,34 @@ function mudarSecao(sec) {
 // ── Carregamento ──
 function carregarDados() {
   document.getElementById('main').innerHTML = '<div class="spinner-wrapper"><div class="spinner-border text-primary" role="status" style="width:3rem;height:3rem;"></div></div>';
-  google.script.run.withSuccessHandler(onDados).withFailureHandler(onErro).getDadosCompletos();
+
+  // Detecta se está rodando em Google Apps Script ou como arquivo estático
+  if (typeof google !== 'undefined' && google.script) {
+    google.script.run.withSuccessHandler(onDados).withFailureHandler(onErro).getDadosCompletos();
+  } else {
+    // Dados de teste para GitHub Pages
+    console.warn('⚠️ Rodando em modo de teste (GitHub Pages). Para dados reais, use Google Apps Script.');
+    onDados(_dadosMock());
+  }
+}
+
+function _dadosMock() {
+  return {
+    fundamental: [
+      { "_ESCOLA_": "EMEF Teste 1", "Data da Visita:": "25/06/2026", "Assinale o período da visita.": "Manhã", "Marque a Regional a qual pertente a unidade escolar.": "Regional Centro", "Nome(s) do(s) responsável(is) pelo acompanhamento pedagógico.": "Prof. Ana Silva", "Endereço de e-mail": "ana@educacao.gov.br", "Carimbo de data/hora": "25/06/2026 10:30", "Observações": "Visita realizada com sucesso" },
+      { "_ESCOLA_": "EMEF Teste 2", "Data da Visita:": "24/06/2026", "Assinale o período da visita.": "Tarde", "Marque a Regional a qual pertente a unidade escolar.": "Regional Leste", "Nome(s) do(s) responsável(is) pelo acompanhamento pedagógico.": "Prof. Carlos Santos", "Endereço de e-mail": "carlos@educacao.gov.br", "Carimbo de data/hora": "24/06/2026 14:45", "Observações": "Análise pedagógica concluída" }
+    ],
+    infantil: [
+      { "_ESCOLA_": "EMEI Teste 1", "Data da Visita:": "23/06/2026", "Assinale o período da visita.": "Integral", "Marque a Regional a qual pertente a unidade escolar.": "Regional Sul", "Nome(s) do(s) responsável(is) pelo acompanhamento pedagógico.": "Profa. Maria Costa", "Endereço de e-mail": "maria@educacao.gov.br", "Carimbo de data/hora": "23/06/2026 09:00", "Observações": "Verificação de infraestrutura" }
+    ],
+    escolasEMEF: ["EMEF Teste 1", "EMEF Teste 2"],
+    escolasEMEI: ["EMEI Teste 1"],
+    regionalMapEMEF: { "EMEF Teste 1": "Regional Centro", "EMEF Teste 2": "Regional Leste" },
+    regionalMapEMEI: { "EMEI Teste 1": "Regional Sul" },
+    isAdmin: true,
+    emailUsuario: 'teste@educacao.gov.br',
+    estaLogado: true
+  };
 }
 
 function onDados(res) {
