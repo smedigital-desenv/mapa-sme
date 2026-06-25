@@ -11,22 +11,29 @@ chegarem à tela e ao cache), por uma camada implementada em `demo-mode.js`.
 
 ## Como ativar
 
-Acrescente `?demo=1` na URL de **qualquer** página. Exemplos:
+### 1. Botão na interface (recomendado)
 
-```
-avaliacao.html?demo=1
-atribuicao.html?demo=1
-educacao_especial.html?demo=1
-fluencia.html?demo=1
-elefante.html?demo=1
-index.html?demo=1
-```
+Em **todas** as páginas há um botão flutuante discreto no **canto inferior
+esquerdo**:
 
-- Uma vez ativado, o modo **permanece ligado ao navegar entre as páginas**
-  (na mesma aba do navegador).
-- Para **desligar**: abra qualquer página com `?demo=0`.
-- Em modo demo aparece um selo vermelho **"DADOS FICTÍCIOS — MODO DEMONSTRAÇÃO"**
-  na parte inferior e uma marca d'água discreta ao fundo.
+- **Desligado:** botão acinzentado e translúcido **"🛡️ Modo demonstração"**
+  (fica mais visível ao passar o mouse).
+- Clique nele para **ligar** — a página recarrega já com os dados fictícios.
+- **Ligado:** botão vermelho **"🔒 Demonstração ON"**. Clique de novo para
+  **voltar aos dados reais**.
+
+Assim você liga/desliga a anonimização a qualquer momento, sem digitar nada.
+
+### 2. Pela URL (alternativa)
+
+Também dá para acionar acrescentando `?demo=1` na URL de qualquer página
+(ex.: `avaliacao.html?demo=1`); para desligar, `?demo=0`.
+
+> Observações:
+> - Uma vez ativado, o modo **permanece ligado ao navegar entre as páginas**
+>   (na mesma aba do navegador).
+> - Em modo demo, além do botão vermelho, aparece um selo central
+>   **"DADOS FICTÍCIOS — MODO DEMONSTRAÇÃO"** e uma marca d'água discreta ao fundo.
 
 ## O que é pseudonimizado
 

@@ -60,10 +60,24 @@
     else if (!ACTIVE && prev === '1') { sessionStorage.removeItem(FLAG_KEY); purgarCache(); }
   } catch (e) {}
 
-  if (!ACTIVE) return; // fora do modo demo: zero impacto.
+  // Observação: NÃO há retorno antecipado quando inativo — o botão flutuante de
+  // ligar/desligar precisa aparecer em todas as páginas. A interceptação do
+  // fetch e o bloqueio de gravações só são instalados quando ACTIVE (abaixo).
 
   var BLOCK_WRITES = (qs && (qs.get('writes') || '').toLowerCase() === 'allow') ? false : true;
   var SHOW_MARK = !(qs && (qs.get('mark') || '').toLowerCase() === 'off');
+
+  // URL com o parâmetro demo alternado (preserva os demais parâmetros).
+  function urlDemo(valor) {
+    try {
+      var u = new URL(location.href);
+      u.searchParams.set('demo', valor);
+      return u.toString();
+    } catch (e) {
+      var sep = location.search ? '&' : '?';
+      return location.pathname + (location.search ? location.search + '&' : '?') + 'demo=' + valor;
+    }
+  }
 
   // ---- 2. Geradores determinísticos de pseudônimos -----------------------
   function hash(s) {
@@ -189,7 +203,7 @@
   }
 
   var fetchOriginal = window.fetch ? window.fetch.bind(window) : null;
-  if (fetchOriginal) {
+  if (ACTIVE && fetchOriginal) {
     window.fetch = function (input, init) {
       var url = (typeof input === 'string') ? input : (input && input.url) || '';
       var method = (init && init.method) || (input && input.method) || 'GET';
@@ -238,8 +252,40 @@
     avisoTimer = setTimeout(function () { t.style.opacity = '0'; }, 2600);
   }
 
+  // Botão flutuante discreto — aparece SEMPRE (ligado ou desligado) para quem
+  // grava acionar a anonimização a qualquer momento. Ao clicar, recarrega a
+  // página com ?demo alternado (garante cache limpo e dados re-renderizados).
+  function montarBotao() {
+    if (!document.body || document.getElementById('mapa-demo-btn')) return;
+    var btn = document.createElement('button');
+    btn.id = 'mapa-demo-btn';
+    btn.type = 'button';
+    var base = 'position:fixed;left:12px;bottom:12px;z-index:2147483647;border:0;cursor:pointer;' +
+      'border-radius:999px;font:800 12px/1 system-ui,sans-serif;letter-spacing:.03em;' +
+      'padding:.5rem .8rem;box-shadow:0 6px 18px rgba(0,0,0,.28);display:inline-flex;align-items:center;gap:.4rem;' +
+      'transition:opacity .15s,transform .15s;';
+    if (ACTIVE) {
+      btn.innerHTML = '🔒 <span>Demonstração ON</span>';
+      btn.title = 'Modo demonstração ativo — dados fictícios. Clique para voltar aos dados reais.';
+      btn.style.cssText = base + 'background:linear-gradient(135deg,#b91c1c,#dc2626);color:#fff;';
+    } else {
+      btn.innerHTML = '🛡️ <span>Modo demonstração</span>';
+      btn.title = 'Ativar modo demonstração: oculta dados pessoais (alunos, professores, escolas) para gravar vídeos com segurança.';
+      btn.style.cssText = base + 'background:rgba(30,41,59,.55);color:#e2e8f0;opacity:.55;';
+      btn.onmouseenter = function () { btn.style.opacity = '1'; };
+      btn.onmouseleave = function () { btn.style.opacity = '.55'; };
+    }
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      btn.style.transform = 'scale(.96)';
+      location.href = urlDemo(ACTIVE ? '0' : '1');
+    });
+    document.body.appendChild(btn);
+  }
+
+  // Selo central + marca d'água — só quando o modo está ATIVO (para a gravação).
   function montarSelo() {
-    if (!document.body || document.getElementById('mapa-demo-selo')) return;
+    if (!ACTIVE || !document.body || document.getElementById('mapa-demo-selo')) return;
 
     var selo = document.createElement('div');
     selo.id = 'mapa-demo-selo';
@@ -264,16 +310,18 @@
 
     try {
       console.log('%c[MAPA] MODO DEMONSTRAÇÃO ATIVO', 'background:#dc2626;color:#fff;padding:2px 8px;border-radius:4px;font-weight:800;');
-      console.log('[MAPA demo] Dados pseudonimizados na tela. Gravações ' + (BLOCK_WRITES ? 'BLOQUEADAS' : 'permitidas') + '. Para sair: ?demo=0');
+      console.log('[MAPA demo] Dados pseudonimizados na tela. Gravações ' + (BLOCK_WRITES ? 'BLOQUEADAS' : 'permitidas') + '. Para sair: clique no botão ou use ?demo=0');
     } catch (e) {}
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', montarSelo);
-  else montarSelo();
+  function montarUI() { montarBotao(); montarSelo(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', montarUI);
+  else montarUI();
 
   // API mínima para inspeção/depuração.
   window.MAPA_DEMO = {
-    active: true, blockWrites: BLOCK_WRITES,
+    active: ACTIVE, blockWrites: ACTIVE ? BLOCK_WRITES : false,
+    toggle: function () { location.href = urlDemo(ACTIVE ? '0' : '1'); },
     nomePessoa: nomePessoa, nomeEscola: nomeEscola, codigoFunc: codigoFunc
   };
 })();
