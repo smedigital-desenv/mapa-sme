@@ -174,6 +174,18 @@
       (data.unidades || []).forEach(function (u) {
         setRow(u, 0, function (v) { return nomeEscola('s|' + v); });
       });
+      // turmas = [escola, turma/periodo, periodo, alunos, situacao] — escola no [0]
+      // (precisa do mesmo pseudônimo das unidades para o drill-down casar).
+      (data.turmas || []).forEach(function (t) {
+        setRow(t, 0, function (v) { return nomeEscola('s|' + v); });
+      });
+    } else if (url.indexOf('/rpc/ee_dash') !== -1) {
+      // unidades = [unidade,turmas_nee,alunos_nee,ec_pct,pei_pct,liminar_turmas,
+      //             prof_manha,prof_tarde,liminar_status,liminar_escola]
+      (data.unidades || []).forEach(function (u) {
+        setRow(u, 0, function (v) { return nomeEscola('s|' + v); });
+        setRow(u, 9, function (v) { return nomeEscola('s|' + v); });
+      });
     } else if (url.indexOf('/rpc/ee_resumo') !== -1) {
       (data.por_unidade || []).forEach(function (u) {
         setRow(u, 0, function (v) { return nomeEscola('s|' + v); });
