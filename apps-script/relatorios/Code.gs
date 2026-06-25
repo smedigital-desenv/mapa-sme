@@ -45,16 +45,14 @@ function doPost(e) {
         resultado = { ok: false, erro: 'Ação não reconhecida' };
     }
 
+    // O endpoint /exec do Apps Script já envia Access-Control-Allow-Origin: *
+    // automaticamente. TextOutput NÃO possui setHeader(), então não o usamos.
     return ContentService.createTextOutput(JSON.stringify(resultado))
-      .setMimeType(ContentService.MimeType.JSON)
-      .setHeader('Access-Control-Allow-Origin', '*')
-      .setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-      .setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      .setMimeType(ContentService.MimeType.JSON);
 
   } catch(e) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: e.message }))
-      .setMimeType(ContentService.MimeType.JSON)
-      .setHeader('Access-Control-Allow-Origin', '*');
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
@@ -329,13 +327,11 @@ function analisarVisitaComGemini(dadosVisita) {
   }
 }
 
-// ── Handle CORS preflight ──
+// ── CORS preflight ──
+// O cliente usa Content-Type text/plain (requisição "simples"), portanto o
+// navegador não dispara preflight OPTIONS. Mantido apenas como no-op seguro.
 function doOptions(e) {
-  return ContentService.createTextOutput('')
-    .setHeader('Access-Control-Allow-Origin', '*')
-    .setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    .setHeader('Access-Control-Allow-Headers', 'Content-Type')
-    .setHeader('Access-Control-Max-Age', '86400');
+  return ContentService.createTextOutput('');
 }
 
 function autorizarScript() {
