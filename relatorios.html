@@ -242,17 +242,52 @@ function mudarSecao(sec) {
   }
 }
 
+// ── URL da API (Google Apps Script) ──
+const API_URL = 'https://script.google.com/macros/d/AKfycbydArqsFE8fCijWuc_st3Kd3jbQaUWRyEnQja-Nh2dOaKueuV_jX0iaDyToMKRXjKHO/usercontent/v1/execute';
+
 // ── Carregamento ──
 function carregarDados() {
   document.getElementById('main').innerHTML = '<div class="spinner-wrapper"><div class="spinner-border text-primary" role="status" style="width:3rem;height:3rem;"></div></div>';
 
   // Detecta se está rodando em Google Apps Script ou como arquivo estático
   if (typeof google !== 'undefined' && google.script) {
+    // Modo Google Apps Script
     google.script.run.withSuccessHandler(onDados).withFailureHandler(onErro).getDadosCompletos();
   } else {
-    // Dados de teste para GitHub Pages
-    console.warn('⚠️ Rodando em modo de teste (GitHub Pages). Para dados reais, use Google Apps Script.');
-    onDados(_dadosMock());
+    // Modo externo: faz fetch para a API do Apps Script
+    chamarAPI('getDados')
+      .then(res => {
+        if (res.ok || res.fundamental) {
+          onDados(res);
+        } else {
+          console.warn('⚠️ Erro ao carregar dados reais. Usando dados de teste.');
+          onDados(_dadosMock());
+        }
+      })
+      .catch(err => {
+        console.warn('⚠️ Não conseguiu conectar à API. Usando dados de teste.', err);
+        onDados(_dadosMock());
+      });
+  }
+}
+
+// ── Função auxiliar para chamar API ──
+async function chamarAPI(action, params = {}) {
+  try {
+    const url = new URL(API_URL);
+    url.searchParams.append('action', action);
+    Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch(err) {
+    console.error('Erro ao chamar API:', err);
+    throw err;
   }
 }
 
@@ -472,22 +507,39 @@ function abrirRelatorio(idx) {
 function entrarComGoogle() {
   const btn = document.getElementById('btnEntrar');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Verificando...'; }
-  google.script.run
-    .withSuccessHandler(function(res) {
-      if (res.ok) {
-        isAdmin = !!res.isAdmin;
-        estaLogado = !!res.estaLogado;
-        emailUsuario = res.email || '';
-        _atualizarHeaderUsuario();
-        mostrarToast(isAdmin ? 'Admin ativado!' : (estaLogado ? 'Logado!' : 'Erro ao identificar'));
-      }
-      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-google me-1"></i> Entrar'; }
-    })
-    .withFailureHandler(function(err) {
-      mostrarToast('Erro: ' + (err.message||''));
-      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-google me-1"></i> Entrar'; }
-    })
-    .autenticarUsuario();
+
+  // Detecta modo (Apps Script ou API externa)
+  if (typeof google !== 'undefined' && google.script) {
+    // Modo Apps Script
+    google.script.run
+      .withSuccessHandler(function(res) {
+        processarAutenticacao(res, btn);
+      })
+      .withFailureHandler(function(err) {
+        mostrarToast('Erro: ' + (err.message||''));
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-google me-1"></i> Entrar'; }
+      })
+      .autenticarUsuario();
+  } else {
+    // Modo API externa
+    chamarAPI('autenticar')
+      .then(res => processarAutenticacao(res, btn))
+      .catch(err => {
+        mostrarToast('Erro ao autenticar: ' + (err.message||''));
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-google me-1"></i> Entrar'; }
+      });
+  }
+}
+
+function processarAutenticacao(res, btn) {
+  if (res.ok) {
+    isAdmin = !!res.isAdmin;
+    estaLogado = !!res.estaLogado;
+    emailUsuario = res.email || '';
+    _atualizarHeaderUsuario();
+    mostrarToast(isAdmin ? 'Admin ativado!' : (estaLogado ? 'Logado!' : 'Erro ao identificar'));
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-google me-1"></i> Entrar'; }
 }
 
 function _atualizarHeaderUsuario() {

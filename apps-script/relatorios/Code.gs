@@ -6,11 +6,56 @@
 // Coluna de regional nos formulários de visita — mantida para leitura das visitas existentes
 var COL_REGIONAL_ = "Marque a Regional a qual pertente a unidade escolar.";
 
+// ── Modo 1: Acessar como Web App (com interface) ──
 function doGet() {
   return HtmlService.createTemplateFromFile('relatorios')
     .evaluate()
     .setTitle('Relatórios de Acompanhamento')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// ── Modo 2: Acessar como API (para chamadas externas) ──
+function doPost(e) {
+  try {
+    const action = e.parameter.action || '';
+    let resultado = {};
+
+    switch(action) {
+      case 'getDados':
+        resultado = getDadosCompletos();
+        break;
+      case 'autenticar':
+        resultado = autenticarUsuario();
+        break;
+      case 'analisar':
+        const dadosVisita = JSON.parse(e.parameter.dados || '{}');
+        resultado = analisarVisitaComGemini(dadosVisita);
+        break;
+      case 'salvarDevolutiva':
+        const payload = JSON.parse(e.parameter.payload || '{}');
+        resultado = salvarDevolutiva(payload);
+        break;
+      case 'lerDevolutivas':
+        resultado = lerDevolutivas();
+        break;
+      case 'excluirDevolutiva':
+        resultado = excluirDevolutiva(e.parameter.id);
+        break;
+      default:
+        resultado = { ok: false, erro: 'Ação não reconhecida' };
+    }
+
+    return ContentService.createTextOutput(JSON.stringify(resultado))
+      .setMimeType(ContentService.MimeType.JSON)
+      .setHeader('Access-Control-Allow-Origin', '*')
+      .setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+      .setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  } catch(e) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: e.message }))
+      .setMimeType(ContentService.MimeType.JSON)
+      .setHeader('Access-Control-Allow-Origin', '*');
+  }
 }
 
 // ── Verificação de administrador ─────────────────────────────────
@@ -282,6 +327,15 @@ function analisarVisitaComGemini(dadosVisita) {
   } catch (e) {
     return { ok: false, erro: "Erro ao processar análise: " + e.message };
   }
+}
+
+// ── Handle CORS preflight ──
+function doOptions(e) {
+  return ContentService.createTextOutput('')
+    .setHeader('Access-Control-Allow-Origin', '*')
+    .setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    .setHeader('Access-Control-Allow-Headers', 'Content-Type')
+    .setHeader('Access-Control-Max-Age', '86400');
 }
 
 function autorizarScript() {
