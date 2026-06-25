@@ -19,7 +19,21 @@
       --bg: #f0f4f8;
     }
     body { background-color: var(--bg); font-family: 'Inter', sans-serif; padding-bottom: 50px; min-height: 100vh; display: flex; flex-direction: column; }
-    .nav-header { background: var(--primary); color: white; padding: 1.2rem 2rem; border-bottom: 5px solid var(--neon-blue); position: sticky; top: 0; z-index: 1040; }
+    /* ── Cabeçalho global MAPA (igual ao atribuicao.html) ── */
+    .mg-header { background: var(--primary, #002b5e); color: #fff; border-bottom: 5px solid var(--neon-blue, #00e5ff); padding: .95rem 1.6rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; position: sticky; top: 0; z-index: 1050; box-shadow: 0 6px 18px rgba(0,43,94,.18); }
+    .mg-brand { display: flex; align-items: center; gap: .6rem; min-width: 180px; }
+    .mg-brand-icon { width: 34px; height: 34px; display: grid; place-items: center; color: var(--neon-blue, #00e5ff); font-size: 1.4rem; filter: drop-shadow(0 0 6px rgba(0,229,255,.55)); }
+    .mg-brand h4 { margin: 0; font-weight: 900; letter-spacing: .03em; font-size: 1.4rem; line-height: 1; }
+    .mg-brand-sub { font-size: .63rem; color: rgba(255,255,255,.68); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-top: 2px; }
+    .mg-nav { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; flex: 1; min-width: 280px; }
+    .mg-nav-btn { display: inline-flex; align-items: center; gap: .4rem; justify-content: center; min-width: 150px; font-size: .78rem; font-weight: 900; padding: 6px 14px; border-radius: 8px; border: 2px solid transparent; color: #fff; text-decoration: none; transition: .2s; white-space: nowrap; }
+    .mg-nav-btn:hover { border-color: rgba(255,255,255,.4); }
+    .mg-nav-btn.active { background: #fff; color: var(--primary, #002b5e); box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+    .mg-actions { min-width: 86px; display: flex; justify-content: flex-end; align-items: center; }
+    .mg-action-btn { display: inline-flex; align-items: center; gap: .35rem; font-size: .76rem; font-weight: 800; padding: 5px 12px; border-radius: 8px; border: 1.5px solid rgba(255,255,255,.45); background: transparent; color: #fff; cursor: pointer; transition: .2s; }
+    .mg-action-btn:hover { background: rgba(255,255,255,.12); border-color: #fff; }
+    @media (max-width: 992px) { .mg-nav-btn { min-width: auto; } }
+    .nav-header { background: var(--primary); color: white; padding: 1.2rem 2rem; border-bottom: 5px solid var(--neon-blue); z-index: 1040; }
     .btn-toggle { border: 2px solid var(--neon-blue); color: white; font-weight: 700; margin-right: 10px; border-radius: 8px; transition: 0.3s; background: transparent; padding: 6px 16px; }
     .btn-toggle:hover { background: rgba(0,229,255,0.1); color: white; }
     .btn-toggle.active { background: var(--neon-blue); color: var(--primary); box-shadow: 0 0 12px var(--neon-blue); }
@@ -59,6 +73,31 @@
   </style>
 </head>
 <body>
+
+<!-- ═══ HEADER GLOBAL MAPA (igual ao atribuicao.html) ═══ -->
+<header class="mg-header">
+  <div class="mg-brand" style="cursor:pointer;" onclick="location.href='index.html'" title="Página inicial do MAPA">
+    <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div>
+    <div>
+      <h4>MAPA</h4>
+      <div class="mg-brand-sub">SME Ribeirão Preto</div>
+    </div>
+  </div>
+  <nav class="mg-nav">
+    <a class="mg-nav-btn" href="avaliacao.html"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+    <a class="mg-nav-btn" href="atribuicao.html"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="elefante.html"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+    <a class="mg-nav-btn" href="fluencia.html"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+    <a class="mg-nav-btn" href="educacao_especial.html"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <a class="mg-nav-btn active" href="relatorios.html"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+    <a class="mg-nav-btn" href="avaliacao.html#Configuracoes" title="Configurações" style="min-width:auto;padding:6px 10px;"><i class="bi bi-gear-fill"></i></a>
+  </nav>
+  <div class="mg-actions">
+    <button class="mg-action-btn" onclick="location.reload()" title="Atualizar dados">
+      <i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span>
+    </button>
+  </div>
+</header>
 
 <div id="toast">
   <i class="bi bi-check-circle-fill" style="color: var(--neon-green);"></i>
