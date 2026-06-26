@@ -47,6 +47,13 @@ begin
     return json_build_object('autorizado', false);
   end if;
 
+  -- RESTRIÇÃO DE DOMÍNIO: só e-mails @educacao.pmrp.sp.gov.br entram.
+  -- Exceção: super admin (ex.: contas administrativas em gmail).
+  if not v_perfil.is_super_admin
+     and lower(v_perfil.email) not like '%@educacao.pmrp.sp.gov.br' then
+    return json_build_object('autorizado', false, 'motivo', 'dominio');
+  end if;
+
   -- registra o auth_user_id no 1º acesso (liga perfil <-> auth.users)
   if v_perfil.auth_user_id is null then
     update public.perfis

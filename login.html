@@ -79,9 +79,16 @@
         show('Acesso confirmado. Redirecionando…', 'info');
         location.replace(destino());
       } else {
-        // Logado no Google, mas e-mail não autorizado pela secretaria.
-        show('A conta <b>' + (session.user.email || '') + '</b> não está autorizada. '
-           + 'Solicite o cadastro à secretaria.', 'erro');
+        var conta = '<b>' + (session.user.email || '') + '</b>';
+        if (data && data.motivo === 'dominio') {
+          // E-mail fora do domínio institucional.
+          show('A conta ' + conta + ' não é um e-mail institucional '
+             + '<b>@educacao.pmrp.sp.gov.br</b>. Entre com seu e-mail da prefeitura.', 'erro');
+        } else {
+          // Logado no Google, mas e-mail não autorizado pela secretaria.
+          show('A conta ' + conta + ' não está autorizada. '
+             + 'Solicite o cadastro à secretaria.', 'erro');
+        }
         $btn.style.display = 'none';
         $sair.style.display = 'inline-block';
       }
