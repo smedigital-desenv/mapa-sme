@@ -7,12 +7,12 @@
   <script src="auth.js" defer></script>
   <script src="demo-mode.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MAPA â€” SME RibeirÃ£o Preto</title>
+  <title>MAPA — SME Ribeirão Preto</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&display=swap" rel="stylesheet">
 
-  <!-- AtribuiÃ§Ã£o priorizada: prÃ©-renderiza em segundo plano (carrega dados antes do clique) -->
+  <!-- Atribuição priorizada: pré-renderiza em segundo plano (carrega dados antes do clique) -->
   <script type="speculationrules">
   {
     "prerender": [
@@ -21,7 +21,7 @@
   }
   </script>
 
-  <!-- Demais mÃ³dulos: prefetch (baixa em tempo ocioso, mais leve) -->
+  <!-- Demais módulos: prefetch (baixa em tempo ocioso, mais leve) -->
   <link rel="prefetch" href="avaliacao.html">
   <link rel="prefetch" href="elefante.html">
   <link rel="prefetch" href="fluencia.html">
@@ -30,7 +30,7 @@
     :root { --primary:#002b5e; --neon-blue:#00e5ff; }
     body { background:#f0f4f8; font-family:'Inter',sans-serif; padding-bottom:50px; }
 
-    /* â”€â”€ CabeÃ§alho global (igual aos mÃ³dulos) â”€â”€ */
+    /* ── Cabeçalho global (igual aos módulos) ── */
     .mg-header {
       background:var(--primary); color:#fff; border-bottom:5px solid var(--neon-blue);
       padding:.95rem 1.6rem; display:flex; align-items:center; justify-content:space-between;
@@ -50,7 +50,7 @@
     .mg-spacer { min-width:86px; }
     @media (max-width:992px){ .mg-nav-btn{ min-width:auto; } .mg-spacer{ display:none; } }
 
-    /* â”€â”€ Cards de mÃ³dulos â”€â”€ */
+    /* ── Cards de módulos ── */
     .mod-card {
       display:flex; align-items:center; gap:1rem; text-decoration:none;
       background:#fff; border-radius:16px; padding:1.1rem 1.25rem;
@@ -63,7 +63,7 @@
     .mod-card .ds { font-size:.78rem; color:#64748b; }
     .mod-card .go { margin-left:auto; color:#94a3b8; font-size:1.1rem; }
 
-    /* â”€â”€ Mural de novidades â”€â”€ */
+    /* ── Mural de novidades ── */
     .news-card { background:#fff; border-radius:16px; box-shadow:0 4px 15px rgba(0,0,0,.05); overflow:hidden; }
     .news-item { padding:.85rem 1.1rem; border-bottom:1px solid #eef2f7; }
     .news-item:last-child { border-bottom:0; }
@@ -79,43 +79,43 @@
 </head>
 <body>
 
-  <!-- â”€â”€ CabeÃ§alho global â”€â”€ -->
+  <!-- ── Cabeçalho global ── -->
   <header class="mg-header">
     <div class="mg-brand">
       <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div>
       <div>
         <h4>MAPA</h4>
-        <div class="mg-brand-sub">SME RibeirÃ£o Preto</div>
+        <div class="mg-brand-sub">SME Ribeirão Preto</div>
       </div>
     </div>
     <nav class="mg-nav">
-      <a class="mg-nav-btn active" href="index.html"><i class="bi bi-house-fill"></i>InÃ­cio</a>
-      <a class="mg-nav-btn" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>AvaliaÃ§Ãµes</a>
-      <a class="mg-nav-btn" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>AtribuiÃ§Ã£o</a>
+      <a class="mg-nav-btn active" href="index.html"><i class="bi bi-house-fill"></i>Início</a>
+      <a class="mg-nav-btn" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+      <a class="mg-nav-btn" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
       <a class="mg-nav-btn" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
-      <a class="mg-nav-btn" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>FluÃªncia Leitora</a>
-      <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>EducaÃ§Ã£o Especial</a>
-      <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>RelatÃ³rios</a>
-      <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none" onclick="abrirConfig();return false;"><i class="bi bi-gear-fill"></i>ConfiguraÃ§Ãµes</a>
+      <a class="mg-nav-btn" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+      <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+      <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+      <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none" onclick="abrirConfig();return false;"><i class="bi bi-gear-fill"></i>Configurações</a>
     </nav>
     <div class="mg-spacer"></div>
   </header>
 
   <main class="container py-4" style="max-width:1100px;">
 
-    <h5 class="secao-titulo mb-3"><i class="bi bi-grid-1x2-fill me-2"></i>MÃ³dulos</h5>
+    <h5 class="secao-titulo mb-3"><i class="bi bi-grid-1x2-fill me-2"></i>Módulos</h5>
     <div class="row g-3 mb-4">
       <div class="col-12 col-md-6 col-lg-3" data-tela="avaliacao">
         <a class="mod-card" href="avaliacao.html">
           <div class="ic" style="background:#0284c7;"><i class="bi bi-clipboard-data-fill"></i></div>
-          <div><div class="tt">AvaliaÃ§Ãµes</div><div class="ds">Rede Â· DiagnÃ³stica Â· Bimestres</div></div>
+          <div><div class="tt">Avaliações</div><div class="ds">Rede · Diagnóstica · Bimestres</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
       <div class="col-12 col-md-6 col-lg-3" data-tela="atribuicao">
         <a class="mod-card" href="atribuicao.html">
           <div class="ic" style="background:#059669;"><i class="bi bi-diagram-3-fill"></i></div>
-          <div><div class="tt">AtribuiÃ§Ã£o</div><div class="ds">PPA Â· PRA Â· Disciplinas</div></div>
+          <div><div class="tt">Atribuição</div><div class="ds">PPA · PRA · Disciplinas</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
@@ -129,21 +129,21 @@
       <div class="col-12 col-md-6 col-lg-3" data-tela="fluencia">
         <a class="mod-card" href="fluencia.html">
           <div class="ic" style="background:#d97706;"><i class="bi bi-book-half"></i></div>
-          <div><div class="tt">FluÃªncia Leitora</div><div class="ds">AvaliaÃ§Ã£o diagnÃ³stica de fluÃªncia</div></div>
+          <div><div class="tt">Fluência Leitora</div><div class="ds">Avaliação diagnóstica de fluência</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
       <div class="col-12 col-md-6 col-lg-3" data-tela="educacao_especial">
         <a class="mod-card" href="educacao_especial.html">
           <div class="ic" style="background:#0d9488;"><i class="bi bi-universal-access-circle"></i></div>
-          <div><div class="tt">EducaÃ§Ã£o Especial</div><div class="ds">Alunos com deficiÃªncia Â· AEE</div></div>
+          <div><div class="tt">Educação Especial</div><div class="ds">Alunos com deficiência · AEE</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
       <div class="col-12 col-md-6 col-lg-3" data-tela="relatorios">
         <a class="mod-card" href="relatorios.html">
           <div class="ic" style="background:#0891b2;"><i class="bi bi-file-earmark-text-fill"></i></div>
-          <div><div class="tt">RelatÃ³rios</div><div class="ds">Visitas Â· Devolutivas IA Â· Cobertura</div></div>
+          <div><div class="tt">Relatórios</div><div class="ds">Visitas · Devolutivas IA · Cobertura</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
@@ -155,67 +155,67 @@
   </main>
 
   <script>
-    /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-       NOVIDADES â€” edite a lista abaixo para publicar atualizaÃ§Ãµes.
+    /* ════════════════════════════════════════════════════════════
+       NOVIDADES — edite a lista abaixo para publicar atualizações.
        (Depois podemos puxar isto de uma tabela 'noticias' no Supabase.)
        cor: 'azul' | 'verde' | 'roxo' | 'laranja' | 'cinza'
-       â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+       ════════════════════════════════════════════════════════════ */
     const NOTICIAS = [
-      // â”€â”€ Novo mÃ³dulo â”€â”€
-      { data:'25/06/2026', tag:'RelatÃ³rios', cor:'azul',
-        titulo:'Novo mÃ³dulo: RelatÃ³rios de Acompanhamento',
+      // ── Novo módulo ──
+      { data:'25/06/2026', tag:'Relatórios', cor:'azul',
+        titulo:'Novo módulo: Relatórios de Acompanhamento',
         itens:[
-          'Visitas pedagÃ³gicas por escola (Fundamental e Infantil), agrupadas por regional',
+          'Visitas pedagógicas por escola (Fundamental e Infantil), agrupadas por regional',
           'Devolutivas com IA (pontos fortes/fracos, prioridade e risco) abertas no mesmo card da visita',
-          'GeraÃ§Ã£o de PDF com o relatÃ³rio da visita e/ou a devolutiva',
-          'Aba EstatÃ­sticas: cobertura da rede, grÃ¡fico de frequÃªncia e tabela com a Ãºltima visita',
-          'ExportaÃ§Ã£o da cobertura em CSV',
+          'Geração de PDF com o relatório da visita e/ou a devolutiva',
+          'Aba Estatísticas: cobertura da rede, gráfico de frequência e tabela com a última visita',
+          'Exportação da cobertura em CSV',
         ] },
-      // â”€â”€ Principais funÃ§Ãµes de cada mÃ³dulo â”€â”€
-      { data:'21/06/2026', tag:'AvaliaÃ§Ãµes', cor:'azul',
-        titulo:'AvaliaÃ§Ãµes â€” principais funÃ§Ãµes',
+      // ── Principais funções de cada módulo ──
+      { data:'21/06/2026', tag:'Avaliações', cor:'azul',
+        titulo:'Avaliações — principais funções',
         itens:[
-          'Painel da Rede: avaliaÃ§Ãµes, alunos Ãºnicos, crÃ­ticos e taxa de fluÃªncia',
-          'DiagnÃ³stica, Bimestres (1Âº a 4Âº) e Total',
-          'Leitura, Escrita e ProduÃ§Ã£o Textual',
+          'Painel da Rede: avaliações, alunos únicos, críticos e taxa de fluência',
+          'Diagnóstica, Bimestres (1º a 4º) e Total',
+          'Leitura, Escrita e Produção Textual',
           'Filtros por ano escolar e por unidade/turma',
         ] },
-      { data:'21/06/2026', tag:'AtribuiÃ§Ã£o', cor:'verde',
-        titulo:'AtribuiÃ§Ã£o â€” principais funÃ§Ãµes',
+      { data:'21/06/2026', tag:'Atribuição', cor:'verde',
+        titulo:'Atribuição — principais funções',
         itens:[
-          'PPA, PRA e disciplinas â€” por escola e turno',
+          'PPA, PRA e disciplinas — por escola e turno',
           'Grade por escola/disciplina',
-          '"NÃ£o AtribuÃ­das": todas as aulas sem professor (por escola ou disciplina)',
-          'Saldo PPA e exportaÃ§Ã£o para Excel',
-          'Filtros por ano/sÃ©rie, tipo de escola e status (Tudo / AtribuÃ­das / NÃ£o atribuÃ­das)',
+          '"Não Atribuídas": todas as aulas sem professor (por escola ou disciplina)',
+          'Saldo PPA e exportação para Excel',
+          'Filtros por ano/série, tipo de escola e status (Tudo / Atribuídas / Não atribuídas)',
         ] },
       { data:'21/06/2026', tag:'Elefante Letrado', cor:'roxo',
-        titulo:'Elefante Letrado â€” principais funÃ§Ãµes',
+        titulo:'Elefante Letrado — principais funções',
         itens:[
           'Engajamento da rede, da escola e por turma',
-          'SituaÃ§Ã£o da Rede e comparaÃ§Ã£o com a mÃ©dia',
-          'ImportaÃ§Ã£o de planilha',
+          'Situação da Rede e comparação com a média',
+          'Importação de planilha',
         ] },
-      { data:'21/06/2026', tag:'FluÃªncia Leitora', cor:'laranja',
-        titulo:'FluÃªncia Leitora â€” principais funÃ§Ãµes',
+      { data:'21/06/2026', tag:'Fluência Leitora', cor:'laranja',
+        titulo:'Fluência Leitora — principais funções',
         itens:[
-          'AvaliaÃ§Ã£o diagnÃ³stica de fluÃªncia leitora',
-          'Ranking e situaÃ§Ã£o por escola e turma',
+          'Avaliação diagnóstica de fluência leitora',
+          'Ranking e situação por escola e turma',
           'Meta de 70% (Iniciante + Fluente)',
-          'ImportaÃ§Ã£o de planilha',
+          'Importação de planilha',
         ] },
       { data:'20/06/2026', tag:'Plataforma', cor:'azul',
-        titulo:'Novo painel unificado dos mÃ³dulos',
-        texto:'AvaliaÃ§Ãµes, AtribuiÃ§Ã£o, Elefante Letrado e FluÃªncia agora ficam nesta tela inicial, com navegaÃ§Ã£o mais rÃ¡pida e cache que evita recarregar tudo a cada acesso.' },
-      { data:'20/06/2026', tag:'AtribuiÃ§Ã£o', cor:'verde',
-        titulo:'Aba "NÃ£o AtribuÃ­das" e filtros novos',
-        texto:'Lista de todas as aulas sem professor (por escola ou por disciplina), filtros por ano/sÃ©rie, tipo de escola e status (Tudo / AtribuÃ­das / NÃ£o atribuÃ­das), alÃ©m de exportaÃ§Ã£o para Excel.' },
-      { data:'20/06/2026', tag:'AtribuiÃ§Ã£o', cor:'verde',
-        titulo:'RelatÃ³rio de Saldo PPA',
-        texto:'KPIs corrigidos do PPA, agrupamento de turnos por escola e o relatÃ³rio de saldo com cÃ³pia e download em Excel.' },
-      { data:'20/06/2026', tag:'FluÃªncia Â· Elefante', cor:'laranja',
+        titulo:'Novo painel unificado dos módulos',
+        texto:'Avaliações, Atribuição, Elefante Letrado e Fluência agora ficam nesta tela inicial, com navegação mais rápida e cache que evita recarregar tudo a cada acesso.' },
+      { data:'20/06/2026', tag:'Atribuição', cor:'verde',
+        titulo:'Aba "Não Atribuídas" e filtros novos',
+        texto:'Lista de todas as aulas sem professor (por escola ou por disciplina), filtros por ano/série, tipo de escola e status (Tudo / Atribuídas / Não atribuídas), além de exportação para Excel.' },
+      { data:'20/06/2026', tag:'Atribuição', cor:'verde',
+        titulo:'Relatório de Saldo PPA',
+        texto:'KPIs corrigidos do PPA, agrupamento de turnos por escola e o relatório de saldo com cópia e download em Excel.' },
+      { data:'20/06/2026', tag:'Fluência · Elefante', cor:'laranja',
         titulo:'Cache de dados',
-        texto:'Revisitar um mÃ³dulo na mesma sessÃ£o carrega na hora; o botÃ£o "Atualizar" traz dados frescos.' },
+        texto:'Revisitar um módulo na mesma sessão carrega na hora; o botão "Atualizar" traz dados frescos.' },
     ];
 
     const CORES = {

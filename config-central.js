@@ -163,8 +163,17 @@
         + '<td class="text-center">' + (p.is_super_admin ? 'todas' : p._telas) + '</td>'
         + '<td class="text-center">' + p._escolas + '</td>'
         + '<td class="text-center">' + (p.ativo ? '<span class="text-success fw-bold">ativo</span>' : '<span class="cfg-badge-off">inativo</span>') + '</td>'
-        + '<td class="text-end"><i class="bi bi-pencil-square text-primary"></i></td></tr>';
+        + '<td class="text-end" style="white-space:nowrap">'
+        +   '<button class="btn btn-sm btn-outline-secondary py-0 px-1 me-1" title="Simular acesso deste usuário" '
+        +     'onclick="event.stopPropagation();cfgSimular(\'' + escHtml(p.email) + '\')"><i class="bi bi-incognito"></i></button>'
+        +   '<i class="bi bi-pencil-square text-primary"></i></td></tr>';
     }).join('');
+  };
+
+  window.cfgSimular = function (email) {
+    if (window.MapaAuth && typeof window.MapaAuth.simular === 'function') {
+      window.MapaAuth.simular(email);
+    }
   };
 
   window.cfgNovo = function () { abrirEditor(null); };
