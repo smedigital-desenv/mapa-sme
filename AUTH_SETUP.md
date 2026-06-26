@@ -61,6 +61,17 @@ Rode também [`sql/08_perfil_telas.sql`](sql/08_perfil_telas.sql). Ele cria a ta
 Essa função também aplica a **restrição de domínio**: só e-mails
 `@educacao.pmrp.sp.gov.br` entram (super admin é exceção).
 
+## Passo 3d — Simular acesso + liberar e-mail fora do domínio
+
+Rode [`sql/10_simular_acesso.sql`](sql/10_simular_acesso.sql). Ele:
+- refatora `minhas_permissoes()` numa função única (`permissoes_json`) e cria
+  `permissoes_de(email)` — usada para o **super admin simular** o acesso de
+  qualquer perfil (faixa "Encerrar simulação" no topo);
+- **libera `matheusprospero@gmail.com`** (fora do domínio) como super admin.
+
+No painel de Configurações, o botão <i>incógnito</i> ao lado de cada perfil entra
+no modo simulação. Ordem completa: `sql/07` → `sql/08` → `sql/09` → `sql/10`.
+
 ## Passo 3c — Migrar os usuários/unidades antigos (opcional, recomendado)
 
 Se você já tinha o controle antigo dentro de avaliações (tabelas `usuarios` e

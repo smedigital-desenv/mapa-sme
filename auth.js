@@ -29,6 +29,7 @@
   };
   var SISTEMA_SLUG = window.MAPA_SISTEMA || 'mapa';
   var CACHE_KEY = 'MAPA_PERMS_v1';
+  var SIMULA_KEY = 'MAPA_SIMULA';   // e-mail que o super admin está simulando
 
   function telaAtual() {
     var f = (location.pathname.split('/').pop() || 'index.html').replace(/\.html$/i, '');
@@ -51,6 +52,12 @@
   }
 
   function telaSemAcesso(msg) {
+    var simulando = window.MapaAuth && window.MapaAuth.simulando;
+    var extra = simulando
+      ? '<div style="margin-top:.4rem"><button onclick="window.MapaAuth.pararSimulacao()" class="btn btn-warning btn-sm fw-bold">'
+        + '<i class="bi bi-incognito"></i> Encerrar simulação</button></div>'
+        + '<p style="color:#94a3b8;font-size:.78rem;margin-top:.4rem">Você está simulando este perfil — ele não tem acesso aqui.</p>'
+      : '';
     document.documentElement.innerHTML =
       '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
       '<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">' +
@@ -60,6 +67,7 @@
       '<div style="font-size:2.4rem;color:#b91c1c"><i class="bi bi-shield-exclamation"></i></div>' +
       '<h4 style="font-weight:900;color:#002b5e;margin:.6rem 0">Acesso não autorizado</h4>' +
       '<p style="color:#475569;font-size:.9rem">' + msg + '</p>' +
+      extra +
       '<button onclick="window.MapaAuth.signOut()" class="btn btn-outline-secondary btn-sm mt-2">Trocar de conta</button>' +
       '</div></body>';
   }
@@ -92,8 +100,19 @@
         });
       },
       signOut: function () {
-        try { sessionStorage.removeItem(CACHE_KEY); } catch (e) {}
+        try { sessionStorage.removeItem(CACHE_KEY); sessionStorage.removeItem(SIMULA_KEY); } catch (e) {}
         return SB.auth.signOut().then(irParaLogin).catch(irParaLogin);
+      },
+      // SIMULAÇÃO DE ACESSO (só super admin): ver o sistema como outro perfil.
+      simulando: null,      // e-mail simulado (ou null)
+      realPerfil: null,     // perfil real de quem está simulando
+      simular: function (email) {
+        try { sessionStorage.setItem(SIMULA_KEY, String(email || '').toLowerCase()); } catch (e) {}
+        location.href = 'index.html';
+      },
+      pararSimulacao: function () {
+        try { sessionStorage.removeItem(SIMULA_KEY); } catch (e) {}
+        location.reload();
       }
     };
     window.MapaAuth = api;
@@ -115,6 +134,22 @@
       if (!perms || !perms.autorizado) {
         telaSemAcesso('A conta <b>' + (sess.user.email || '') + '</b> ainda não foi autorizada pela secretaria.');
         return;
+      }
+
+      // SIMULAÇÃO: se há um e-mail em sessão E o usuário REAL é super admin,
+      // troca as permissões pelas do perfil simulado (egress: 1 RPC, sem cache).
+      var simEmail = null;
+      try { simEmail = sessionStorage.getItem(SIMULA_KEY); } catch (e) {}
+      if (simEmail && perms.perfil && perms.perfil.is_super_admin
+          && simEmail.toLowerCase() !== (perms.perfil.email || '').toLowerCase()) {
+        var rs = await SB.rpc('permissoes_de', { p_email: simEmail });
+        if (!rs.error && rs.data && rs.data.autorizado) {
+          api.realPerfil = perms.perfil;
+          api.simulando = simEmail;
+          perms = rs.data;                 // passa a "ser" o perfil simulado
+        } else {
+          try { sessionStorage.removeItem(SIMULA_KEY); } catch (e) {}
+        }
       }
 
       api.perfil = perms.perfil;
@@ -143,6 +178,26 @@
 
   // Esconde links/elementos de telas não permitidas e injeta o "chip" do usuário.
   function aplicarUI(api) {
+    // Faixa de SIMULAÇÃO (super admin vendo como outro perfil)
+    if (api.simulando && !document.getElementById('mapa-simula-bar')) {
+      var quem = (api.perfil && api.perfil.nome) ? (api.perfil.nome + ' · ' + api.simulando) : api.simulando;
+      var bar = document.createElement('div');
+      bar.id = 'mapa-simula-bar';
+      bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:5000;background:#b45309;color:#fff;'
+        + 'font:700 13px Inter,sans-serif;padding:7px 14px;display:flex;align-items:center;justify-content:center;'
+        + 'gap:12px;box-shadow:0 2px 10px rgba(0,0,0,.25)';
+      var span = document.createElement('span');
+      span.innerHTML = '<i class="bi bi-incognito"></i> Simulando acesso de: ';
+      var b = document.createElement('b'); b.textContent = quem; span.appendChild(b);
+      var btn = document.createElement('button');
+      btn.textContent = 'Encerrar simulação';
+      btn.style.cssText = 'border:0;background:#fff;color:#b45309;font-weight:800;border-radius:999px;padding:3px 12px;cursor:pointer';
+      btn.addEventListener('click', function () { api.pararSimulacao(); });
+      bar.appendChild(span); bar.appendChild(btn);
+      document.body.appendChild(bar);
+      document.body.style.paddingTop = '36px';
+    }
+
     // elementos marcados com data-tela="slug" somem se não puder ver
     document.querySelectorAll('[data-tela]').forEach(function (el) {
       if (!api.can(el.getAttribute('data-tela'), 'ver')) el.style.display = 'none';
