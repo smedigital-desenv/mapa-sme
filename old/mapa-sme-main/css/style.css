@@ -1,0 +1,18 @@
+/* ============================================================
+   STYLE.CSS - Arquivo Principal de Estilos
+   ============================================================
+   Este é o ÚNICO CSS referenciado no index.html.
+   Ele importa todos os outros módulos na ordem correta.
+
+   Para adicionar novos estilos, crie um novo arquivo .css
+   e adicione um @import abaixo.
+*/
+
+@import url('variables.css');
+@import url('base.css');
+@import url('components.css');
+@import url('layout.css');
+@import url('tables.css');
+@import url('charts.css');
+@import url('responsive.css');
+@import url('elefante.css');
