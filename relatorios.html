@@ -70,6 +70,21 @@
     .search-wrap i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #adb5bd; }
     .search-wrap input { padding-left: 36px; font-weight: 500; }
     @media (max-width: 768px) { .layout-wrapper { flex-direction: column; } aside { width: 100%; position: static; } }
+    /* ── Abas + opções de PDF dentro do modal ── */
+    .modal-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+    .modal-tabs .nav-link { border: 2px solid #cbd5e1; background: #fff; color: #334155; font-weight: 800; font-size: 0.85rem; padding: 7px 18px; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; transition: .15s; }
+    .modal-tabs .nav-link:hover { border-color: var(--primary); }
+    .modal-tabs .nav-link.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .pdf-opt { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 700; color: #334155; cursor: pointer; margin: 0; }
+    .pdf-opt input { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+    /* ── Área de impressão / PDF ── */
+    #print-area { display: none; }
+    @media print {
+      body > *:not(#print-area) { display: none !important; }
+      #print-area { display: block !important; }
+      .pdf-sec { page-break-after: always; }
+      .pdf-sec:last-child { page-break-after: auto; }
+    }
   </style>
 </head>
 <body>
@@ -501,8 +516,15 @@ function _renderCard(item, idx) {
 }
 
 function abrirDevolutivaDoCard(idx) {
-  const dev = _devDoItem(filtrados[idx]);
-  if (dev) abrirDevolutivaObj(dev);
+  const item = filtrados[idx];
+  abrirModal(item, _devDoItem(item), 'dev');
+}
+
+// Localiza a visita correspondente a uma devolutiva (p/ abrir as duas abas)
+function _visitaDaDev(dev) {
+  const lista = dadosPorSegmento[dev["Segmento"]] || [];
+  const alvo = _chaveDev(dev["Segmento"], dev["Escola"], dev["Data da Visita"]);
+  return lista.find(it => _chaveDev(dev["Segmento"], it['_ESCOLA_'], it["Data da Visita:"]||it["Data da visita:"]||'') === alvo);
 }
 
 // ── Seleção ──
@@ -538,12 +560,12 @@ function atualizarContadorSel() {
   document.getElementById('btnAnalisarLote').disabled = n===0;
 }
 
-// ── Modal Relatório ──
-function abrirRelatorio(idx) {
-  const item = filtrados[idx];
+// ── HTML do Relatório da Visita (reutilizável p/ modal e PDF) ──
+function _htmlRelatorioVisita(item) {
   const escola = item['_ESCOLA_']||'';
   const dataHoje = new Date().toLocaleDateString('pt-BR');
   const anoAtual = new Date().getFullYear();
+  const seg = (item['_SEGMENTO_'] || segmentoAtual);
   const camposSecao = Object.keys(item).filter(k => k!=='_ESCOLA_' && k!=='_SEGMENTO_' && !COLS_FICHA.includes(k));
 
   const fichaItens = COLS_FICHA.filter(col => item[col]!==undefined).map(col => {
@@ -556,20 +578,82 @@ function abrirRelatorio(idx) {
     return `<div style="border-left:4px solid #00e5ff;padding-left:12px;margin-bottom:12px;"><div style="font-size:0.75rem;font-weight:800;color:var(--primary);margin-bottom:4px;">${escapar(col)}</div><div>${val?escapar(val):'<span style="color:#adb5bd;font-style:italic;">Não informado</span>'}</div></div>`;
   }).join('');
 
-  document.getElementById('relatorio-container').innerHTML = `
+  return `
     <div style="border-bottom:3px solid var(--primary);padding-bottom:14px;margin-bottom:16px;">
       <div style="font-size:1.1rem;font-weight:800;color:var(--primary);">Acompanhamento Pedagógico</div>
-      <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:#6c757d;margin-top:4px;">${segmentoAtual==='fundamental'?'Ensino Fundamental':'Educação Infantil'} ${anoAtual}</div>
+      <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:#6c757d;margin-top:4px;">${seg==='fundamental'?'Ensino Fundamental':'Educação Infantil'} ${anoAtual}</div>
       <div style="font-size:1rem;font-weight:800;margin-top:6px;color:#002b5e;">${escapar(escola)}</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;background:#f8faff;border-radius:8px;padding:14px;margin-bottom:16px;">${fichaItens}</div>
     <div style="display:flex;flex-direction:column;gap:12px;">${secoes}</div>
     <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee;font-size:0.75rem;color:#adb5bd;font-family:monospace;">Gerado em ${dataHoje}</div>`;
+}
+
+// ── Modal unificado: Relatório da Visita + Devolutiva (IA) ──
+let _pdfHtmlRel = '', _pdfHtmlDev = '';
+
+function abrirModal(item, dev, aba) {
+  const temRel = !!item, temDev = !!dev;
+  if (!temRel && !temDev) return;
+  if (aba === 'dev' && !temDev) aba = 'rel';
+  if (aba === 'rel' && !temRel) aba = 'dev';
+  if (!aba) aba = temRel ? 'rel' : 'dev';
+
+  const escola = (item && item['_ESCOLA_']) || (dev && dev['Escola']) || '';
+  _pdfHtmlRel = temRel ? _htmlRelatorioVisita(item) : '';
+  _pdfHtmlDev = temDev ? _htmlDevolutiva(dev) : '';
+
+  const tabs = (temRel && temDev) ? `
+    <div class="modal-tabs mb-3">
+      <button class="nav-link ${aba==='rel'?'active':''}" type="button" data-aba="rel" onclick="trocarAbaModal('rel')"><i class="bi bi-file-earmark-text-fill me-1"></i>Relatório da Visita</button>
+      <button class="nav-link ${aba==='dev'?'active':''}" type="button" data-aba="dev" onclick="trocarAbaModal('dev')"><i class="bi bi-robot me-1"></i>Devolutiva IA</button>
+    </div>` : '';
+
+  const paneDevVazio = '<div class="estado"><i class="bi bi-robot"></i><p>Sem devolutiva salva para esta visita.</p></div>';
+
+  document.getElementById('relatorio-container').innerHTML = `
+    ${tabs}
+    <div id="pane-rel" style="display:${aba==='rel'?'block':'none'};">${_pdfHtmlRel}</div>
+    <div id="pane-dev" style="display:${aba==='dev'?'block':'none'};">${temDev ? _pdfHtmlDev : paneDevVazio}</div>`;
 
   document.getElementById('modalTitulo').textContent = escola;
-  document.getElementById('modalRelatorioFooter').innerHTML = `<button class="btn btn-action btn-action-primary" onclick="imprimir()"><i class="bi bi-printer-fill"></i> Imprimir</button>`;
+
+  const optRel = temRel ? `<label class="pdf-opt"><input type="checkbox" id="pdfRel" checked> Relatório</label>` : '';
+  const optDev = temDev ? `<label class="pdf-opt"><input type="checkbox" id="pdfDev" checked> Devolutiva</label>` : '';
+  document.getElementById('modalRelatorioFooter').innerHTML = `
+    <div class="d-flex align-items-center justify-content-between w-100 flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <span style="font-size:.72rem;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;"><i class="bi bi-filetype-pdf me-1"></i>Incluir no PDF:</span>
+        ${optRel}${optDev}
+      </div>
+      <button class="btn btn-action btn-action-primary" onclick="gerarPdf()"><i class="bi bi-printer-fill me-1"></i>Imprimir / PDF</button>
+    </div>`;
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalRelatorio')).show();
+}
+
+function trocarAbaModal(aba) {
+  const r = document.getElementById('pane-rel'), d = document.getElementById('pane-dev');
+  if (r) r.style.display = aba==='rel' ? 'block' : 'none';
+  if (d) d.style.display = aba==='dev' ? 'block' : 'none';
+  document.querySelectorAll('.modal-tabs .nav-link').forEach(b => b.classList.toggle('active', b.dataset.aba === aba));
+}
+
+function gerarPdf() {
+  const incRel = !!document.getElementById('pdfRel') && document.getElementById('pdfRel').checked;
+  const incDev = !!document.getElementById('pdfDev') && document.getElementById('pdfDev').checked;
+  if (!incRel && !incDev) { mostrarToast('Selecione ao menos uma seção para o PDF.'); return; }
+  let html = '';
+  if (incRel && _pdfHtmlRel) html += `<section class="pdf-sec">${_pdfHtmlRel}</section>`;
+  if (incDev && _pdfHtmlDev) html += `<section class="pdf-sec">${_pdfHtmlDev}</section>`;
+  document.getElementById('print-area').innerHTML = html;
+  window.print();
+}
+
+// Abertura a partir dos cards de visita (Fundamental/Infantil)
+function abrirRelatorio(idx) {
+  const item = filtrados[idx];
+  abrirModal(item, _devDoItem(item), 'rel');
 }
 
 // ── Autenticação ──
@@ -731,7 +815,7 @@ function filtrarDevolutivas() {
 // Abertura a partir dos cards da aba Devolutivas (por índice da lista filtrada)
 function abrirDevolutivaIdx(i) {
   const dev = devolutivasFiltradas[i];
-  if (dev) abrirDevolutivaObj(dev);
+  if (dev) abrirModal(_visitaDaDev(dev), dev, 'dev');
 }
 
 function _badgeNivel(valor) {
@@ -760,11 +844,11 @@ function _secTexto(titulo, icone, cor, texto) {
   </div>`;
 }
 
-function abrirDevolutivaObj(dev) {
+// ── HTML da Devolutiva (reutilizável p/ modal e PDF) ──
+function _htmlDevolutiva(dev) {
   const d = dev._dados || {};
   const risco = d.risco_pedagogico || {};
-
-  document.getElementById('relatorio-container').innerHTML = `
+  return `
     <div style="border-bottom:3px solid var(--primary);padding-bottom:14px;margin-bottom:18px;">
       <div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--neon-blue);"><i class="bi bi-robot me-1"></i>Análise Pedagógica (IA)</div>
       <div style="font-size:1.15rem;font-weight:800;color:#002b5e;margin-top:4px;">${escapar(dev["Escola"]||'')}</div>
@@ -785,11 +869,6 @@ function abrirDevolutivaObj(dev) {
     ${_secLista('Encaminhamentos p/ Próxima Visita','bi-arrow-right-circle-fill','#1d4ed8',d.encaminhamentos_proxima_visita)}
     ${_secLista('Perguntas p/ Próxima Visita','bi-question-circle-fill','#7c3aed',d.perguntas_para_proxima_visita)}
     ${_secLista('Foco Formativo Sugerido','bi-mortarboard-fill','#0e7490',d.foco_formativo_sugerido)}`;
-
-  document.getElementById('modalTitulo').textContent = dev["Escola"]||'Devolutiva';
-  document.getElementById('modalRelatorioFooter').innerHTML = `<button class="btn btn-action btn-action-primary" onclick="imprimir()"><i class="bi bi-printer-fill"></i> Imprimir</button>`;
-
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalRelatorio')).show();
 }
 
 // ── Impressão ──
