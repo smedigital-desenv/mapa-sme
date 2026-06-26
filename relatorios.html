@@ -212,10 +212,9 @@
 
   <aside id="aside-dev" class="table-container" style="display: none;">
     <div class="mb-3">
-      <label class="form-label">Tipo</label>
-      <select id="filtroDevTipo" class="form-select fw-bold shadow-sm" onchange="filtrarDevolutivas()">
-        <option value="">Todos</option>
-        <option value="individual">Individual</option>
+      <label class="form-label"><i class="bi bi-layers-half me-1"></i> Segmento</label>
+      <select id="filtroDevSegmento" class="form-select fw-bold shadow-sm" onchange="filtrarDevolutivas()">
+        <option value="">Todos os Segmentos</option>
       </select>
     </div>
     <div class="mb-3">
@@ -224,8 +223,17 @@
         <option value="">Todas as Regionais</option>
       </select>
     </div>
+    <div class="mb-3">
+      <label class="form-label"><i class="bi bi-funnel me-1"></i> Prioridade</label>
+      <select id="filtroDevPrioridade" class="form-select fw-bold shadow-sm" onchange="filtrarDevolutivas()">
+        <option value="">Todas</option>
+        <option value="alta">Alta</option>
+        <option value="média">Média</option>
+        <option value="baixa">Baixa</option>
+      </select>
+    </div>
     <div class="mb-4">
-      <label class="form-label">Buscar</label>
+      <label class="form-label"><i class="bi bi-search me-1"></i> Buscar</label>
       <div class="search-wrap shadow-sm">
         <i class="bi bi-search"></i>
         <input type="text" id="buscaDev" class="form-control fw-bold" placeholder="Escola, regional, data…" oninput="filtrarDevolutivas()" />
@@ -554,7 +562,10 @@ function _renderCard(item, idx) {
   const nomeEscola = item['_ESCOLA_']||'Escola não informada';
   const reg = (item[COL_REGIONAL]||'').toString().trim();
   const isSel = selecionados.has(idx);
-  const temDev = !!_devDoItem(item);
+  const dev = _devDoItem(item);
+  const temDev = !!dev;
+  const dd = (dev && dev._dados) || {};
+  const badgesIA = temDev ? `${_badgeMini('bi-flag-fill', dd.prioridade)}${_badgeMini('bi-shield-exclamation', (dd.risco_pedagogico||{}).nivel)}` : '';
 
   return `
     <div class="card-kpi rel-card ${isSel?'selecionado':''}" id="card-${idx}" onclick="abrirRelatorio(${idx})">
@@ -567,9 +578,11 @@ function _renderCard(item, idx) {
       </div>
       <div class="card-meta-info mb-2 d-flex align-items-center gap-2 flex-wrap">
         <span><i class="bi bi-calendar3 me-1"></i> ${escapar(dataVisita)}</span>
+        ${periodo?`<span class="badge bg-light text-dark border" style="font-size:0.6rem;font-weight:700;">${escapar(periodo)}</span>`:''}
         ${temDev?`<span class="badge" style="background:var(--neon-pink);color:#fff;font-size:0.6rem;font-weight:800;"><i class="bi bi-robot me-1"></i>Devolutiva IA</span>`:''}
       </div>
       <div style="font-size:0.8rem;color:#495057;line-height:1.4;flex-grow:1;"><b>Resp:</b> ${escapar(responsavel)}</div>
+      ${badgesIA?`<div class="d-flex flex-wrap gap-1 mt-2">${badgesIA}</div>`:''}
       <div class="d-flex justify-content-between align-items-end mt-2 pt-2 border-top">
         <span style="font-size:0.75rem;font-weight:800;color:var(--neon-blue);"><i class="bi bi-box-arrow-in-right me-1"></i> Abrir</span>
         ${temDev?`<button class="btn btn-sm py-0 px-2" style="font-size:0.7rem;font-weight:800;color:var(--neon-pink);border:1.5px solid var(--neon-pink);border-radius:6px;" onclick="event.stopPropagation();abrirDevolutivaDoCard(${idx})"><i class="bi bi-robot me-1"></i>Ver devolutiva</button>`:''}
@@ -841,59 +854,140 @@ function carregarDevolutivas(cb, forcar) {
   }
 }
 
+// Resolve a regional de uma devolutiva (campo direto ou via mapa oficial da escola)
+function _regionalDaDev(dev) {
+  if (dev["Regional"] && dev["Regional"] !== 'REDE') return dev["Regional"];
+  const escola = dev["Escola"] || '';
+  const segDev = (dev["Segmento"] || '').toLowerCase();
+  const segKey = segDev.includes('fundamental') ? 'fundamental' : segDev.includes('infantil') ? 'infantil' : null;
+  if (segKey) { const r = (mapaRegionalOficial[segKey] || {})[escola] || ''; if (r) return r; }
+  for (const s of ['fundamental', 'infantil']) { const r = (mapaRegionalOficial[s] || {})[escola] || ''; if (r) return r; }
+  return '';
+}
+
+// Rótulo amigável do segmento
+function _rotuloSegmento(s) {
+  const v = (s || '').toLowerCase();
+  if (v.includes('fundamental')) return 'Fundamental';
+  if (v.includes('infantil')) return 'Infantil';
+  return s || '';
+}
+
+// Badge compacto colorido por nível (prioridade/risco) para os cards
+function _badgeMini(icone, valor) {
+  if (!valor) return '';
+  const v = valor.toLowerCase();
+  let bg = '#e2e8f0', fg = '#475569';
+  if (/alt|crít|crit/.test(v))      { bg = '#fee2e2'; fg = '#b91c1c'; }
+  else if (/m[éeè]d/.test(v))       { bg = '#fef3c7'; fg = '#92400e'; }
+  else if (/baix/.test(v))          { bg = '#d1fae5'; fg = '#047857'; }
+  return `<span style="background:${bg};color:${fg};font-weight:800;font-size:.62rem;padding:2px 8px;border-radius:999px;"><i class="bi ${icone} me-1"></i>${escapar(valor)}</span>`;
+}
+
 function popularFiltrosDevolutivas() {
+  // Segmento
+  const selSeg = document.getElementById('filtroDevSegmento');
+  const segAtual = selSeg.value;
+  const segmentos = [...new Set(todasDevolutivas.map(d => d["Segmento"]).filter(Boolean))].sort();
+  selSeg.innerHTML = '<option value="">Todos os Segmentos</option>' +
+    segmentos.map(s => `<option value="${escapar(s)}">${escapar(_rotuloSegmento(s))}</option>`).join('');
+  selSeg.value = segmentos.includes(segAtual) ? segAtual : '';
+
+  // Regional (resolvida pela escola)
   const selReg = document.getElementById('filtroDevRegional');
+  const regAtual = selReg.value;
   const regionaisSet = new Set();
-  todasDevolutivas.forEach(d => {
-    if (d["Regional"]) regionaisSet.add(d["Regional"]);
-    else {
-      const escola = d["Escola"] || '';
-      for (const seg of ['fundamental', 'infantil']) {
-        const reg = (mapaRegionalOficial[seg] || {})[escola] || '';
-        if (reg) { regionaisSet.add(reg); break; }
-      }
-    }
-  });
-  selReg.innerHTML = '<option value="">Todas as Regionais</option>';
-  [...regionaisSet].sort().forEach(r => {
-    const o = document.createElement('option');
-    o.value = o.textContent = r;
-    selReg.appendChild(o);
-  });
+  todasDevolutivas.forEach(d => { const r = _regionalDaDev(d); if (r) regionaisSet.add(r); });
+  const regionais = [...regionaisSet].sort();
+  selReg.innerHTML = '<option value="">Todas as Regionais</option>' +
+    regionais.map(r => `<option value="${escapar(r)}">${escapar(r)}</option>`).join('');
+  selReg.value = regionais.includes(regAtual) ? regAtual : '';
 }
 
 function filtrarDevolutivas() {
-  const tipo = document.getElementById('filtroDevTipo').value;
+  const seg    = document.getElementById('filtroDevSegmento').value;
   const regFil = document.getElementById('filtroDevRegional').value;
-  const busca = document.getElementById('buscaDev').value.trim().toLowerCase();
+  const prio   = document.getElementById('filtroDevPrioridade').value;
+  const busca  = document.getElementById('buscaDev').value.trim().toLowerCase();
 
   devolutivasFiltradas = todasDevolutivas.filter(d => {
-    if (tipo && d._tipo !== tipo) return false;
-    if (regFil && (d["Regional"]||'') !== regFil) return false;
-    if (busca && !(d["Escola"] + d["Data da Visita"]).toLowerCase().includes(busca)) return false;
+    if (seg    && d["Segmento"] !== seg) return false;
+    if (regFil && _regionalDaDev(d) !== regFil) return false;
+    if (prio   && ((d._dados||{}).prioridade||'').toLowerCase() !== prio.toLowerCase()) return false;
+    if (busca) {
+      const alvo = [d["Escola"], d["Data da Visita"], _regionalDaDev(d), _rotuloSegmento(d["Segmento"])].join(' ').toLowerCase();
+      if (!alvo.includes(busca)) return false;
+    }
     return true;
   });
 
-  const main = document.getElementById('main');
-  if (devolutivasFiltradas.length === 0) { mostrarEstado('Nenhuma devolutiva salva.', 'bi-robot'); return; }
+  renderizarDevolutivas();
+}
 
-  const cardsHtml = devolutivasFiltradas.map((dev,i) => `
+function renderizarDevolutivas() {
+  const main = document.getElementById('main');
+  if (devolutivasFiltradas.length === 0) { mostrarEstado('Nenhuma devolutiva encontrada.', 'bi-robot'); return; }
+
+  const n = devolutivasFiltradas.length;
+  const stats = `<div class="d-flex flex-wrap gap-2 mb-4 align-items-center">
+    <span class="badge bg-white text-dark border shadow-sm px-3 py-2 fw-bold"><i class="bi bi-robot me-1 text-primary"></i> ${n} devolutiva${n!==1?'s':''}</span>
+  </div>`;
+
+  const cardsHtml = devolutivasFiltradas.map((dev,i) => renderCardDevolutiva(dev,i)).join('');
+  main.innerHTML = stats + `<div class="cards-grid">${cardsHtml}</div>`;
+}
+
+function renderCardDevolutiva(dev, i) {
+  const d = dev._dados || {};
+  const risco = d.risco_pedagogico || {};
+  const reg = _regionalDaDev(dev);
+  const sintese = d.sintese_executiva || (d.pontos_fortes && d.pontos_fortes[0]) || '';
+  const idDev = escapar(dev["ID"] || '');
+
+  return `
     <div class="card-kpi rel-card" onclick="abrirDevolutivaIdx(${i})">
-      <div class="d-flex justify-content-between align-items-start gap-2">
-        <div class="card-title-escola">${escapar(dev["Escola"])}</div>
+      <div class="d-flex justify-content-between align-items-start gap-2 border-bottom pb-2 mb-2">
+        <div class="card-title-escola">${escapar(dev["Escola"]||'—')}</div>
         <span class="badge" style="background:var(--neon-pink);color:#fff;font-size:0.6rem;font-weight:800;flex-shrink:0;"><i class="bi bi-robot me-1"></i>IA</span>
       </div>
-      <div class="card-meta-info"><i class="bi bi-calendar3 me-1"></i>${escapar(dev["Data da Visita"])}</div>
-      <div style="font-size:0.75rem;color:#adb5bd;">Salvo em ${escapar(dev["Salvo em"])}</div>
-    </div>`).join('');
-
-  main.innerHTML = `<div class="cards-grid">${cardsHtml}</div>`;
+      <div class="card-meta-info mb-2 d-flex flex-wrap gap-2 align-items-center">
+        <span><i class="bi bi-calendar3 me-1"></i>${escapar(dev["Data da Visita"]||'—')}</span>
+        ${reg?`<span class="badge bg-light text-primary border" style="font-size:0.6rem;font-weight:800;"><i class="bi bi-geo-alt me-1"></i>${escapar(reg)}</span>`:''}
+      </div>
+      ${sintese?`<div style="font-size:0.78rem;color:#495057;line-height:1.4;flex-grow:1;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">${escapar(sintese)}</div>`:'<div style="flex-grow:1;"></div>'}
+      ${(d.prioridade||risco.nivel)?`<div class="d-flex flex-wrap gap-1 mt-2">${_badgeMini('bi-flag-fill',d.prioridade)}${_badgeMini('bi-shield-exclamation',risco.nivel)}</div>`:''}
+      <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+        <span style="font-size:0.7rem;color:#adb5bd;font-family:monospace;">Salvo em ${escapar(dev["Salvo em"]||'—')}</span>
+        ${(isAdmin&&idDev)?`<button class="btn btn-sm py-0 px-2" style="font-size:0.7rem;color:#dc3545;border:1px solid #dc3545;border-radius:6px;" title="Excluir devolutiva" onclick="excluirDevolutiva(event,'${idDev}')"><i class="bi bi-trash3"></i></button>`:''}
+      </div>
+    </div>`;
 }
 
 // Abertura a partir dos cards da aba Devolutivas (por índice da lista filtrada)
 function abrirDevolutivaIdx(i) {
   const dev = devolutivasFiltradas[i];
   if (dev) abrirModal(_visitaDaDev(dev), dev, 'dev');
+}
+
+// Exclusão (apenas admin; backend roda como dono do script)
+function excluirDevolutiva(event, id) {
+  event.stopPropagation();
+  if (!id) return;
+  if (!confirm('Excluir esta devolutiva permanentemente?')) return;
+  const onOk = res => {
+    if (res && res.ok) {
+      mostrarToast('Devolutiva excluída.');
+      devolutivasCarregadas = false;
+      carregarDevolutivas(null, true);
+    } else {
+      mostrarToast('Erro ao excluir: ' + ((res && res.erro) || ''));
+    }
+  };
+  if (typeof google !== 'undefined' && google.script) {
+    google.script.run.withSuccessHandler(onOk).withFailureHandler(() => mostrarToast('Falha ao excluir.')).excluirDevolutiva(id);
+  } else {
+    chamarAPI('excluirDevolutiva', { id }).then(onOk).catch(() => mostrarToast('Falha ao excluir.'));
+  }
 }
 
 function _badgeNivel(valor) {
