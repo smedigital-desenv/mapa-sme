@@ -288,6 +288,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 <script>
 // ── Configuração ──
 const COL_REGIONAL = "Marque a Regional a qual pertente a unidade escolar.";
@@ -964,7 +965,9 @@ function analisarLote() {
 //  Estatísticas / Cobertura de Visitas
 // ════════════════════════════════════════════════
 let chartCobertura = null;
-let coberturaView = [];
+let _coberturaCompleta = [];
+let freqSelecionada = null;
+let _estFreqs = [];
 let ordemCob = { campo: 'escola', asc: true };
 
 function _parseData(str) {
@@ -1029,17 +1032,16 @@ function renderEstatisticas() {
 
   const regFil = selReg.value;
   const busca = document.getElementById('buscaEst').value.trim().toLowerCase();
-  coberturaView = completa.filter(l =>
+  freqSelecionada = null; // reset ao trocar de filtro/segmento
+  _coberturaCompleta = completa.filter(l =>
     (!regFil || l.regional === regFil) && (!busca || l.escola.toLowerCase().includes(busca)));
 
-  _ordenarLista(coberturaView);
-
-  // KPIs
-  const total = coberturaView.length;
-  const visitadas = coberturaView.filter(l => l.nVisitas > 0).length;
+  // KPIs (sempre sobre o conjunto filtrado, independente da fatia do donut)
+  const total = _coberturaCompleta.length;
+  const visitadas = _coberturaCompleta.filter(l => l.nVisitas > 0).length;
   const semVisita = total - visitadas;
-  const totalVisitas = coberturaView.reduce((s,l) => s + l.nVisitas, 0);
-  const comDev = coberturaView.filter(l => l.temDev).length;
+  const totalVisitas = _coberturaCompleta.reduce((s,l) => s + l.nVisitas, 0);
+  const comDev = _coberturaCompleta.filter(l => l.temDev).length;
   const cobertura = total ? Math.round(visitadas/total*100) : 0;
 
   const kpis = `
@@ -1052,8 +1054,77 @@ function renderEstatisticas() {
       <div class="col-6 col-lg"><div class="est-kpi"><div class="lbl">Com devolutiva</div><div class="val">${comDev}</div></div></div>
     </div>`;
 
+  main.innerHTML = `
+    ${kpis}
+    <div class="row g-3">
+      <div class="col-12 col-xl-4">
+        <div class="chart-container h-100">
+          <div style="font-weight:900;color:var(--primary);font-size:.95rem;" class="mb-2"><i class="bi bi-pie-chart-fill me-1"></i>Frequência na Rede</div>
+          <div style="position:relative;height:260px;"><canvas id="canvasCobertura"></canvas></div>
+          <div class="small text-muted mt-2 text-center"><i class="bi bi-hand-index me-1"></i>Clique numa fatia para filtrar a tabela</div>
+          <button class="btn btn-sm btn-outline-secondary w-100 fw-bold mt-2" onclick="verTodasFreq()">Ver todas</button>
+        </div>
+      </div>
+      <div class="col-12 col-xl-8">
+        <div class="table-container h-100" id="cob-tabela"></div>
+      </div>
+    </div>`;
+
+  _desenharDonut(_coberturaCompleta);
+  _refreshTabelaCob();
+}
+
+// Distribuição de escolas por nº de visitas (donut clicável)
+function _desenharDonut(lista) {
+  const contagem = {};
+  lista.forEach(l => { contagem[l.nVisitas] = (contagem[l.nVisitas]||0) + 1; });
+  _estFreqs = Object.keys(contagem).map(Number).sort((a,b) => a-b);
+  const paleta = ['#002b5e','#39c46e','#FFD300','#FF007F','#00b4d8','#6f42c1','#fd7e14'];
+  const labels = _estFreqs.map(f => f===0 ? '0 visitas' : f + (f===1?' visita':' visitas'));
+  const data   = _estFreqs.map(f => contagem[f]);
+  const bg     = _estFreqs.map(f => f===0 ? '#dc3545' : paleta[(f-1) % paleta.length]);
+  const totalN = data.reduce((s,n) => s+n, 0);
+
+  if (chartCobertura) { chartCobertura.destroy(); chartCobertura = null; }
+  const ctx = document.getElementById('canvasCobertura');
+  if (!ctx || typeof Chart === 'undefined') return;
+
+  const temDL = typeof ChartDataLabels !== 'undefined';
+  const cfg = {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: bg, borderWidth: 2, borderColor: '#fff' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '62%',
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, font: { family: 'Inter', weight: 'bold', size: 11 } } },
+        datalabels: temDL ? {
+          color: c => { const hex = c.dataset.backgroundColor[c.dataIndex]; return ['#39c46e','#FFD300','#00b4d8'].includes(hex) ? '#002b5e' : '#fff'; },
+          font: { family: 'Inter', weight: 'bold', size: 13 },
+          formatter: v => { const p = Math.round(v/totalN*100); return p >= 5 ? p+'%' : ''; }
+        } : undefined
+      },
+      onClick: (evt, els) => { freqSelecionada = els.length ? _estFreqs[els[0].index] : null; _refreshTabelaCob(); }
+    }
+  };
+  if (temDL) cfg.plugins = [ChartDataLabels];
+  chartCobertura = new Chart(ctx, cfg);
+}
+
+// Lista exibida na tabela = conjunto filtrado, opcionalmente recortado pela fatia do donut, ordenado
+function _listaTabela() {
+  let lista = (freqSelecionada !== null)
+    ? _coberturaCompleta.filter(l => l.nVisitas === freqSelecionada)
+    : _coberturaCompleta.slice();
+  _ordenarLista(lista);
+  return lista;
+}
+
+function _htmlTabelaCob(lista) {
   const seta = c => ordemCob.campo===c ? (ordemCob.asc?' ▲':' ▼') : '';
-  const linhasHtml = coberturaView.map(l => `
+  const filtroBadge = freqSelecionada !== null
+    ? `<span class="badge" style="background:var(--neon-blue);color:var(--primary);font-weight:800;">Filtro: ${freqSelecionada} visita${freqSelecionada!==1?'s':''} <i class="bi bi-x-circle-fill ms-1" style="cursor:pointer;" onclick="verTodasFreq()"></i></span>`
+    : '';
+  const linhasHtml = lista.map(l => `
     <tr>
       <td style="font-weight:700;color:#1e293b;">${escapar(l.escola)}</td>
       <td>${escapar(l.regional)}</td>
@@ -1063,72 +1134,38 @@ function renderEstatisticas() {
       <td>${l.nVisitas>0?'<span class="pill pill-ok">Visitada</span>':'<span class="pill pill-no">Sem visita</span>'}</td>
       <td>${l.temDev?'<span class="pill pill-dev"><i class="bi bi-robot me-1"></i>Sim</span>':'<span class="text-muted">—</span>'}</td>
     </tr>`).join('');
-
-  main.innerHTML = `
-    ${kpis}
-    <div class="chart-container">
-      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-        <div style="font-weight:900;color:var(--primary);font-size:.95rem;"><i class="bi bi-bar-chart-fill me-1"></i>Escolas com visita por Regional</div>
-      </div>
-      <div style="position:relative;height:300px;"><canvas id="canvasCobertura"></canvas></div>
+  return `
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+      <div style="font-weight:900;color:var(--primary);font-size:.95rem;"><i class="bi bi-table me-1"></i>Cobertura por Unidade Escolar</div>
+      <div class="d-flex gap-2 align-items-center">${filtroBadge}<span class="badge bg-light text-dark border fw-bold">${lista.length} escola${lista.length!==1?'s':''}</span></div>
     </div>
-    <div class="table-container">
-      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-        <div style="font-weight:900;color:var(--primary);font-size:.95rem;"><i class="bi bi-table me-1"></i>Cobertura por Unidade Escolar</div>
-        <span class="badge bg-light text-dark border fw-bold">${total} escola${total!==1?'s':''}</span>
-      </div>
-      <div style="max-height:60vh;overflow:auto;">
-        <table class="tbl-cob">
-          <thead><tr>
-            <th onclick="ordenarCobertura('escola')">Unidade Escolar${seta('escola')}</th>
-            <th onclick="ordenarCobertura('regional')">Regional${seta('regional')}</th>
-            <th onclick="ordenarCobertura('segmento')">Segmento${seta('segmento')}</th>
-            <th onclick="ordenarCobertura('nVisitas')" class="text-center">Nº visitas${seta('nVisitas')}</th>
-            <th onclick="ordenarCobertura('ultima')">Última visita${seta('ultima')}</th>
-            <th onclick="ordenarCobertura('status')">Status${seta('status')}</th>
-            <th onclick="ordenarCobertura('temDev')">Devolutiva${seta('temDev')}</th>
-          </tr></thead>
-          <tbody>${linhasHtml || '<tr><td colspan="7" class="text-center text-muted py-4">Nenhuma escola encontrada.</td></tr>'}</tbody>
-        </table>
-      </div>
+    <div style="max-height:58vh;overflow:auto;">
+      <table class="tbl-cob">
+        <thead><tr>
+          <th onclick="ordenarCobertura('escola')">Unidade Escolar${seta('escola')}</th>
+          <th onclick="ordenarCobertura('regional')">Regional${seta('regional')}</th>
+          <th onclick="ordenarCobertura('segmento')">Segmento${seta('segmento')}</th>
+          <th onclick="ordenarCobertura('nVisitas')" class="text-center">Nº visitas${seta('nVisitas')}</th>
+          <th onclick="ordenarCobertura('ultima')">Última visita${seta('ultima')}</th>
+          <th onclick="ordenarCobertura('status')">Status${seta('status')}</th>
+          <th onclick="ordenarCobertura('temDev')">Devolutiva${seta('temDev')}</th>
+        </tr></thead>
+        <tbody>${linhasHtml || '<tr><td colspan="7" class="text-center text-muted py-4">Nenhuma escola encontrada.</td></tr>'}</tbody>
+      </table>
     </div>`;
-
-  _desenharGraficoCobertura(completa, segs);
 }
 
-function _desenharGraficoCobertura(completa, segs) {
-  const porReg = {};
-  completa.forEach(l => {
-    const r = l.regional || '—';
-    porReg[r] = porReg[r] || { total: 0, visit: 0 };
-    porReg[r].total++;
-    if (l.nVisitas > 0) porReg[r].visit++;
-  });
-  const labels = Object.keys(porReg).sort();
-  const totais = labels.map(r => porReg[r].total);
-  const visitadas = labels.map(r => porReg[r].visit);
-
-  if (chartCobertura) { chartCobertura.destroy(); chartCobertura = null; }
-  const ctx = document.getElementById('canvasCobertura');
-  if (!ctx || typeof Chart === 'undefined') return;
-  chartCobertura = new Chart(ctx, {
-    type: 'bar',
-    data: { labels, datasets: [
-      { label: 'Total de escolas', data: totais, backgroundColor: '#cbd5e1', borderRadius: 5 },
-      { label: 'Escolas visitadas', data: visitadas, backgroundColor: '#00b4d8', borderRadius: 5 }
-    ]},
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'top' } },
-      scales: { x: { ticks: { font: { size: 10 } } }, y: { beginAtZero: true, ticks: { precision: 0 } } }
-    }
-  });
+function _refreshTabelaCob() {
+  const cont = document.getElementById('cob-tabela');
+  if (cont) cont.innerHTML = _htmlTabelaCob(_listaTabela());
 }
+
+function verTodasFreq() { freqSelecionada = null; _refreshTabelaCob(); }
 
 function ordenarCobertura(campo) {
   if (ordemCob.campo === campo) ordemCob.asc = !ordemCob.asc;
   else { ordemCob.campo = campo; ordemCob.asc = true; }
-  renderEstatisticas();
+  _refreshTabelaCob();
 }
 
 function _ordenarLista(lista) {
@@ -1145,9 +1182,10 @@ function _ordenarLista(lista) {
 }
 
 function exportarCoberturaCSV() {
-  if (!coberturaView.length) { mostrarToast('Nada para exportar.'); return; }
+  const lista = _listaTabela();
+  if (!lista.length) { mostrarToast('Nada para exportar.'); return; }
   const cab = ['Unidade Escolar','Regional','Segmento','Nº de visitas','Última visita','Status','Devolutiva'];
-  const linhas = coberturaView.map(l => [
+  const linhas = lista.map(l => [
     l.escola, l.regional, l.segmento, l.nVisitas, _fmtData(l.ultima),
     l.nVisitas>0?'Visitada':'Sem visita', l.temDev?'Sim':'Não'
   ]);
