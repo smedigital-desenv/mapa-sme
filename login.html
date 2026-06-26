@@ -3,76 +3,108 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MAPA — Acesso</title>
+  <title>Entrar — SME Ribeirão Preto</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root { --primary:#002b5e; --neon-blue:#00e5ff; }
     body { font-family:'Inter',sans-serif; min-height:100vh; margin:0; display:grid; place-items:center;
       background:linear-gradient(135deg,#002b5e,#0146a6); padding:20px; }
     .card-login { background:#fff; border-radius:18px; box-shadow:0 20px 60px rgba(0,0,0,.35); width:100%; max-width:400px; overflow:hidden; }
-    .topo { background:var(--primary); color:#fff; padding:1.4rem; text-align:center; border-bottom:5px solid var(--neon-blue); }
+    .topo { background:var(--primary); color:#fff; padding:1.6rem; text-align:center; border-bottom:5px solid var(--neon-blue); }
     .topo .ic { font-size:2.2rem; color:var(--neon-blue); }
-    .topo h3 { margin:.3rem 0 0; font-weight:900; letter-spacing:.04em; }
+    .topo h3 { margin:.4rem 0 0; font-weight:900; letter-spacing:.04em; }
     .topo .sub { font-size:.66rem; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.7); }
-    .corpo { padding:1.6rem 1.4rem 1.8rem; }
-    label { font-size:.72rem; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:.03em; }
-    .form-control { border-radius:10px; }
-    .btn-entrar { background:var(--primary); color:#fff; font-weight:900; border:0; border-radius:10px; padding:.6rem; width:100%; }
-    .btn-entrar:hover { background:#013a7d; }
-    .erro { background:#fee2e2; color:#b91c1c; font-size:.82rem; font-weight:700; border-radius:8px; padding:.5rem .8rem; margin-top:.8rem; display:none; }
+    .corpo { padding:1.8rem 1.4rem; text-align:center; }
+    .btn-google { display:inline-flex; align-items:center; justify-content:center; gap:.6rem; width:100%;
+      padding:.7rem 1rem; border:1.5px solid #dadce0; border-radius:10px; background:#fff;
+      font-weight:800; color:#3c4043; cursor:pointer; transition:.15s; font-size:.95rem; }
+    .btn-google:hover { box-shadow:0 2px 10px rgba(0,0,0,.12); background:#f8fafc; }
+    .btn-google:disabled { opacity:.6; cursor:default; }
+    .btn-google img { width:20px; height:20px; }
+    .msg { margin-top:1rem; font-size:.84rem; border-radius:10px; padding:.7rem .9rem; display:none; text-align:left; }
+    .msg.erro { display:block; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+    .msg.info { display:block; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; }
+    .foot { margin-top:1.4rem; font-size:.72rem; color:#94a3b8; }
+    .btn-sair { background:none; border:0; color:#64748b; font-size:.78rem; font-weight:700; text-decoration:underline; cursor:pointer; margin-top:.8rem; }
   </style>
 </head>
 <body>
   <div class="card-login">
     <div class="topo">
       <i class="bi bi-shield-lock-fill ic"></i>
-      <h3>MAPA</h3>
-      <div class="sub">SME Ribeirão Preto · Acesso restrito</div>
+      <h3>Acesso aos Sistemas</h3>
+      <div class="sub">SME Ribeirão Preto</div>
     </div>
     <div class="corpo">
-      <form id="formLogin" autocomplete="on">
-        <label for="email">E-mail</label>
-        <input type="email" class="form-control mb-3" id="email" placeholder="seu.email@educacao.pmrp.sp.gov.br" required autofocus>
-        <label for="senha">Senha</label>
-        <input type="password" class="form-control" id="senha" placeholder="••••••••" required>
-        <div class="erro" id="erro"></div>
-        <button class="btn-entrar mt-3" type="submit"><i class="bi bi-box-arrow-in-right me-1"></i>Entrar</button>
-      </form>
-      <div class="text-center text-muted mt-3" style="font-size:.7rem;">Acesso administrativo · uso interno</div>
+      <button class="btn-google" id="btnGoogle">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="">
+        Entrar com Google
+      </button>
+      <div class="msg" id="msg"></div>
+      <div class="foot">
+        Use o e-mail institucional autorizado pela secretaria.<br>
+        Problemas de acesso? Contate a SME.
+      </div>
+      <button class="btn-sair" id="btnSair" style="display:none">Sair desta conta Google</button>
     </div>
   </div>
 
   <script>
-    const ALLOW = [
-      'diogoperez@educacao.pmrp.sp.gov.br',
-      'matheusprospero@educacao.pmrp.sp.gov.br',
-      'matheusprospero@educacao.pmrp.sp.gob.br'
-    ];
-    const HASH = '3840be6fdd63f1803661427d62d0fc400b0260381e9df4771a3a22f01862e82c';
+    const SB = window.supabase.createClient(
+      "https://gmwotfulohkmuqrezeef.supabase.co",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk"
+    );
+    const $msg = document.getElementById('msg');
+    const $btn = document.getElementById('btnGoogle');
+    const $sair = document.getElementById('btnSair');
+    function show(t, cls){ $msg.innerHTML = t; $msg.className = 'msg ' + cls; }
 
-    async function sha256(s){
-      const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
-      return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2,'0')).join('');
-    }
+    // destino após login (?next=avaliacao.html). Só páginas internas (anti open-redirect).
     function destino(){
       const p = new URLSearchParams(location.search).get('next') || 'index.html';
-      return /^[A-Za-z0-9_\-]+\.html(#.*)?$/.test(p) ? p : 'index.html';  // só páginas internas
+      return /^[A-Za-z0-9_\-]+\.html(\?[\w\-=&]*)?(#.*)?$/.test(p) ? p : 'index.html';
     }
-    function erro(msg){ const e=document.getElementById('erro'); e.textContent=msg; e.style.display='block'; }
 
-    // se já estiver logado, segue direto
-    try { if (localStorage.getItem('mapa_acesso_v1')==='ok') location.replace(destino()); } catch(e){}
+    // Se já há sessão, verifica autorização (perfil cadastrado) antes de redirecionar.
+    (async () => {
+      const { data: { session } } = await SB.auth.getSession();
+      if (!session) return;
+      show('Verificando acesso…', 'info');
+      const { data, error } = await SB.rpc('minhas_permissoes');
+      if (error) { show('Erro ao verificar acesso: ' + error.message, 'erro'); return; }
+      if (data && data.autorizado) {
+        show('Acesso confirmado. Redirecionando…', 'info');
+        location.replace(destino());
+      } else {
+        var conta = '<b>' + (session.user.email || '') + '</b>';
+        if (data && data.motivo === 'dominio') {
+          // E-mail fora do domínio institucional.
+          show('A conta ' + conta + ' não é um e-mail institucional '
+             + '<b>@educacao.pmrp.sp.gov.br</b>. Entre com seu e-mail da prefeitura.', 'erro');
+        } else {
+          // Logado no Google, mas e-mail não autorizado pela secretaria.
+          show('A conta ' + conta + ' não está autorizada. '
+             + 'Solicite o cadastro à secretaria.', 'erro');
+        }
+        $btn.style.display = 'none';
+        $sair.style.display = 'inline-block';
+      }
+    })();
 
-    document.getElementById('formLogin').addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const email = document.getElementById('email').value.trim().toLowerCase();
-      const senha = document.getElementById('senha').value;
-      if (!ALLOW.includes(email)) { erro('E-mail não autorizado.'); return; }
-      if (await sha256(senha) !== HASH) { erro('Senha incorreta.'); return; }
-      try { localStorage.setItem('mapa_acesso_v1','ok'); localStorage.setItem('mapa_email', email); } catch(e){}
-      location.replace(destino());
+    $btn.addEventListener('click', async () => {
+      $btn.disabled = true;
+      show('Abrindo login do Google…', 'info');
+      const redirectTo = location.origin + location.pathname + '?next=' + encodeURIComponent(destino());
+      const { error } = await SB.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+      if (error) { show('Erro ao iniciar login: ' + error.message, 'erro'); $btn.disabled = false; }
+    });
+
+    $sair.addEventListener('click', async () => {
+      await SB.auth.signOut();
+      location.reload();
     });
   </script>
 </body>
