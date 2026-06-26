@@ -98,7 +98,33 @@ function verificarAdmin() {
 }
 
 // ── Leitura das planilhas (Fundamental e Infantil) ───────────────
+// Os dados das visitas (parte pesada) são cacheados; os campos de
+// identidade do usuário são sempre calculados na hora (não cacheáveis).
 function getDadosCompletos() {
+  const dados = _getDadosVisitasCacheado();
+  return {
+    fundamental:     dados.fundamental,
+    infantil:        dados.infantil,
+    escolasEMEF:     dados.escolasEMEF,
+    escolasEMEI:     dados.escolasEMEI,
+    regionalMapEMEF: dados.regionalMapEMEF,
+    regionalMapEMEI: dados.regionalMapEMEI,
+    isAdmin:         verificarAdmin(),
+    emailUsuario:    _obterEmailUsuario(),
+    estaLogado:      !!_obterEmailUsuario()
+  };
+}
+
+function _getDadosVisitasCacheado() {
+  const cacheKey = 'relat_visitas_v1';
+  const cached = _cacheGetChunked(cacheKey);
+  if (cached) { try { return JSON.parse(cached); } catch (e) {} }
+  const dados = _lerDadosVisitas();
+  try { _cachePutChunked(cacheKey, JSON.stringify(dados), 300); } catch (e) {}
+  return dados;
+}
+
+function _lerDadosVisitas() {
   const planilha = SpreadsheetApp.getActiveSpreadsheet();
   const abaFund  = planilha.getSheetByName("Fundamental");
   const abaInf   = planilha.getSheetByName("Infantil");
@@ -150,16 +176,49 @@ function getDadosCompletos() {
   const emei = lerEscolasComRegional(abaEMEI);
 
   return {
-    fundamental:          processarAba(abaFund),
-    infantil:             processarAba(abaInf),
-    escolasEMEF:          emef.lista,
-    escolasEMEI:          emei.lista,
-    regionalMapEMEF:      emef.mapaRegional,
-    regionalMapEMEI:      emei.mapaRegional,
-    isAdmin:              verificarAdmin(),
-    emailUsuario:         _obterEmailUsuario(),
-    estaLogado:           !!_obterEmailUsuario()
+    fundamental:     processarAba(abaFund),
+    infantil:        processarAba(abaInf),
+    escolasEMEF:     emef.lista,
+    escolasEMEI:     emei.lista,
+    regionalMapEMEF: emef.mapaRegional,
+    regionalMapEMEI: emei.mapaRegional
   };
+}
+
+// ── Cache em pedaços (CacheService limita ~100KB por item) ────────
+function _cacheGetChunked(key) {
+  const cache = CacheService.getScriptCache();
+  const meta = cache.get(key + '_meta');
+  if (!meta) return null;
+  const n = parseInt(meta, 10);
+  const keys = [];
+  for (let i = 0; i < n; i++) keys.push(key + '_' + i);
+  const all = cache.getAll(keys);
+  let out = '';
+  for (let i = 0; i < n; i++) {
+    const p = all[key + '_' + i];
+    if (p == null) return null; // algum pedaço expirou → cache inválido
+    out += p;
+  }
+  return out;
+}
+
+function _cachePutChunked(key, str, ttl) {
+  const cache = CacheService.getScriptCache();
+  const size = 90000; // < 100KB por item
+  const n = Math.ceil(str.length / size);
+  const obj = {};
+  for (let i = 0; i < n; i++) obj[key + '_' + i] = str.substring(i * size, (i + 1) * size);
+  obj[key + '_meta'] = String(n);
+  cache.putAll(obj, ttl);
+}
+
+function _cacheClear(key) {
+  const cache = CacheService.getScriptCache();
+  const meta = cache.get(key + '_meta');
+  const keys = [key + '_meta'];
+  if (meta) { const n = parseInt(meta, 10); for (let i = 0; i < n; i++) keys.push(key + '_' + i); }
+  cache.removeAll(keys);
 }
 
 // ── Persistência de Devolutivas ──────────────────────────────────
@@ -209,6 +268,7 @@ function salvarDevolutiva(payload) {
       (d.risco_pedagogico               || {}).descricao || "",
       (d.foco_formativo_sugerido        || []).join(" | ")
     ]);
+    _cacheClear('relat_devolutivas_v1');
     return { ok: true, id: id };
   } catch(e) { return { ok: false, erro: e.message }; }
   finally { lock.releaseLock(); }
@@ -222,6 +282,17 @@ function _gerarId(segmento, escola, dataVisita) {
 }
 
 function lerDevolutivas() {
+  const cacheKey = 'relat_devolutivas_v1';
+  const cached = _cacheGetChunked(cacheKey);
+  if (cached) { try { return JSON.parse(cached); } catch (e) {} }
+  const resultado = _lerDevolutivasRaw();
+  if (resultado && resultado.ok) {
+    try { _cachePutChunked(cacheKey, JSON.stringify(resultado), 300); } catch (e) {}
+  }
+  return resultado;
+}
+
+function _lerDevolutivasRaw() {
   try {
     const split = str => str ? str.split(" | ").filter(Boolean) : [];
     const registros = [];
@@ -259,14 +330,17 @@ function lerDevolutivas() {
         const linha = dadosInd[i];
         const obj   = {};
         cab.forEach((col, j) => { obj[col] = lerCelula(linha[j]); });
-        obj._dados            = montaDadosIndividual(obj);
-        obj._tipo             = "individual";
-        obj["Escola"]         = obj["Escola"]         || "";
-        obj["Data da Visita"] = obj["Data da Visita"] || "";
-        obj["Segmento"]       = obj["Segmento"]       || "";
-        obj["Salvo em"]       = obj["Salvo em"]       || "";
-        obj["Regional"]       = "";
-        registros.push(obj);
+        // Payload enxuto: só o que o cliente usa (as colunas planas viram _dados).
+        registros.push({
+          "ID":             obj["ID"]             || "",
+          "Escola":         obj["Escola"]         || "",
+          "Data da Visita": obj["Data da Visita"] || "",
+          "Segmento":       obj["Segmento"]       || "",
+          "Salvo em":       obj["Salvo em"]       || "",
+          "Regional":       "",
+          "_tipo":          "individual",
+          "_dados":         montaDadosIndividual(obj)
+        });
       }
     }
 
@@ -286,6 +360,7 @@ function excluirDevolutiva(id) {
     for (let i = dados.length - 1; i >= 1; i--) {
       if (dados[i][0] === id) {
         aba.deleteRow(i + 1);
+        _cacheClear('relat_devolutivas_v1');
         return { ok: true };
       }
     }

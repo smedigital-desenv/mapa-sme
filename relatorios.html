@@ -247,6 +247,7 @@ let segmentoAtual = 'fundamental';
 let secaoAtual = 'fundamental';
 let todos = [], filtrados = [], selecionados = new Set();
 let todasDevolutivas = [], devolutivasFiltradas = [];
+let devolutivasCarregadas = false;
 
 // ── Toast ──
 function mostrarToast(msg) {
@@ -365,7 +366,10 @@ function onDados(res) {
     dadosPorSegmento.infantil = [];
   }
   _atualizarHeaderUsuario();
-  carregarDevolutivas(() => mudarSegmento('fundamental'));
+  // Renderiza os cards imediatamente; as devolutivas carregam em 2º plano
+  // (apenas para preencher a contagem do badge) sem bloquear a tela.
+  mudarSegmento('fundamental');
+  carregarDevolutivas();
 }
 
 function onErro(err) {
@@ -600,7 +604,14 @@ function _atualizarHeaderUsuario() {
 }
 
 // ── Devolutivas ──
-function carregarDevolutivas(cb) {
+function carregarDevolutivas(cb, forcar) {
+  // Já em memória: renderiza na hora, sem nova requisição à API.
+  if (devolutivasCarregadas && !forcar) {
+    if (secaoAtual === 'devolutivas') { popularFiltrosDevolutivas(); filtrarDevolutivas(); }
+    if (cb) cb();
+    return;
+  }
+
   // Só mostra o spinner quando a aba Devolutivas está ativa; em carga inicial
   // esta função roda em segundo plano e não deve sobrescrever o main.
   if (secaoAtual === 'devolutivas') {
@@ -617,6 +628,7 @@ function carregarDevolutivas(cb) {
       return;
     }
     todasDevolutivas = res.registros || [];
+    devolutivasCarregadas = true;
     const n = todasDevolutivas.length;
     const b = document.getElementById('badge-dev');
     if (b) { b.textContent = n; b.style.display = n > 0 ? 'inline-flex' : 'none'; }
