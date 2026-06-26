@@ -7,12 +7,12 @@
   <script src="auth.js" defer></script>
   <script src="demo-mode.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MAPA — SME Ribeirão Preto</title>
+  <title>MAPA â€” SME RibeirÃ£o Preto</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&display=swap" rel="stylesheet">
 
-  <!-- Atribuição priorizada: pré-renderiza em segundo plano (carrega dados antes do clique) -->
+  <!-- AtribuiÃ§Ã£o priorizada: prÃ©-renderiza em segundo plano (carrega dados antes do clique) -->
   <script type="speculationrules">
   {
     "prerender": [
@@ -21,7 +21,7 @@
   }
   </script>
 
-  <!-- Demais módulos: prefetch (baixa em tempo ocioso, mais leve) -->
+  <!-- Demais mÃ³dulos: prefetch (baixa em tempo ocioso, mais leve) -->
   <link rel="prefetch" href="avaliacao.html">
   <link rel="prefetch" href="elefante.html">
   <link rel="prefetch" href="fluencia.html">
@@ -30,7 +30,7 @@
     :root { --primary:#002b5e; --neon-blue:#00e5ff; }
     body { background:#f0f4f8; font-family:'Inter',sans-serif; padding-bottom:50px; }
 
-    /* ── Cabeçalho global (igual aos módulos) ── */
+    /* â”€â”€ CabeÃ§alho global (igual aos mÃ³dulos) â”€â”€ */
     .mg-header {
       background:var(--primary); color:#fff; border-bottom:5px solid var(--neon-blue);
       padding:.95rem 1.6rem; display:flex; align-items:center; justify-content:space-between;
@@ -50,7 +50,7 @@
     .mg-spacer { min-width:86px; }
     @media (max-width:992px){ .mg-nav-btn{ min-width:auto; } .mg-spacer{ display:none; } }
 
-    /* ── Cards de módulos ── */
+    /* â”€â”€ Cards de mÃ³dulos â”€â”€ */
     .mod-card {
       display:flex; align-items:center; gap:1rem; text-decoration:none;
       background:#fff; border-radius:16px; padding:1.1rem 1.25rem;
@@ -63,7 +63,7 @@
     .mod-card .ds { font-size:.78rem; color:#64748b; }
     .mod-card .go { margin-left:auto; color:#94a3b8; font-size:1.1rem; }
 
-    /* ── Mural de novidades ── */
+    /* â”€â”€ Mural de novidades â”€â”€ */
     .news-card { background:#fff; border-radius:16px; box-shadow:0 4px 15px rgba(0,0,0,.05); overflow:hidden; }
     .news-item { padding:.85rem 1.1rem; border-bottom:1px solid #eef2f7; }
     .news-item:last-child { border-bottom:0; }
@@ -79,43 +79,43 @@
 </head>
 <body>
 
-  <!-- ── Cabeçalho global ── -->
+  <!-- â”€â”€ CabeÃ§alho global â”€â”€ -->
   <header class="mg-header">
     <div class="mg-brand">
       <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div>
       <div>
         <h4>MAPA</h4>
-        <div class="mg-brand-sub">SME Ribeirão Preto</div>
+        <div class="mg-brand-sub">SME RibeirÃ£o Preto</div>
       </div>
     </div>
     <nav class="mg-nav">
-      <a class="mg-nav-btn active" href="index.html"><i class="bi bi-house-fill"></i>Início</a>
-      <a class="mg-nav-btn" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
-      <a class="mg-nav-btn" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+      <a class="mg-nav-btn active" href="index.html"><i class="bi bi-house-fill"></i>InÃ­cio</a>
+      <a class="mg-nav-btn" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>AvaliaÃ§Ãµes</a>
+      <a class="mg-nav-btn" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>AtribuiÃ§Ã£o</a>
       <a class="mg-nav-btn" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
-      <a class="mg-nav-btn" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
-      <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
-      <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
-      <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none" onclick="abrirConfig();return false;"><i class="bi bi-gear-fill"></i>Configurações</a>
+      <a class="mg-nav-btn" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>FluÃªncia Leitora</a>
+      <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>EducaÃ§Ã£o Especial</a>
+      <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>RelatÃ³rios</a>
+      <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none" onclick="abrirConfig();return false;"><i class="bi bi-gear-fill"></i>ConfiguraÃ§Ãµes</a>
     </nav>
     <div class="mg-spacer"></div>
   </header>
 
   <main class="container py-4" style="max-width:1100px;">
 
-    <h5 class="secao-titulo mb-3"><i class="bi bi-grid-1x2-fill me-2"></i>Módulos</h5>
+    <h5 class="secao-titulo mb-3"><i class="bi bi-grid-1x2-fill me-2"></i>MÃ³dulos</h5>
     <div class="row g-3 mb-4">
       <div class="col-12 col-md-6 col-lg-3" data-tela="avaliacao">
         <a class="mod-card" href="avaliacao.html">
           <div class="ic" style="background:#0284c7;"><i class="bi bi-clipboard-data-fill"></i></div>
-          <div><div class="tt">Avaliações</div><div class="ds">Rede · Diagnóstica · Bimestres</div></div>
+          <div><div class="tt">AvaliaÃ§Ãµes</div><div class="ds">Rede Â· DiagnÃ³stica Â· Bimestres</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
       <div class="col-12 col-md-6 col-lg-3" data-tela="atribuicao">
         <a class="mod-card" href="atribuicao.html">
           <div class="ic" style="background:#059669;"><i class="bi bi-diagram-3-fill"></i></div>
-          <div><div class="tt">Atribuição</div><div class="ds">PPA · PRA · Disciplinas</div></div>
+          <div><div class="tt">AtribuiÃ§Ã£o</div><div class="ds">PPA Â· PRA Â· Disciplinas</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
@@ -129,21 +129,21 @@
       <div class="col-12 col-md-6 col-lg-3" data-tela="fluencia">
         <a class="mod-card" href="fluencia.html">
           <div class="ic" style="background:#d97706;"><i class="bi bi-book-half"></i></div>
-          <div><div class="tt">Fluência Leitora</div><div class="ds">Avaliação diagnóstica de fluência</div></div>
+          <div><div class="tt">FluÃªncia Leitora</div><div class="ds">AvaliaÃ§Ã£o diagnÃ³stica de fluÃªncia</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
       <div class="col-12 col-md-6 col-lg-3" data-tela="educacao_especial">
         <a class="mod-card" href="educacao_especial.html">
           <div class="ic" style="background:#0d9488;"><i class="bi bi-universal-access-circle"></i></div>
-          <div><div class="tt">Educação Especial</div><div class="ds">Alunos com deficiência · AEE</div></div>
+          <div><div class="tt">EducaÃ§Ã£o Especial</div><div class="ds">Alunos com deficiÃªncia Â· AEE</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
       <div class="col-12 col-md-6 col-lg-3" data-tela="relatorios">
         <a class="mod-card" href="relatorios.html">
           <div class="ic" style="background:#0891b2;"><i class="bi bi-file-earmark-text-fill"></i></div>
-          <div><div class="tt">Relatórios</div><div class="ds">Visitas · Devolutivas IA · Cobertura</div></div>
+          <div><div class="tt">RelatÃ³rios</div><div class="ds">Visitas Â· Devolutivas IA Â· Cobertura</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
@@ -155,67 +155,67 @@
   </main>
 
   <script>
-    /* ════════════════════════════════════════════════════════════
-       NOVIDADES — edite a lista abaixo para publicar atualizações.
+    /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+       NOVIDADES â€” edite a lista abaixo para publicar atualizaÃ§Ãµes.
        (Depois podemos puxar isto de uma tabela 'noticias' no Supabase.)
        cor: 'azul' | 'verde' | 'roxo' | 'laranja' | 'cinza'
-       ════════════════════════════════════════════════════════════ */
+       â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
     const NOTICIAS = [
-      // ── Novo módulo ──
-      { data:'25/06/2026', tag:'Relatórios', cor:'azul',
-        titulo:'Novo módulo: Relatórios de Acompanhamento',
+      // â”€â”€ Novo mÃ³dulo â”€â”€
+      { data:'25/06/2026', tag:'RelatÃ³rios', cor:'azul',
+        titulo:'Novo mÃ³dulo: RelatÃ³rios de Acompanhamento',
         itens:[
-          'Visitas pedagógicas por escola (Fundamental e Infantil), agrupadas por regional',
+          'Visitas pedagÃ³gicas por escola (Fundamental e Infantil), agrupadas por regional',
           'Devolutivas com IA (pontos fortes/fracos, prioridade e risco) abertas no mesmo card da visita',
-          'Geração de PDF com o relatório da visita e/ou a devolutiva',
-          'Aba Estatísticas: cobertura da rede, gráfico de frequência e tabela com a última visita',
-          'Exportação da cobertura em CSV',
+          'GeraÃ§Ã£o de PDF com o relatÃ³rio da visita e/ou a devolutiva',
+          'Aba EstatÃ­sticas: cobertura da rede, grÃ¡fico de frequÃªncia e tabela com a Ãºltima visita',
+          'ExportaÃ§Ã£o da cobertura em CSV',
         ] },
-      // ── Principais funções de cada módulo ──
-      { data:'21/06/2026', tag:'Avaliações', cor:'azul',
-        titulo:'Avaliações — principais funções',
+      // â”€â”€ Principais funÃ§Ãµes de cada mÃ³dulo â”€â”€
+      { data:'21/06/2026', tag:'AvaliaÃ§Ãµes', cor:'azul',
+        titulo:'AvaliaÃ§Ãµes â€” principais funÃ§Ãµes',
         itens:[
-          'Painel da Rede: avaliações, alunos únicos, críticos e taxa de fluência',
-          'Diagnóstica, Bimestres (1º a 4º) e Total',
-          'Leitura, Escrita e Produção Textual',
+          'Painel da Rede: avaliaÃ§Ãµes, alunos Ãºnicos, crÃ­ticos e taxa de fluÃªncia',
+          'DiagnÃ³stica, Bimestres (1Âº a 4Âº) e Total',
+          'Leitura, Escrita e ProduÃ§Ã£o Textual',
           'Filtros por ano escolar e por unidade/turma',
         ] },
-      { data:'21/06/2026', tag:'Atribuição', cor:'verde',
-        titulo:'Atribuição — principais funções',
+      { data:'21/06/2026', tag:'AtribuiÃ§Ã£o', cor:'verde',
+        titulo:'AtribuiÃ§Ã£o â€” principais funÃ§Ãµes',
         itens:[
-          'PPA, PRA e disciplinas — por escola e turno',
+          'PPA, PRA e disciplinas â€” por escola e turno',
           'Grade por escola/disciplina',
-          '"Não Atribuídas": todas as aulas sem professor (por escola ou disciplina)',
-          'Saldo PPA e exportação para Excel',
-          'Filtros por ano/série, tipo de escola e status (Tudo / Atribuídas / Não atribuídas)',
+          '"NÃ£o AtribuÃ­das": todas as aulas sem professor (por escola ou disciplina)',
+          'Saldo PPA e exportaÃ§Ã£o para Excel',
+          'Filtros por ano/sÃ©rie, tipo de escola e status (Tudo / AtribuÃ­das / NÃ£o atribuÃ­das)',
         ] },
       { data:'21/06/2026', tag:'Elefante Letrado', cor:'roxo',
-        titulo:'Elefante Letrado — principais funções',
+        titulo:'Elefante Letrado â€” principais funÃ§Ãµes',
         itens:[
           'Engajamento da rede, da escola e por turma',
-          'Situação da Rede e comparação com a média',
-          'Importação de planilha',
+          'SituaÃ§Ã£o da Rede e comparaÃ§Ã£o com a mÃ©dia',
+          'ImportaÃ§Ã£o de planilha',
         ] },
-      { data:'21/06/2026', tag:'Fluência Leitora', cor:'laranja',
-        titulo:'Fluência Leitora — principais funções',
+      { data:'21/06/2026', tag:'FluÃªncia Leitora', cor:'laranja',
+        titulo:'FluÃªncia Leitora â€” principais funÃ§Ãµes',
         itens:[
-          'Avaliação diagnóstica de fluência leitora',
-          'Ranking e situação por escola e turma',
+          'AvaliaÃ§Ã£o diagnÃ³stica de fluÃªncia leitora',
+          'Ranking e situaÃ§Ã£o por escola e turma',
           'Meta de 70% (Iniciante + Fluente)',
-          'Importação de planilha',
+          'ImportaÃ§Ã£o de planilha',
         ] },
       { data:'20/06/2026', tag:'Plataforma', cor:'azul',
-        titulo:'Novo painel unificado dos módulos',
-        texto:'Avaliações, Atribuição, Elefante Letrado e Fluência agora ficam nesta tela inicial, com navegação mais rápida e cache que evita recarregar tudo a cada acesso.' },
-      { data:'20/06/2026', tag:'Atribuição', cor:'verde',
-        titulo:'Aba "Não Atribuídas" e filtros novos',
-        texto:'Lista de todas as aulas sem professor (por escola ou por disciplina), filtros por ano/série, tipo de escola e status (Tudo / Atribuídas / Não atribuídas), além de exportação para Excel.' },
-      { data:'20/06/2026', tag:'Atribuição', cor:'verde',
-        titulo:'Relatório de Saldo PPA',
-        texto:'KPIs corrigidos do PPA, agrupamento de turnos por escola e o relatório de saldo com cópia e download em Excel.' },
-      { data:'20/06/2026', tag:'Fluência · Elefante', cor:'laranja',
+        titulo:'Novo painel unificado dos mÃ³dulos',
+        texto:'AvaliaÃ§Ãµes, AtribuiÃ§Ã£o, Elefante Letrado e FluÃªncia agora ficam nesta tela inicial, com navegaÃ§Ã£o mais rÃ¡pida e cache que evita recarregar tudo a cada acesso.' },
+      { data:'20/06/2026', tag:'AtribuiÃ§Ã£o', cor:'verde',
+        titulo:'Aba "NÃ£o AtribuÃ­das" e filtros novos',
+        texto:'Lista de todas as aulas sem professor (por escola ou por disciplina), filtros por ano/sÃ©rie, tipo de escola e status (Tudo / AtribuÃ­das / NÃ£o atribuÃ­das), alÃ©m de exportaÃ§Ã£o para Excel.' },
+      { data:'20/06/2026', tag:'AtribuiÃ§Ã£o', cor:'verde',
+        titulo:'RelatÃ³rio de Saldo PPA',
+        texto:'KPIs corrigidos do PPA, agrupamento de turnos por escola e o relatÃ³rio de saldo com cÃ³pia e download em Excel.' },
+      { data:'20/06/2026', tag:'FluÃªncia Â· Elefante', cor:'laranja',
         titulo:'Cache de dados',
-        texto:'Revisitar um módulo na mesma sessão carrega na hora; o botão "Atualizar" traz dados frescos.' },
+        texto:'Revisitar um mÃ³dulo na mesma sessÃ£o carrega na hora; o botÃ£o "Atualizar" traz dados frescos.' },
     ];
 
     const CORES = {
@@ -240,335 +240,7 @@
     }).join('') || '<div class="news-item text-muted">Sem novidades por enquanto.</div>';
   </script>
 
-  <!-- ════════════════════════════════════════════════════════════════════
-       CONFIGURAÇÕES — controle de acesso central (visível só p/ super admin).
-       Cadastra perfis (e-mails autorizados), marca quais TELAS cada perfil
-       acessa e vincula a uma ou mais UNIDADES. Grava direto nas tabelas via
-       supabase-js autenticado (RLS libera escrita só ao super admin).
-       ════════════════════════════════════════════════════════════════════ -->
-  <style>
-    #cfgOverlay { position:fixed; inset:0; z-index:3000; background:rgba(2,16,38,.55);
-      display:none; padding:18px; overflow:auto; }
-    #cfgOverlay.show { display:block; }
-    .cfg-modal { background:#fff; border-radius:16px; max-width:980px; margin:0 auto;
-      box-shadow:0 24px 70px rgba(0,0,0,.4); overflow:hidden; }
-    .cfg-head { background:var(--primary); color:#fff; padding:1rem 1.3rem; display:flex;
-      align-items:center; justify-content:space-between; border-bottom:4px solid var(--neon-blue); }
-    .cfg-head h5 { margin:0; font-weight:900; letter-spacing:.02em; }
-    .cfg-x { background:none; border:0; color:#fff; font-size:1.4rem; cursor:pointer; line-height:1; }
-    .cfg-body { padding:1.2rem 1.3rem; }
-    .cfg-tela-chk { display:flex; align-items:center; gap:.5rem; padding:.35rem .6rem; border:1px solid #e2e8f0;
-      border-radius:9px; font-weight:700; color:#334155; font-size:.86rem; }
-    .cfg-tela-chk input { width:18px; height:18px; }
-    .cfg-perfil-row { cursor:pointer; }
-    .cfg-perfil-row:hover { background:#f1f5f9; }
-    .cfg-badge-adm { background:#fde68a; color:#92400e; font-weight:800; font-size:.66rem;
-      padding:2px 7px; border-radius:999px; }
-    .cfg-badge-off { background:#fee2e2; color:#b91c1c; font-weight:800; font-size:.66rem;
-      padding:2px 7px; border-radius:999px; }
-  </style>
-
-  <div id="cfgOverlay">
-    <div class="cfg-modal">
-      <div class="cfg-head">
-        <h5><i class="bi bi-gear-fill me-2"></i>Configurações de acesso</h5>
-        <button class="cfg-x" onclick="fecharConfig()" title="Fechar">&times;</button>
-      </div>
-      <div class="cfg-body">
-        <div id="cfgErro" class="alert alert-danger py-2 px-3" style="display:none"></div>
-
-        <!-- LISTA de perfis -->
-        <div id="cfgListaView">
-          <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
-            <input id="cfgBusca" class="form-control form-control-sm" style="max-width:280px"
-                   placeholder="Buscar e-mail ou nome…" oninput="cfgRenderLista()">
-            <button class="btn btn-sm btn-primary fw-bold" onclick="cfgNovo()"><i class="bi bi-plus-lg"></i> Novo perfil</button>
-          </div>
-          <div class="table-responsive">
-            <table class="table table-sm align-middle">
-              <thead><tr class="text-uppercase" style="font-size:.7rem;color:#64748b">
-                <th>E-mail</th><th>Nome</th><th>Tipo</th><th class="text-center">Telas</th>
-                <th class="text-center">Unidades</th><th class="text-center">Status</th><th></th>
-              </tr></thead>
-              <tbody id="cfgTbody"><tr><td colspan="7" class="text-muted">Carregando…</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- EDITOR de um perfil -->
-        <div id="cfgEditView" style="display:none">
-          <button class="btn btn-sm btn-link px-0 mb-2" onclick="cfgVoltar()"><i class="bi bi-arrow-left"></i> Voltar à lista</button>
-          <div class="row g-3">
-            <div class="col-12 col-md-6">
-              <label class="form-label fw-bold small">E-mail (Google) *</label>
-              <input id="edEmail" class="form-control form-control-sm" placeholder="nome@educacao.pmrp.sp.gov.br">
-            </div>
-            <div class="col-12 col-md-6">
-              <label class="form-label fw-bold small">Nome</label>
-              <input id="edNome" class="form-control form-control-sm" placeholder="Nome do servidor">
-            </div>
-            <div class="col-6 col-md-4">
-              <label class="form-label fw-bold small">Tipo</label>
-              <select id="edTipo" class="form-select form-select-sm">
-                <option value="escola">Escola</option>
-                <option value="secretaria">Secretaria</option>
-                <option value="externo">Externo</option>
-              </select>
-            </div>
-            <div class="col-6 col-md-4 d-flex align-items-end">
-              <div class="form-check"><input id="edAtivo" class="form-check-input" type="checkbox" checked>
-                <label class="form-check-label fw-bold small" for="edAtivo">Ativo</label></div>
-            </div>
-            <div class="col-12 col-md-4 d-flex align-items-end">
-              <div class="form-check"><input id="edAdmin" class="form-check-input" type="checkbox" onchange="cfgToggleAdmin()">
-                <label class="form-check-label fw-bold small" for="edAdmin">Super admin (acesso total)</label></div>
-            </div>
-
-            <div class="col-12">
-              <label class="form-label fw-bold small">Telas que este perfil pode acessar</label>
-              <div id="edTelas" class="d-flex flex-wrap gap-2"></div>
-              <div class="form-text" id="edTelasHint"></div>
-            </div>
-
-            <div class="col-12">
-              <label class="form-label fw-bold small">Unidades vinculadas</label>
-              <input id="edEscBusca" class="form-control form-control-sm mb-1" placeholder="Filtrar unidades…" oninput="cfgRenderEscolas()">
-              <select id="edEscolas" class="form-select" multiple size="6"></select>
-              <div class="input-group input-group-sm mt-1">
-                <input id="edNovaEsc" class="form-control" placeholder="Cadastrar nova unidade (nome)…">
-                <button class="btn btn-outline-secondary" onclick="cfgAddEscola()">Adicionar unidade</button>
-              </div>
-              <div class="form-text">Segure Ctrl (ou Cmd) para selecionar várias. Sem unidade = acesso geral às telas marcadas.</div>
-            </div>
-          </div>
-
-          <div class="d-flex justify-content-between mt-3">
-            <button id="edExcluir" class="btn btn-sm btn-outline-danger" onclick="cfgExcluir()" style="display:none">
-              <i class="bi bi-trash"></i> Excluir perfil</button>
-            <div class="ms-auto">
-              <button class="btn btn-sm btn-secondary" onclick="cfgVoltar()">Cancelar</button>
-              <button class="btn btn-sm btn-primary fw-bold" onclick="cfgSalvar()"><i class="bi bi-check-lg"></i> Salvar</button>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  </div>
-
-  <script>
-  /* ── Configurações: só aparece para super admin ────────────────────────── */
-  (function () {
-    var cfg = { perfis: [], telas: [], escolas: [], editId: null, escSel: new Set() };
-    window.__cfg = cfg;
-
-    document.addEventListener('mapa-auth-pronto', function (e) {
-      var A = e.detail || window.MapaAuth;
-      if (A && A.perfil && A.perfil.is_super_admin) {
-        var b = document.getElementById('btnConfig');
-        if (b) b.style.display = '';
-      }
-    });
-
-    function sb() { return window.MAPA_SB; }
-    function erro(msg) {
-      var el = document.getElementById('cfgErro');
-      if (!msg) { el.style.display = 'none'; return; }
-      el.textContent = msg; el.style.display = 'block';
-    }
-    function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);}); }
-
-    window.abrirConfig = async function () {
-      document.getElementById('cfgOverlay').classList.add('show');
-      cfgVoltar(); erro('');
-      if (!sb()) { erro('Sessão não carregada. Recarregue a página.'); return; }
-      try {
-        await cfgCarregarCatalogos();
-        await cfgCarregarPerfis();
-      } catch (ex) { erro('Erro ao carregar: ' + (ex.message || ex)); }
-    };
-    window.fecharConfig = function () { document.getElementById('cfgOverlay').classList.remove('show'); };
-    window.cfgVoltar = function () {
-      document.getElementById('cfgEditView').style.display = 'none';
-      document.getElementById('cfgListaView').style.display = '';
-    };
-
-    async function cfgCarregarCatalogos() {
-      if (cfg.telas.length && cfg.escolas.length) return;
-      var s = await sb().from('sistemas').select('id').eq('slug', 'mapa').single();
-      if (s.error) throw s.error;
-      var t = await sb().from('telas').select('id,slug,nome,ordem').eq('sistema_id', s.data.id).order('ordem');
-      if (t.error) throw t.error;
-      cfg.telas = t.data || [];
-      var e = await sb().from('escolas').select('id,nome').eq('ativo', true).order('nome');
-      if (e.error) throw e.error;
-      cfg.escolas = e.data || [];
-    }
-
-    async function cfgCarregarPerfis() {
-      var r = await sb().from('perfis').select('id,email,nome,tipo,ativo,is_super_admin').order('email');
-      if (r.error) throw r.error;
-      // contagens de telas e escolas por perfil
-      var pt = await sb().from('perfil_tela').select('perfil_id,pode_ver');
-      var pe = await sb().from('perfil_escola').select('perfil_id');
-      var ct = {}, ce = {};
-      (pt.data || []).forEach(function (x) { if (x.pode_ver) ct[x.perfil_id] = (ct[x.perfil_id] || 0) + 1; });
-      (pe.data || []).forEach(function (x) { ce[x.perfil_id] = (ce[x.perfil_id] || 0) + 1; });
-      cfg.perfis = (r.data || []).map(function (p) {
-        p._telas = p.is_super_admin ? cfg.telas.length : (ct[p.id] || 0);
-        p._escolas = ce[p.id] || 0; return p;
-      });
-      cfgRenderLista();
-    }
-
-    window.cfgRenderLista = function () {
-      var q = (document.getElementById('cfgBusca').value || '').toLowerCase();
-      var rows = cfg.perfis.filter(function (p) {
-        return !q || (p.email || '').toLowerCase().includes(q) || (p.nome || '').toLowerCase().includes(q);
-      });
-      var tb = document.getElementById('cfgTbody');
-      if (!rows.length) { tb.innerHTML = '<tr><td colspan="7" class="text-muted">Nenhum perfil.</td></tr>'; return; }
-      tb.innerHTML = rows.map(function (p) {
-        return '<tr class="cfg-perfil-row" onclick="cfgEditar(' + p.id + ')">'
-          + '<td class="fw-bold">' + escHtml(p.email) + (p.is_super_admin ? ' <span class="cfg-badge-adm">SUPER</span>' : '') + '</td>'
-          + '<td>' + escHtml(p.nome || '—') + '</td>'
-          + '<td><span class="text-capitalize">' + escHtml(p.tipo || '—') + '</span></td>'
-          + '<td class="text-center">' + (p.is_super_admin ? 'todas' : p._telas) + '</td>'
-          + '<td class="text-center">' + p._escolas + '</td>'
-          + '<td class="text-center">' + (p.ativo ? '<span class="text-success fw-bold">ativo</span>' : '<span class="cfg-badge-off">inativo</span>') + '</td>'
-          + '<td class="text-end"><i class="bi bi-pencil-square text-primary"></i></td></tr>';
-      }).join('');
-    };
-
-    window.cfgNovo = function () { abrirEditor(null); };
-    window.cfgEditar = async function (id) {
-      erro('');
-      var p = cfg.perfis.filter(function (x) { return x.id === id; })[0];
-      if (!p) return;
-      var pt = await sb().from('perfil_tela').select('tela_id,pode_ver').eq('perfil_id', id);
-      var pe = await sb().from('perfil_escola').select('escola_id').eq('perfil_id', id);
-      var telasSel = new Set((pt.data || []).filter(function (x) { return x.pode_ver; }).map(function (x) { return x.tela_id; }));
-      cfg.escSel = new Set((pe.data || []).map(function (x) { return x.escola_id; }));
-      abrirEditor(p, telasSel);
-    };
-
-    function abrirEditor(p, telasSel) {
-      cfg.editId = p ? p.id : null;
-      document.getElementById('cfgListaView').style.display = 'none';
-      document.getElementById('cfgEditView').style.display = '';
-      document.getElementById('edEmail').value = p ? (p.email || '') : '';
-      document.getElementById('edEmail').readOnly = !!p;       // e-mail é a chave; não editar depois
-      document.getElementById('edNome').value = p ? (p.nome || '') : '';
-      document.getElementById('edTipo').value = p ? (p.tipo || 'escola') : 'escola';
-      document.getElementById('edAtivo').checked = p ? !!p.ativo : true;
-      document.getElementById('edAdmin').checked = p ? !!p.is_super_admin : false;
-      document.getElementById('edExcluir').style.display = p ? '' : 'none';
-      if (!p) { cfg.escSel = new Set(); telasSel = new Set(); }
-      cfgRenderTelas(telasSel);
-      cfgRenderEscolas();
-      cfgToggleAdmin();
-    }
-
-    window.cfgRenderTelas = function (telasSel) {
-      if (telasSel) cfg._telasSel = telasSel;
-      var sel = cfg._telasSel || new Set();
-      document.getElementById('edTelas').innerHTML = cfg.telas.map(function (t) {
-        return '<label class="cfg-tela-chk"><input type="checkbox" value="' + t.id + '"' + (sel.has(t.id) ? ' checked' : '') + '> ' + escHtml(t.nome) + '</label>';
-      }).join('') || '<span class="text-muted small">Rode o sql/07 para cadastrar as telas.</span>';
-    };
-
-    window.cfgToggleAdmin = function () {
-      var adm = document.getElementById('edAdmin').checked;
-      document.getElementById('edTelas').style.opacity = adm ? .5 : 1;
-      document.getElementById('edTelas').style.pointerEvents = adm ? 'none' : 'auto';
-      document.getElementById('edTelasHint').textContent = adm
-        ? 'Super admin acessa todas as telas automaticamente.'
-        : 'Marque as telas liberadas para este perfil.';
-    };
-
-    window.cfgRenderEscolas = function () {
-      var q = (document.getElementById('edEscBusca').value || '').toLowerCase();
-      var selEl = document.getElementById('edEscolas');
-      selEl.innerHTML = cfg.escolas
-        .filter(function (e) { return !q || (e.nome || '').toLowerCase().includes(q); })
-        .map(function (e) { return '<option value="' + e.id + '"' + (cfg.escSel.has(e.id) ? ' selected' : '') + '>' + escHtml(e.nome) + '</option>'; })
-        .join('') || '<option disabled>Nenhuma unidade cadastrada</option>';
-      // mantém o Set sincronizado quando o usuário altera a seleção
-      selEl.onchange = function () {
-        Array.prototype.forEach.call(selEl.options, function (o) {
-          if (o.disabled) return;
-          var id = +o.value;
-          if (o.selected) cfg.escSel.add(id); else cfg.escSel.delete(id);
-        });
-      };
-    };
-
-    window.cfgAddEscola = async function () {
-      var nome = (document.getElementById('edNovaEsc').value || '').trim();
-      if (!nome) return;
-      erro('');
-      var r = await sb().from('escolas').insert({ nome: nome }).select('id,nome').single();
-      if (r.error) { erro('Erro ao cadastrar unidade: ' + r.error.message); return; }
-      cfg.escolas.push(r.data); cfg.escolas.sort(function (a, b) { return (a.nome || '').localeCompare(b.nome || ''); });
-      cfg.escSel.add(r.data.id);
-      document.getElementById('edNovaEsc').value = '';
-      cfgRenderEscolas();
-    };
-
-    window.cfgSalvar = async function () {
-      erro('');
-      var email = (document.getElementById('edEmail').value || '').trim().toLowerCase();
-      if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { erro('Informe um e-mail válido.'); return; }
-      var dados = {
-        email: email,
-        nome: (document.getElementById('edNome').value || '').trim() || null,
-        tipo: document.getElementById('edTipo').value,
-        ativo: document.getElementById('edAtivo').checked,
-        is_super_admin: document.getElementById('edAdmin').checked
-      };
-      try {
-        var perfilId = cfg.editId;
-        if (perfilId) {
-          var u = await sb().from('perfis').update(dados).eq('id', perfilId);
-          if (u.error) throw u.error;
-        } else {
-          var ins = await sb().from('perfis').insert(dados).select('id').single();
-          if (ins.error) throw ins.error;
-          perfilId = ins.data.id;
-        }
-        // telas: substitui o conjunto
-        await sb().from('perfil_tela').delete().eq('perfil_id', perfilId);
-        if (!dados.is_super_admin) {
-          var telaIds = Array.prototype.slice.call(document.querySelectorAll('#edTelas input:checked')).map(function (i) { return +i.value; });
-          if (telaIds.length) {
-            var rowsT = telaIds.map(function (tid) { return { perfil_id: perfilId, tela_id: tid, pode_ver: true }; });
-            var it = await sb().from('perfil_tela').insert(rowsT);
-            if (it.error) throw it.error;
-          }
-        }
-        // escolas: substitui o conjunto
-        await sb().from('perfil_escola').delete().eq('perfil_id', perfilId);
-        var escIds = Array.from(cfg.escSel);
-        if (escIds.length) {
-          var rowsE = escIds.map(function (eid) { return { perfil_id: perfilId, escola_id: eid }; });
-          var ie = await sb().from('perfil_escola').insert(rowsE);
-          if (ie.error) throw ie.error;
-        }
-        await cfgCarregarPerfis();
-        cfgVoltar();
-      } catch (ex) { erro('Erro ao salvar: ' + (ex.message || ex)); }
-    };
-
-    window.cfgExcluir = async function () {
-      if (!cfg.editId) return;
-      if (!confirm('Excluir este perfil? Ele perderá o acesso a todos os sistemas.')) return;
-      erro('');
-      var r = await sb().from('perfis').delete().eq('id', cfg.editId);
-      if (r.error) { erro('Erro ao excluir: ' + r.error.message); return; }
-      await cfgCarregarPerfis();
-      cfgVoltar();
-    };
-  })();
-  </script>
+  <!-- Configuracoes geral (controle de acesso) - compartilhado entre as telas -->
+  <script src="config-central.js" defer></script>
 </body>
 </html>
