@@ -58,6 +58,16 @@ Rode também [`sql/08_perfil_telas.sql`](sql/08_perfil_telas.sql). Ele cria a ta
 `perfil_tela` (liberar telas **direto por perfil**, 1 checkbox por tela) e reescreve
 `minhas_permissoes()` para unir três fontes de acesso: super admin (tudo), `perfil_tela`
 (o jeito novo, usado pela tela de Configurações) e o papel/`papel_permissoes` (legado).
+Essa função também aplica a **restrição de domínio**: só e-mails
+`@educacao.pmrp.sp.gov.br` entram (super admin é exceção).
+
+## Passo 3c — Migrar os usuários/unidades antigos (opcional, recomendado)
+
+Se você já tinha o controle antigo dentro de avaliações (tabelas `usuarios` e
+`unidades`), rode [`sql/09_migrar_usuarios_unidades.sql`](sql/09_migrar_usuarios_unidades.sql).
+Ele traz as **escolas** e os **usuários** já cadastrados para o modelo novo (sem
+sobrescrever nada e sem promover ninguém a super admin). Depois disso a tela única
+de Configurações já mostra tudo, e você ajusta telas/ADM por lá.
 
 ## Passo 4 — Cadastrar escolas, perfis e acessos
 

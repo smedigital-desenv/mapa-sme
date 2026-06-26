@@ -245,6 +245,13 @@
     erro('');
     var email = (document.getElementById('edEmail').value || '').trim().toLowerCase();
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { erro('Informe um e-mail válido.'); return; }
+    var ehAdmin = document.getElementById('edAdmin').checked;
+    var dominioOk = /@educacao\.pmrp\.sp\.gov\.br$/.test(email);
+    // Só e-mails institucionais podem ser cadastrados (exceto super admin).
+    if (!cfg.editId && !ehAdmin && !dominioOk) {
+      erro('Apenas e-mails @educacao.pmrp.sp.gov.br podem ser cadastrados (super admin é exceção).');
+      return;
+    }
     var dados = {
       email: email,
       nome: (document.getElementById('edNome').value || '').trim() || null,
