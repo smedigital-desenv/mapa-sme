@@ -248,6 +248,23 @@ let secaoAtual = 'fundamental';
 let todos = [], filtrados = [], selecionados = new Set();
 let todasDevolutivas = [], devolutivasFiltradas = [];
 let devolutivasCarregadas = false;
+let mapaDevolutivas = new Map();
+
+// ── Índice visita ↔ devolutiva (chave: segmento|escola|data) ──
+function _chaveDev(seg, escola, data) {
+  return (String(seg||'') + '|' + String(escola||'') + '|' + String(data||''))
+    .toLowerCase().replace(/\s+/g, ' ').trim();
+}
+function _construirMapaDevolutivas() {
+  mapaDevolutivas = new Map();
+  todasDevolutivas.forEach(d => {
+    mapaDevolutivas.set(_chaveDev(d["Segmento"], d["Escola"], d["Data da Visita"]), d);
+  });
+}
+function _devDoItem(item) {
+  const data = item["Data da Visita:"]||item["Data da visita:"]||'';
+  return mapaDevolutivas.get(_chaveDev(segmentoAtual, item['_ESCOLA_'], data));
+}
 
 // ── Toast ──
 function mostrarToast(msg) {
@@ -460,6 +477,7 @@ function _renderCard(item, idx) {
   const nomeEscola = item['_ESCOLA_']||'Escola não informada';
   const reg = (item[COL_REGIONAL]||'').toString().trim();
   const isSel = selecionados.has(idx);
+  const temDev = !!_devDoItem(item);
 
   return `
     <div class="card-kpi rel-card ${isSel?'selecionado':''}" id="card-${idx}" onclick="abrirRelatorio(${idx})">
@@ -470,14 +488,21 @@ function _renderCard(item, idx) {
         <div class="card-title-escola">${escapar(nomeEscola)}</div>
         ${reg?`<span class="badge bg-light text-primary border" style="font-size:0.65rem;font-weight:800;">${escapar(reg)}</span>`:''}
       </div>
-      <div class="card-meta-info mb-2">
+      <div class="card-meta-info mb-2 d-flex align-items-center gap-2 flex-wrap">
         <span><i class="bi bi-calendar3 me-1"></i> ${escapar(dataVisita)}</span>
+        ${temDev?`<span class="badge" style="background:var(--neon-pink);color:#fff;font-size:0.6rem;font-weight:800;"><i class="bi bi-robot me-1"></i>Devolutiva IA</span>`:''}
       </div>
       <div style="font-size:0.8rem;color:#495057;line-height:1.4;flex-grow:1;"><b>Resp:</b> ${escapar(responsavel)}</div>
       <div class="d-flex justify-content-between align-items-end mt-2 pt-2 border-top">
         <span style="font-size:0.75rem;font-weight:800;color:var(--neon-blue);"><i class="bi bi-box-arrow-in-right me-1"></i> Abrir</span>
+        ${temDev?`<button class="btn btn-sm py-0 px-2" style="font-size:0.7rem;font-weight:800;color:var(--neon-pink);border:1.5px solid var(--neon-pink);border-radius:6px;" onclick="event.stopPropagation();abrirDevolutivaDoCard(${idx})"><i class="bi bi-robot me-1"></i>Ver devolutiva</button>`:''}
       </div>
     </div>`;
+}
+
+function abrirDevolutivaDoCard(idx) {
+  const dev = _devDoItem(filtrados[idx]);
+  if (dev) abrirDevolutivaObj(dev);
 }
 
 // ── Seleção ──
@@ -629,12 +654,16 @@ function carregarDevolutivas(cb, forcar) {
     }
     todasDevolutivas = res.registros || [];
     devolutivasCarregadas = true;
+    _construirMapaDevolutivas();
     const n = todasDevolutivas.length;
     const b = document.getElementById('badge-dev');
     if (b) { b.textContent = n; b.style.display = n > 0 ? 'inline-flex' : 'none'; }
     if (secaoAtual === 'devolutivas') {
       popularFiltrosDevolutivas();
       filtrarDevolutivas();
+    } else if (filtrados.length) {
+      // Atualiza os cards de visita para exibir os selos de devolutiva
+      renderizarCards();
     }
     if (cb) cb();
   };
@@ -686,29 +715,78 @@ function filtrarDevolutivas() {
   const main = document.getElementById('main');
   if (devolutivasFiltradas.length === 0) { mostrarEstado('Nenhuma devolutiva salva.', 'bi-robot'); return; }
 
-  const cardsHtml = devolutivasFiltradas.map(dev => `
-    <div class="card-kpi rel-card" onclick="abrirDevolutiva(this)">
-      <div class="card-title-escola">${escapar(dev["Escola"])}</div>
-      <div class="card-meta-info">${escapar(dev["Data da Visita"])}</div>
+  const cardsHtml = devolutivasFiltradas.map((dev,i) => `
+    <div class="card-kpi rel-card" onclick="abrirDevolutivaIdx(${i})">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div class="card-title-escola">${escapar(dev["Escola"])}</div>
+        <span class="badge" style="background:var(--neon-pink);color:#fff;font-size:0.6rem;font-weight:800;flex-shrink:0;"><i class="bi bi-robot me-1"></i>IA</span>
+      </div>
+      <div class="card-meta-info"><i class="bi bi-calendar3 me-1"></i>${escapar(dev["Data da Visita"])}</div>
       <div style="font-size:0.75rem;color:#adb5bd;">Salvo em ${escapar(dev["Salvo em"])}</div>
     </div>`).join('');
 
   main.innerHTML = `<div class="cards-grid">${cardsHtml}</div>`;
 }
 
-function abrirDevolutiva(cardEl) {
-  const escola = cardEl.querySelector('.card-title-escola').textContent;
-  const dev = devolutivasFiltradas.find(d => d["Escola"] === escola);
-  if (!dev) return;
+// Abertura a partir dos cards da aba Devolutivas (por índice da lista filtrada)
+function abrirDevolutivaIdx(i) {
+  const dev = devolutivasFiltradas[i];
+  if (dev) abrirDevolutivaObj(dev);
+}
+
+function _badgeNivel(valor) {
+  const v = (valor||'').toLowerCase();
+  let bg = '#e2e8f0', fg = '#475569';
+  if (/alt|crít|crit/.test(v))      { bg = '#fee2e2'; fg = '#b91c1c'; }
+  else if (/m[éeè]d/.test(v))       { bg = '#fef3c7'; fg = '#92400e'; }
+  else if (/baix/.test(v))          { bg = '#d1fae5'; fg = '#047857'; }
+  return `<span style="background:${bg};color:${fg};font-weight:800;font-size:.68rem;padding:3px 10px;border-radius:999px;">${escapar(valor||'—')}</span>`;
+}
+
+function _secLista(titulo, icone, cor, itens) {
+  if (!itens || !itens.length) return '';
+  const lis = itens.map(t => `<li style="margin-bottom:5px;">${escapar(t)}</li>`).join('');
+  return `<div style="margin-bottom:16px;">
+    <div style="font-size:.8rem;font-weight:800;color:${cor};margin-bottom:6px;"><i class="bi ${icone} me-1"></i>${titulo}</div>
+    <ul style="margin:0;padding-left:20px;font-size:.88rem;color:#334155;line-height:1.45;">${lis}</ul>
+  </div>`;
+}
+
+function _secTexto(titulo, icone, cor, texto) {
+  if (!texto) return '';
+  return `<div style="margin-bottom:16px;">
+    <div style="font-size:.8rem;font-weight:800;color:${cor};margin-bottom:6px;"><i class="bi ${icone} me-1"></i>${titulo}</div>
+    <div style="font-size:.88rem;color:#334155;line-height:1.5;">${escapar(texto)}</div>
+  </div>`;
+}
+
+function abrirDevolutivaObj(dev) {
+  const d = dev._dados || {};
+  const risco = d.risco_pedagogico || {};
 
   document.getElementById('relatorio-container').innerHTML = `
-    <div style="border-bottom:3px solid var(--primary);padding-bottom:14px;margin-bottom:16px;">
-      <div style="font-size:1.1rem;font-weight:800;color:var(--primary);">Análise Salva</div>
-      <div style="font-size:1rem;margin-top:6px;color:#002b5e;">${escapar(dev["Escola"])}</div>
+    <div style="border-bottom:3px solid var(--primary);padding-bottom:14px;margin-bottom:18px;">
+      <div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--neon-blue);"><i class="bi bi-robot me-1"></i>Análise Pedagógica (IA)</div>
+      <div style="font-size:1.15rem;font-weight:800;color:#002b5e;margin-top:4px;">${escapar(dev["Escola"]||'')}</div>
+      <div style="font-size:.8rem;color:#64748b;font-weight:600;margin-top:3px;">
+        <i class="bi bi-calendar3 me-1"></i>${escapar(dev["Data da Visita"]||'—')}${dev["Salvo em"]?` &nbsp;·&nbsp; <i class="bi bi-clock-history me-1"></i>Salvo em ${escapar(dev["Salvo em"])}`:''}
+      </div>
+      <div style="display:flex;gap:22px;flex-wrap:wrap;margin-top:12px;align-items:center;">
+        <span style="font-size:.72rem;font-weight:800;color:#475569;">PRIORIDADE &nbsp;${_badgeNivel(d.prioridade)}</span>
+        <span style="font-size:.72rem;font-weight:800;color:#475569;">RISCO PEDAGÓGICO &nbsp;${_badgeNivel(risco.nivel)}</span>
+      </div>
     </div>
-    <pre style="background:#f8faff;padding:12px;border-radius:8px;overflow-x:auto;font-size:0.85rem;">${escapar(JSON.stringify(dev._dados, null, 2))}</pre>`;
+    ${_secTexto('Síntese Executiva','bi-card-text','#002b5e',d.sintese_executiva)}
+    ${_secLista('Pontos Fortes','bi-hand-thumbs-up-fill','#047857',d.pontos_fortes)}
+    ${_secLista('Pontos Fracos','bi-hand-thumbs-down-fill','#b91c1c',d.pontos_fracos)}
+    ${_secLista('Pontos de Atenção','bi-exclamation-triangle-fill','#b45309',d.pontos_atencao)}
+    ${_secTexto('Justificativa da Prioridade','bi-info-circle-fill','#475569',d.justificativa_prioridade)}
+    ${risco.descricao?_secTexto('Risco Pedagógico','bi-shield-exclamation','#b91c1c',risco.descricao):''}
+    ${_secLista('Encaminhamentos p/ Próxima Visita','bi-arrow-right-circle-fill','#1d4ed8',d.encaminhamentos_proxima_visita)}
+    ${_secLista('Perguntas p/ Próxima Visita','bi-question-circle-fill','#7c3aed',d.perguntas_para_proxima_visita)}
+    ${_secLista('Foco Formativo Sugerido','bi-mortarboard-fill','#0e7490',d.foco_formativo_sugerido)}`;
 
-  document.getElementById('modalTitulo').textContent = dev["Escola"];
+  document.getElementById('modalTitulo').textContent = dev["Escola"]||'Devolutiva';
   document.getElementById('modalRelatorioFooter').innerHTML = `<button class="btn btn-action btn-action-primary" onclick="imprimir()"><i class="bi bi-printer-fill"></i> Imprimir</button>`;
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalRelatorio')).show();
