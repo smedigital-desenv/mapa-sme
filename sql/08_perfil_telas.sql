@@ -31,8 +31,10 @@ create table if not exists public.perfil_tela (
 -- ---------------------------------------------------------------------------
 -- 2) RPC minhas_permissoes() — agora considera perfil_tela
 -- ---------------------------------------------------------------------------
+-- VOLATILE (não STABLE): a função faz UPDATE (grava auth_user_id no 1º acesso),
+-- e o Postgres só permite escrita em função VOLATILE.
 create or replace function public.minhas_permissoes()
-returns json language plpgsql stable security definer set search_path = public as $$
+returns json language plpgsql volatile security definer set search_path = public as $$
 declare
   v_perfil  public.perfis%rowtype;
   v_result  json;
