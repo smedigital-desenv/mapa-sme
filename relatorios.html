@@ -77,13 +77,40 @@
     .modal-tabs .nav-link.active { background: var(--primary); color: #fff; border-color: var(--primary); }
     .pdf-opt { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 700; color: #334155; cursor: pointer; margin: 0; }
     .pdf-opt input { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+    /* ── Estatísticas / cobertura ── */
+    .est-kpi { background:#fff; border-radius:14px; padding:.9rem 1.1rem; box-shadow:0 4px 14px rgba(0,0,0,.05); border-left:5px solid var(--primary); }
+    .est-kpi .lbl { font-size:.66rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.03em; }
+    .est-kpi .val { font-size:1.7rem; font-weight:900; color:var(--primary); line-height:1.1; }
+    .est-kpi.ok    { border-left-color:#10b981; } .est-kpi.ok .val    { color:#047857; }
+    .est-kpi.warn  { border-left-color:#ef4444; } .est-kpi.warn .val  { color:#b91c1c; }
+    .est-kpi.info  { border-left-color:var(--neon-blue); }
+    table.tbl-cob { width:100%; font-size:.84rem; border-collapse:collapse; }
+    table.tbl-cob thead th { position:sticky; top:0; background:var(--primary); color:#fff; font-weight:800; font-size:.68rem; text-transform:uppercase; letter-spacing:.02em; padding:9px 10px; white-space:nowrap; cursor:pointer; }
+    table.tbl-cob tbody td { padding:7px 10px; border-bottom:1px solid #eef2f7; }
+    table.tbl-cob tbody tr:hover { background:#f1f6ff; }
+    .pill { font-weight:800; font-size:.66rem; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+    .pill-ok   { background:#d1fae5; color:#047857; }
+    .pill-no   { background:#fee2e2; color:#b91c1c; }
+    .pill-dev  { background:#fce7f3; color:#be185d; }
     /* ── Área de impressão / PDF ── */
     #print-area { display: none; }
+    .pdf-cab { display:flex; align-items:baseline; gap:12px; border-bottom:3px solid var(--primary); padding-bottom:10px; margin-bottom:20px; flex-wrap:wrap; }
+    .pdf-cab-marca { font-weight:900; font-size:1.35rem; color:var(--primary); letter-spacing:.02em; }
+    .pdf-cab-marca i { color:var(--neon-blue); margin-right:4px; }
+    .pdf-cab-marca span { font-size:.7rem; font-weight:800; color:#64748b; letter-spacing:.04em; }
+    .pdf-cab-sub { font-size:.78rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:#475569; }
+    .pdf-cab-data { margin-left:auto; font-size:.7rem; color:#94a3b8; font-family:monospace; }
+    .pdf-rodape { margin-top:22px; padding-top:10px; border-top:1px solid #e2e8f0; font-size:.66rem; color:#94a3b8; display:flex; justify-content:space-between; }
+    @page { size: A4; margin: 14mm 13mm; }
     @media print {
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      html, body { background:#fff !important; }
       body > *:not(#print-area) { display: none !important; }
-      #print-area { display: block !important; }
-      .pdf-sec { page-break-after: always; }
+      #print-area { display: block !important; font-family:'Inter',sans-serif; color:#1e293b; }
+      .pdf-sec { page-break-after: always; font-size: 10.5pt; line-height: 1.45; }
       .pdf-sec:last-child { page-break-after: auto; }
+      .pdf-sec ul { page-break-inside: avoid; }
+      a[href]:after { content: ''; }
     }
   </style>
 </head>
@@ -128,6 +155,7 @@
       <button class="btn btn-toggle active" id="tab-fundamental"  onclick="mudarSecao('fundamental')"><i class="bi bi-building me-2"></i> Fundamental</button>
       <button class="btn btn-toggle"        id="tab-infantil"     onclick="mudarSecao('infantil')"><i class="bi bi-balloon-fill me-2"></i> Infantil</button>
       <button class="btn btn-toggle"        id="tab-devolutivas"  onclick="mudarSecao('devolutivas')"><i class="bi bi-robot me-2"></i> Devolutivas <span class="tab-badge" id="badge-dev" style="display:none">0</span></button>
+      <button class="btn btn-toggle"        id="tab-estatisticas" onclick="mudarSecao('estatisticas')"><i class="bi bi-bar-chart-fill me-2"></i> Estatísticas</button>
     </div>
   </div>
   <div class="d-flex align-items-center gap-3">
@@ -203,6 +231,34 @@
         <input type="text" id="buscaDev" class="form-control fw-bold" placeholder="Escola, regional, data…" oninput="filtrarDevolutivas()" />
       </div>
     </div>
+  </aside>
+
+  <aside id="aside-estatisticas" class="table-container" style="display: none;">
+    <div class="mb-3">
+      <label class="form-label"><i class="bi bi-layers-half me-1"></i> Segmento</label>
+      <select id="filtroEstSegmento" class="form-select fw-bold shadow-sm" onchange="renderEstatisticas()">
+        <option value="todos">Todos os Segmentos</option>
+        <option value="fundamental">Fundamental (EMEF)</option>
+        <option value="infantil">Infantil (EMEI)</option>
+      </select>
+    </div>
+    <div class="mb-3">
+      <label class="form-label"><i class="bi bi-map me-1"></i> Regional</label>
+      <select id="filtroEstRegional" class="form-select fw-bold shadow-sm" onchange="renderEstatisticas()">
+        <option value="">Todas as Regionais</option>
+      </select>
+    </div>
+    <div class="mb-3">
+      <label class="form-label"><i class="bi bi-search me-1"></i> Buscar Escola</label>
+      <div class="search-wrap shadow-sm">
+        <i class="bi bi-search"></i>
+        <input type="text" id="buscaEst" class="form-control fw-bold" placeholder="Nome da escola…" oninput="renderEstatisticas()" />
+      </div>
+    </div>
+    <hr class="my-2">
+    <button class="btn btn-action btn-action-ia w-100 justify-content-center" onclick="exportarCoberturaCSV()">
+      <i class="bi bi-download"></i> Exportar CSV
+    </button>
   </aside>
 
   <main id="main">
@@ -301,16 +357,21 @@ function mostrarEstado(msg, icone) {
 // ── Navegação ──
 function mudarSecao(sec) {
   secaoAtual = sec;
-  ['fundamental','infantil','devolutivas'].forEach(t => {
+  ['fundamental','infantil','devolutivas','estatisticas'].forEach(t => {
     const b = document.getElementById('tab-'+t);
     if (b) b.classList.toggle('active', t === sec);
   });
   const aP = document.getElementById('aside-principal');
   const aD = document.getElementById('aside-dev');
+  const aE = document.getElementById('aside-estatisticas');
+  aP.style.display = 'none'; aD.style.display = 'none'; aE.style.display = 'none';
+  document.getElementById('badgeCount').style.display = 'none';
   if (sec === 'devolutivas') {
-    aP.style.display='none'; aD.style.display='flex'; carregarDevolutivas();
+    aD.style.display = 'flex'; carregarDevolutivas();
+  } else if (sec === 'estatisticas') {
+    aE.style.display = 'flex'; renderEstatisticas();
   } else {
-    aP.style.display='flex'; aD.style.display='none'; mudarSegmento(sec);
+    aP.style.display = 'flex'; mudarSegmento(sec);
   }
 }
 
@@ -639,13 +700,29 @@ function trocarAbaModal(aba) {
   document.querySelectorAll('.modal-tabs .nav-link').forEach(b => b.classList.toggle('active', b.dataset.aba === aba));
 }
 
+function _pdfCabecalho(subtitulo) {
+  const dataHoje = new Date().toLocaleDateString('pt-BR');
+  return `<div class="pdf-cab">
+    <div class="pdf-cab-marca"><i class="bi bi-map-fill"></i>MAPA <span>· SME RIBEIRÃO PRETO</span></div>
+    <div class="pdf-cab-sub">${subtitulo}</div>
+    <div class="pdf-cab-data">Gerado em ${dataHoje}</div>
+  </div>`;
+}
+
+function _pdfRodape() {
+  return `<div class="pdf-rodape">
+    <span>MAPA · Secretaria Municipal da Educação de Ribeirão Preto</span>
+    <span>Acompanhamento Pedagógico</span>
+  </div>`;
+}
+
 function gerarPdf() {
   const incRel = !!document.getElementById('pdfRel') && document.getElementById('pdfRel').checked;
   const incDev = !!document.getElementById('pdfDev') && document.getElementById('pdfDev').checked;
   if (!incRel && !incDev) { mostrarToast('Selecione ao menos uma seção para o PDF.'); return; }
   let html = '';
-  if (incRel && _pdfHtmlRel) html += `<section class="pdf-sec">${_pdfHtmlRel}</section>`;
-  if (incDev && _pdfHtmlDev) html += `<section class="pdf-sec">${_pdfHtmlDev}</section>`;
+  if (incRel && _pdfHtmlRel) html += `<section class="pdf-sec">${_pdfCabecalho('Relatório de Acompanhamento Pedagógico')}${_pdfHtmlRel}${_pdfRodape()}</section>`;
+  if (incDev && _pdfHtmlDev) html += `<section class="pdf-sec">${_pdfCabecalho('Devolutiva Pedagógica (IA)')}${_pdfHtmlDev}${_pdfRodape()}</section>`;
   document.getElementById('print-area').innerHTML = html;
   window.print();
 }
@@ -881,6 +958,207 @@ function analisarLote() {
   if (!isAdmin) { mostrarToast('Apenas admins podem usar IA.'); return; }
   if (selecionados.size === 0) return;
   mostrarToast('Análise em lote — em breve!');
+}
+
+// ════════════════════════════════════════════════
+//  Estatísticas / Cobertura de Visitas
+// ════════════════════════════════════════════════
+let chartCobertura = null;
+let coberturaView = [];
+let ordemCob = { campo: 'escola', asc: true };
+
+function _parseData(str) {
+  if (!str) return null;
+  const m = String(str).match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+  if (!m) return null;
+  return new Date(+m[3], +m[2]-1, +m[1], +(m[4]||0), +(m[5]||0));
+}
+function _fmtData(d) {
+  if (!d) return '—';
+  return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear();
+}
+
+// Monta a cobertura (1 linha por escola oficial) dos segmentos selecionados
+function _construirCobertura(segs) {
+  const linhas = [];
+  segs.forEach(seg => {
+    const oficiais = escolasOficiais[seg] || [];
+    const mapaReg  = mapaRegionalOficial[seg] || {};
+    const visitas  = dadosPorSegmento[seg] || [];
+    const porEscola = {};
+    visitas.forEach(v => {
+      const e = (v['_ESCOLA_']||'').toString().trim();
+      if (!e) return;
+      (porEscola[e] = porEscola[e] || []).push(v);
+    });
+    const universo = oficiais.length ? oficiais : Object.keys(porEscola);
+    universo.forEach(escola => {
+      const vs = porEscola[escola] || [];
+      const datas = vs.map(v => _parseData(v['Data da Visita:']||v['Data da visita:']||v['Carimbo de data/hora'])).filter(Boolean);
+      const ultima = datas.length ? new Date(Math.max(...datas.map(d=>d.getTime()))) : null;
+      const reg = mapaReg[escola] || (vs[0] && (vs[0][COL_REGIONAL]||'').toString().trim()) || '—';
+      const temDev = vs.some(v => mapaDevolutivas.has(_chaveDev(seg, escola, v['Data da Visita:']||v['Data da visita:']||'')));
+      linhas.push({
+        escola, regional: reg, segmento: seg==='fundamental'?'Fundamental':'Infantil',
+        nVisitas: vs.length, ultima, temDev
+      });
+    });
+  });
+  return linhas;
+}
+
+function renderEstatisticas() {
+  const main = document.getElementById('main');
+  if (!escolasOficiais.fundamental.length && !escolasOficiais.infantil.length
+      && !(dadosPorSegmento.fundamental||[]).length && !(dadosPorSegmento.infantil||[]).length) {
+    mostrarEstado('Sem dados para estatísticas.', 'bi-bar-chart');
+    return;
+  }
+  const segSel = document.getElementById('filtroEstSegmento').value;
+  const segs = segSel === 'todos' ? ['fundamental','infantil'] : [segSel];
+
+  const completa = _construirCobertura(segs);
+
+  // Popula filtro de regionais preservando a seleção
+  const selReg = document.getElementById('filtroEstRegional');
+  const regAtual = selReg.value;
+  const regionais = [...new Set(completa.map(l => l.regional).filter(r => r && r !== '—'))].sort();
+  selReg.innerHTML = '<option value="">Todas as Regionais</option>' +
+    regionais.map(r => `<option value="${escapar(r)}">${escapar(r)}</option>`).join('');
+  selReg.value = regionais.includes(regAtual) ? regAtual : '';
+
+  const regFil = selReg.value;
+  const busca = document.getElementById('buscaEst').value.trim().toLowerCase();
+  coberturaView = completa.filter(l =>
+    (!regFil || l.regional === regFil) && (!busca || l.escola.toLowerCase().includes(busca)));
+
+  _ordenarLista(coberturaView);
+
+  // KPIs
+  const total = coberturaView.length;
+  const visitadas = coberturaView.filter(l => l.nVisitas > 0).length;
+  const semVisita = total - visitadas;
+  const totalVisitas = coberturaView.reduce((s,l) => s + l.nVisitas, 0);
+  const comDev = coberturaView.filter(l => l.temDev).length;
+  const cobertura = total ? Math.round(visitadas/total*100) : 0;
+
+  const kpis = `
+    <div class="row g-2 g-lg-3 mb-3">
+      <div class="col-6 col-lg"><div class="est-kpi info"><div class="lbl">Escolas</div><div class="val">${total}</div></div></div>
+      <div class="col-6 col-lg"><div class="est-kpi ok"><div class="lbl">Visitadas</div><div class="val">${visitadas}</div></div></div>
+      <div class="col-6 col-lg"><div class="est-kpi warn"><div class="lbl">Sem visita</div><div class="val">${semVisita}</div></div></div>
+      <div class="col-6 col-lg"><div class="est-kpi"><div class="lbl">Cobertura</div><div class="val">${cobertura}%</div></div></div>
+      <div class="col-6 col-lg"><div class="est-kpi"><div class="lbl">Total de visitas</div><div class="val">${totalVisitas}</div></div></div>
+      <div class="col-6 col-lg"><div class="est-kpi"><div class="lbl">Com devolutiva</div><div class="val">${comDev}</div></div></div>
+    </div>`;
+
+  const seta = c => ordemCob.campo===c ? (ordemCob.asc?' ▲':' ▼') : '';
+  const linhasHtml = coberturaView.map(l => `
+    <tr>
+      <td style="font-weight:700;color:#1e293b;">${escapar(l.escola)}</td>
+      <td>${escapar(l.regional)}</td>
+      <td>${escapar(l.segmento)}</td>
+      <td class="text-center">${l.nVisitas}</td>
+      <td>${_fmtData(l.ultima)}</td>
+      <td>${l.nVisitas>0?'<span class="pill pill-ok">Visitada</span>':'<span class="pill pill-no">Sem visita</span>'}</td>
+      <td>${l.temDev?'<span class="pill pill-dev"><i class="bi bi-robot me-1"></i>Sim</span>':'<span class="text-muted">—</span>'}</td>
+    </tr>`).join('');
+
+  main.innerHTML = `
+    ${kpis}
+    <div class="chart-container">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+        <div style="font-weight:900;color:var(--primary);font-size:.95rem;"><i class="bi bi-bar-chart-fill me-1"></i>Escolas com visita por Regional</div>
+      </div>
+      <div style="position:relative;height:300px;"><canvas id="canvasCobertura"></canvas></div>
+    </div>
+    <div class="table-container">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+        <div style="font-weight:900;color:var(--primary);font-size:.95rem;"><i class="bi bi-table me-1"></i>Cobertura por Unidade Escolar</div>
+        <span class="badge bg-light text-dark border fw-bold">${total} escola${total!==1?'s':''}</span>
+      </div>
+      <div style="max-height:60vh;overflow:auto;">
+        <table class="tbl-cob">
+          <thead><tr>
+            <th onclick="ordenarCobertura('escola')">Unidade Escolar${seta('escola')}</th>
+            <th onclick="ordenarCobertura('regional')">Regional${seta('regional')}</th>
+            <th onclick="ordenarCobertura('segmento')">Segmento${seta('segmento')}</th>
+            <th onclick="ordenarCobertura('nVisitas')" class="text-center">Nº visitas${seta('nVisitas')}</th>
+            <th onclick="ordenarCobertura('ultima')">Última visita${seta('ultima')}</th>
+            <th onclick="ordenarCobertura('status')">Status${seta('status')}</th>
+            <th onclick="ordenarCobertura('temDev')">Devolutiva${seta('temDev')}</th>
+          </tr></thead>
+          <tbody>${linhasHtml || '<tr><td colspan="7" class="text-center text-muted py-4">Nenhuma escola encontrada.</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>`;
+
+  _desenharGraficoCobertura(completa, segs);
+}
+
+function _desenharGraficoCobertura(completa, segs) {
+  const porReg = {};
+  completa.forEach(l => {
+    const r = l.regional || '—';
+    porReg[r] = porReg[r] || { total: 0, visit: 0 };
+    porReg[r].total++;
+    if (l.nVisitas > 0) porReg[r].visit++;
+  });
+  const labels = Object.keys(porReg).sort();
+  const totais = labels.map(r => porReg[r].total);
+  const visitadas = labels.map(r => porReg[r].visit);
+
+  if (chartCobertura) { chartCobertura.destroy(); chartCobertura = null; }
+  const ctx = document.getElementById('canvasCobertura');
+  if (!ctx || typeof Chart === 'undefined') return;
+  chartCobertura = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Total de escolas', data: totais, backgroundColor: '#cbd5e1', borderRadius: 5 },
+      { label: 'Escolas visitadas', data: visitadas, backgroundColor: '#00b4d8', borderRadius: 5 }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' } },
+      scales: { x: { ticks: { font: { size: 10 } } }, y: { beginAtZero: true, ticks: { precision: 0 } } }
+    }
+  });
+}
+
+function ordenarCobertura(campo) {
+  if (ordemCob.campo === campo) ordemCob.asc = !ordemCob.asc;
+  else { ordemCob.campo = campo; ordemCob.asc = true; }
+  renderEstatisticas();
+}
+
+function _ordenarLista(lista) {
+  const c = ordemCob.campo, mult = ordemCob.asc ? 1 : -1;
+  lista.sort((a,b) => {
+    let va, vb;
+    if (c === 'status')      { va = a.nVisitas>0?1:0; vb = b.nVisitas>0?1:0; }
+    else if (c === 'temDev') { va = a.temDev?1:0;     vb = b.temDev?1:0; }
+    else if (c === 'ultima') { va = a.ultima?a.ultima.getTime():0; vb = b.ultima?b.ultima.getTime():0; }
+    else { va = a[c]; vb = b[c]; }
+    if (typeof va === 'string') return va.localeCompare(vb) * mult;
+    return (va - vb) * mult;
+  });
+}
+
+function exportarCoberturaCSV() {
+  if (!coberturaView.length) { mostrarToast('Nada para exportar.'); return; }
+  const cab = ['Unidade Escolar','Regional','Segmento','Nº de visitas','Última visita','Status','Devolutiva'];
+  const linhas = coberturaView.map(l => [
+    l.escola, l.regional, l.segmento, l.nVisitas, _fmtData(l.ultima),
+    l.nVisitas>0?'Visitada':'Sem visita', l.temDev?'Sim':'Não'
+  ]);
+  const csv = [cab, ...linhas].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(';')).join('\r\n');
+  const blob = new Blob(['﻿'+csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'cobertura_visitas.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  mostrarToast('CSV exportado!');
 }
 
 // ── Inicialização ──
