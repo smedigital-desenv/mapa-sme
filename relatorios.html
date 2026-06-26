@@ -87,12 +87,17 @@
     .pdf-opt { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 700; color: #334155; cursor: pointer; margin: 0; }
     .pdf-opt input { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
     /* ── Estatísticas / cobertura ── */
-    .est-kpi { background:#fff; border-radius:14px; padding:.9rem 1.1rem; box-shadow:0 4px 14px rgba(0,0,0,.05); border-left:5px solid var(--primary); }
+    .est-kpis-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(132px, 1fr)); gap:.85rem; }
+    .est-kpi { background:#fff; border-radius:14px; padding:.9rem 1.1rem; box-shadow:0 4px 14px rgba(0,0,0,.05); border-left:5px solid var(--primary); height:100%; }
     .est-kpi .lbl { font-size:.66rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.03em; }
     .est-kpi .val { font-size:1.7rem; font-weight:900; color:var(--primary); line-height:1.1; }
     .est-kpi.ok    { border-left-color:#10b981; } .est-kpi.ok .val    { color:#047857; }
     .est-kpi.warn  { border-left-color:#ef4444; } .est-kpi.warn .val  { color:#b91c1c; }
     .est-kpi.info  { border-left-color:var(--neon-blue); }
+    .est-kpi.dev   { border-left-color:var(--neon-pink); } .est-kpi.dev .val { color:#be185d; }
+    .est-kpi.clic  { cursor:pointer; transition:transform .12s, box-shadow .12s; }
+    .est-kpi.clic:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,.12); }
+    .est-kpi.ativo { box-shadow:0 0 0 3px rgba(0,43,94,.30), 0 4px 14px rgba(0,0,0,.06); }
     table.tbl-cob { width:100%; font-size:.84rem; border-collapse:collapse; }
     table.tbl-cob thead th { position:sticky; top:0; background:var(--primary); color:#fff; font-weight:800; font-size:.68rem; text-transform:uppercase; letter-spacing:.02em; padding:9px 10px; white-space:nowrap; cursor:pointer; }
     table.tbl-cob tbody td { padding:7px 10px; border-bottom:1px solid #eef2f7; }
@@ -253,7 +258,7 @@
   <aside id="aside-estatisticas" class="table-container" style="display: none;">
     <div class="mb-3">
       <label class="form-label"><i class="bi bi-layers-half me-1"></i> Segmento</label>
-      <select id="filtroEstSegmento" class="form-select fw-bold shadow-sm" onchange="renderEstatisticas()">
+      <select id="filtroEstSegmento" class="form-select fw-bold shadow-sm" onchange="mudarFiltroEst()">
         <option value="todos">Todos os Segmentos</option>
         <option value="fundamental">Fundamental (EMEF)</option>
         <option value="infantil">Infantil (EMEI)</option>
@@ -261,7 +266,7 @@
     </div>
     <div class="mb-3">
       <label class="form-label"><i class="bi bi-map me-1"></i> Regional</label>
-      <select id="filtroEstRegional" class="form-select fw-bold shadow-sm" onchange="renderEstatisticas()">
+      <select id="filtroEstRegional" class="form-select fw-bold shadow-sm" onchange="mudarFiltroEst()">
         <option value="">Todas as Regionais</option>
       </select>
     </div>
@@ -269,7 +274,7 @@
       <label class="form-label"><i class="bi bi-search me-1"></i> Buscar Escola</label>
       <div class="search-wrap shadow-sm">
         <i class="bi bi-search"></i>
-        <input type="text" id="buscaEst" class="form-control fw-bold" placeholder="Nome da escola…" oninput="renderEstatisticas()" />
+        <input type="text" id="buscaEst" class="form-control fw-bold" placeholder="Nome da escola…" oninput="mudarFiltroEst()" />
       </div>
     </div>
     <hr class="my-2">
@@ -1124,9 +1129,18 @@ function analisarLote() {
 // ════════════════════════════════════════════════
 let chartCobertura = null;
 let _coberturaCompleta = [];
-let freqSelecionada = null;
+let filtroAtivo = null; // null | {tipo:'freq', valor:N} | {tipo:'dev'}
 let _estFreqs = [];
 let ordemCob = { campo: 'escola', asc: true };
+
+const PALETA_FREQ = ['#002b5e','#39c46e','#FFD300','#FF007F','#00b4d8','#6f42c1','#fd7e14'];
+function _corFreq(f) { return f === 0 ? '#dc3545' : PALETA_FREQ[(f-1) % PALETA_FREQ.length]; }
+function _rotuloFreq(f) { return f === 0 ? 'Sem visita' : f + (f === 1 ? ' visita' : ' visitas'); }
+function _rotuloFiltro() {
+  if (!filtroAtivo) return '';
+  if (filtroAtivo.tipo === 'dev') return 'Com devolutiva';
+  return _rotuloFreq(filtroAtivo.valor);
+}
 
 function _parseData(str) {
   if (!str) return null;
@@ -1190,27 +1204,35 @@ function renderEstatisticas() {
 
   const regFil = selReg.value;
   const busca = document.getElementById('buscaEst').value.trim().toLowerCase();
-  freqSelecionada = null; // reset ao trocar de filtro/segmento
   _coberturaCompleta = completa.filter(l =>
     (!regFil || l.regional === regFil) && (!busca || l.escola.toLowerCase().includes(busca)));
 
-  // KPIs (sempre sobre o conjunto filtrado, independente da fatia do donut)
+  // Métricas agregadas (sempre sobre o conjunto filtrado, independente do KPI ativo)
   const total = _coberturaCompleta.length;
   const visitadas = _coberturaCompleta.filter(l => l.nVisitas > 0).length;
-  const semVisita = total - visitadas;
   const totalVisitas = _coberturaCompleta.reduce((s,l) => s + l.nVisitas, 0);
   const comDev = _coberturaCompleta.filter(l => l.temDev).length;
   const cobertura = total ? Math.round(visitadas/total*100) : 0;
 
-  const kpis = `
-    <div class="row g-3 mb-3 row-cols-2 row-cols-md-3 row-cols-xl-6">
-      <div class="col"><div class="est-kpi info"><div class="lbl">Escolas</div><div class="val">${total}</div></div></div>
-      <div class="col"><div class="est-kpi ok"><div class="lbl">Visitadas</div><div class="val">${visitadas}</div></div></div>
-      <div class="col"><div class="est-kpi warn"><div class="lbl">Sem visita</div><div class="val">${semVisita}</div></div></div>
-      <div class="col"><div class="est-kpi"><div class="lbl">Cobertura</div><div class="val">${cobertura}%</div></div></div>
-      <div class="col"><div class="est-kpi"><div class="lbl">Total de visitas</div><div class="val">${totalVisitas}</div></div></div>
-      <div class="col"><div class="est-kpi"><div class="lbl">Com devolutiva</div><div class="val">${comDev}</div></div></div>
-    </div>`;
+  // Contagem por frequência de visitas (1 KPI por quantidade)
+  const contagem = {};
+  _coberturaCompleta.forEach(l => { contagem[l.nVisitas] = (contagem[l.nVisitas]||0) + 1; });
+  const freqs = Object.keys(contagem).map(Number).sort((a,b) => a-b);
+
+  const ativoFreq = f => (filtroAtivo && filtroAtivo.tipo==='freq' && filtroAtivo.valor===f) ? 'ativo' : '';
+  const ativoDev  = (filtroAtivo && filtroAtivo.tipo==='dev') ? 'ativo' : '';
+
+  // KPI "Escolas" (limpa o filtro) + 1 KPI por frequência + Cobertura + Total + Com devolutiva
+  const kpiEscolas = `<div class="est-kpi info clic ${filtroAtivo?'':'ativo'}" onclick="filtrarKpi(null)"><div class="lbl">Escolas</div><div class="val">${total}</div></div>`;
+  const kpisFreq = freqs.map(f => {
+    const cor = _corFreq(f);
+    return `<div class="est-kpi clic ${ativoFreq(f)}" style="border-left-color:${cor};" onclick="filtrarKpi('freq',${f})"><div class="lbl">${_rotuloFreq(f)}</div><div class="val" style="color:${cor};">${contagem[f]}</div></div>`;
+  }).join('');
+  const kpiCobertura = `<div class="est-kpi"><div class="lbl">Cobertura</div><div class="val">${cobertura}%</div></div>`;
+  const kpiTotalVis  = `<div class="est-kpi"><div class="lbl">Total de visitas</div><div class="val">${totalVisitas}</div></div>`;
+  const kpiDev       = `<div class="est-kpi dev clic ${ativoDev}" onclick="filtrarKpi('dev')"><div class="lbl">Com devolutiva</div><div class="val">${comDev}</div></div>`;
+
+  const kpis = `<div class="est-kpis-grid mb-3">${kpiEscolas}${kpisFreq}${kpiCobertura}${kpiTotalVis}${kpiDev}</div>`;
 
   main.innerHTML = `
     ${kpis}
@@ -1220,15 +1242,25 @@ function renderEstatisticas() {
   _refreshTabelaCob();
 }
 
+// Mudança nos filtros da lateral (segmento/regional/busca) zera o KPI ativo
+function mudarFiltroEst() { filtroAtivo = null; renderEstatisticas(); }
+
+// Aplica filtro a partir de um KPI / fatia do donut (alterna se já ativo)
+function filtrarKpi(tipo, valor) {
+  if (tipo === null) filtroAtivo = null;
+  else if (tipo === 'freq') filtroAtivo = (filtroAtivo && filtroAtivo.tipo==='freq' && filtroAtivo.valor===valor) ? null : { tipo:'freq', valor };
+  else if (tipo === 'dev')  filtroAtivo = (filtroAtivo && filtroAtivo.tipo==='dev') ? null : { tipo:'dev' };
+  renderEstatisticas();
+}
+
 // Distribuição de escolas por nº de visitas (donut clicável)
 function _desenharDonut(lista) {
   const contagem = {};
   lista.forEach(l => { contagem[l.nVisitas] = (contagem[l.nVisitas]||0) + 1; });
   _estFreqs = Object.keys(contagem).map(Number).sort((a,b) => a-b);
-  const paleta = ['#002b5e','#39c46e','#FFD300','#FF007F','#00b4d8','#6f42c1','#fd7e14'];
-  const labels = _estFreqs.map(f => f===0 ? '0 visitas' : f + (f===1?' visita':' visitas'));
+  const labels = _estFreqs.map(f => _rotuloFreq(f));
   const data   = _estFreqs.map(f => contagem[f]);
-  const bg     = _estFreqs.map(f => f===0 ? '#dc3545' : paleta[(f-1) % paleta.length]);
+  const bg     = _estFreqs.map(f => _corFreq(f));
   const totalN = data.reduce((s,n) => s+n, 0);
 
   if (chartCobertura) { chartCobertura.destroy(); chartCobertura = null; }
@@ -1249,7 +1281,7 @@ function _desenharDonut(lista) {
           formatter: v => { const p = Math.round(v/totalN*100); return p >= 5 ? p+'%' : ''; }
         } : undefined
       },
-      onClick: (evt, els) => { freqSelecionada = els.length ? _estFreqs[els[0].index] : null; _refreshTabelaCob(); }
+      onClick: (evt, els) => { if (els.length) filtrarKpi('freq', _estFreqs[els[0].index]); else filtrarKpi(null); }
     }
   };
   if (temDL) cfg.plugins = [ChartDataLabels];
@@ -1258,17 +1290,19 @@ function _desenharDonut(lista) {
 
 // Lista exibida na tabela = conjunto filtrado, opcionalmente recortado pela fatia do donut, ordenado
 function _listaTabela() {
-  let lista = (freqSelecionada !== null)
-    ? _coberturaCompleta.filter(l => l.nVisitas === freqSelecionada)
-    : _coberturaCompleta.slice();
+  let lista = _coberturaCompleta.slice();
+  if (filtroAtivo) {
+    if (filtroAtivo.tipo === 'freq') lista = lista.filter(l => l.nVisitas === filtroAtivo.valor);
+    else if (filtroAtivo.tipo === 'dev') lista = lista.filter(l => l.temDev);
+  }
   _ordenarLista(lista);
   return lista;
 }
 
 function _htmlTabelaCob(lista) {
   const seta = c => ordemCob.campo===c ? (ordemCob.asc?' ▲':' ▼') : '';
-  const filtroBadge = freqSelecionada !== null
-    ? `<span class="badge" style="background:var(--neon-blue);color:var(--primary);font-weight:800;">Filtro: ${freqSelecionada} visita${freqSelecionada!==1?'s':''} <i class="bi bi-x-circle-fill ms-1" style="cursor:pointer;" onclick="verTodasFreq()"></i></span>`
+  const filtroBadge = filtroAtivo
+    ? `<span class="badge" style="background:var(--neon-blue);color:var(--primary);font-weight:800;">Filtro: ${escapar(_rotuloFiltro())} <i class="bi bi-x-circle-fill ms-1" style="cursor:pointer;" onclick="verTodasFreq()"></i></span>`
     : '';
   const linhasHtml = lista.map(l => `
     <tr>
@@ -1306,7 +1340,7 @@ function _refreshTabelaCob() {
   if (cont) cont.innerHTML = _htmlTabelaCob(_listaTabela());
 }
 
-function verTodasFreq() { freqSelecionada = null; _refreshTabelaCob(); }
+function verTodasFreq() { filtrarKpi(null); }
 
 function ordenarCobertura(campo) {
   if (ordemCob.campo === campo) ordemCob.asc = !ordemCob.asc;
