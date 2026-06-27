@@ -718,16 +718,36 @@ async function carregarEngajamento() {
   }
 }
 
+// Espera o auth.js resolver (para sabermos as escolas do usuário antes de filtrar).
+function aguardarAuth() {
+  return new Promise(resolve => {
+    if (window.MapaAuth && window.MapaAuth.perfil) return resolve();
+    document.addEventListener('mapa-auth-pronto', () => resolve(), { once: true });
+    setTimeout(resolve, 8000);
+  });
+}
+// Isolamento por escola: usuário de escola só vê as turmas da sua unidade.
+function filtrarPorEscola(rows) {
+  try {
+    if (window.MapaAuth && window.MapaAuth.restritoEscola)
+      return window.MapaAuth.filtrarEscolas(rows, t => t.escola);
+  } catch (e) {}
+  return rows;
+}
+
 // ── Carregamento ───────────────────────────────────────────
 async function carregarDados() {
   try {
+    await aguardarAuth();   // garante que já sabemos as escolas do usuário
+
     // Busca engajamento do Elefante em paralelo (não bloqueia se falhar)
     await carregarEngajamento();
 
     // Busca resumo por turma (view)
-    const dados = await apiFetch(
+    let dados = await apiFetch(
       'v_fluencia_por_turma?select=avaliacao,escola,ano_escolar,turma,periodo,tipo,turma_raw,total_estudantes,avaliados,ausentes,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1,pct_fluentes&order=avaliacao.asc,escola.asc,ano_escolar.asc,turma.asc'
     );
+    dados = filtrarPorEscola(dados);   // só as escolas do usuário (super admin vê tudo)
 
     if (!dados.length) { semDados(); return; }
 

@@ -573,6 +573,7 @@ const MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','N
 // ── Inicialização ──────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   try {
+    await aguardarAuth();   // garante que já sabemos as escolas do usuário
     const meses = await getMeses();
     renderSeletorMes(meses);
     if (meses.length) {
@@ -676,6 +677,23 @@ function colapsarTodos() {
 }
 
 // ── Carregamento ───────────────────────────────────────────
+// Espera o auth.js resolver (saber as escolas do usuário antes de filtrar).
+function aguardarAuth() {
+  return new Promise(resolve => {
+    if (window.MapaAuth && window.MapaAuth.perfil) return resolve();
+    document.addEventListener('mapa-auth-pronto', () => resolve(), { once: true });
+    setTimeout(resolve, 8000);
+  });
+}
+// Isolamento por escola (super admin e perfis sem escola veem tudo).
+function filtrarPorEscola(rows, getNome) {
+  try {
+    if (window.MapaAuth && window.MapaAuth.restritoEscola)
+      return window.MapaAuth.filtrarEscolas(rows, getNome);
+  } catch (e) {}
+  return rows;
+}
+
 async function carregarMes(mes) {
   document.getElementById('elKpis').innerHTML = `
     <div class="col-12 text-center py-4 loading-soft">
@@ -684,8 +702,8 @@ async function carregarMes(mes) {
     </div>`;
 
   const [escolas, turmas] = await Promise.all([getEscolas(mes), getTurmas(mes)]);
-  S.escolas = escolas || [];
-  S.turmas  = turmas  || [];
+  S.escolas = filtrarPorEscola(escolas || [], e => e.nome_escola);
+  S.turmas  = filtrarPorEscola(turmas  || [], t => t.escola);
 
   renderKpis();
   renderTabela('');
