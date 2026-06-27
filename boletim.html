@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <script src="auth-guard.js"></script>
+  <script>window.MAPA_SISTEMA = 'mapa';</script>
+  <script src="auth.js" defer></script>
+  <script src="config-central.js" defer></script>
+  <script src="demo-mode.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MAPA — Boletim da Escola</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    window.MAPA_SUPABASE = {
+      url: "https://gmwotfulohkmuqrezeef.supabase.co",
+      anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk"
+    };
+  </script>
+  <style>
+    :root { --primary:#002b5e; --neon-blue:#00e5ff; }
+    html,body { background:#eef2f7; } body { font-family:'Inter',sans-serif; }
+    .mg-header { background:var(--primary); color:#fff; border-bottom:5px solid var(--neon-blue); padding:.9rem 1.6rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; position:sticky; top:0; z-index:1050; box-shadow:0 6px 18px rgba(0,43,94,.18); }
+    .mg-brand { display:flex; align-items:center; gap:.6rem; min-width:180px; cursor:pointer; }
+    .mg-brand-icon { width:34px; height:34px; display:grid; place-items:center; color:var(--neon-blue); font-size:1.4rem; }
+    .mg-brand h4 { margin:0; font-weight:900; font-size:1.4rem; line-height:1; }
+    .mg-brand-sub { font-size:.63rem; color:rgba(255,255,255,.68); font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-top:2px; }
+    .mg-nav { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; flex:1; min-width:280px; }
+    .mg-nav-btn { display:inline-flex; align-items:center; gap:.4rem; justify-content:center; min-width:130px; font-size:.78rem; font-weight:900; padding:6px 14px; border-radius:8px; border:2px solid transparent; color:#fff; text-decoration:none; transition:.2s; white-space:nowrap; cursor:pointer; }
+    .mg-nav-btn:hover { border-color:rgba(255,255,255,.4); } .mg-nav-btn.active { background:#fff; color:var(--primary); }
+    .mg-action-btn { background:#fff; color:var(--primary); border:0; border-radius:8px; padding:6px 12px; font-weight:900; font-size:.78rem; display:inline-flex; align-items:center; gap:.4rem; cursor:pointer; }
+    .faixa { background:linear-gradient(90deg,#013a7d,#002b5e); color:#fff; padding:.6rem 1.6rem; display:flex; align-items:center; gap:.6rem; }
+    .faixa .ic { color:var(--neon-blue); font-size:1.3rem; } .faixa h5 { margin:0; font-weight:900; }
+    .faixa .sub { font-size:.62rem; color:rgba(255,255,255,.7); font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .selbar { background:#fff; border-bottom:1px solid #dbe5ef; padding:.7rem 1.2rem; display:flex; gap:12px; flex-wrap:wrap; align-items:center; position:sticky; top:64px; z-index:1040; }
+    .kpi { background:#fff; border-radius:14px; padding:.85rem 1rem; box-shadow:0 4px 14px rgba(0,0,0,.05); border-left:5px solid var(--primary); height:100%; }
+    .kpi .label { font-size:.66rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.03em; }
+    .kpi .val { font-size:1.55rem; font-weight:900; color:var(--primary); line-height:1.1; }
+    .kpi .sub { font-size:.66rem; color:#94a3b8; font-weight:700; }
+    .card-box { background:#fff; border-radius:16px; box-shadow:0 4px 14px rgba(0,0,0,.05); }
+    .sec { margin-bottom:1.1rem; }
+    .sec-head { display:flex; align-items:center; justify-content:space-between; gap:.6rem; flex-wrap:wrap; margin-bottom:.6rem; }
+    .sec-tt { font-weight:900; color:var(--primary); font-size:1.05rem; display:flex; align-items:center; gap:.5rem; }
+    .sec-tt .dot { width:10px; height:10px; border-radius:50%; }
+    .verlink { font-size:.74rem; font-weight:800; color:#0ea5e9; text-decoration:none; white-space:nowrap; }
+    .verlink:hover { text-decoration:underline; }
+    table.mapa { width:100%; font-size:.82rem; }
+    table.mapa thead th { background:var(--primary); color:#fff; font-weight:800; font-size:.66rem; text-transform:uppercase; letter-spacing:.02em; padding:7px 10px; white-space:nowrap; }
+    table.mapa tbody td { padding:6px 10px; border-bottom:1px solid #eef2f7; }
+    table.mapa tbody tr:hover { background:#f1f6ff; }
+    .bar { height:9px; border-radius:999px; background:#e5e7eb; overflow:hidden; min-width:48px; } .bar > span { display:block; height:100%; }
+    .seg { display:flex; height:18px; border-radius:6px; overflow:hidden; box-shadow:inset 0 0 0 1px rgba(0,0,0,.04); }
+    .seg > span { display:block; height:100%; }
+    .legend { display:flex; flex-wrap:wrap; gap:.4rem .9rem; font-size:.7rem; color:#475569; margin-top:.4rem; }
+    .legend i { width:10px; height:10px; border-radius:2px; display:inline-block; margin-right:4px; vertical-align:-1px; }
+    .badge-st { font-weight:800; font-size:.66rem; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+    .st-ok{background:#d1fae5;color:#047857;} .st-pend{background:#fee2e2;color:#b91c1c;} .st-fora{background:#e2e8f0;color:#475569;} .st-na{background:#e2e8f0;color:#64748b;}
+    .muted { color:#94a3b8; }
+    .empty { color:#94a3b8; font-size:.82rem; padding:.8rem; text-align:center; }
+    #printHead { display:none; }
+    /* ───────── Impressão / PDF ───────── */
+    @media print {
+      @page { size: A4; margin: 12mm; }
+      html,body { background:#fff !important; }
+      .mg-header, .selbar, #mapa-user-chip, #mapa-demo-btn, #mapa-demo-selo, #mapa-demo-mark, .no-print { display:none !important; }
+      .faixa { background:#002b5e !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      #printHead { display:block; }
+      .sec, .card-box, .kpi { box-shadow:none !important; border:1px solid #e2e8f0; }
+      .sec { break-inside:avoid; page-break-inside:avoid; }
+      table.mapa thead th, .seg > span, .bar > span, .kpi { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      a.verlink { display:none; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="mg-header no-print">
+  <div class="mg-brand" onclick="location.href='index.html'" title="Página inicial do MAPA">
+    <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div><div><h4>MAPA</h4><div class="mg-brand-sub">SME Ribeirão Preto</div></div>
+  </div>
+  <nav class="mg-nav">
+    <a class="mg-nav-btn" href="avaliacao.html"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+    <a class="mg-nav-btn" href="atribuicao.html"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="elefante.html"><i class="bi bi-book-fill"></i>Elefante</a>
+    <a class="mg-nav-btn" href="fluencia.html"><i class="bi bi-book-half"></i>Fluência</a>
+    <a class="mg-nav-btn" href="educacao_especial.html"><i class="bi bi-universal-access-circle"></i>Ed. Especial</a>
+    <a class="mg-nav-btn active" href="boletim.html"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+  </nav>
+  <div><button class="mg-action-btn" onclick="window.print()" title="Imprimir / salvar PDF"><i class="bi bi-printer-fill"></i><span class="d-none d-lg-inline">Imprimir</span></button></div>
+</header>
+
+<div class="faixa"><i class="bi bi-clipboard2-check-fill ic"></i><div><h5>Boletim da Escola</h5><div class="sub">SME Ribeirão Preto · Painel consolidado do gestor da unidade</div></div></div>
+
+<div class="selbar no-print">
+  <label class="fw-bold text-secondary" style="font-size:.8rem;"><i class="bi bi-building me-1"></i>Escola</label>
+  <select id="selEscola" class="form-select form-select-sm" style="max-width:420px;"><option value="">Carregando…</option></select>
+  <span id="selStatus" class="muted" style="font-size:.75rem;"></span>
+  <button class="mg-action-btn ms-auto" style="background:#0ea5e9;color:#fff;" onclick="window.print()"><i class="bi bi-printer-fill"></i> Imprimir / PDF</button>
+</div>
+
+<main class="container-fluid px-3 px-lg-4 py-3">
+
+  <div id="printHead" style="margin-bottom:1rem;">
+    <div style="font-weight:900;font-size:1.3rem;color:#002b5e;" id="phNome">—</div>
+    <div style="font-size:.78rem;color:#475569;">Boletim consolidado · MAPA — SME Ribeirão Preto <span id="phData"></span></div>
+    <hr style="margin:.5rem 0;border-color:#cbd5e1;">
+  </div>
+
+  <div id="vazio" class="card-box p-4 text-center muted">
+    <i class="bi bi-arrow-up-circle" style="font-size:1.6rem;"></i>
+    <div class="mt-2" style="font-size:.9rem;">Selecione uma escola acima para gerar o boletim.</div>
+  </div>
+
+  <div id="conteudo" style="display:none;">
+
+    <!-- KPIs consolidados -->
+    <div class="row g-2 g-lg-3 mb-3" id="kpisGerais"></div>
+
+    <!-- AVALIAÇÕES -->
+    <section class="sec" id="secAval">
+      <div class="card-box p-3">
+        <div class="sec-head">
+          <div class="sec-tt"><span class="dot" style="background:#0ea5e9;"></span><i class="bi bi-clipboard-data-fill"></i>Avaliação Diagnóstica</div>
+          <a class="verlink" href="avaliacao.html">ver tela completa <i class="bi bi-arrow-right-short"></i></a>
+        </div>
+        <div id="avalBody"><div class="empty"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div></div>
+      </div>
+    </section>
+
+    <!-- ATRIBUIÇÃO -->
+    <section class="sec" id="secAtrib">
+      <div class="card-box p-3">
+        <div class="sec-head">
+          <div class="sec-tt"><span class="dot" style="background:#8b5cf6;"></span><i class="bi bi-diagram-3-fill"></i>Atribuição de Aulas</div>
+          <a class="verlink" href="atribuicao.html">ver tela completa <i class="bi bi-arrow-right-short"></i></a>
+        </div>
+        <div id="atribBody"><div class="empty"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div></div>
+      </div>
+    </section>
+
+    <!-- LEITURA (ELEFANTE + FLUÊNCIA) -->
+    <section class="sec" id="secLeitura">
+      <div class="card-box p-3">
+        <div class="sec-head">
+          <div class="sec-tt"><span class="dot" style="background:#10b981;"></span><i class="bi bi-book-half"></i>Leitura — Elefante Letrado &amp; Fluência</div>
+          <span><a class="verlink me-3" href="elefante.html">Elefante <i class="bi bi-arrow-right-short"></i></a><a class="verlink" href="fluencia.html">Fluência <i class="bi bi-arrow-right-short"></i></a></span>
+        </div>
+        <div id="leituraBody"><div class="empty"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div></div>
+      </div>
+    </section>
+
+    <!-- EDUCAÇÃO ESPECIAL -->
+    <section class="sec" id="secEE">
+      <div class="card-box p-3">
+        <div class="sec-head">
+          <div class="sec-tt"><span class="dot" style="background:#f59e0b;"></span><i class="bi bi-universal-access-circle"></i>Educação Especial</div>
+          <a class="verlink" href="educacao_especial.html">ver tela completa <i class="bi bi-arrow-right-short"></i></a>
+        </div>
+        <div id="eeBody"><div class="empty"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div></div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<script>
+  const SB = window.supabase.createClient(window.MAPA_SUPABASE.url, window.MAPA_SUPABASE.anonKey);
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const fmt = n => Number(n||0).toLocaleString('pt-BR');
+  const pct = (a,b) => b>0 ? Math.round(a/b*100) : 0;
+
+  // ── normalização / casamento tolerante de nome de escola (espelha auth.js) ──
+  const norm = s => String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
+                     .replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+  const baseEsc = s => norm(String(s||'').split(',')[0]);
+  function matchEscola(sel, alvo){
+    const a=norm(sel), b=norm(alvo); if(!a||!b) return false;
+    if(a===b) return true;
+    const ba=baseEsc(sel), bb=baseEsc(alvo);
+    return !!(ba && bb && (ba===bb || ba.indexOf(bb)===0 || bb.indexOf(ba)===0));
+  }
+
+  function barra(p,cor){ p=Math.max(0,Math.min(100,Math.round(p||0))); return `<div class="d-flex align-items-center gap-2"><div class="bar" style="flex:1;"><span style="width:${p}%;background:${cor};"></span></div><b style="font-size:.72rem;color:#475569;min-width:34px;">${p}%</b></div>`; }
+
+  /* ════════ Cache de datasets (carregados uma vez; filtrados por escola) ════════ */
+  const cache = {};
+  async function get(key, loader){ if(cache[key]) return cache[key]; cache[key] = await loader(); return cache[key]; }
+
+  /* ───────── AVALIAÇÃO DIAGNÓSTICA ───────── */
+  const MAP_ESC={'1':'Pré-silábica','2':'Silábica','3':'Silábico-alf.','4':'Alfabética','5':'Ortográfica'};
+  const MAP_LEI={'1':'N1 Pré-leitor','2':'N2 Pré-leitor','3':'N3 Pré-leitor','4':'N4 Pré-leitor','5':'L. Iniciante','6':'L. Fluente'};
+  const MAP_PRO={'1':'Nível 1','2':'Nível 2','3':'Nível 3','4':'Nível 4','5':'Nível 5','9':'Não produz'};
+  function normVl(vl){ let s=String(vl==null?'':vl).trim(); if(!s) return 'X'; const u=norm(s); if(u.includes('NAO AVAL')) return 'X'; if(u==='S'||u==='SIM') return 'S'; if(u==='N'||u==='NAO') return 'N'; if(u==='X') return 'X'; return s; }
+  function lab(map,vRaw){ const vl=normVl(vRaw); if(vl==='X') return 'Não Avaliado'; if(vl==='S') return 'Sim'; if(vl==='N') return 'Não'; return map[vl] || String(vRaw||'Não Avaliado'); }
+  const semAcc = t => String(t||'').trim().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  function isCritico(t){ const x=semAcc(t); return x.includes('PRE')||x.includes('N1')||x.includes('NIVEL 1')||x.includes('NAO PRODUZ')||x==='NAO'; }
+  function isFluente(t){ const x=semAcc(t); return x.includes('FLUENTE')||x.includes('ORTOGR')||x.includes('NIVEL 5')||x==='SIM'; }
+
+  async function carregarAval(escola){
+    const rows = await get('diag', ()=> SB.rpc('alunos_diagnostica').then(r=>{ if(r.error) throw r.error; return r.data||[]; }));
+    // [unidade,ano,turma,rema,nome, e_valor,e_codigo, l_valor,l_codigo, p_valor,p_codigo]
+    const meus = rows.filter(a=> matchEscola(escola, a[0]));
+    const distL={}, distE={}, distP={};
+    let crit=0, flu=0;
+    meus.forEach(a=>{
+      const e=lab(MAP_ESC, a[5]!=null&&a[5]!==''?a[5]:a[6]);
+      const l=lab(MAP_LEI, a[7]!=null&&a[7]!==''?a[7]:a[8]);
+      const p=lab(MAP_PRO, a[9]!=null&&a[9]!==''?a[9]:a[10]);
+      distE[e]=(distE[e]||0)+1; distL[l]=(distL[l]||0)+1; distP[p]=(distP[p]||0)+1;
+      if(isCritico(l)||isCritico(e)||isCritico(p)) crit++;
+      if(isFluente(l)&&isFluente(e)) flu++;
+    });
+    return { total:meus.length, crit, flu, distL, distE, distP };
+  }
+  const CORD={'Pré-silábica':'#FF2D55','Silábica':'#FF6B35','Silábico-alf.':'#FFD60A','Alfabética':'#30D158','Ortográfica':'#00C7BE','N1 Pré-leitor':'#BF5AF2','N2 Pré-leitor':'#FF6B35','N3 Pré-leitor':'#FFD60A','N4 Pré-leitor':'#34C759','L. Iniciante':'#00C7BE','L. Fluente':'#0A84FF','Não produz':'#FF2D55','Nível 1':'#FF6B35','Nível 2':'#FFD60A','Nível 3':'#34C759','Nível 4':'#00C7BE','Nível 5':'#0A84FF','Não Avaliado':'#cbd5e1'};
+  const ORD={E:['Pré-silábica','Silábica','Silábico-alf.','Alfabética','Ortográfica','Não Avaliado'],L:['N1 Pré-leitor','N2 Pré-leitor','N3 Pré-leitor','N4 Pré-leitor','L. Iniciante','L. Fluente','Não Avaliado'],P:['Não produz','Nível 1','Nível 2','Nível 3','Nível 4','Nível 5','Não Avaliado']};
+  function distRow(titulo, dist, ordem){
+    const tot=Object.values(dist).reduce((a,b)=>a+b,0);
+    const chaves=ordem.filter(k=>dist[k]).concat(Object.keys(dist).filter(k=>!ordem.includes(k)));
+    if(!tot) return `<div class="mb-2"><div class="fw-bold" style="font-size:.76rem;color:#475569;">${titulo}</div><div class="muted" style="font-size:.78rem;">sem dados</div></div>`;
+    const segs=chaves.map(k=>`<span style="width:${dist[k]/tot*100}%;background:${CORD[k]||'#94a3b8'};" title="${esc(k)}: ${dist[k]}"></span>`).join('');
+    const leg=chaves.map(k=>`<span><i style="background:${CORD[k]||'#94a3b8'};"></i>${esc(k)} <b>${dist[k]}</b></span>`).join('');
+    return `<div class="mb-2"><div class="fw-bold mb-1" style="font-size:.76rem;color:#475569;">${titulo}</div><div class="seg">${segs}</div><div class="legend">${leg}</div></div>`;
+  }
+  async function renderAval(escola){
+    try{
+      const d = await carregarAval(escola);
+      if(!d.total){ $('avalBody').innerHTML='<div class="empty">Nenhum aluno avaliado nesta escola.</div>'; return d; }
+      let h='<div class="row g-2 mb-3">';
+      h+=kpi('Alunos avaliados', fmt(d.total), '#0ea5e9');
+      h+=kpi('Críticos', fmt(d.crit), '#ef4444', pct(d.crit,d.total)+'% dos alunos');
+      h+=kpi('Taxa de fluência', pct(d.flu,d.total)+'%', '#10b981', fmt(d.flu)+' fluentes (leitura+escrita)');
+      h+='</div>';
+      h+='<div class="row g-3"><div class="col-lg-4">'+distRow('Leitura', d.distL, ORD.L)+'</div><div class="col-lg-4">'+distRow('Escrita', d.distE, ORD.E)+'</div><div class="col-lg-4">'+distRow('Produção textual', d.distP, ORD.P)+'</div></div>';
+      $('avalBody').innerHTML=h;
+      return d;
+    }catch(e){ $('avalBody').innerHTML=`<div class="empty text-danger">Erro: ${esc(e.message||e)}</div>`; return null; }
+  }
+  function kpi(label,val,cor,sub){ return `<div class="col-6 col-md-4 col-lg"><div class="kpi" style="border-left-color:${cor};"><div class="label">${esc(label)}</div><div class="val" style="color:${cor};">${val}</div>${sub?`<div class="sub">${esc(sub)}</div>`:''}</div></div>`; }
+
+  /* ───────── ATRIBUIÇÃO ───────── */
+  function estaNaAtiva(s){ const t=String(s||'').toUpperCase().trim(); return t.includes('NA ATIVA')||t==='ATIVA'; }
+  function emContracao(c){ const n=Number(c); return !isNaN(n)&&n>=99000; }
+  function isAtribuido(r){
+    const ct=String(r.codigo_professor_prop||'').trim(), cs=String(r.codigo_professor_sub||'').trim();
+    if(emContracao(ct)) return true;
+    if(ct&&ct!=='0'&&estaNaAtiva(r.situacao_professor)) return true;
+    if(!cs||cs==='0') return false;
+    if(emContracao(cs)) return true;
+    if(estaNaAtiva(r.situacao_professor_sub)) return true;
+    return false;
+  }
+  function isSubstituto(r){
+    const ct=String(r.codigo_professor_prop||'').trim(), cs=String(r.codigo_professor_sub||'').trim();
+    const tit=emContracao(ct)||(ct&&ct!=='0'&&estaNaAtiva(r.situacao_professor));
+    const sub=(cs&&cs!=='0')&&(emContracao(cs)||estaNaAtiva(r.situacao_professor_sub));
+    return !tit&&sub;
+  }
+  function classificarInativo(situacao, vinculo){
+    const t=String(situacao||'').toUpperCase();
+    if(t.includes('APOSENTAD')) return 'Aposentado';
+    if(t.includes('EXONERAD')||t.includes('RESCINDID')) return String(vinculo||'').toUpperCase().includes('EFETIVO')?'Exonerado':'Rescindido';
+    return null;
+  }
+  const periodoDesc = p => ({M:'Manhã',T:'Tarde',N:'Noite'}[String(p||'').trim().toUpperCase()] || (p||'-'));
+
+  async function renderAtrib(escola){
+    try{
+      const [turmas, exSet] = await Promise.all([
+        get('turmas', ()=> SB.from('turmas').select('nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,situacao_professor,vinculo_funcao_prop,nome_professor_sub,codigo_professor_sub,situacao_professor_sub,vinculo_funcao_sub').then(r=>{ if(r.error) throw r.error; return r.data||[]; })),
+        get('seriesEx', ()=> SB.from('config_series_excluidas').select('serie,excluido').then(r=> r.error?[]:(r.data||[])).catch(()=>[]))
+      ]);
+      const excl = new Set(exSet.filter(x=>x.excluido).map(x=>norm(x.serie)));
+      const meus = turmas.filter(t=> matchEscola(escola, t.nome_unidade) && String(t.descricao_disciplina||'').trim() && !excl.has(norm(t.ano_escolar)));
+      let criadas=0, atrib=0, cargaDesc=0; const pend=[]; const inativos=[];
+      meus.forEach(r=>{
+        criadas++;
+        const ok=isAtribuido(r);
+        if(ok) atrib++; else { cargaDesc += Number(r.carga_horaria||0); pend.push(r); }
+        const it=classificarInativo(r.situacao_professor, r.vinculo_funcao_prop); if(it&&String(r.codigo_professor_prop||'').trim() && String(r.codigo_professor_prop)!=='0') inativos.push({nome:r.nome_professor_prop, cod:r.codigo_professor_prop, cat:it});
+        const is2=classificarInativo(r.situacao_professor_sub, r.vinculo_funcao_sub); if(is2&&String(r.codigo_professor_sub||'').trim() && String(r.codigo_professor_sub)!=='0') inativos.push({nome:r.nome_professor_sub, cod:r.codigo_professor_sub, cat:is2});
+      });
+      const inatUnq = Array.from(new Map(inativos.map(x=>[String(x.cod)+'|'+norm(x.nome), x])).values());
+      if(!criadas){ $('atribBody').innerHTML='<div class="empty">Sem turmas/atribuições para esta escola.</div>'; return {criadas:0,atrib:0,pend:0}; }
+      let h='<div class="row g-2 mb-3">';
+      h+=kpi('Turmas/aulas', fmt(criadas), '#8b5cf6');
+      h+=kpi('Atribuídas', fmt(atrib), '#10b981', pct(atrib,criadas)+'% de atribuição');
+      h+=kpi('Pendentes', fmt(criadas-atrib), '#ef4444', 'aulas sem professor');
+      h+=kpi('Carga descoberta', fmt(cargaDesc)+'h', '#f59e0b');
+      h+=kpi('Prof. inativos', fmt(inatUnq.length), '#64748b', 'exon./resc./apos. atribuídos');
+      h+='</div>';
+      h+='<div>'+barra(pct(atrib,criadas), '#8b5cf6')+'</div>';
+      // tabela de pendências (até 40)
+      if(pend.length){
+        const linhas = pend.slice(0,40).map(r=>`<tr><td>${esc(r.descricao_disciplina)}</td><td>${esc((String(r.ano_escolar||'')+' '+String(r.letra_turma||'')).trim())}</td><td>${esc(periodoDesc(r.periodo))}</td><td class="text-center">${fmt(r.carga_horaria||0)}h</td></tr>`).join('');
+        h+=`<div class="mt-3"><div class="fw-bold mb-1" style="font-size:.78rem;color:#b91c1c;"><i class="bi bi-exclamation-triangle me-1"></i>Aulas pendentes ${pend.length>40?'(40 de '+pend.length+')':''}</div>
+          <div style="max-height:280px;overflow:auto;"><table class="mapa"><thead><tr><th>Disciplina</th><th>Turma</th><th>Turno</th><th class="text-center">Carga</th></tr></thead><tbody>${linhas}</tbody></table></div></div>`;
+      }
+      $('atribBody').innerHTML=h;
+      return {criadas, atrib, pend:criadas-atrib};
+    }catch(e){ $('atribBody').innerHTML=`<div class="empty text-danger">Erro: ${esc(e.message||e)}</div>`; return null; }
+  }
+
+  /* ───────── LEITURA: ELEFANTE + FLUÊNCIA ───────── */
+  async function renderLeitura(escola){
+    let elef=null, flu=null;
+    // Elefante (último mês)
+    try{
+      const mes = await get('elefMes', ()=> SB.from('elefante_turmas').select('mes_referencia').order('mes_referencia',{ascending:false}).limit(1).then(r=> (r.data&&r.data[0])?r.data[0].mes_referencia:null));
+      if(mes){
+        const turmas = await get('elef|'+mes, ()=> SB.from('elefante_turmas').select('escola,ano_escolar,turma,estudantes,leitores,livros_lidos,tempo_leitura_seg').eq('mes_referencia',mes).then(r=> r.error?[]:(r.data||[])));
+        const meus = turmas.filter(t=> matchEscola(escola, t.escola));
+        if(meus.length){
+          elef={ estud:0, leit:0, livros:0, seg:0, mes };
+          meus.forEach(t=>{ elef.estud+=+t.estudantes||0; elef.leit+=+t.leitores||0; elef.livros+=+t.livros_lidos||0; elef.seg+=+t.tempo_leitura_seg||0; });
+        }
+      }
+    }catch(e){ /* segue sem elefante */ }
+    // Fluência (última avaliação)
+    try{
+      const av = await get('fluAv', ()=> SB.from('v_fluencia_por_turma').select('avaliacao').order('avaliacao',{ascending:false}).limit(1).then(r=> (r.data&&r.data[0])?r.data[0].avaliacao:null));
+      if(av){
+        const turmas = await get('flu|'+av, ()=> SB.from('v_fluencia_por_turma').select('escola,avaliacao,total_estudantes,avaliados,ausentes,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1').eq('avaliacao',av).then(r=> r.error?[]:(r.data||[])));
+        const meus = turmas.filter(t=> matchEscola(escola, t.escola));
+        if(meus.length){
+          flu={ av, matric:0, aval:0, aus:0, flu:0, ini:0, n4:0, n3:0, n2:0, n1:0 };
+          meus.forEach(t=>{ flu.matric+=+t.total_estudantes||0; flu.aval+=+t.avaliados||0; flu.aus+=+t.ausentes||0; flu.flu+=+t.fluentes||0; flu.ini+=+t.iniciantes||0; flu.n4+=+t.pre_n4||0; flu.n3+=+t.pre_n3||0; flu.n2+=+t.pre_n2||0; flu.n1+=+t.pre_n1||0; });
+        }
+      }
+    }catch(e){ /* segue sem fluência */ }
+
+    if(!elef && !flu){ $('leituraBody').innerHTML='<div class="empty">Sem dados de Elefante Letrado ou Fluência para esta escola.</div>'; return {elef,flu}; }
+    let h='';
+    if(elef){
+      h+='<div class="fw-bold mb-2" style="font-size:.82rem;color:#0f766e;"><i class="bi bi-book-fill me-1"></i>Elefante Letrado <span class="muted fw-normal">· '+esc(String(elef.mes).slice(0,7))+'</span></div><div class="row g-2 mb-3">';
+      h+=kpi('Estudantes', fmt(elef.estud), '#10b981');
+      h+=kpi('Leitores ativos', fmt(elef.leit), '#0ea5e9', pct(elef.leit,elef.estud)+'% de engajamento');
+      h+=kpi('Livros lidos', fmt(elef.livros), '#8b5cf6');
+      h+=kpi('Horas de leitura', fmt(Math.round(elef.seg/3600)), '#f59e0b');
+      h+='</div>';
+    }
+    if(flu){
+      const leitores = flu.ini+flu.flu;
+      h+='<div class="fw-bold mb-2" style="font-size:.82rem;color:#0369a1;"><i class="bi bi-book-half me-1"></i>Fluência Leitora <span class="muted fw-normal">· '+esc(flu.av)+'</span></div><div class="row g-2 mb-3">';
+      h+=kpi('Matriculados', fmt(flu.matric), '#0369a1');
+      h+=kpi('Avaliados', fmt(flu.aval), '#0ea5e9', pct(flu.aval,flu.matric)+'% dos matriculados');
+      h+=kpi('% Leitores', pct(leitores,flu.aval)+'%', '#10b981', fmt(leitores)+' (iniciante+fluente)');
+      h+=kpi('Ausentes', fmt(flu.aus), '#ef4444');
+      h+='</div>';
+      // barra de perfis
+      const segs=[['Pré N1',flu.n1,'#BF5AF2'],['Pré N2',flu.n2,'#FF6B35'],['Pré N3',flu.n3,'#FFD60A'],['Pré N4',flu.n4,'#34C759'],['Iniciante',flu.ini,'#00C7BE'],['Fluente',flu.flu,'#0A84FF']];
+      const tot=segs.reduce((a,s)=>a+s[1],0);
+      if(tot){
+        h+='<div class="seg">'+segs.map(s=>`<span style="width:${s[1]/tot*100}%;background:${s[2]};" title="${s[0]}: ${s[1]}"></span>`).join('')+'</div>';
+        h+='<div class="legend">'+segs.map(s=>`<span><i style="background:${s[2]};"></i>${s[0]} <b>${s[1]}</b></span>`).join('')+'</div>';
+      }
+    }
+    $('leituraBody').innerHTML=h;
+    return {elef,flu};
+  }
+
+  /* ───────── EDUCAÇÃO ESPECIAL ───────── */
+  const clsSt = s => s==='Atendida'?'st-ok': s==='Pendência'?'st-pend': s?'st-fora':'st-na';
+  async function renderEE(escola){
+    try{
+      const dash = await get('eedash', ()=> SB.rpc('ee_dash').then(r=>{ if(r.error) throw r.error; return r.data; }));
+      // unidade=[unidade,turmas_nee,alunos_nee,ec_pct,pei_pct,liminar_turmas,liminar_manha,liminar_tarde,prof_manha,prof_tarde,liminar_status,liminar_escola]
+      const u = (dash.unidades||[]).find(x=> matchEscola(escola, x[0]));
+      if(!u){ $('eeBody').innerHTML='<div class="empty">Esta escola não consta na base de Educação Especial (AEE).</div>'; return null; }
+      let h='<div class="row g-2 mb-3">';
+      h+=kpi('Turmas AEE', fmt(u[1]), '#f59e0b');
+      h+=kpi('Alunos AEE', fmt(u[2]), '#10b981');
+      h+=kpi('% Estudo de Caso', (u[3]==null?'—':u[3]+'%'), '#0ea5e9');
+      h+=kpi('% PEI', (u[4]==null?'—':u[4]+'%'), '#8b5cf6');
+      h+=kpi('Turmas de liminar', fmt(u[5]), '#ef4444', u[10]?('situação: '+u[10]):'sem liminar');
+      h+='</div>';
+      h+='<div class="row g-3"><div class="col-md-6">'+(u[3]==null?'':'<div class="fw-bold mb-1" style="font-size:.76rem;color:#475569;">Cobertura Estudo de Caso</div>'+barra(u[3],'#0ea5e9'))+'</div>';
+      h+='<div class="col-md-6">'+(u[4]==null?'':'<div class="fw-bold mb-1" style="font-size:.76rem;color:#475569;">Cobertura PEI</div>'+barra(u[4],'#8b5cf6'))+'</div></div>';
+      if(u[5]>0){
+        h+=`<div class="mt-3" style="font-size:.8rem;"><span class="badge-st ${clsSt(u[10])}">${esc(u[10]||'—')}</span> &nbsp; Liminar — Manhã: <b>${u[6]||0}</b> sala(s)/<b style="color:#f59e0b;">${u[8]||0}</b> prof · Tarde: <b>${u[7]||0}</b> sala(s)/<b style="color:#0ea5e9;">${u[9]||0}</b> prof</div>`;
+      }
+      $('eeBody').innerHTML=h;
+      return u;
+    }catch(e){ $('eeBody').innerHTML=`<div class="empty text-danger">Erro: ${esc(e.message||e)}</div>`; return null; }
+  }
+
+  /* ════════ Orquestração ════════ */
+  let _escolaAtual=null;
+  async function gerar(escola){
+    _escolaAtual=escola;
+    $('vazio').style.display='none';
+    $('conteudo').style.display='';
+    $('phNome').textContent=escola;
+    $('phData').textContent='· gerado em '+new Date().toLocaleDateString('pt-BR');
+    $('selStatus').innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>gerando…';
+    ['avalBody','atribBody','leituraBody','eeBody'].forEach(id=> $(id).innerHTML='<div class="empty"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div>');
+    const [d, at, lt, ee] = await Promise.all([ renderAval(escola), renderAtrib(escola), renderLeitura(escola), renderEE(escola) ]);
+    if(_escolaAtual!==escola) return; // troca rápida de escola: ignora resultado obsoleto
+    montarKpisGerais(escola, d, at, lt, ee);
+    $('selStatus').textContent='';
+  }
+  // Faixa de KPIs consolidados no topo, com os destaques de cada domínio.
+  function montarKpisGerais(escola, d, at, lt, ee){
+    const cards=[];
+    if(d)  cards.push({label:'Alunos avaliados', val:fmt(d.total), cor:'#0ea5e9'},
+                      {label:'Críticos', val:fmt(d.crit), cor:'#ef4444', sub:pct(d.crit,d.total)+'%'});
+    if(at && at.criadas) cards.push({label:'% Atribuição', val:pct(at.atrib,at.criadas)+'%', cor:'#8b5cf6'},
+                      {label:'Aulas pendentes', val:fmt(at.pend), cor:'#f59e0b'});
+    if(lt && lt.flu) cards.push({label:'% Leitores (fluência)', val:pct(lt.flu.ini+lt.flu.flu, lt.flu.aval)+'%', cor:'#10b981'});
+    if(ee) cards.push({label:'Alunos AEE', val:fmt(ee[2]), cor:'#f59e0b'});
+    if(!cards.length){ $('kpisGerais').innerHTML=''; return; }
+    $('kpisGerais').innerHTML = cards.map(x=>`<div class="col-6 col-md-4 col-lg"><div class="kpi" style="border-left-color:${x.cor};">
+      <div class="label">${esc(x.label)}</div><div class="val" style="color:${x.cor};">${x.val}</div>${x.sub?`<div class="sub">${esc(x.sub)}</div>`:''}</div></div>`).join('');
+  }
+
+  /* ════════ Seletor de escola (respeita acesso) ════════ */
+  // Espera o auth.js (deferred) terminar — este script roda antes dele.
+  function authReady(){
+    return new Promise(res=>{
+      if(window.MapaAuth && window.MapaAuth.perfil) return res(window.MapaAuth);
+      document.addEventListener('mapa-auth-pronto', e=> res(e.detail||window.MapaAuth), {once:true});
+      setTimeout(()=> res(window.MapaAuth||null), 8000); // fallback
+    });
+  }
+  async function montarSeletor(){
+    const sel=$('selEscola');
+    const auth = await authReady();
+    let escolas=[];
+    if(auth && auth.restritoEscola && auth.escolas && auth.escolas.length){
+      escolas = auth.escolas.map(e=>e.nome);
+    } else {
+      // super admin / sem restrição: todas as escolas ativas
+      try{
+        const r = await SB.from('escolas').select('nome').eq('ativo',true).order('nome');
+        escolas = (r.data||[]).map(e=>e.nome).filter(Boolean);
+      }catch(e){}
+    }
+    // dedup
+    escolas = Array.from(new Set(escolas));
+    if(!escolas.length){ sel.innerHTML='<option value="">Nenhuma escola disponível</option>'; return; }
+    sel.innerHTML='<option value="">— selecione uma escola —</option>'+escolas.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    sel.addEventListener('change', ()=>{ if(sel.value) gerar(sel.value); else { $('conteudo').style.display='none'; $('vazio').style.display=''; } });
+    // se só há uma escola (gestor de unidade), abre direto
+    if(escolas.length===1){ sel.value=escolas[0]; sel.disabled=true; gerar(escolas[0]); }
+  }
+  montarSeletor();
+</script>
+</body>
+</html>
