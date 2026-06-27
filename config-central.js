@@ -62,6 +62,9 @@
     + '        <div class="col-12 col-md-4 d-flex align-items-end"><div class="form-check">'
     + '          <input id="edAdmin" class="form-check-input" type="checkbox" onchange="cfgToggleAdmin()">'
     + '          <label class="form-check-label fw-bold small" for="edAdmin">Super admin (acesso total)</label></div></div>'
+    + '        <div class="col-12"><div class="form-check">'
+    + '          <input id="edBypass" class="form-check-input" type="checkbox">'
+    + '          <label class="form-check-label fw-bold small" for="edBypass">Permitir login fora do domínio @educacao.pmrp.sp.gov.br (ex.: @gmail.com)</label></div></div>'
     + '        <div class="col-12"><label class="form-label fw-bold small">Telas que este perfil pode acessar</label>'
     + '          <div id="edTelas" class="d-flex flex-wrap gap-2"></div>'
     + '          <div class="form-text" id="edTelasHint"></div></div>'
@@ -133,7 +136,7 @@
   }
 
   async function cfgCarregarPerfis() {
-    var r = await sb().from('perfis').select('id,email,nome,tipo,ativo,is_super_admin').order('email');
+    var r = await sb().from('perfis').select('id,email,nome,tipo,ativo,is_super_admin,bypass_dominio').order('email');
     if (r.error) throw r.error;
     var pt = await sb().from('perfil_tela').select('perfil_id,pode_ver');
     var pe = await sb().from('perfil_escola').select('perfil_id');
@@ -198,6 +201,7 @@
     document.getElementById('edTipo').value = p ? (p.tipo || 'escola') : 'escola';
     document.getElementById('edAtivo').checked = p ? !!p.ativo : true;
     document.getElementById('edAdmin').checked = p ? !!p.is_super_admin : false;
+    document.getElementById('edBypass').checked = p ? !!p.bypass_dominio : false;
     document.getElementById('edExcluir').style.display = p ? '' : 'none';
     if (!p) { cfg.escSel = new Set(); telasSel = new Set(); }
     cfgRenderTelas(telasSel);
@@ -255,10 +259,12 @@
     var email = (document.getElementById('edEmail').value || '').trim().toLowerCase();
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { erro('Informe um e-mail válido.'); return; }
     var ehAdmin = document.getElementById('edAdmin').checked;
+    var bypass = document.getElementById('edBypass').checked;
     var dominioOk = /@educacao\.pmrp\.sp\.gov\.br$/.test(email);
-    // Só e-mails institucionais podem ser cadastrados (exceto super admin).
-    if (!cfg.editId && !ehAdmin && !dominioOk) {
-      erro('Apenas e-mails @educacao.pmrp.sp.gov.br podem ser cadastrados (super admin é exceção).');
+    // E-mail fora do domínio só pode ser cadastrado se for super admin
+    // OU se marcar "permitir login fora do domínio".
+    if (!cfg.editId && !ehAdmin && !bypass && !dominioOk) {
+      erro('E-mail fora de @educacao.pmrp.sp.gov.br: marque "Permitir login fora do domínio" ou "Super admin".');
       return;
     }
     var dados = {
@@ -266,7 +272,8 @@
       nome: (document.getElementById('edNome').value || '').trim() || null,
       tipo: document.getElementById('edTipo').value,
       ativo: document.getElementById('edAtivo').checked,
-      is_super_admin: document.getElementById('edAdmin').checked
+      is_super_admin: document.getElementById('edAdmin').checked,
+      bypass_dominio: bypass
     };
     try {
       var perfilId = cfg.editId;
