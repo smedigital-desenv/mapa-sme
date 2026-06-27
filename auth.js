@@ -31,6 +31,12 @@
   var CACHE_KEY = 'MAPA_PERMS_v1';
   var SIMULA_KEY = 'MAPA_SIMULA';   // e-mail que o super admin está simulando
 
+  // Normaliza nome de escola/unidade para comparação (maiúsc., sem acento, só alfanum).
+  function normEscola(s) {
+    return String(s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^A-Z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
   function telaAtual() {
     var f = (location.pathname.split('/').pop() || 'index.html').replace(/\.html$/i, '');
     return f === 'index' ? null : f;   // index = portal do sistema, sem tela específica
@@ -83,6 +89,25 @@
         if (this.perfil && this.perfil.is_super_admin) return true;
         var t = this.sistema.telas && this.sistema.telas[tela];
         return !!(t && t[acao || 'ver']);
+      },
+      // ── Isolamento de dados por escola ──────────────────────────────────
+      // restritoEscola = true quando o perfil efetivo (inclusive simulado) está
+      // amarrado a escolas específicas. Super admin e perfis sem escola = vê tudo.
+      restritoEscola: false,
+      escolasNomes: [],            // nomes normalizados das escolas do perfil
+      podeVerEscola: function (nome) {
+        if (!this.restritoEscola) return true;
+        var n = normEscola(nome);
+        return !!n && this.escolasNomes.indexOf(n) !== -1;
+      },
+      // Filtra uma lista de registros pelas escolas do usuário.
+      // getNome(row) -> nome da unidade no registro (default: o próprio item).
+      filtrarEscolas: function (rows, getNome) {
+        if (!this.restritoEscola) return rows || [];
+        var self = this;
+        return (rows || []).filter(function (r) {
+          return self.podeVerEscola(getNome ? getNome(r) : r);
+        });
       },
       token: function () {
         return SB.auth.getSession().then(function (r) {
@@ -154,6 +179,9 @@
 
       api.perfil = perms.perfil;
       api.escolas = perms.escolas || [];
+      api.escolasNomes = api.escolas.map(function (e) { return normEscola(e.nome); }).filter(Boolean);
+      // restrito a escolas se NÃO for super admin e tiver escola(s) vinculada(s)
+      api.restritoEscola = !(api.perfil && api.perfil.is_super_admin) && api.escolasNomes.length > 0;
       api._todos = perms.sistemas || [];
       api.sistema = api._todos.filter(function (s) { return s.slug === SISTEMA_SLUG; })[0] || null;
 
