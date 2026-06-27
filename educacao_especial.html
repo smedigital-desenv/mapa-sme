@@ -217,10 +217,19 @@
   function baixar(nome,head,linhas){ const csv='﻿'+head.join(';')+'\n'+linhas.map(l=>l.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'})); a.download=nome; a.click(); }
   const COR_EC='#0ea5e9', COR_PEI='#8b5cf6';
 
+  // ── Isolamento por escola (super admin e perfis sem escola veem tudo) ──
+  function _eeAuth(){ return new Promise(r=>{ if(window.MapaAuth&&window.MapaAuth.perfil)return r(); document.addEventListener('mapa-auth-pronto',()=>r(),{once:true}); setTimeout(r,8000); }); }
+  function _eeRestrito(){ return !!(window.MapaAuth && window.MapaAuth.restritoEscola); }
+  function _eePode(n){ try{ return !_eeRestrito() || window.MapaAuth.podeVerEscola(n); }catch(e){ return true; } }
+  function _eeFilt(arr,idx){ if(!_eeRestrito())return arr||[]; return (arr||[]).filter(r=>_eePode(r[idx])); }
+  function _soma(arr,i){ return (arr||[]).reduce((a,u)=>a+(Number(u[i])||0),0); }
+
   /* ───────── AEE ───────── */
   let GERAL={}, UNID=[], ALUNOS=[], _uAtiva=null;
   let _aeeLoaded=false;
-  async function carregarAEE(){ if(_aeeLoaded) return; _aeeLoaded=true; const {data,error}=await SB.rpc('ee_resumo'); if(error){_aeeLoaded=false;alert('Erro AEE: '+error.message);return;} GERAL=data.geral||{}; UNID=data.por_unidade||[]; renderAEE(); await selUnidade(null); }
+  async function carregarAEE(){ if(_aeeLoaded) return; _aeeLoaded=true; const {data,error}=await SB.rpc('ee_resumo'); if(error){_aeeLoaded=false;alert('Erro AEE: '+error.message);return;} GERAL=data.geral||{}; UNID=data.por_unidade||[];
+    if(_eeRestrito()){ UNID=_eeFilt(UNID,0); GERAL={ total:_soma(UNID,1), aval:_soma(UNID,2), pendentes:_soma(UNID,3), ec_aval:_soma(UNID,4), pei_aval:_soma(UNID,5), unidades:UNID.length }; }
+    renderAEE(); await selUnidade(null); }
   function renderAEE(){
     const g=GERAL;
     kpiHTML('kpisAEE',[['Alunos (únicos)',fmt(g.total),'var(--primary)'],['Com Estudo de Caso',`${fmt(g.ec_aval)} · ${g.total?Math.round(g.ec_aval/g.total*100):0}%`,COR_EC],['Com PEI',`${fmt(g.pei_aval)} · ${g.total?Math.round(g.pei_aval/g.total*100):0}%`,COR_PEI],['Pendentes (sem nada)',fmt(g.pendentes),'#ef4444'],['Escolas',fmt(g.unidades),'#64748b']]);
@@ -240,7 +249,7 @@
     document.getElementById('tbUnidades').innerHTML=ln('🌐 Toda a rede',tot,tot?Math.round(ec/tot*100):0,tot?Math.round(pei/tot*100):0,!_uAtiva,'selUnidade(null)')+lista.map(u=>ln(u[0],u[1],pEC(u),pPEI(u),_uAtiva===u[0],`selUnidade('${esc(String(u[0]).replace(/'/g,"\\'"))}')`)).join(''); }
   async function selUnidade(u){ _uAtiva=u; renderUnidades(); document.getElementById('escopo').textContent=u?`· ${u}`:'· Toda a rede';
     document.getElementById('tbAlunos').innerHTML=`<tr><td colspan="7" class="text-center text-muted p-3"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</td></tr>`;
-    const {data,error}=await SB.rpc('ee_alunos',{p_unidade:u,p_status:null}); if(error){document.getElementById('tbAlunos').innerHTML=`<tr><td colspan="7" class="text-danger p-3">Erro: ${esc(error.message)}</td></tr>`;return;} ALUNOS=data||[]; renderAlunos(); }
+    const {data,error}=await SB.rpc('ee_alunos',{p_unidade:u,p_status:null}); if(error){document.getElementById('tbAlunos').innerHTML=`<tr><td colspan="7" class="text-danger p-3">Erro: ${esc(error.message)}</td></tr>`;return;} ALUNOS=_eeFilt(data||[],0); renderAlunos(); }
   const cel=(r,q,cor)=>{ if(!q) return '<span class="text-muted">—</span>'; return barra(Math.round(r/q*100),cor); };
   function renderAlunos(){ const t=(document.getElementById('buscaAluno').value||'').toLowerCase();
     const l=ALUNOS.filter(a=>!t||String(a[4]).toLowerCase().includes(t)||String(a[3]).includes(t));
@@ -250,7 +259,14 @@
   /* ───────── LIMINARES (macro: escola → turma → aluno) ───────── */
   let LIM=null, _escAtual=null;
   const clsSt=s=> s==='Atendida'?'st-ok': s==='Pendência'?'st-pend':'st-fora';
-  async function carregarLim(){ if(LIM) return renderLim(); const {data,error}=await SB.rpc('ee_liminar'); if(error){alert('Erro Liminares: '+error.message);return;} LIM=data; renderLim(); }
+  function _filtLim(data){ if(!_eeRestrito()) return data;
+    var un=_eeFilt(data.unidades,0);
+    return { ...data, unidades:un, turmas:_eeFilt(data.turmas,0), alunos:_eeFilt(data.alunos,2),
+      geral:{ unidades:un.length, turmas:_soma(un,2),
+        atendidas:un.filter(u=>u[7]==='Atendida').length,
+        pendentes:un.filter(u=>u[7]==='Pendência').length,
+        fora:un.filter(u=>String(u[7]||'').indexOf('Fora')===0).length } }; }
+  async function carregarLim(){ if(LIM) return renderLim(); const {data,error}=await SB.rpc('ee_liminar'); if(error){alert('Erro Liminares: '+error.message);return;} LIM=_filtLim(data); renderLim(); }
   // unidade = [escola,tipo,total_turmas,turmas_manha,turmas_tarde,prof_manha,prof_tarde,status]
   function renderLim(){ const g=LIM.geral||{}, un=LIM.unidades||[];
     kpiHTML('kpisLim',[['Unidades',fmt(g.unidades),'var(--primary)'],['Turmas de liminar',fmt(g.turmas),'#0ea5e9'],['Atendidas',fmt(g.atendidas),'#10b981'],['Pendências',fmt(g.pendentes),'#ef4444'],['Fora da rede mun.',fmt(g.fora),'#94a3b8']]);
@@ -297,7 +313,9 @@
 
   /* ───────── APOIO ───────── */
   let APOIO=null;
-  async function carregarApoio(){ if(APOIO) return renderApoio(); const {data,error}=await SB.rpc('ee_apoio'); if(error){alert('Erro Apoio: '+error.message);return;} APOIO=data; renderApoio(); }
+  async function carregarApoio(){ if(APOIO) return renderApoio(); const {data,error}=await SB.rpc('ee_apoio'); if(error){alert('Erro Apoio: '+error.message);return;}
+    if(_eeRestrito()){ var es=_eeFilt(data.escolas,1); APOIO={ ...data, escolas:es, geral:{ escolas:es.length, prof_manha:_soma(es,2), prof_tarde:_soma(es,3), professores:_soma(es,2)+_soma(es,3), apoios:_soma(es,4) } }; } else { APOIO=data; }
+    renderApoio(); }
   function renderApoio(){ const g=APOIO.geral||{}, es=APOIO.escolas||[];
     kpiHTML('kpisApoio',[['Escolas',fmt(g.escolas),'var(--primary)'],['Prof. Manhã',fmt(g.prof_manha),'#f59e0b'],['Prof. Tarde',fmt(g.prof_tarde),'#0ea5e9'],['Total Professores',fmt(g.professores),'#10b981'],['Apoios (ASSEJ)',fmt(g.apoios),'#8b5cf6']]);
     chart('donutApoio',{type:'doughnut',data:{labels:['Prof. Manhã','Prof. Tarde','Apoios (ASSEJ)'],datasets:[{data:[g.prof_manha||0,g.prof_tarde||0,g.apoios||0],backgroundColor:['#f59e0b','#0ea5e9','#8b5cf6'],borderColor:'#fff',borderWidth:3,hoverOffset:12}]},options:{maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{font:{size:10}}}}}});
@@ -313,8 +331,14 @@
   /* ───────── VISÃO GERAL (dash) ───────── */
   let DASH=null, _dashUni=null, _dashAlunosCache={};
   async function carregarDash(){ if(DASH) return renderDash();
-    const {data,error}=await SB.rpc('ee_dash'); if(error){alert('Erro Visão Geral: '+error.message);return;} DASH=data;
-    if(!LIM){ try{ const r=await SB.rpc('ee_liminar'); if(!r.error) LIM=r.data; }catch(e){} }
+    const {data,error}=await SB.rpc('ee_dash'); if(error){alert('Erro Visão Geral: '+error.message);return;}
+    if(_eeRestrito()){ var du=_eeFilt(data.unidades,0); var al=_soma(du,2);
+      var ecW=du.reduce((a,u)=>a+(Number(u[3])||0)*(Number(u[2])||0),0);
+      var peiW=du.reduce((a,u)=>a+(Number(u[4])||0)*(Number(u[2])||0),0);
+      DASH={ ...data, unidades:du, geral:{ unidades:du.length, turmas_nee:_soma(du,1), alunos_nee:al,
+        ec_pct: al?Math.round(ecW/al):0, pei_pct: al?Math.round(peiW/al):0, liminar_turmas:_soma(du,5) } };
+    } else { DASH=data; }
+    if(!LIM){ try{ const r=await SB.rpc('ee_liminar'); if(!r.error) LIM=_filtLim(r.data); }catch(e){} }
     renderDash(); }
   // unidade = [unidade,turmas_nee,alunos_nee,ec_pct,pei_pct,liminar_turmas,liminar_manha,liminar_tarde,prof_manha,prof_tarde,liminar_status,liminar_escola]
   function renderDash(){ const g=DASH.geral||{};
@@ -392,7 +416,7 @@
   document.getElementById('filtroTipoApoio').addEventListener('change',renderApoioTab);
   document.getElementById('buscaApoio').addEventListener('input',renderApoioTab);
   document.getElementById('buscaDash').addEventListener('input',renderDashTab);
-  carregarDash();
+  (async()=>{ await _eeAuth(); carregarDash(); })();
 </script>
 </body>
 </html>

@@ -477,6 +477,16 @@ function _dadosMock() {
 }
 
 function onDados(res) {
+  // Isolamento por escola: usuário de escola só vê as visitas da sua unidade.
+  try {
+    if (res && window.MapaAuth && window.MapaAuth.restritoEscola) {
+      const ok = n => window.MapaAuth.podeVerEscola(n);
+      if (Array.isArray(res.fundamental)) res.fundamental = res.fundamental.filter(d => ok(d['_ESCOLA_']));
+      if (Array.isArray(res.infantil))    res.infantil    = res.infantil.filter(d => ok(d['_ESCOLA_']));
+      if (Array.isArray(res.escolasEMEF)) res.escolasEMEF = res.escolasEMEF.filter(ok);
+      if (Array.isArray(res.escolasEMEI)) res.escolasEMEI = res.escolasEMEI.filter(ok);
+    }
+  } catch (e) {}
   if (res && (res.fundamental||res.infantil)) {
     dadosPorSegmento = res;
     escolasOficiais.fundamental = res.escolasEMEF||[];
@@ -1384,7 +1394,11 @@ function exportarCoberturaCSV() {
 }
 
 // ── Inicialização ──
-carregarDados();
+(function(){ var done=false; function go(){ if(done)return; done=true; carregarDados(); }
+  if(window.MapaAuth && window.MapaAuth.perfil) return go();
+  document.addEventListener('mapa-auth-pronto', go, {once:true});
+  setTimeout(go, 8000);
+})();
 </script>
 
 </body>

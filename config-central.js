@@ -37,7 +37,10 @@
     + '    <div id="cfgListaView">'
     + '      <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">'
     + '        <input id="cfgBusca" class="form-control form-control-sm" style="max-width:280px" placeholder="Buscar e-mail ou nome…" oninput="cfgRenderLista()">'
-    + '        <button class="btn btn-sm btn-primary fw-bold" onclick="cfgNovo()"><i class="bi bi-plus-lg"></i> Novo perfil</button>'
+    + '        <div class="d-flex gap-2">'
+    + '          <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="cfgAbrirAnos()"><i class="bi bi-calendar2-x"></i> Anos escolares</button>'
+    + '          <button class="btn btn-sm btn-primary fw-bold" onclick="cfgNovo()"><i class="bi bi-plus-lg"></i> Novo perfil</button>'
+    + '        </div>'
     + '      </div>'
     + '      <div class="table-responsive"><table class="table table-sm align-middle">'
     + '        <thead><tr class="text-uppercase" style="font-size:.7rem;color:#64748b">'
@@ -82,6 +85,20 @@
     + '          <button class="btn btn-sm btn-primary fw-bold" onclick="cfgSalvar()"><i class="bi bi-check-lg"></i> Salvar</button></div>'
     + '      </div>'
     + '    </div>'
+    + '    <div id="cfgAnosView" style="display:none">'
+    + '      <button class="btn btn-sm btn-link px-0 mb-2" onclick="cfgVoltar()"><i class="bi bi-arrow-left"></i> Voltar à lista</button>'
+    + '      <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">'
+    + '        <div><div class="fw-bold" style="color:#002b5e">Limpeza de anos escolares</div>'
+    + '          <div class="form-text m-0">Marque os anos que <b>NÃO</b> devem aparecer no sistema.</div></div>'
+    + '        <input id="anoBusca" class="form-control form-control-sm" style="max-width:240px" placeholder="Filtrar anos…" oninput="cfgRenderAnos()">'
+    + '      </div>'
+    + '      <div class="d-flex gap-2 mb-2"><button class="btn btn-sm btn-outline-secondary py-0" onclick="cfgMarcarAnos(true)">Marcar todos</button>'
+    + '        <button class="btn btn-sm btn-outline-secondary py-0" onclick="cfgMarcarAnos(false)">Desmarcar todos</button>'
+    + '        <span id="anoResumo" class="small text-muted align-self-center"></span></div>'
+    + '      <div id="anosBox" style="max-height:46vh;overflow:auto;border:1px solid #e2e8f0;border-radius:10px;padding:.5rem"></div>'
+    + '      <div class="d-flex justify-content-end mt-3">'
+    + '        <button class="btn btn-sm btn-primary fw-bold" onclick="cfgSalvarAnos()"><i class="bi bi-check-lg"></i> Salvar exclusões</button></div>'
+    + '    </div>'
     + '  </div></div></div>';
 
   function montar() {
@@ -119,8 +136,75 @@
   };
   window.fecharConfig = function () { var o = document.getElementById('cfgOverlay'); if (o) o.classList.remove('show'); };
   window.cfgVoltar = function () {
-    var ev = document.getElementById('cfgEditView'), lv = document.getElementById('cfgListaView');
-    if (ev) ev.style.display = 'none'; if (lv) lv.style.display = '';
+    var ev = document.getElementById('cfgEditView'), lv = document.getElementById('cfgListaView'),
+        av = document.getElementById('cfgAnosView');
+    if (ev) ev.style.display = 'none';
+    if (av) av.style.display = 'none';
+    if (lv) lv.style.display = '';
+  };
+
+  // ── Limpeza de anos escolares ───────────────────────────────────────────
+  var _anos = [], _anosExcl = new Set();
+  window.cfgAbrirAnos = async function () {
+    erro('');
+    document.getElementById('cfgListaView').style.display = 'none';
+    document.getElementById('cfgEditView').style.display = 'none';
+    document.getElementById('cfgAnosView').style.display = '';
+    document.getElementById('anosBox').innerHTML = '<div class="text-muted p-2">Carregando…</div>';
+    try {
+      var r = await sb().rpc('anos_escolares');
+      if (r.error) throw r.error;
+      _anos = r.data || [];
+      var e = await sb().from('config_series_excluidas').select('serie,excluido');
+      if (e.error) throw e.error;
+      _anosExcl = new Set((e.data || []).filter(function (x) { return x.excluido !== false; })
+        .map(function (x) { return x.serie; }));
+      cfgRenderAnos();
+    } catch (ex) { erro('Erro ao carregar anos: ' + (ex.message || ex)); }
+  };
+
+  window.cfgRenderAnos = function () {
+    var q = (document.getElementById('anoBusca').value || '').toLowerCase();
+    var box = document.getElementById('anosBox');
+    var lista = _anos.filter(function (a) { return !q || String(a.ano_escolar).toLowerCase().includes(q); });
+    box.innerHTML = lista.map(function (a) {
+      var s = a.ano_escolar, on = _anosExcl.has(s);
+      return '<label class="cfg-tela-chk mb-1" style="width:100%">'
+        + '<input type="checkbox" ' + (on ? 'checked' : '') + ' onchange="cfgToggleAno(this,\'' + escHtml(String(s).replace(/'/g, "\\'")) + '\')">'
+        + '<span style="flex:1">' + escHtml(s) + '</span>'
+        + '<span class="text-muted small">' + (a.qtd || 0) + '</span></label>';
+    }).join('') || '<div class="text-muted p-2">Nenhum ano.</div>';
+    document.getElementById('anoResumo').textContent = _anosExcl.size + ' marcado(s) para esconder · ' + _anos.length + ' no total';
+  };
+
+  window.cfgToggleAno = function (el, serie) {
+    if (el.checked) _anosExcl.add(serie); else _anosExcl.delete(serie);
+    document.getElementById('anoResumo').textContent = _anosExcl.size + ' marcado(s) para esconder · ' + _anos.length + ' no total';
+  };
+
+  window.cfgMarcarAnos = function (todos) {
+    var q = (document.getElementById('anoBusca').value || '').toLowerCase();
+    _anos.forEach(function (a) {
+      if (q && !String(a.ano_escolar).toLowerCase().includes(q)) return; // só os visíveis pelo filtro
+      if (todos) _anosExcl.add(a.ano_escolar); else _anosExcl.delete(a.ano_escolar);
+    });
+    cfgRenderAnos();
+  };
+
+  window.cfgSalvarAnos = async function () {
+    erro('');
+    try {
+      var del = await sb().from('config_series_excluidas').delete().neq('serie', '__nao_existe__');
+      if (del.error) throw del.error;
+      var rows = Array.from(_anosExcl).map(function (s) { return { serie: s, excluido: true }; });
+      if (rows.length) {
+        var ins = await sb().from('config_series_excluidas').insert(rows);
+        if (ins.error) throw ins.error;
+      }
+      erro('');
+      var resumo = document.getElementById('anoResumo');
+      resumo.innerHTML = '<span class="text-success fw-bold">Salvo! ' + rows.length + ' ano(s) ocultado(s).</span>';
+    } catch (ex) { erro('Erro ao salvar anos: ' + (ex.message || ex)); }
   };
 
   async function cfgCarregarCatalogos() {
