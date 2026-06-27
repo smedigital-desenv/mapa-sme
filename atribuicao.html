@@ -815,6 +815,25 @@ async function fetchTurmas() {
   return rows;
 }
 
+// Espera o auth.js resolver (para sabermos as escolas do usuário antes de filtrar).
+function aguardarAuth() {
+  return new Promise(resolve => {
+    if (window.MapaAuth && window.MapaAuth.perfil) return resolve();
+    document.addEventListener('mapa-auth-pronto', () => resolve(), { once: true });
+    setTimeout(resolve, 8000); // fallback: nunca trava a página
+  });
+}
+
+// Isolamento por escola: usuário de escola só vê as turmas da sua unidade.
+// (super admin e perfis sem escola vinculada continuam vendo tudo)
+function filtrarTurmasPorEscola(rows) {
+  try {
+    if (window.MapaAuth && window.MapaAuth.restritoEscola)
+      return window.MapaAuth.filtrarEscolas(rows, r => r.nome_unidade);
+  } catch (e) {}
+  return rows;
+}
+
 async function _fetchTurmasRede() {
   const PAGE = 1000;
   const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,situacao_professor_sub,vinculo_funcao_prop,vinculo_funcao_sub,funcao_professor,status_atribuicao';
@@ -2710,7 +2729,9 @@ async function exportarModalPendExcel() {
 // ── INICIALIZAÇÃO ─────────────────────────────────────────────────
 async function init() {
   try {
-    const [rows] = await Promise.all([fetchTurmas(), fetchSeriesExcluidas()]);
+    await aguardarAuth();   // garante que já sabemos as escolas do usuário
+    let [rows] = await Promise.all([fetchTurmas(), fetchSeriesExcluidas()]);
+    rows = filtrarTurmasPorEscola(rows);
     D = montarDados(rows);
 
     // Status — troca o spinner por um check verde quando termina
@@ -2738,7 +2759,8 @@ async function atualizarPainel() {
   if (icon) icon.classList.add('spin');
   try {
     window.__forcarRefetch = true; // "Atualizar" sempre busca dados frescos (ignora o cache)
-    const [rows] = await Promise.all([fetchTurmas(), fetchSeriesExcluidas()]);
+    let [rows] = await Promise.all([fetchTurmas(), fetchSeriesExcluidas()]);
+    rows = filtrarTurmasPorEscola(rows);
     D = montarDados(rows); // novo objeto → invalida memo de pendentes automaticamente
     discAtiva = discAtual;
     switchModo(modoAtual); // re-renderiza a visão em que o usuário estava
