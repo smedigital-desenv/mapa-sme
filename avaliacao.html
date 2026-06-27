@@ -5072,8 +5072,11 @@ function filtrosAvaliacaoAtuais() {
     ? _anoFiltroAtualSeguro()
     : (anoFiltroAtual && anoFiltroAtual !== 'TODOS' ? anoFiltroAtual : normalizarAnoFiltroFront(selAno?.value || 'TODOS'));
 
+  // Isolamento por escola: usuário restrito sempre filtra pela própria unidade.
+  var _uni = _hierUnidadeAtiva || 'TODAS';
+  if (window.MapaAuth && window.MapaAuth.restritoEscola && filtroUnidadeEscola) _uni = filtroUnidadeEscola;
   return {
-    unidade: _hierUnidadeAtiva || 'TODAS',
+    unidade: _uni,
     turma: _hierTurmaAtiva || 'TODAS',
     ano: anoSelecionado || 'TODOS'
   };
@@ -8039,7 +8042,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const vHash = _viewDoHash();
   if (vHash) { const r = document.getElementById('nav' + vHash); if (r) r.checked = true; }
 
-  atualizarDados();
+  // Isolamento por escola: pega a unidade do perfil (inclui simulação) antes de carregar.
+  function _aplicarUnidadeDoPerfil() {
+    try {
+      if (window.MapaAuth && window.MapaAuth.restritoEscola
+          && window.MapaAuth.escolas && window.MapaAuth.escolas.length) {
+        filtroUnidadeEscola = String(window.MapaAuth.escolas[0].nome || '').trim();
+        window.filtroUnidadeEscola = filtroUnidadeEscola;
+        tipoAcesso = 'unidade'; window.tipoAcesso = 'unidade';
+        _hierUnidadeAtiva = filtroUnidadeEscola;
+      }
+    } catch (e) {}
+  }
+  function _bootAval() { _aplicarUnidadeDoPerfil(); atualizarDados(); }
+  if (window.MapaAuth && window.MapaAuth.perfil) { _bootAval(); }
+  else {
+    var _booted = false, _go = function () { if (_booted) return; _booted = true; _bootAval(); };
+    document.addEventListener('mapa-auth-pronto', _go, { once: true });
+    setTimeout(_go, 8000);
+  }
 });
 
 let _preloadBackgroundIniciado = false;
