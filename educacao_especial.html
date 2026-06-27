@@ -370,12 +370,13 @@
     if(!alunos){ const {data,error}=await SB.rpc('ee_alunos',{p_unidade:unidade,p_status:null}); alunos=error?[]:(data||[]); _dashAlunosCache[unidade]=alunos; }
     if(_dashUni!==unidade) return;
     const tmap={};
-    alunos.forEach(a=>{ const k=(a[1]+' '+a[2]).trim(); const o=tmap[k]||(tmap[k]={n:0,er:0,eq:0,pr:0,pq:0}); o.n++; o.er+=a[6]||0;o.eq+=a[7]||0;o.pr+=a[8]||0;o.pq+=a[9]||0; });
+    // cobertura por turma: ecc/peic = nº de alunos COM a ficha (quest>0); n = total de alunos da turma
+    alunos.forEach(a=>{ const k=(a[1]+' '+a[2]).trim(); const o=tmap[k]||(tmap[k]={n:0,ecc:0,peic:0}); o.n++; if((a[7]||0)>0)o.ecc++; if((a[9]||0)>0)o.peic++; });
     const turmas=Object.entries(tmap).sort((a,b)=>a[0].localeCompare(b[0]));
     const limEsc=u[11]; const limTurmas=(LIM&&limEsc)?(LIM.turmas||[]).filter(t=>t[0]===limEsc):[];
     let html='<div class="sec-tt mb-1" style="font-size:.85rem;">Turmas (AEE) — clique para ver os alunos</div>';
     html+='<table class="mapa mb-3"><thead><tr><th>Turma</th><th class="text-center">Alunos AEE</th><th style="min-width:110px;">% Estudo de Caso</th><th style="min-width:110px;">% PEI</th></tr></thead><tbody>';
-    html+=turmas.map(([k,o])=>`<tr class="row-clic" onclick="abrirTurmaDash('${esc(k.replace(/'/g,"\\'"))}')"><td>${esc(k)}</td><td class="text-center fw-bold">${o.n}</td><td>${o.eq?barra(Math.round(o.er/o.eq*100),COR_EC):'<span class="text-muted">—</span>'}</td><td>${o.pq?barra(Math.round(o.pr/o.pq*100),COR_PEI):'<span class="text-muted">—</span>'}</td></tr>`).join('')||'<tr><td colspan="4" class="text-muted text-center p-2">Sem turmas.</td></tr>';
+    html+=turmas.map(([k,o])=>`<tr class="row-clic" onclick="abrirTurmaDash('${esc(k.replace(/'/g,"\\'"))}')"><td>${esc(k)}</td><td class="text-center fw-bold">${o.n}</td><td>${o.ecc?barra(Math.round(o.ecc/o.n*100),COR_EC):'<span class="text-muted">—</span>'}</td><td>${o.peic?barra(Math.round(o.peic/o.n*100),COR_PEI):'<span class="text-muted">—</span>'}</td></tr>`).join('')||'<tr><td colspan="4" class="text-muted text-center p-2">Sem turmas.</td></tr>';
     html+='</tbody></table>';
     if(limEsc){ html+='<div class="sec-tt mb-1" style="font-size:.85rem;">Turmas de liminar nesta unidade</div>';
       html+='<table class="mapa"><thead><tr><th>Turma/Período</th><th class="text-center">Período</th><th class="text-center">Alunos</th><th class="text-center">Situação</th></tr></thead><tbody>';
