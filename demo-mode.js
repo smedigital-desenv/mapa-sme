@@ -103,11 +103,28 @@
     var s2 = SOBRENOMES[(h >>> 13) % SOBRENOMES.length];
     return pr + ' ' + s1 + ' ' + s2;
   }
+  // Reverso fictício→real das escolas. Necessário porque os nomes de unidade
+  // aparecem pseudonimizados na tela e a página os reenvia ao banco como filtro
+  // (p_unidade em ee_alunos). Guardamos o real para reescrever o filtro antes do
+  // fetch — senão o banco (que só conhece o nome real) não acha aluno nenhum.
+  var ESCOLA_REV = {};
   function nomeEscola(seed) {
     var h = hash('e:' + seed);
     var s1 = SOBRENOMES[h % SOBRENOMES.length];
     var s2 = SOBRENOMES[(h >>> 9) % SOBRENOMES.length];
-    return 'EMEF ' + s1 + ' ' + s2; // fictícia, mas com aparência realista
+    var fake = 'EMEF ' + s1 + ' ' + s2; // fictícia, mas com aparência realista
+    var real = String(seed).replace(/^[a-z]\|/i, ''); // remove prefixo do seed (s|, u|…)
+    if (real) ESCOLA_REV[fake] = real;
+    return fake;
+  }
+  // Alunos recebem rótulo claramente fictício "Aluno N" (mais seguro para vídeo:
+  // não confundível com nome real). Consistente na sessão: o mesmo aluno é sempre
+  // o mesmo número onde quer que apareça.
+  var ALUNO_SEQ = {}, ALUNO_TOTAL = 0;
+  function nomeAluno(val) {
+    var k = String(val == null ? '' : val);
+    if (!ALUNO_SEQ[k]) ALUNO_SEQ[k] = ++ALUNO_TOTAL;
+    return 'Aluno ' + ALUNO_SEQ[k];
   }
   function codigoFunc(seed) { return 100000 + (hash('c:' + seed) % 900000); }
   function raAluno(seed) { return String(20000000000 + (hash('r:' + seed) % 9999999999)); }
@@ -135,7 +152,7 @@
 
   function substituirChave(key, val) {
     if (vazio(val)) return val;
-    if (SET_NOME_ALUNO[key]) return nomePessoa('a|' + val);
+    if (SET_NOME_ALUNO[key]) return nomeAluno(val);
     if (SET_NOME_PROF[key]) return nomePessoa('t|' + val);
     if (SET_NOME_PROF_MULTI[key]) return pseudonimizarLista(val);
     if (SET_NOME_GEN[key]) return nomeEscola('u|' + val);
@@ -172,11 +189,11 @@
       data.forEach(function (a) {
         setRow(a, 0, function (v) { return nomeEscola('s|' + v); });
         setRow(a, 3, function (v) { return raAluno(v); });
-        setRow(a, 4, function (v) { return nomePessoa('a|' + v); });
+        setRow(a, 4, function (v) { return nomeAluno(v); });
       });
     } else if (url.indexOf('/rpc/ee_liminar') !== -1) {
       (data.alunos || []).forEach(function (a) {
-        setRow(a, 0, function (v) { return nomePessoa('a|' + v); });
+        setRow(a, 0, function (v) { return nomeAluno(v); });
         setRow(a, 1, function (v) { return raAluno(v); });
         setRow(a, 2, function (v) { return nomeEscola('s|' + v); });
       });
@@ -190,10 +207,12 @@
       });
     } else if (url.indexOf('/rpc/ee_dash') !== -1) {
       // unidades = [unidade,turmas_nee,alunos_nee,ec_pct,pei_pct,liminar_turmas,
-      //             prof_manha,prof_tarde,liminar_status,liminar_escola]
+      //             liminar_manha,liminar_tarde,prof_manha,prof_tarde,liminar_status,liminar_escola]
+      // (0 = unidade; 11 = liminar_escola — ambos pseudonimizados com o mesmo
+      //  seed 's|' p/ casarem no drill-down).
       (data.unidades || []).forEach(function (u) {
         setRow(u, 0, function (v) { return nomeEscola('s|' + v); });
-        setRow(u, 9, function (v) { return nomeEscola('s|' + v); });
+        setRow(u, 11, function (v) { return nomeEscola('s|' + v); });
       });
     } else if (url.indexOf('/rpc/ee_resumo') !== -1) {
       (data.por_unidade || []).forEach(function (u) {
@@ -213,7 +232,7 @@
       data.forEach(function (r) {
         setRow(r, 0, function (v) { return nomeEscola('s|' + v); });
         setRow(r, 3, function (v) { return raAluno(v); });
-        setRow(r, 4, function (v) { return nomePessoa('a|' + v); });
+        setRow(r, 4, function (v) { return nomeAluno(v); });
       });
     } else if (url.indexOf('/rpc/agrupar_bimestres') !== -1 && data) {
       // grupos = [bimestre, unidade, ano, turma, disciplina, eixo, ...] (posicional)
@@ -247,6 +266,18 @@
     window.fetch = function (input, init) {
       var url = (typeof input === 'string') ? input : (input && input.url) || '';
       var method = (init && init.method) || (input && input.method) || 'GET';
+
+      // Reescrita do filtro de unidade: a tela manda o nome FICTÍCIO de volta como
+      // filtro (p_unidade) — traduzimos para o REAL para o banco encontrar os alunos.
+      if (url.indexOf('/rpc/ee_alunos') !== -1 && init && typeof init.body === 'string') {
+        try {
+          var corpo = JSON.parse(init.body);
+          if (corpo && corpo.p_unidade && ESCOLA_REV[corpo.p_unidade]) {
+            corpo.p_unidade = ESCOLA_REV[corpo.p_unidade];
+            init = Object.assign({}, init, { body: JSON.stringify(corpo) });
+          }
+        } catch (e) {}
+      }
 
       // Bloqueio de gravações (sucesso fictício, nada persiste).
       if (BLOCK_WRITES && isWrite(url, method)) {
