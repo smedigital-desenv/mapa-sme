@@ -36,6 +36,9 @@
     return String(s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
       .replace(/[^A-Z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
   }
+  // Nome "base" = parte antes da vírgula (sem o sufixo EMEI/EMEF/CEI/PROF…),
+  // que é o que distingue a unidade entre bases com grafias diferentes.
+  function baseEscola(s) { return normEscola(String(s || '').split(',')[0]); }
 
   function telaAtual() {
     var f = (location.pathname.split('/').pop() || 'index.html').replace(/\.html$/i, '');
@@ -94,11 +97,19 @@
       // restritoEscola = true quando o perfil efetivo (inclusive simulado) está
       // amarrado a escolas específicas. Super admin e perfis sem escola = vê tudo.
       restritoEscola: false,
-      escolasNomes: [],            // nomes normalizados das escolas do perfil
+      escolasNomes: [],            // nomes normalizados (completos) das escolas do perfil
+      escolasBases: [],            // nomes "base" (antes da vírgula) p/ casamento tolerante
       podeVerEscola: function (nome) {
         if (!this.restritoEscola) return true;
         var n = normEscola(nome);
-        return !!n && this.escolasNomes.indexOf(n) !== -1;
+        if (!n) return false;
+        if (this.escolasNomes.indexOf(n) !== -1) return true;   // igualdade completa
+        var nb = baseEscola(nome);                              // tolerante: nome base
+        for (var i = 0; i < this.escolasBases.length; i++) {
+          var b = this.escolasBases[i];
+          if (b && (b === nb || nb.indexOf(b) === 0 || b.indexOf(nb) === 0)) return true;
+        }
+        return false;
       },
       // Filtra uma lista de registros pelas escolas do usuário.
       // getNome(row) -> nome da unidade no registro (default: o próprio item).
@@ -180,6 +191,7 @@
       api.perfil = perms.perfil;
       api.escolas = perms.escolas || [];
       api.escolasNomes = api.escolas.map(function (e) { return normEscola(e.nome); }).filter(Boolean);
+      api.escolasBases = api.escolas.map(function (e) { return baseEscola(e.nome); }).filter(Boolean);
       // restrito a escolas se NÃO for super admin e tiver escola(s) vinculada(s)
       api.restritoEscola = !(api.perfil && api.perfil.is_super_admin) && api.escolasNomes.length > 0;
       api._todos = perms.sistemas || [];
