@@ -70,7 +70,12 @@ Rode [`sql/10_simular_acesso.sql`](sql/10_simular_acesso.sql). Ele:
 - **libera `matheusprospero@gmail.com`** (fora do domínio) como super admin.
 
 No painel de Configurações, o botão <i>incógnito</i> ao lado de cada perfil entra
-no modo simulação. Ordem completa: `sql/07` → `sql/08` → `sql/09` → `sql/10`.
+no modo simulação. Ordem completa: `sql/07` → `sql/08` → `sql/09` → `sql/10` → `sql/11`.
+
+[`sql/11_bypass_dominio.sql`](sql/11_bypass_dominio.sql) adiciona a flag
+`perfis.bypass_dominio`: libera um e-mail **fora do domínio** (ex.: `@gmail.com`) a
+logar como usuário normal, sem ser super admin. Na tela de Configurações há o
+checkbox "Permitir login fora do domínio".
 
 ## Passo 3c — Migrar os usuários/unidades antigos (opcional, recomendado)
 
