@@ -122,16 +122,27 @@ INSERT INTO ee_dash (unidade,turmas_nee,alunos_nee,ec_resp,ec_quest,pei_resp,pei
 ('VITOR YOUSSEF DARKOUBI, CEI',2,2,0,0,0,0,'Vitor Youssef Darkoubi, CEI',1,1,1,0,0,'Pendência'),
 ('VOVO MECA, CRECHE',1,1,0,0,0,0,'',0,0,0,0,0,'');
 
+-- ec_pct/pei_pct = COBERTURA (alunos com a ficha ÷ alunos AEE), calculada da tabela-fonte
+-- educacao_especial — igual à aba AEE (ee_resumo). Estrutura/liminares continuam vindo de ee_dash.
 CREATE OR REPLACE FUNCTION ee_dash() RETURNS json LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $FN$
+  WITH cov AS (
+    SELECT unidade,
+           count(*)                            AS alunos,
+           count(*) FILTER (WHERE ec_quest>0)  AS ec_cov,
+           count(*) FILTER (WHERE pei_quest>0) AS pei_cov
+    FROM educacao_especial GROUP BY unidade
+  )
   SELECT json_build_object(
-    'geral',(SELECT json_build_object('unidades',count(*),'turmas_nee',coalesce(sum(turmas_nee),0),'alunos_nee',coalesce(sum(alunos_nee),0),
-       'ec_pct',CASE WHEN sum(ec_quest)>0 THEN round(sum(ec_resp)::numeric/sum(ec_quest)*100,1) ELSE 0 END,
-       'pei_pct',CASE WHEN sum(pei_quest)>0 THEN round(sum(pei_resp)::numeric/sum(pei_quest)*100,1) ELSE 0 END,
-       'liminar_turmas',coalesce(sum(liminar_turmas),0),'unid_lim_pend',(SELECT count(*) FROM ee_dash WHERE liminar_status='Pendência')) FROM ee_dash),
-    'unidades',coalesce((SELECT json_agg(json_build_array(unidade,turmas_nee,alunos_nee,
-       CASE WHEN ec_quest>0 THEN round(ec_resp::numeric/ec_quest*100) ELSE null END,
-       CASE WHEN pei_quest>0 THEN round(pei_resp::numeric/pei_quest*100) ELSE null END,
-       liminar_turmas,liminar_manha,liminar_tarde,prof_manha,prof_tarde,liminar_status,liminar_escola)) FROM (SELECT * FROM ee_dash ORDER BY unidade) x),'[]'::json));
+    'geral',(SELECT json_build_object('unidades',count(*),'turmas_nee',coalesce(sum(d.turmas_nee),0),'alunos_nee',coalesce(sum(d.alunos_nee),0),
+       'ec_pct',CASE WHEN sum(c.alunos)>0 THEN round(sum(c.ec_cov)::numeric/sum(c.alunos)*100,1) ELSE 0 END,
+       'pei_pct',CASE WHEN sum(c.alunos)>0 THEN round(sum(c.pei_cov)::numeric/sum(c.alunos)*100,1) ELSE 0 END,
+       'liminar_turmas',coalesce(sum(d.liminar_turmas),0),'unid_lim_pend',(SELECT count(*) FROM ee_dash WHERE liminar_status='Pendência'))
+       FROM ee_dash d LEFT JOIN cov c ON c.unidade=d.unidade),
+    'unidades',coalesce((SELECT json_agg(json_build_array(d.unidade,d.turmas_nee,d.alunos_nee,
+       CASE WHEN c.ec_cov>0  THEN round(c.ec_cov::numeric /c.alunos*100) ELSE null END,
+       CASE WHEN c.pei_cov>0 THEN round(c.pei_cov::numeric/c.alunos*100) ELSE null END,
+       d.liminar_turmas,d.liminar_manha,d.liminar_tarde,d.prof_manha,d.prof_tarde,d.liminar_status,d.liminar_escola) ORDER BY d.unidade)
+       FROM ee_dash d LEFT JOIN cov c ON c.unidade=d.unidade),'[]'::json));
 $FN$;
 GRANT SELECT ON ee_dash TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION ee_dash() TO anon, authenticated;
