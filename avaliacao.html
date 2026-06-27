@@ -2785,6 +2785,14 @@ function _filtrarAlunosPorUnidade(lista) {
   return lista.filter(a => _unidadeMatchFiltro(a.u || a.unidade || ''));
 }
 
+// Filtra a ÁRVORE de hierarquia (objeto unidade->turmas) para a lista lateral.
+function _filtrarArvorePorUnidade(arvore) {
+  if (!filtroUnidadeEscola || !arvore) return arvore || {};
+  const res = {};
+  Object.keys(arvore).forEach(u => { if (_unidadeMatchFiltro(u)) res[u] = arvore[u]; });
+  return res;
+}
+
 // ===========================================================
 // CACHE FRONT — memória + sessionStorage + fila de preload
 // ===========================================================
@@ -4724,7 +4732,7 @@ function _construirArvoreDiag() {
 
 function renderHierarquiaDiag(forcarRecriar) {
   if (forcarRecriar || !Object.keys(_hierArvoreDiag || {}).length) {
-    _hierArvoreDiag = _construirArvoreDiag();
+    _hierArvoreDiag = _filtrarArvorePorUnidade(_construirArvoreDiag());
   }
 
   const container = document.getElementById('hierarquiaContainerDiag');
@@ -5117,7 +5125,7 @@ function _atualizarBreadcrumb() {
 // HIERARQUIA LATERAL
 // ===========================================================
 function renderHierarquia(arvore) {
-  _hierArvore = arvore || {};
+  _hierArvore = _filtrarArvorePorUnidade(arvore || {});
   const container = document.getElementById('hierarquiaContainer');
   if (!container) return;
 
@@ -6226,7 +6234,7 @@ function carregarHierarquiaTotal() {
 }
 
 function renderHierarquiaTotal(arvore) {
-  _hierArvoreTotal = arvore || {};
+  _hierArvoreTotal = _filtrarArvorePorUnidade(arvore || {});
   const container = document.getElementById('hierarquiaContainerTotal');
   if (!container) return;
 
