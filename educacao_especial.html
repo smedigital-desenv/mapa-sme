@@ -94,7 +94,7 @@
       <div class="d-flex gap-2 flex-wrap align-items-center mb-2 p-2" style="background:#f8fafc;border:1px solid #eef2f7;border-radius:10px;">
         <span class="text-muted fw-bold d-flex align-items-center" style="font-size:.74rem;white-space:nowrap;"><i class="bi bi-funnel-fill me-1"></i>Filtros</span>
         <select id="filtroSitDash" class="form-select form-select-sm" style="width:auto;min-width:160px;"><option value="">Liminar: todas</option><option value="com">Com liminar</option><option value="sem">Sem liminar</option><option value="Atendida">Atendida</option><option value="Pendência">Pendência</option><option value="semapoio">Liminar sem apoio</option><option value="Fora">Fora da rede mun.</option></select>
-        <select id="filtroAeeDash" class="form-select form-select-sm" style="width:auto;min-width:130px;"><option value="">AEE: todos</option><option value="ec">EC &lt; 100%</option><option value="pei">PEI &lt; 100%</option><option value="sempei">Sem PEI</option></select>
+        <select id="filtroAeeDash" class="form-select form-select-sm" style="width:auto;min-width:150px;"><option value="">AEE: todos</option><option value="ec">EC &lt; 100%</option><option value="eccompleto">Estudo de Caso completo</option><option value="semec">Sem estudo de caso</option><option value="pei">PEI &lt; 100%</option><option value="peicompleto">PEI completo</option><option value="sempei">Sem PEI</option></select>
         <select id="filtroTipoDash" class="form-select form-select-sm" style="width:auto;min-width:110px;"><option value="">Tipo: todos</option><option>CEI</option><option>EMEI</option><option>EMEF</option><option>Outros</option></select>
         <input id="buscaDash" class="form-control form-control-sm" style="flex:1;min-width:160px;max-width:260px;" placeholder="Buscar unidade…">
         <button class="btn btn-sm btn-outline-secondary fw-bold ms-auto" onclick="limparFiltrosDash()" title="Limpar filtros"><i class="bi bi-x-circle me-1"></i>Limpar</button>
@@ -535,7 +535,10 @@
       if(t && !String(u[0]).toLowerCase().includes(t)) return false;
       if(tipo && _tipoUn(u[0])!==tipo) return false;
       if(aee==='ec'  && !(u[3]!=null && u[3]<100)) return false;
+      if(aee==='eccompleto' && u[3]!==100) return false;
+      if(aee==='semec' && u[3]!=null) return false;
       if(aee==='pei' && !(u[4]!=null && u[4]<100)) return false;
+      if(aee==='peicompleto' && u[4]!==100) return false;
       if(aee==='sempei' && u[4]!=null) return false;
       if(sit){ const ds=u[5]>0?_statusUnCov(u[0],u[10]):'';
         if(sit==='com' && !(u[5]>0)) return false;
