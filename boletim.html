@@ -55,6 +55,17 @@
     .seg > span { display:block; height:100%; }
     .legend { display:flex; flex-wrap:wrap; gap:.4rem .9rem; font-size:.7rem; color:#475569; margin-top:.4rem; }
     .legend i { width:10px; height:10px; border-radius:2px; display:inline-block; margin-right:4px; vertical-align:-1px; }
+    /* ── Barra de perfis de fluência (meta 70% + divisória pré→leitor), igual à tela Fluência ── */
+    .barra-wrap { padding:18px 0 22px; }
+    .barra-perfis-rel { position:relative; width:100%; }
+    .barra-perfis { display:flex; height:22px; border-radius:6px; overflow:hidden; width:100%; background:#e2e8f0; }
+    .barra-seg { height:100%; display:flex; align-items:center; justify-content:center; font-size:.6rem; font-weight:900; color:#fff; overflow:hidden; white-space:nowrap; }
+    .barra-seg:first-child { border-radius:6px 0 0 6px; } .barra-seg:last-child { border-radius:0 6px 6px 0; }
+    .barra-meta-linha { position:absolute; top:-3px; bottom:-3px; width:0; border-left:2.5px dashed #059669; z-index:3; left:30%; }
+    .barra-meta-linha::before { content:'META'; position:absolute; top:-14px; left:-16px; font-size:.54rem; font-weight:900; color:#fff; background:#059669; padding:0 4px; border-radius:3px; white-space:nowrap; line-height:1.2; }
+    .barra-divisa-linha { position:absolute; top:-3px; bottom:-3px; width:0; border-left:2.5px dashed var(--divisa-cor,#dc2626); z-index:2; }
+    .barra-divisa-linha::before { content:'PRÉ → LEITOR'; position:absolute; bottom:-16px; left:-28px; font-size:.52rem; font-weight:800; color:#fff; background:var(--divisa-cor,#dc2626); padding:1px 5px; border-radius:3px; white-space:nowrap; }
+    .meta-status { font-size:.7rem; font-weight:800; display:inline-flex; align-items:center; }
     .badge-st { font-weight:800; font-size:.66rem; padding:3px 9px; border-radius:999px; white-space:nowrap; }
     .st-ok{background:#d1fae5;color:#047857;} .st-pend{background:#fee2e2;color:#b91c1c;} .st-fora{background:#e2e8f0;color:#475569;} .st-na{background:#e2e8f0;color:#64748b;}
     .muted { color:#94a3b8; }
@@ -69,7 +80,7 @@
       #printHead { display:block; }
       .sec, .card-box, .kpi { box-shadow:none !important; border:1px solid #e2e8f0; }
       .sec { break-inside:avoid; page-break-inside:avoid; }
-      table.mapa thead th, .seg > span, .bar > span, .kpi { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      table.mapa thead th, .seg > span, .bar > span, .kpi, .barra-perfis, .barra-seg, .barra-meta-linha, .barra-divisa-linha { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
       a.verlink { display:none; }
     }
   </style>
@@ -384,12 +395,26 @@
       h+=kpi('% Leitores', pct(leitores,flu.aval)+'%', '#10b981', fmt(leitores)+' (iniciante+fluente)');
       h+=kpi('Ausentes', fmt(flu.aus), '#ef4444');
       h+='</div>';
-      // barra de perfis de leitura
-      const segs=[['Pré N1',flu.n1,'#BF5AF2'],['Pré N2',flu.n2,'#FF6B35'],['Pré N3',flu.n3,'#FFD60A'],['Pré N4',flu.n4,'#34C759'],['Iniciante',flu.ini,'#00C7BE'],['Fluente',flu.flu,'#0A84FF']];
-      const tot=segs.reduce((a,s)=>a+s[1],0);
-      if(tot){
-        h+='<div class="seg">'+segs.map(s=>`<span style="width:${s[1]/tot*100}%;background:${s[2]};" title="${s[0]}: ${s[1]}"></span>`).join('')+'</div>';
-        h+='<div class="legend">'+segs.map(s=>`<span><i style="background:${s[2]};"></i>${s[0]} <b>${s[1]}</b></span>`).join('')+'</div>';
+      // ── Barra de perfis (igual ao fluencia.html): largura sobre AVALIADOS, com
+      // linha META (70% leitores) e divisória dinâmica pré-leitor → leitor ──
+      const denom = flu.aval || 0;
+      const SEGS=[['Pré-leitor N1',flu.n1,'#dc2626'],['Pré-leitor N2',flu.n2,'#FF007F'],['Pré-leitor N3',flu.n3,'#F59E0B'],['Pré-leitor N4',flu.n4,'#8B5CF6'],['Iniciante',flu.ini,'#3B82F6'],['Fluente',flu.flu,'#10B981']];
+      if(denom){
+        const segHtml=SEGS.map(s=>{ const n=s[1]||0; if(!n) return ''; const p=n/denom*100; const lbl=p>=6?p.toFixed(0)+'%':''; return `<div class="barra-seg" style="width:${p.toFixed(1)}%;background:${s[2]};" title="${s[0]}: ${n} (${p.toFixed(1)}%)">${lbl}</div>`; }).join('');
+        const preLeit=(flu.n1||0)+(flu.n2||0)+(flu.n3||0)+(flu.n4||0);
+        const pctDiv=preLeit/denom*100;
+        const corDiv=pctDiv<30?'#2563eb':'#dc2626';
+        const divisa=preLeit>0?`<div class="barra-divisa-linha" style="left:${pctDiv.toFixed(1)}%;--divisa-cor:${corDiv};" title="Pré-leitores → Leitores (${pctDiv.toFixed(1)}%)"></div>`:'';
+        const okAtual=(flu.ini||0)+(flu.flu||0);
+        const pctOk=okAtual/denom*100;
+        const atingiu=pctOk>=70;
+        const faltam=Math.max(0,Math.ceil(denom*0.70)-okAtual);
+        const corSt=atingiu?'#059669':(faltam<=3?'#d97706':'#dc2626');
+        const status=atingiu
+          ? `<span class="meta-status" style="color:#059669;"><i class="bi bi-check-circle-fill me-1"></i>Meta atingida (${pctOk.toFixed(0)}%)</span>`
+          : `<span class="meta-status" style="color:${corSt};"><i class="bi bi-arrow-up-circle-fill me-1"></i>Faltam ${faltam} aluno${faltam!==1?'s':''} (${pctOk.toFixed(0)}% → 70%)</span>`;
+        h+=`<div class="barra-wrap"><div class="barra-perfis-rel"><div class="barra-perfis">${segHtml}</div>${divisa}<div class="barra-meta-linha" title="Meta: 70% Iniciante + Fluente"></div></div><div style="margin-top:16px;">${status}</div></div>`;
+        h+='<div class="legend">'+SEGS.map(s=>`<span><i style="background:${s[2]};"></i>${s[0]} <b>${s[1]||0}</b></span>`).join('')+'</div>';
       }
       $('fluBody').innerHTML=h;
       return flu;
