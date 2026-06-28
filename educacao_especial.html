@@ -161,10 +161,6 @@
   <!-- ══════ APOIO ══════ -->
   <section id="viewApoio" style="display:none;">
     <div class="row g-2 g-lg-3 mb-3" id="kpisApoio"></div>
-    <div class="row g-3 mb-3">
-      <div class="col-lg-4"><div class="card-box p-3 h-100"><div class="sec-tt mb-2">Professores × Apoios (rede)</div><div style="position:relative;height:230px;"><canvas id="donutApoio"></canvas></div></div></div>
-      <div class="col-lg-8"><div class="card-box p-3 h-100"><div class="sec-tt mb-2">Professores de apoio por escola (15 maiores)</div><div style="position:relative;height:230px;"><canvas id="barApoio"></canvas></div></div></div>
-    </div>
     <div class="row g-3"><div class="col-12"><div class="card-box p-3">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
         <div class="sec-tt"><i class="bi bi-building me-1"></i>Apoio pedagógico por escola</div>
@@ -404,12 +400,21 @@
     if(_VINC) _VINC=_VINC.filter(v=>v.id!==id);
     buildLimCov(); renderUnidadeTurmas(); if(APOIO) renderApoioTab();
   }
-  function renderApoio(){ const g=APOIO.geral||{}, es=APOIO.escolas||[];
-    kpiHTML('kpisApoio',[['Escolas',fmt(g.escolas),'var(--primary)'],['Prof. Manhã',fmt(g.prof_manha),'#f59e0b'],['Prof. Tarde',fmt(g.prof_tarde),'#0ea5e9'],['Total Professores',fmt(g.professores),'#10b981'],['Apoios (ASSEJ)',fmt(g.apoios),'#8b5cf6']]);
-    chart('donutApoio',{type:'doughnut',data:{labels:['Prof. Manhã','Prof. Tarde','Apoios (ASSEJ)'],datasets:[{data:[g.prof_manha||0,g.prof_tarde||0,g.apoios||0],backgroundColor:['#f59e0b','#0ea5e9','#8b5cf6'],borderColor:'#fff',borderWidth:3,hoverOffset:12}]},options:{maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{font:{size:10}}}}}});
-    const top=[...es].map(e=>[e[1],(e[2]||0)+(e[3]||0)]).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,15);
-    chart('barApoio',{type:'bar',data:{labels:top.map(e=>e[0].length>24?e[0].slice(0,22)+'…':e[0]),datasets:[{data:top.map(e=>e[1]),backgroundColor:'#0ea5e9',borderRadius:5}]},options:{indexAxis:'y',maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>top[i[0].dataIndex][0],label:x=>`${x.raw} professor(es)`}}},scales:{y:{ticks:{font:{size:9}}}}}});
-    renderApoioTab();
+  function recalcApoioGeral(){ const es=APOIO.escolas||[]; APOIO.geral={ escolas:es.length, prof_manha:_soma(es,2), prof_tarde:_soma(es,3), professores:_soma(es,2)+_soma(es,3), apoios:_soma(es,4) }; }
+  function renderApoioKpis(){ const g=APOIO.geral||{};
+    kpiHTML('kpisApoio',[['Escolas',fmt(g.escolas),'var(--primary)'],['Prof. Manhã',fmt(g.prof_manha),'#f59e0b'],['Prof. Tarde',fmt(g.prof_tarde),'#0ea5e9'],['Total Professores',fmt(g.professores),'#10b981'],['Apoios (ASSEJ)',fmt(g.apoios),'#8b5cf6']]); }
+  function renderApoio(){ renderApoioKpis(); renderApoioTab(); }
+  // salvar a quantidade (prof_manha/prof_tarde/apoios) de uma escola na tabela ee_apoio
+  async function salvarApoio(escola, campo, inputEl){
+    const v=Math.max(0, parseInt(inputEl.value,10)||0); inputEl.value=v; inputEl.disabled=true;
+    const upd={}; upd[campo]=v;
+    const {error}=await SB.from('ee_apoio').update(upd).eq('escola',escola);
+    inputEl.disabled=false;
+    if(error){ alert('Erro ao salvar: '+error.message); return; }
+    const idx={prof_manha:2,prof_tarde:3,apoios:4}[campo];
+    const row=(APOIO.escolas||[]).find(e=>e[1]===escola); if(row) row[idx]=v;
+    recalcApoioGeral(); renderApoioKpis();   // KPIs no topo; total da linha sem re-render (mantém o foco)
+    const tr=inputEl.closest('tr'); const tc=tr&&tr.querySelector('.ap-total'); if(tc&&row) tc.textContent=(row[2]||0)+(row[3]||0);
   }
   function renderApoioTab(){ const tp=document.getElementById('filtroTipoApoio').value, t=(document.getElementById('buscaApoio').value||'').toLowerCase();
     const l=(APOIO.escolas||[]).filter(e=>(!tp||e[0]===tp)&&(!t||String(e[1]).toLowerCase().includes(t)));
@@ -418,7 +423,11 @@
         ? `<button class="btn btn-sm btn-outline-primary" style="font-weight:700;padding:2px 10px;" onclick="abrirApoioVinc('${esc(String(escola).replace(/'/g,"\\'"))}',${e[2]||0},${e[3]||0})"><i class="bi bi-link-45deg"></i> ${cnt?'Editar':'Vincular'}</button>`
         : (cnt?`<span class="text-muted" style="font-size:.78rem;">${cnt} sala(s)</span>`:'<span class="text-muted">—</span>');
       const badge = cnt?`<span class="badge bg-success me-1">${cnt}</span>`:'';
-      return `<tr><td><span class="badge bg-secondary">${esc(e[0])}</span></td><td title="${esc(escola)}">${esc(escola)}</td><td class="text-center" style="color:#f59e0b;font-weight:700;">${e[2]||0}</td><td class="text-center" style="color:#0ea5e9;font-weight:700;">${e[3]||0}</td><td class="text-center fw-bold">${(e[2]||0)+(e[3]||0)}</td><td class="text-center" style="color:#8b5cf6;">${e[4]||0}</td><td class="text-center">${badge}${acao}</td></tr>`;
+      const escJs=esc(String(escola).replace(/'/g,"\\'"));
+      const numCell=(val,cor,campo)=> ed
+        ? `<td class="text-center"><input type="number" min="0" value="${val||0}" class="form-control form-control-sm d-inline-block text-center" style="width:56px;font-weight:700;color:${cor};padding:1px 4px;" onchange="salvarApoio('${escJs}','${campo}',this)"></td>`
+        : `<td class="text-center" style="color:${cor};font-weight:700;">${val||0}</td>`;
+      return `<tr><td><span class="badge bg-secondary">${esc(e[0])}</span></td><td title="${esc(escola)}">${esc(escola)}</td>${numCell(e[2],'#f59e0b','prof_manha')}${numCell(e[3],'#0ea5e9','prof_tarde')}<td class="text-center fw-bold ap-total">${(e[2]||0)+(e[3]||0)}</td>${numCell(e[4],'#8b5cf6','apoios')}<td class="text-center">${badge}${acao}</td></tr>`;
     }).join('')||'<tr><td colspan="7" class="text-muted p-3 text-center">Sem dados</td></tr>';
     document.getElementById('contadorApoio').textContent=`${l.length} escola(s)`; }
 
