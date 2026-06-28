@@ -536,6 +536,8 @@
     alunos.forEach(a=>{ const k=(a[1]+' '+a[2]).trim(); const o=tmap[k]||(tmap[k]={n:0,ecc:0,peic:0,lim:0,limPer:''}); o.n++; if((a[7]||0)>0)o.ecc++; if((a[9]||0)>0)o.peic++;
       const lr=_dashLim[_normEE(a[4])]; if(lr){ o.lim++; if(!o.limPer&&lr.periodo)o.limPer=lr.periodo; } });
     const turmas=Object.entries(tmap).sort((a,b)=>a[0].localeCompare(b[0]));
+    // quantas turmas distintas cada slot de apoio já cobre nesta escola (p/ decidir o vínculo)
+    const _slotCount={}; { const m={}; (_VINC||[]).forEach(v=>{ if(_matchEscEE(v.escola,unidade)){ const key=(v.periodo==='Manhã'?'M':'T')+v.slot; (m[key]||(m[key]=new Set())).add(_normEE(v.turma_label)); } }); Object.keys(m).forEach(key=>_slotCount[key]=m[key].size); }
     let html='<div class="sec-tt mb-1" style="font-size:.85rem;">Turmas (AEE) — clique para ver os alunos'+(canEdit?' &middot; use <b>+ apoio</b> para vincular':'')+'</div>';
     html+='<table class="mapa"><thead><tr><th>Turma</th><th class="text-center">Alunos AEE</th><th>Liminar</th><th style="min-width:104px;">% Estudo de Caso</th><th style="min-width:104px;">% PEI</th><th style="min-width:150px;">Prof. de apoio</th></tr></thead><tbody>';
     html+=turmas.map(([k,o])=>{
@@ -544,10 +546,10 @@
       let addSel='';
       if(canEdit){
         const linked=new Set(vincs.map(v=>(v.periodo==='Manhã'?'M':'T')+v.slot));
-        const opts=[], add=(s,cnt)=>{ for(let i=1;i<=(cnt||0);i++){ if(!linked.has(s+i)) opts.push(`<option value="${s}|${i}">Apoio ${s} ${i}</option>`); } };
+        const opts=[], add=(s,cnt)=>{ for(let i=1;i<=(cnt||0);i++){ const key=s+i; if(!linked.has(key)){ const c=_slotCount[key]||0; opts.push(`<option value="${s}|${i}">Apoio ${s} ${i}${c?` · em ${c} turma${c>1?'s':''}`:' · livre'}</option>`); } } };
         const sig=_perSig(o.limPer);   // só os apoios do período da turma (turma sem liminar → ambos)
         if(sig==='M') add('M',u[8]); else if(sig==='T') add('T',u[9]); else { add('M',u[8]); add('T',u[9]); }
-        if(opts.length) addSel=`<select class="form-select form-select-sm" style="width:auto;display:inline-block;font-size:.68rem;padding:1px 6px;" onclick="event.stopPropagation();" onchange="adicionarVincDash('${esc(k.replace(/'/g,"\\'"))}',this)"><option value="">+ apoio…</option>${opts.join('')}</select>`;
+        if(opts.length) addSel=`<select class="form-select form-select-sm" style="width:auto;min-width:118px;display:inline-block;font-size:.7rem;" onclick="event.stopPropagation();" onchange="adicionarVincDash('${esc(k.replace(/'/g,"\\'"))}',this)"><option value="">+ apoio…</option>${opts.join('')}</select>`;
       }
       const apCell=`<div class="d-flex flex-wrap align-items-center gap-1">${badges||(canEdit?'':'<span class="text-muted">—</span>')}${addSel}</div>`;
       const atend=vincs.length>0;   // "Atendida" = turma tem professor de apoio vinculado
