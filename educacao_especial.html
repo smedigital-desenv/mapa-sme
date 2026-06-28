@@ -92,7 +92,11 @@
     <div class="card-box p-3">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
         <div class="sec-tt"><i class="bi bi-building me-1"></i>Por unidade — AEE + Liminares + Apoio</div>
-        <input id="buscaDash" class="form-control form-control-sm" style="max-width:240px;" placeholder="Buscar unidade…">
+        <div class="d-flex gap-2 flex-wrap">
+          <select id="filtroSitDash" class="form-select form-select-sm" style="max-width:180px;"><option value="">Liminar: todas</option><option value="com">Com liminar</option><option value="sem">Sem liminar</option><option value="Atendida">Atendida</option><option value="Pendência">Pendência</option><option value="Fora">Fora da rede mun.</option></select>
+          <select id="filtroTipoDash" class="form-select form-select-sm" style="max-width:120px;"><option value="">Tipo: todos</option><option>CEI</option><option>EMEI</option><option>EMEF</option><option>Outros</option></select>
+          <input id="buscaDash" class="form-control form-control-sm" style="max-width:220px;" placeholder="Buscar unidade…">
+        </div>
       </div>
       <div class="text-muted mb-1" style="font-size:.72rem;"><i class="bi bi-hand-index"></i> Clique numa unidade para ver as turmas → e a turma para ver os alunos.</div>
       <div style="max-height:74vh;overflow:auto;"><table class="mapa"><thead><tr>
@@ -518,8 +522,25 @@
   function renderDash(){ const g=DASH.geral||{};
     kpiHTML('kpisDash',[['Unidades',fmt(g.unidades),'var(--primary)'],['Turmas AEE',fmt(g.turmas_nee),'#0ea5e9'],['Alunos AEE',fmt(g.alunos_nee),'#10b981'],['% Estudo de Caso',(g.ec_pct||0)+'%',COR_EC],['% PEI',(g.pei_pct||0)+'%',COR_PEI],['Turmas liminar',fmt(g.liminar_turmas),'#ef4444']]);
     renderDashTab(); }
+  function _tipoUn(nome){ const seg=String(nome||'').split(',').pop().trim().toUpperCase(), n=String(nome||'').toUpperCase();
+    if(seg.indexOf('EMEF')===0||seg.indexOf('CEEEF')===0||n.includes('EMEF')) return 'EMEF';
+    if(seg.indexOf('EMEI')===0||seg.indexOf('EEI')===0||n.includes('EMEI')||n.includes(' EEI')) return 'EMEI';
+    if(seg.indexOf('CEI')===0||seg.indexOf('CRECHE')===0||n.includes(' CEI')||n.includes('CRECHE')) return 'CEI';
+    return 'Outros'; }
   function renderDashTab(){ const t=(document.getElementById('buscaDash').value||'').toLowerCase();
-    const l=(DASH.unidades||[]).filter(u=>!t||String(u[0]).toLowerCase().includes(t));
+    const sit=document.getElementById('filtroSitDash').value, tipo=document.getElementById('filtroTipoDash').value;
+    const l=(DASH.unidades||[]).filter(u=>{
+      if(t && !String(u[0]).toLowerCase().includes(t)) return false;
+      if(tipo && _tipoUn(u[0])!==tipo) return false;
+      if(sit){ const ds=u[5]>0?_statusUnCov(u[0],u[10]):'';
+        if(sit==='com' && !(u[5]>0)) return false;
+        if(sit==='sem' && u[5]>0) return false;
+        if(sit==='Atendida' && ds!=='Atendida') return false;
+        if(sit==='Pendência' && ds!=='Pendência') return false;
+        if(sit==='Fora' && String(ds).indexOf('Fora')!==0) return false;
+      }
+      return true;
+    });
     document.getElementById('tbDash').innerHTML=l.map(u=>{ const ds=u[5]>0?_statusUnCov(u[0],u[10]):''; return `<tr class="row-clic" onclick="abrirUnidadeDash('${esc(String(u[0]).replace(/'/g,"\\'"))}')">
       <td title="${esc(u[0])}">${esc(u[0])}</td>
       <td class="text-center fw-bold">${u[1]}</td><td class="text-center">${u[2]}</td>
@@ -622,6 +643,8 @@
   document.getElementById('filtroTipoApoio').addEventListener('change',renderApoioTab);
   document.getElementById('buscaApoio').addEventListener('input',renderApoioTab);
   document.getElementById('buscaDash').addEventListener('input',renderDashTab);
+  document.getElementById('filtroSitDash').addEventListener('change',renderDashTab);
+  document.getElementById('filtroTipoDash').addEventListener('change',renderDashTab);
   (async()=>{ await _eeAuth(); carregarDash(); })();
 </script>
 </body>
