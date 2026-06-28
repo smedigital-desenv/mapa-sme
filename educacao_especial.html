@@ -343,7 +343,10 @@
   // matching tolerante de escola/turma (p/ cruzar vínculos com a Visão Geral) e turno
   const _normEE = s => String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
   const _baseEE = s => _normEE(String(s||'').split(',')[0]);
-  function _matchEscEE(a,b){ const na=_normEE(a),nb=_normEE(b); if(!na||!nb)return false; if(na===nb)return true; const ba=_baseEE(a),bb=_baseEE(b); return !!(ba&&bb&&(ba===bb||ba.indexOf(bb)===0||bb.indexOf(ba)===0)); }
+  // nº da unidade: "II"/"Unidade II" = 2; "III" = 3; sem número OU "I" = 1 (Unidade I ≡ sem unidade).
+  // Distingue unidades partidas que têm a mesma base (ex.: Sebastiao … vs … Unidade II).
+  function _unidadeNum(s){ const n=' '+_normEE(s)+' '; if(/ III /.test(n)) return '3'; if(/ II /.test(n)) return '2'; return '1'; }
+  function _matchEscEE(a,b){ const na=_normEE(a),nb=_normEE(b); if(!na||!nb)return false; if(_unidadeNum(a)!==_unidadeNum(b)) return false; if(na===nb)return true; const ba=_baseEE(a),bb=_baseEE(b); return !!(ba&&bb&&(ba===bb||ba.indexOf(bb)===0||bb.indexOf(ba)===0)); }
   const _perSig = p => (String(p||'').trim().toUpperCase()[0]||'');   // 'M' | 'T' | 'N'
   function _apoiosDaTurma(escola, turmaKey){
     const lab=_normEE(turmaKey);
@@ -359,8 +362,8 @@
     _limCov={}; _limCovBase={};
     if(!_ALUNOS_ALL || !LIM) return;
     const unidades=[...new Set((_ALUNOS_ALL||[]).map(a=>a[0]))];
-    const baseToUn={}; unidades.forEach(un=>{ baseToUn[_baseEE(un)]=un; });
-    const findUn = e => baseToUn[_baseEE(e)] || unidades.find(x=>_matchEscEE(x,e));
+    const baseToUn={}; unidades.forEach(un=>{ baseToUn[_baseEE(un)+'|'+_unidadeNum(un)]=un; });
+    const findUn = e => baseToUn[_baseEE(e)+'|'+_unidadeNum(e)] || unidades.find(x=>_matchEscEE(x,e));
     const limByUn={};   // unidade AEE -> Set(nomes com liminar)
     (LIM.alunos||[]).forEach(a=>{ const un=findUn(a[2]); if(!un) return; (limByUn[un]||(limByUn[un]=new Set())).add(_normEE(a[0])); });
     const turmasByUn={};
@@ -368,13 +371,13 @@
       if(!(k in t)) t[k]=false; const ls=limByUn[un]; if(ls && ls.has(_normEE(a[4]))) t[k]=true; });
     Object.keys(turmasByUn).forEach(un=>{ let tot=0,cob=0; const t=turmasByUn[un];
       Object.keys(t).forEach(k=>{ if(t[k]){ tot++; if(_apoiosDaTurma(un,k).length>0) cob++; } });
-      _limCov[un]={tot,cob}; _limCovBase[_baseEE(un)]={tot,cob}; });
+      _limCov[un]={tot,cob}; _limCovBase[_baseEE(un)+'|'+_unidadeNum(un)]={tot,cob}; });
   }
   // status da unidade pela cobertura AEE ("Fora da rede" preservado). SEM fallback p/ o status
   // antigo (contagem): só é "Atendida" se TODAS as turmas de liminar têm prof vinculado.
   function _statusUnCov(unidade, statusOrig){
     if(String(statusOrig||'').indexOf('Fora')===0) return statusOrig;
-    let c=_limCov[unidade] || _limCovBase[_baseEE(unidade)];
+    let c=_limCov[unidade] || _limCovBase[_baseEE(unidade)+'|'+_unidadeNum(unidade)];
     if(!c){ const k=Object.keys(_limCov).find(x=>_matchEscEE(x, unidade)); if(k) c=_limCov[k]; }
     return (c && c.tot>0 && c.cob>=c.tot) ? 'Atendida' : 'Pendência';
   }
