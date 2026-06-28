@@ -129,25 +129,25 @@
       </div>
     </section>
 
-    <!-- ATRIBUIÇÃO -->
-    <section class="sec" id="secAtrib">
+    <!-- ELEFANTE LETRADO -->
+    <section class="sec" id="secElefante">
       <div class="card-box p-3">
         <div class="sec-head">
-          <div class="sec-tt"><span class="dot" style="background:#8b5cf6;"></span><i class="bi bi-diagram-3-fill"></i>Atribuição de Aulas</div>
-          <a class="verlink" href="atribuicao.html">ver tela completa <i class="bi bi-arrow-right-short"></i></a>
+          <div class="sec-tt"><span class="dot" style="background:#10b981;"></span><i class="bi bi-book-fill"></i>Elefante Letrado</div>
+          <a class="verlink" href="elefante.html">ver tela completa <i class="bi bi-arrow-right-short"></i></a>
         </div>
-        <div id="atribBody"><div class="empty"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div></div>
+        <div id="elefBody"><div class="empty"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div></div>
       </div>
     </section>
 
-    <!-- LEITURA (ELEFANTE + FLUÊNCIA) -->
-    <section class="sec" id="secLeitura">
+    <!-- FLUÊNCIA LEITORA -->
+    <section class="sec" id="secFluencia">
       <div class="card-box p-3">
         <div class="sec-head">
-          <div class="sec-tt"><span class="dot" style="background:#10b981;"></span><i class="bi bi-book-half"></i>Leitura — Elefante Letrado &amp; Fluência</div>
-          <span><a class="verlink me-3" href="elefante.html">Elefante <i class="bi bi-arrow-right-short"></i></a><a class="verlink" href="fluencia.html">Fluência <i class="bi bi-arrow-right-short"></i></a></span>
+          <div class="sec-tt"><span class="dot" style="background:#0369a1;"></span><i class="bi bi-book-half"></i>Fluência Leitora</div>
+          <a class="verlink" href="fluencia.html">ver tela completa <i class="bi bi-arrow-right-short"></i></a>
         </div>
-        <div id="leituraBody"><div class="empty"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div></div>
+        <div id="fluBody"><div class="empty"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div></div>
       </div>
     </section>
 
@@ -159,6 +159,17 @@
           <a class="verlink" href="educacao_especial.html">ver tela completa <i class="bi bi-arrow-right-short"></i></a>
         </div>
         <div id="eeBody"><div class="empty"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div></div>
+      </div>
+    </section>
+
+    <!-- ATRIBUIÇÃO -->
+    <section class="sec" id="secAtrib">
+      <div class="card-box p-3">
+        <div class="sec-head">
+          <div class="sec-tt"><span class="dot" style="background:#8b5cf6;"></span><i class="bi bi-diagram-3-fill"></i>Atribuição de Aulas</div>
+          <a class="verlink" href="atribuicao.html">ver tela completa <i class="bi bi-arrow-right-short"></i></a>
+        </div>
+        <div id="atribBody"><div class="empty"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div></div>
       </div>
     </section>
 
@@ -304,62 +315,54 @@
     }catch(e){ $('atribBody').innerHTML=`<div class="empty text-danger">Erro: ${esc(e.message||e)}</div>`; return null; }
   }
 
-  /* ───────── LEITURA: ELEFANTE + FLUÊNCIA ───────── */
-  async function renderLeitura(escola){
-    let elef=null, flu=null;
-    // Elefante (último mês)
+  /* ───────── ELEFANTE LETRADO ───────── */
+  async function renderElefante(escola){
     try{
       const mes = await get('elefMes', ()=> SB.from('elefante_turmas').select('mes_referencia').order('mes_referencia',{ascending:false}).limit(1).then(r=> (r.data&&r.data[0])?r.data[0].mes_referencia:null));
-      if(mes){
-        const turmas = await get('elef|'+mes, ()=> SB.from('elefante_turmas').select('escola,ano_escolar,turma,estudantes,leitores,livros_lidos,tempo_leitura_seg').eq('mes_referencia',mes).then(r=> r.error?[]:(r.data||[])));
-        const meus = turmas.filter(t=> matchEscola(escola, t.escola));
-        if(meus.length){
-          elef={ estud:0, leit:0, livros:0, seg:0, mes };
-          meus.forEach(t=>{ elef.estud+=+t.estudantes||0; elef.leit+=+t.leitores||0; elef.livros+=+t.livros_lidos||0; elef.seg+=+t.tempo_leitura_seg||0; });
-        }
-      }
-    }catch(e){ /* segue sem elefante */ }
-    // Fluência (última avaliação)
-    try{
-      const av = await get('fluAv', ()=> SB.from('v_fluencia_por_turma').select('avaliacao').order('avaliacao',{ascending:false}).limit(1).then(r=> (r.data&&r.data[0])?r.data[0].avaliacao:null));
-      if(av){
-        const turmas = await get('flu|'+av, ()=> SB.from('v_fluencia_por_turma').select('escola,avaliacao,total_estudantes,avaliados,ausentes,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1').eq('avaliacao',av).then(r=> r.error?[]:(r.data||[])));
-        const meus = turmas.filter(t=> matchEscola(escola, t.escola));
-        if(meus.length){
-          flu={ av, matric:0, aval:0, aus:0, flu:0, ini:0, n4:0, n3:0, n2:0, n1:0 };
-          meus.forEach(t=>{ flu.matric+=+t.total_estudantes||0; flu.aval+=+t.avaliados||0; flu.aus+=+t.ausentes||0; flu.flu+=+t.fluentes||0; flu.ini+=+t.iniciantes||0; flu.n4+=+t.pre_n4||0; flu.n3+=+t.pre_n3||0; flu.n2+=+t.pre_n2||0; flu.n1+=+t.pre_n1||0; });
-        }
-      }
-    }catch(e){ /* segue sem fluência */ }
-
-    if(!elef && !flu){ $('leituraBody').innerHTML='<div class="empty">Sem dados de Elefante Letrado ou Fluência para esta escola.</div>'; return {elef,flu}; }
-    let h='';
-    if(elef){
-      h+='<div class="fw-bold mb-2" style="font-size:.82rem;color:#0f766e;"><i class="bi bi-book-fill me-1"></i>Elefante Letrado <span class="muted fw-normal">· '+esc(String(elef.mes).slice(0,7))+'</span></div><div class="row g-2 mb-3">';
+      if(!mes){ $('elefBody').innerHTML='<div class="empty">Sem dados do Elefante Letrado.</div>'; return null; }
+      const turmas = await get('elef|'+mes, ()=> SB.from('elefante_turmas').select('escola,ano_escolar,turma,estudantes,leitores,livros_lidos,tempo_leitura_seg').eq('mes_referencia',mes).then(r=> r.error?[]:(r.data||[])));
+      const meus = turmas.filter(t=> matchEscola(escola, t.escola));
+      if(!meus.length){ $('elefBody').innerHTML='<div class="empty">Sem dados do Elefante Letrado para esta escola.</div>'; return null; }
+      const elef={ estud:0, leit:0, livros:0, seg:0, mes };
+      meus.forEach(t=>{ elef.estud+=+t.estudantes||0; elef.leit+=+t.leitores||0; elef.livros+=+t.livros_lidos||0; elef.seg+=+t.tempo_leitura_seg||0; });
+      let h='<div class="muted mb-2" style="font-size:.72rem;">Mês de referência: '+esc(String(elef.mes).slice(0,7))+'</div><div class="row g-2">';
       h+=kpi('Estudantes', fmt(elef.estud), '#10b981');
       h+=kpi('Leitores ativos', fmt(elef.leit), '#0ea5e9', pct(elef.leit,elef.estud)+'% de engajamento');
       h+=kpi('Livros lidos', fmt(elef.livros), '#8b5cf6');
       h+=kpi('Horas de leitura', fmt(Math.round(elef.seg/3600)), '#f59e0b');
       h+='</div>';
-    }
-    if(flu){
+      $('elefBody').innerHTML=h;
+      return elef;
+    }catch(e){ $('elefBody').innerHTML=`<div class="empty text-danger">Erro: ${esc(e.message||e)}</div>`; return null; }
+  }
+
+  /* ───────── FLUÊNCIA LEITORA ───────── */
+  async function renderFluencia(escola){
+    try{
+      const av = await get('fluAv', ()=> SB.from('v_fluencia_por_turma').select('avaliacao').order('avaliacao',{ascending:false}).limit(1).then(r=> (r.data&&r.data[0])?r.data[0].avaliacao:null));
+      if(!av){ $('fluBody').innerHTML='<div class="empty">Sem dados de Fluência Leitora.</div>'; return null; }
+      const turmas = await get('flu|'+av, ()=> SB.from('v_fluencia_por_turma').select('escola,avaliacao,total_estudantes,avaliados,ausentes,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1').eq('avaliacao',av).then(r=> r.error?[]:(r.data||[])));
+      const meus = turmas.filter(t=> matchEscola(escola, t.escola));
+      if(!meus.length){ $('fluBody').innerHTML='<div class="empty">Sem dados de Fluência Leitora para esta escola.</div>'; return null; }
+      const flu={ av, matric:0, aval:0, aus:0, flu:0, ini:0, n4:0, n3:0, n2:0, n1:0 };
+      meus.forEach(t=>{ flu.matric+=+t.total_estudantes||0; flu.aval+=+t.avaliados||0; flu.aus+=+t.ausentes||0; flu.flu+=+t.fluentes||0; flu.ini+=+t.iniciantes||0; flu.n4+=+t.pre_n4||0; flu.n3+=+t.pre_n3||0; flu.n2+=+t.pre_n2||0; flu.n1+=+t.pre_n1||0; });
       const leitores = flu.ini+flu.flu;
-      h+='<div class="fw-bold mb-2" style="font-size:.82rem;color:#0369a1;"><i class="bi bi-book-half me-1"></i>Fluência Leitora <span class="muted fw-normal">· '+esc(flu.av)+'</span></div><div class="row g-2 mb-3">';
+      let h='<div class="muted mb-2" style="font-size:.72rem;">Avaliação: '+esc(flu.av)+'</div><div class="row g-2 mb-3">';
       h+=kpi('Matriculados', fmt(flu.matric), '#0369a1');
       h+=kpi('Avaliados', fmt(flu.aval), '#0ea5e9', pct(flu.aval,flu.matric)+'% dos matriculados');
       h+=kpi('% Leitores', pct(leitores,flu.aval)+'%', '#10b981', fmt(leitores)+' (iniciante+fluente)');
       h+=kpi('Ausentes', fmt(flu.aus), '#ef4444');
       h+='</div>';
-      // barra de perfis
+      // barra de perfis de leitura
       const segs=[['Pré N1',flu.n1,'#BF5AF2'],['Pré N2',flu.n2,'#FF6B35'],['Pré N3',flu.n3,'#FFD60A'],['Pré N4',flu.n4,'#34C759'],['Iniciante',flu.ini,'#00C7BE'],['Fluente',flu.flu,'#0A84FF']];
       const tot=segs.reduce((a,s)=>a+s[1],0);
       if(tot){
         h+='<div class="seg">'+segs.map(s=>`<span style="width:${s[1]/tot*100}%;background:${s[2]};" title="${s[0]}: ${s[1]}"></span>`).join('')+'</div>';
         h+='<div class="legend">'+segs.map(s=>`<span><i style="background:${s[2]};"></i>${s[0]} <b>${s[1]}</b></span>`).join('')+'</div>';
       }
-    }
-    $('leituraBody').innerHTML=h;
-    return {elef,flu};
+      $('fluBody').innerHTML=h;
+      return flu;
+    }catch(e){ $('fluBody').innerHTML=`<div class="empty text-danger">Erro: ${esc(e.message||e)}</div>`; return null; }
   }
 
   /* ───────── EDUCAÇÃO ESPECIAL ───────── */
@@ -396,21 +399,21 @@
     $('phNome').textContent=escola;
     $('phData').textContent='· gerado em '+new Date().toLocaleDateString('pt-BR');
     $('selStatus').innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>gerando…';
-    ['avalBody','atribBody','leituraBody','eeBody'].forEach(id=> $(id).innerHTML='<div class="empty"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div>');
-    const [d, at, lt, ee] = await Promise.all([ renderAval(escola), renderAtrib(escola), renderLeitura(escola), renderEE(escola) ]);
+    ['avalBody','elefBody','fluBody','eeBody','atribBody'].forEach(id=> $(id).innerHTML='<div class="empty"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div>');
+    const [d, el, fl, ee, at] = await Promise.all([ renderAval(escola), renderElefante(escola), renderFluencia(escola), renderEE(escola), renderAtrib(escola) ]);
     if(_escolaAtual!==escola) return; // troca rápida de escola: ignora resultado obsoleto
-    montarKpisGerais(escola, d, at, lt, ee);
+    montarKpisGerais(escola, d, el, fl, ee, at);
     $('selStatus').textContent='';
   }
   // Faixa de KPIs consolidados no topo, com os destaques de cada domínio.
-  function montarKpisGerais(escola, d, at, lt, ee){
+  function montarKpisGerais(escola, d, el, fl, ee, at){
     const cards=[];
     if(d)  cards.push({label:'Alunos avaliados', val:fmt(d.total), cor:'#0ea5e9'},
                       {label:'Críticos', val:fmt(d.crit), cor:'#ef4444', sub:pct(d.crit,d.total)+'%'});
+    if(fl) cards.push({label:'% Leitores (fluência)', val:pct(fl.ini+fl.flu, fl.aval)+'%', cor:'#10b981'});
+    if(ee) cards.push({label:'Alunos AEE', val:fmt(ee[2]), cor:'#f59e0b'});
     if(at && at.criadas) cards.push({label:'% Atribuição', val:pct(at.atrib,at.criadas)+'%', cor:'#8b5cf6'},
                       {label:'Aulas pendentes', val:fmt(at.pend), cor:'#f59e0b'});
-    if(lt && lt.flu) cards.push({label:'% Leitores (fluência)', val:pct(lt.flu.ini+lt.flu.flu, lt.flu.aval)+'%', cor:'#10b981'});
-    if(ee) cards.push({label:'Alunos AEE', val:fmt(ee[2]), cor:'#f59e0b'});
     if(!cards.length){ $('kpisGerais').innerHTML=''; return; }
     $('kpisGerais').innerHTML = cards.map(x=>`<div class="col-6 col-md-4 col-lg"><div class="kpi" style="border-left-color:${x.cor};">
       <div class="label">${esc(x.label)}</div><div class="val" style="color:${x.cor};">${x.val}</div>${x.sub?`<div class="sub">${esc(x.sub)}</div>`:''}</div></div>`).join('');
