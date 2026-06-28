@@ -95,7 +95,7 @@
         <span class="text-muted fw-bold d-flex align-items-center" style="font-size:.74rem;white-space:nowrap;"><i class="bi bi-funnel-fill me-1"></i>Filtros</span>
         <select id="filtroSitDash" class="form-select form-select-sm" style="width:auto;min-width:160px;"><option value="">Liminar: todas</option><option value="com">Com liminar</option><option value="sem">Sem liminar</option><option value="Atendida">Atendida</option><option value="Pendência">Pendência</option><option value="semapoio">Liminar sem apoio</option><option value="Fora">Fora da rede mun.</option></select>
         <select id="filtroAeeDash" class="form-select form-select-sm" style="width:auto;min-width:150px;"><option value="">AEE: todos</option><option value="ec">EC &lt; 100%</option><option value="eccompleto">Estudo de Caso completo</option><option value="semec">Sem estudo de caso</option><option value="pei">PEI &lt; 100%</option><option value="peicompleto">PEI completo</option><option value="sempei">Sem PEI</option></select>
-        <select id="filtroTipoDash" class="form-select form-select-sm" style="width:auto;min-width:110px;"><option value="">Tipo: todos</option><option>CEI</option><option>EMEI</option><option>EMEF</option><option>Outros</option></select>
+        <select id="filtroTipoDash" class="form-select form-select-sm" style="width:auto;min-width:110px;"><option value="">Tipo: todos</option><option>CEI</option><option>EMEI</option><option>EMEF</option></select>
         <input id="buscaDash" class="form-control form-control-sm" style="flex:1;min-width:160px;max-width:260px;" placeholder="Buscar unidade…">
         <button class="btn btn-sm btn-outline-secondary fw-bold ms-auto" onclick="limparFiltrosDash()" title="Limpar filtros"><i class="bi bi-x-circle me-1"></i>Limpar</button>
       </div>
@@ -237,14 +237,14 @@
   function _eeAuth(){ return new Promise(r=>{ if(window.MapaAuth&&window.MapaAuth.perfil)return r(); document.addEventListener('mapa-auth-pronto',()=>r(),{once:true}); setTimeout(r,8000); }); }
   function _eeRestrito(){ return !!(window.MapaAuth && window.MapaAuth.restritoEscola); }
   function _eePode(n){ try{ return !_eeRestrito() || window.MapaAuth.podeVerEscola(n); }catch(e){ return true; } }
-  function _eeFilt(arr,idx){ if(!_eeRestrito())return arr||[]; return (arr||[]).filter(r=>_eePode(r[idx])); }
+  function _eeFilt(arr,idx){ var a=(arr||[]).filter(r=>_tipoOk(r[idx])); if(_eeRestrito()) a=a.filter(r=>_eePode(r[idx])); return a; }
   function _soma(arr,i){ return (arr||[]).reduce((a,u)=>a+(Number(u[i])||0),0); }
 
   /* ───────── AEE ───────── */
   let GERAL={}, UNID=[], ALUNOS=[], _uAtiva=null;
   let _aeeLoaded=false;
   async function carregarAEE(){ if(_aeeLoaded) return; _aeeLoaded=true; const {data,error}=await SB.rpc('ee_resumo'); if(error){_aeeLoaded=false;alert('Erro AEE: '+error.message);return;} GERAL=data.geral||{}; UNID=data.por_unidade||[];
-    if(_eeRestrito()){ UNID=_eeFilt(UNID,0); GERAL={ total:_soma(UNID,1), aval:_soma(UNID,2), pendentes:_soma(UNID,3), ec_aval:_soma(UNID,4), pei_aval:_soma(UNID,5), unidades:UNID.length }; }
+    UNID=_eeFilt(UNID,0); GERAL={ total:_soma(UNID,1), aval:_soma(UNID,2), pendentes:_soma(UNID,3), ec_aval:_soma(UNID,4), pei_aval:_soma(UNID,5), unidades:UNID.length };
     renderAEE(); await selUnidade(null); }
   function renderAEE(){
     const g=GERAL;
@@ -275,7 +275,7 @@
   /* ───────── LIMINARES (macro: escola → turma → aluno) ───────── */
   let LIM=null, _escAtual=null;
   const clsSt=s=> s==='Atendida'?'st-ok': s==='Pendência'?'st-pend':'st-fora';
-  function _filtLim(data){ if(!_eeRestrito()) return data;
+  function _filtLim(data){
     var un=_eeFilt(data.unidades,0);
     return { ...data, unidades:un, turmas:_eeFilt(data.turmas,0), alunos:_eeFilt(data.alunos,2),
       geral:{ unidades:un.length, turmas:_soma(un,2),
@@ -334,7 +334,7 @@
   /* ───────── APOIO ───────── */
   let APOIO=null, _VINC=null;
   async function carregarApoio(){ if(APOIO) return renderApoio(); await _eeAuth(); const {data,error}=await SB.rpc('ee_apoio'); if(error){alert('Erro Apoio: '+error.message);return;}
-    if(_eeRestrito()){ var es=_eeFilt(data.escolas,1); APOIO={ ...data, escolas:es, geral:{ escolas:es.length, prof_manha:_soma(es,2), prof_tarde:_soma(es,3), professores:_soma(es,2)+_soma(es,3), apoios:_soma(es,4) } }; } else { APOIO=data; }
+    var es=_eeFilt(data.escolas,1); APOIO={ ...data, escolas:es, geral:{ escolas:es.length, prof_manha:_soma(es,2), prof_tarde:_soma(es,3), professores:_soma(es,2)+_soma(es,3), apoios:_soma(es,4) } };
     await carregarVinculos(); renderApoio(); }
   async function carregarVinculos(){ if(_VINC!==null) return; try{ const {data,error}=await SB.from('ee_apoio_vinculo').select('id,escola,periodo,slot,turma_label'); _VINC=error?[]:(data||[]); }catch(e){ _VINC=[]; } }
   function vincDistinct(escola){ const s=new Set(); (_VINC||[]).forEach(v=>{ if(_matchEscEE(v.escola,escola)) s.add(_normEE(v.turma_label)); }); return s.size; }
@@ -354,7 +354,7 @@
   //    liminar(nome) → aluno AEE → turma AEE → vínculo. (Rótulos de turma divergem entre
   //    AEE/liminar/turmas e o RA também difere; só o nome+turma AEE é estável.)
   let _ALUNOS_ALL=null, _limCov={}, _limCovBase={};
-  async function carregarAlunosAll(){ if(_ALUNOS_ALL) return; try{ const r=await SB.rpc('ee_alunos',{p_unidade:null,p_status:null}); _ALUNOS_ALL=r.error?[]:(r.data||[]); }catch(e){ _ALUNOS_ALL=[]; } }
+  async function carregarAlunosAll(){ if(_ALUNOS_ALL) return; try{ const r=await SB.rpc('ee_alunos',{p_unidade:null,p_status:null}); _ALUNOS_ALL=(r.error?[]:(r.data||[])).filter(a=>_tipoOk(a[0])); }catch(e){ _ALUNOS_ALL=[]; } }
   function buildLimCov(){
     _limCov={}; _limCovBase={};
     if(!_ALUNOS_ALL || !LIM) return;
@@ -510,12 +510,11 @@
   let DASH=null, _dashUni=null, _dashAlunosCache={}, _dashLim={}, _dashU=null, _dashTurmas=[], _dashTurmasCache={};
   async function carregarDash(){ if(DASH) return renderDash();
     const {data,error}=await SB.rpc('ee_dash'); if(error){alert('Erro Visão Geral: '+error.message);return;}
-    if(_eeRestrito()){ var du=_eeFilt(data.unidades,0); var al=_soma(du,2);
-      var ecW=du.reduce((a,u)=>a+(Number(u[3])||0)*(Number(u[2])||0),0);
-      var peiW=du.reduce((a,u)=>a+(Number(u[4])||0)*(Number(u[2])||0),0);
-      DASH={ ...data, unidades:du, geral:{ unidades:du.length, turmas_nee:_soma(du,1), alunos_nee:al,
-        ec_pct: al?Math.round(ecW/al):0, pei_pct: al?Math.round(peiW/al):0, liminar_turmas:_soma(du,5) } };
-    } else { DASH=data; }
+    var du=_eeFilt(data.unidades,0); var al=_soma(du,2);
+    var ecW=du.reduce((a,u)=>a+(Number(u[3])||0)*(Number(u[2])||0),0);
+    var peiW=du.reduce((a,u)=>a+(Number(u[4])||0)*(Number(u[2])||0),0);
+    DASH={ ...data, unidades:du, geral:{ unidades:du.length, turmas_nee:_soma(du,1), alunos_nee:al,
+      ec_pct: al?Math.round(ecW/al):0, pei_pct: al?Math.round(peiW/al):0, liminar_turmas:_soma(du,5) } };
     if(!LIM){ try{ const r=await SB.rpc('ee_liminar'); if(!r.error) LIM=_filtLim(r.data); }catch(e){} }
     await carregarVinculos(); await carregarAlunosAll(); buildLimCov();
     renderDash(); }
@@ -523,11 +522,18 @@
   function renderDash(){ const g=DASH.geral||{};
     kpiHTML('kpisDash',[['Unidades',fmt(g.unidades),'var(--primary)'],['Turmas AEE',fmt(g.turmas_nee),'#0ea5e9'],['Alunos AEE',fmt(g.alunos_nee),'#10b981'],['% Estudo de Caso',(g.ec_pct||0)+'%',COR_EC],['% PEI',(g.pei_pct||0)+'%',COR_PEI],['Turmas liminar',fmt(g.liminar_turmas),'#ef4444']]);
     renderDashTab(); }
-  function _tipoUn(nome){ const seg=String(nome||'').split(',').pop().trim().toUpperCase(), n=String(nome||'').toUpperCase();
-    if(seg.indexOf('EMEF')===0||seg.indexOf('CEEEF')===0||n.includes('EMEF')) return 'EMEF';
-    if(seg.indexOf('EMEI')===0||seg.indexOf('EEI')===0||n.includes('EMEI')||n.includes(' EEI')) return 'EMEI';
-    if(seg.indexOf('CEI')===0||seg.indexOf('CRECHE')===0||n.includes(' CEI')||n.includes('CRECHE')) return 'CEI';
+  // tipo da unidade pelo sufixo (último segmento após a vírgula). EEI/CRECHE/CEEEF/AMES e
+  // conveniadas sem sigla = "Outros" (excluídas dos números — ver _tipoOk/_eeFilt).
+  function _tipoUn(nome){ const seg=String(nome||'').split(',').pop().trim().toUpperCase();
+    if(/^EMEF\b/.test(seg)) return 'EMEF';
+    if(/^EMEI\b/.test(seg)) return 'EMEI';
+    if(/^CEI\b/.test(seg)) return 'CEI';
+    const n=' '+String(nome||'').toUpperCase()+' ';
+    if(/[ ,.]EMEF[ ,.]/.test(n)) return 'EMEF';
+    if(/[ ,.]EMEI[ ,.]/.test(n)) return 'EMEI';
+    if(/[ ,.]CEI[ ,.]/.test(n)) return 'CEI';
     return 'Outros'; }
+  function _tipoOk(nome){ const t=_tipoUn(nome); return t==='CEI'||t==='EMEI'||t==='EMEF'; }
   function limparFiltrosDash(){ ['filtroSitDash','filtroTipoDash','filtroAeeDash','buscaDash'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); renderDashTab(); }
   function renderDashTab(){ const t=(document.getElementById('buscaDash').value||'').toLowerCase();
     const sit=document.getElementById('filtroSitDash').value, tipo=document.getElementById('filtroTipoDash').value, aee=document.getElementById('filtroAeeDash').value;
