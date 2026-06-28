@@ -368,11 +368,13 @@
   /* ───────── FLUÊNCIA LEITORA ───────── */
   async function renderFluencia(escola){
     try{
-      const av = await get('fluAv', ()=> SB.from('v_fluencia_por_turma').select('avaliacao').order('avaliacao',{ascending:false}).limit(1).then(r=> (r.data&&r.data[0])?r.data[0].avaliacao:null));
-      if(!av){ $('fluBody').innerHTML='<div class="empty">Sem dados de Fluência Leitora.</div>'; return null; }
-      const turmas = await get('flu|'+av, ()=> fetchAll('v_fluencia_por_turma','escola,avaliacao,total_estudantes,avaliados,ausentes,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1',[['avaliacao',av]]));
-      const meus = turmas.filter(t=> matchEscola(escola, t.escola));
-      if(!meus.length){ $('fluBody').innerHTML='<div class="empty">Sem dados de Fluência Leitora para esta escola.</div>'; return null; }
+      const rows = await get('fluAll', ()=> fetchAll('v_fluencia_por_turma','escola,avaliacao,total_estudantes,avaliados,ausentes,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1'));
+      const meusTodos = rows.filter(t=> matchEscola(escola, t.escola));
+      if(!meusTodos.length){ $('fluBody').innerHTML='<div class="empty">Sem dados de Fluência Leitora para esta escola.</div>'; return null; }
+      // Avaliação a exibir = a 1ª em ordem alfabética que a escola possui (mesmo padrão do
+      // fluencia.html). Evita bases avulsas como "MUNICIPAL", que ordenam depois de "Avaliação…".
+      const av = [...new Set(meusTodos.map(t=>t.avaliacao))].sort((a,b)=> String(a).localeCompare(String(b)))[0];
+      const meus = meusTodos.filter(t=> t.avaliacao===av);
       const flu={ av, matric:0, aval:0, aus:0, flu:0, ini:0, n4:0, n3:0, n2:0, n1:0 };
       meus.forEach(t=>{ flu.matric+=+t.total_estudantes||0; flu.aval+=+t.avaliados||0; flu.aus+=+t.ausentes||0; flu.flu+=+t.fluentes||0; flu.ini+=+t.iniciantes||0; flu.n4+=+t.pre_n4||0; flu.n3+=+t.pre_n3||0; flu.n2+=+t.pre_n2||0; flu.n1+=+t.pre_n1||0; });
       const leitores = flu.ini+flu.flu;
