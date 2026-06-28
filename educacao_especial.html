@@ -164,7 +164,7 @@
     <div class="row g-3"><div class="col-12"><div class="card-box p-3">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
         <div class="sec-tt"><i class="bi bi-building me-1"></i>Apoio pedagógico por escola</div>
-        <div class="d-flex gap-2"><select id="filtroTipoApoio" class="form-select form-select-sm" style="max-width:130px;"><option value="">Todos</option><option>CEI</option><option>EMEI</option><option>EMEF</option></select><input id="buscaApoio" class="form-control form-control-sm" style="max-width:220px;" placeholder="Buscar escola…"><button class="btn btn-sm btn-success fw-bold" onclick="exportar('apoio')"><i class="bi bi-download me-1"></i>Excel</button></div>
+        <div class="d-flex gap-2"><button id="btnApoioEdit" class="btn btn-sm btn-outline-warning fw-bold" style="display:none;" onclick="toggleApoioEdit()"><i class="bi bi-pencil-square me-1"></i>Liberar edição</button><select id="filtroTipoApoio" class="form-select form-select-sm" style="max-width:130px;"><option value="">Todos</option><option>CEI</option><option>EMEI</option><option>EMEF</option></select><input id="buscaApoio" class="form-control form-control-sm" style="max-width:220px;" placeholder="Buscar escola…"><button class="btn btn-sm btn-success fw-bold" onclick="exportar('apoio')"><i class="bi bi-download me-1"></i>Excel</button></div>
       </div>
       <div style="max-height:72vh;overflow:auto;"><table class="mapa"><thead><tr><th>Tipo</th><th>Escola</th><th class="text-center">Prof. Manhã</th><th class="text-center">Prof. Tarde</th><th class="text-center">Total Prof.</th><th class="text-center">Apoios (ASSEJ)</th><th class="text-center">Salas vinculadas</th></tr></thead><tbody id="tbApoio"></tbody></table></div>
       <div class="text-muted mt-2" style="font-size:.75rem;" id="contadorApoio"></div>
@@ -403,7 +403,19 @@
   function recalcApoioGeral(){ const es=APOIO.escolas||[]; APOIO.geral={ escolas:es.length, prof_manha:_soma(es,2), prof_tarde:_soma(es,3), professores:_soma(es,2)+_soma(es,3), apoios:_soma(es,4) }; }
   function renderApoioKpis(){ const g=APOIO.geral||{};
     kpiHTML('kpisApoio',[['Escolas',fmt(g.escolas),'var(--primary)'],['Prof. Manhã',fmt(g.prof_manha),'#f59e0b'],['Prof. Tarde',fmt(g.prof_tarde),'#0ea5e9'],['Total Professores',fmt(g.professores),'#10b981'],['Apoios (ASSEJ)',fmt(g.apoios),'#8b5cf6']]); }
-  function renderApoio(){ renderApoioKpis(); renderApoioTab(); }
+  // edição da quantidade de profissionais: só super admin e atrás do botão (tela vem em consulta)
+  let _apoioEdit=false;
+  function isSuper(){ return !!(window.MapaAuth && window.MapaAuth.perfil && window.MapaAuth.perfil.is_super_admin); }
+  function toggleApoioEdit(){ _apoioEdit=!_apoioEdit;
+    const b=document.getElementById('btnApoioEdit');
+    if(b){ b.classList.toggle('btn-outline-warning',!_apoioEdit); b.classList.toggle('btn-warning',_apoioEdit);
+      b.innerHTML=_apoioEdit?'<i class="bi bi-check2-circle me-1"></i>Concluir edição':'<i class="bi bi-pencil-square me-1"></i>Liberar edição'; }
+    renderApoioTab();
+  }
+  function renderApoio(){ renderApoioKpis();
+    const b=document.getElementById('btnApoioEdit'); if(b) b.style.display=isSuper()?'':'none';
+    renderApoioTab();
+  }
   // salvar a quantidade (prof_manha/prof_tarde/apoios) de uma escola na tabela ee_apoio
   async function salvarApoio(escola, campo, inputEl){
     const v=Math.max(0, parseInt(inputEl.value,10)||0); inputEl.value=v; inputEl.disabled=true;
@@ -417,6 +429,7 @@
     const tr=inputEl.closest('tr'); const tc=tr&&tr.querySelector('.ap-total'); if(tc&&row) tc.textContent=(row[2]||0)+(row[3]||0);
   }
   function renderApoioTab(){ const tp=document.getElementById('filtroTipoApoio').value, t=(document.getElementById('buscaApoio').value||'').toLowerCase();
+    const editing = isSuper() && _apoioEdit;   // edição da quantidade só p/ super admin com edição liberada
     const l=(APOIO.escolas||[]).filter(e=>(!tp||e[0]===tp)&&(!t||String(e[1]).toLowerCase().includes(t)));
     document.getElementById('tbApoio').innerHTML=l.map(e=>{ const escola=e[1], cnt=vincDistinct(escola), ed=podeEditar(escola), total=(e[2]||0)+(e[3]||0);
       const acao = (ed && total>0)
@@ -424,7 +437,7 @@
         : (cnt?`<span class="text-muted" style="font-size:.78rem;">${cnt} sala(s)</span>`:'<span class="text-muted">—</span>');
       const badge = cnt?`<span class="badge bg-success me-1">${cnt}</span>`:'';
       const escJs=esc(String(escola).replace(/'/g,"\\'"));
-      const numCell=(val,cor,campo)=> ed
+      const numCell=(val,cor,campo)=> editing
         ? `<td class="text-center"><input type="number" min="0" value="${val||0}" class="form-control form-control-sm d-inline-block text-center" style="width:56px;font-weight:700;color:${cor};padding:1px 4px;" onchange="salvarApoio('${escJs}','${campo}',this)"></td>`
         : `<td class="text-center" style="color:${cor};font-weight:700;">${val||0}</td>`;
       return `<tr><td><span class="badge bg-secondary">${esc(e[0])}</span></td><td title="${esc(escola)}">${esc(escola)}</td>${numCell(e[2],'#f59e0b','prof_manha')}${numCell(e[3],'#0ea5e9','prof_tarde')}<td class="text-center fw-bold ap-total">${(e[2]||0)+(e[3]||0)}</td>${numCell(e[4],'#8b5cf6','apoios')}<td class="text-center">${badge}${acao}</td></tr>`;
