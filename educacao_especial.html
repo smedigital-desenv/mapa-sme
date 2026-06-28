@@ -545,7 +545,8 @@
       if(canEdit){
         const linked=new Set(vincs.map(v=>(v.periodo==='Manhã'?'M':'T')+v.slot));
         const opts=[], add=(s,cnt)=>{ for(let i=1;i<=(cnt||0);i++){ if(!linked.has(s+i)) opts.push(`<option value="${s}|${i}">Apoio ${s} ${i}</option>`); } };
-        add('M',u[8]); add('T',u[9]);
+        const sig=_perSig(o.limPer);   // só os apoios do período da turma (turma sem liminar → ambos)
+        if(sig==='M') add('M',u[8]); else if(sig==='T') add('T',u[9]); else { add('M',u[8]); add('T',u[9]); }
         if(opts.length) addSel=`<select class="form-select form-select-sm" style="width:auto;display:inline-block;font-size:.68rem;padding:1px 6px;" onclick="event.stopPropagation();" onchange="adicionarVincDash('${esc(k.replace(/'/g,"\\'"))}',this)"><option value="">+ apoio…</option>${opts.join('')}</select>`;
       }
       const apCell=`<div class="d-flex flex-wrap align-items-center gap-1">${badges||(canEdit?'':'<span class="text-muted">—</span>')}${addSel}</div>`;
