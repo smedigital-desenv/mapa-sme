@@ -465,18 +465,23 @@
     let alunos=_dashAlunosCache[unidade];
     if(!alunos){ const {data,error}=await SB.rpc('ee_alunos',{p_unidade:unidade,p_status:null}); alunos=error?[]:(data||[]); _dashAlunosCache[unidade]=alunos; }
     if(_dashUni!==unidade) return;
-    // mapa de liminar POR RA (cruza por RA — robusto a divergência de rótulo/período).
-    // _dashLim[ra] = { periodo, deficiencia, status }
+    // mapa de liminar POR NOME (os RAs das duas bases são identificadores diferentes:
+    // educacao_especial usa um ID interno; ee_liminar_aluno usa o RA estadual).
+    // _dashLim[nomeNormalizado] = { periodo, deficiencia, status }
     const limEsc=u[11]; _dashLim={};
-    if(LIM && limEsc){
+    if(LIM){
       const stMap={};
-      (LIM.turmas||[]).filter(t=>t[0]===limEsc).forEach(t=>{ stMap[_normEE(t[1])+'|'+_normEE(t[2])]=t[4]; });
-      (LIM.alunos||[]).filter(a=>a[2]===limEsc).forEach(a=>{ _dashLim[String(a[1]||'').trim()]={ periodo:a[4], deficiencia:a[5], status: stMap[_normEE(a[3])+'|'+_normEE(a[4])] || 'Pendência' }; });
+      (LIM.turmas||[]).forEach(t=>{ stMap[_normEE(t[0])+'|'+_normEE(t[1])+'|'+_normEE(t[2])]=t[4]; });
+      (LIM.alunos||[]).forEach(a=>{
+        if(!(_matchEscEE(a[2],limEsc) || _matchEscEE(a[2],unidade))) return;   // só liminares desta unidade
+        const nm=_normEE(a[0]); if(!nm) return;
+        _dashLim[nm]={ periodo:a[4], deficiencia:a[5], status: stMap[_normEE(a[2])+'|'+_normEE(a[3])+'|'+_normEE(a[4])] || 'Pendência' };
+      });
     }
     const tmap={};
-    // n = alunos da turma; ecc/peic = com ficha (cobertura); lim/limPend = alunos com liminar
+    // n = alunos da turma; ecc/peic = com ficha (cobertura); lim/limPend = alunos com liminar (cruza por nome)
     alunos.forEach(a=>{ const k=(a[1]+' '+a[2]).trim(); const o=tmap[k]||(tmap[k]={n:0,ecc:0,peic:0,lim:0,limPend:0,limPer:''}); o.n++; if((a[7]||0)>0)o.ecc++; if((a[9]||0)>0)o.peic++;
-      const lr=_dashLim[String(a[3]||'').trim()]; if(lr){ o.lim++; if((lr.status||'')==='Pendência')o.limPend++; if(!o.limPer&&lr.periodo)o.limPer=lr.periodo; } });
+      const lr=_dashLim[_normEE(a[4])]; if(lr){ o.lim++; if((lr.status||'')==='Pendência')o.limPend++; if(!o.limPer&&lr.periodo)o.limPer=lr.periodo; } });
     const turmas=Object.entries(tmap).sort((a,b)=>a[0].localeCompare(b[0]));
     let html='<div class="sec-tt mb-1" style="font-size:.85rem;">Turmas (AEE) — clique para ver os alunos</div>';
     html+='<table class="mapa"><thead><tr><th>Turma</th><th class="text-center">Alunos AEE</th><th>Liminar</th><th style="min-width:104px;">% Estudo de Caso</th><th style="min-width:104px;">% PEI</th><th>Prof. de apoio</th></tr></thead><tbody>';
@@ -499,7 +504,7 @@
     const _ap=_apoiosDaTurma(_dashUni,turmaKey);
     document.getElementById('dashResumo').innerHTML=`<b>${alunos.length}</b> aluno(s) com AEE`+(_ap.length?` &nbsp;|&nbsp; Prof. de apoio: `+_ap.map(x=>`<span class="badge bg-info text-dark" style="font-size:.66rem;font-weight:700;">${esc(x)}</span>`).join(' '):'');
     let html='<table class="mapa"><thead><tr><th>Aluno</th><th>RA</th><th>Liminar / deficiência</th><th style="min-width:104px;">% Estudo de Caso</th><th style="min-width:104px;">% PEI</th></tr></thead><tbody>';
-    html+=alunos.map(a=>{ const lr=_dashLim[String(a[3]||'').trim()];
+    html+=alunos.map(a=>{ const lr=_dashLim[_normEE(a[4])];
       const limC=lr?`<span class="badge-st ${(lr.status||'')==='Pendência'?'st-pend':'st-ok'}">${esc(lr.status||'Liminar')}</span>${lr.deficiencia?` <span class="text-muted" style="font-size:.7rem;">${esc(lr.deficiencia)}</span>`:''}`:'<span class="text-muted">—</span>';
       return `<tr><td>${esc(a[4])}</td><td>${esc(a[3])}</td><td>${limC}</td><td>${a[7]?barra(Math.round(a[6]/a[7]*100),COR_EC):'<span class="text-muted">—</span>'}</td><td>${a[9]?barra(Math.round(a[8]/a[9]*100),COR_PEI):'<span class="text-muted">—</span>'}</td></tr>`;
     }).join('')||'<tr><td colspan="5" class="text-muted text-center p-2">Sem alunos.</td></tr>';
