@@ -203,7 +203,12 @@
   const norm = s => String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
                      .replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
   const TIPOS = /\b(?:EMEF|EMEI|EMEIEF|EMEIF|CEI|CEMEI|CEMEFEJA|EEI|CEEEF|CRECHE|AMES|NEI)\b/g;
-  const coreTokens = s => norm(s).replace(TIPOS,' ').replace(/\s+/g,' ').trim().split(' ').filter(Boolean);
+  // Canoniza tokens de título que variam de abreviação entre as bases:
+  // PROF/PROFA/PROFº/PROFESSOR(A) -> "PROF"; DR/DRA/DOUTOR(A) -> "DR". (Ex.: a Fluência
+  // grafa "PROFA." e as demais "PROFª." — sem isso, os tokens não batem.)
+  const canonTok = t => t.indexOf('PROF')===0 ? 'PROF'
+                      : (t==='DR'||t==='DRA'||t.indexOf('DOUTOR')===0) ? 'DR' : t;
+  const coreTokens = s => norm(s).replace(TIPOS,' ').replace(/\s+/g,' ').trim().split(' ').filter(Boolean).map(canonTok);
   function matchEscola(sel, alvo){
     const a=norm(sel), b=norm(alvo); if(!a||!b) return false;
     if(a===b) return true;
