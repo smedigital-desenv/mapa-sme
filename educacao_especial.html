@@ -284,7 +284,7 @@
         fora:un.filter(u=>String(u[7]||'').indexOf('Fora')===0).length } }; }
   async function carregarLim(){ if(LIM) return renderLim(); const {data,error}=await SB.rpc('ee_liminar'); if(error){alert('Erro Liminares: '+error.message);return;} LIM=_filtLim(data); await carregarVinculos(); await carregarAlunosAll(); buildLimCov(); renderLim(); }
   // unidade = [escola,tipo,total_turmas,turmas_manha,turmas_tarde,prof_manha,prof_tarde,status]
-  function renderLim(){ const un=LIM.unidades||[];
+  function renderLim(){ const un=_limConsolidar();
     const eff=un.map(u=>_statusUnCov(u[0],u[7]));   // status efetivo (cobertura AEE) por unidade
     const atendidas=eff.filter(s=>s==='Atendida').length, pendentes=eff.filter(s=>s==='Pendência').length, fora=eff.filter(s=>String(s||'').indexOf('Fora')===0).length;
     kpiHTML('kpisLim',[['Unidades',fmt(un.length),'var(--primary)'],['Turmas de liminar',fmt(_soma(un,2)),'#0ea5e9'],['Atendidas',fmt(atendidas),'#10b981'],['Pendências',fmt(pendentes),'#ef4444'],['Fora da rede mun.',fmt(fora),'#94a3b8']]);
@@ -294,16 +294,16 @@
     renderLimUn();
   }
   function renderLimUn(){ const st=document.getElementById('filtroStatusLim').value, t=(document.getElementById('buscaLimUn').value||'').toLowerCase();
-    const rows=(LIM.unidades||[]).map(u=>({u, s:_statusUnCov(u[0],u[7])}));
+    const rows=_limConsolidar().map(u=>({u, s:_statusUnCov(u[0],u[7])}));
     const l=rows.filter(r=>(!st||r.s===st)&&(!t||String(r.u[0]).toLowerCase().includes(t))).sort((a,b)=> a.s<b.s?-1:a.s>b.s?1:(b.u[2]-a.u[2]));
     const cov=(s,p)=> p>=s?'#10b981':'#ef4444';
     document.getElementById('tbLimUn').innerHTML=l.map(({u,s})=>`<tr class="row-clic" onclick="abrirEscola('${esc(String(u[0]).replace(/'/g,"\\'"))}')"><td title="${esc(u[0])}">${esc(u[0])}</td><td class="text-center fw-bold" style="font-size:1rem;">${u[2]}</td><td class="text-center">${u[3]}</td><td class="text-center" style="color:${cov(u[3],u[5])};font-weight:700;">${u[5]}</td><td class="text-center">${u[4]}</td><td class="text-center" style="color:${cov(u[4],u[6])};font-weight:700;">${u[6]}</td><td class="text-center"><span class="badge-st ${clsSt(s)}">${esc(s)}</span></td></tr>`).join('')||'<tr><td colspan="7" class="text-muted p-3 text-center">Sem dados</td></tr>';
     document.getElementById('contadorLim').textContent=`${l.length} unidade(s)`; }
   // ── Popup nível 1: turmas da escola ──
   function abrirEscola(escola){ _escAtual=escola;
-    const un=(LIM.unidades||[]).find(u=>u[0]===escola)||[];
-    const turmas=(LIM.turmas||[]).filter(t=>t[0]===escola);
-    const unS=_statusUnCov(un[0]||escola, un[7]);
+    const un=_limConsolidar().find(u=>u[0]===escola)||[];
+    const seenT={}, turmas=[]; (LIM.turmas||[]).forEach(t=>{ if(!_matchEscEE(t[0],escola))return; const lab=_normEE(t[1]); if(seenT[lab])return; seenT[lab]=1; turmas.push(t); });
+    const unS=_statusUnCov(escola, un[7]);
     document.getElementById('popBack').style.display='none';
     document.getElementById('popTitulo').textContent=escola;
     document.getElementById('popSub').textContent='Turmas de liminar na unidade';
@@ -320,7 +320,7 @@
   }
   // ── Popup nível 2: alunos da turma ──
   function abrirTurma(escola,turma){
-    const al=(LIM.alunos||[]).filter(a=>a[2]===escola && a[3]===turma);
+    const al=(LIM.alunos||[]).filter(a=>_matchEscEE(a[2],escola) && a[3]===turma);
     document.getElementById('popBack').style.display='block';
     document.getElementById('popTitulo').textContent=turma;
     document.getElementById('popSub').textContent=escola;
@@ -347,6 +347,24 @@
   // Distingue unidades partidas que têm a mesma base (ex.: Sebastiao … vs … Unidade II).
   function _unidadeNum(s){ const n=' '+_normEE(s)+' '; if(/ III /.test(n)) return '3'; if(/ II /.test(n)) return '2'; return '1'; }
   function _matchEscEE(a,b){ const na=_normEE(a),nb=_normEE(b); if(!na||!nb)return false; if(_unidadeNum(a)!==_unidadeNum(b)) return false; if(na===nb)return true; const ba=_baseEE(a),bb=_baseEE(b); return !!(ba&&bb&&(ba===bb||ba.indexOf(bb)===0||bb.indexOf(ba)===0)); }
+  // nome canônico (sem tipo nem número de unidade) + número — p/ agrupar registros fragmentados
+  const _coreEsc = s => _normEE(s).replace(/\b(EMEF|EMEI|EMEIEF|CEI|CEMEI|CEEEF|EEI|CRECHE|AMES|NEI)\b/g,' ').replace(/\b(UNIDADE|UNID|UN|III|II|I)\b/g,' ').replace(/\s+/g,' ').trim();
+  const _canonKey = s => _coreEsc(s)+'|'+_unidadeNum(s);
+  // Consolida unidades de liminar fragmentadas (mesmo nome canônico): turmas DISTINTAS ao vivo
+  // (das ee_liminar_turma), prof = MAIOR entre fragmentos (vêm duplicados), "Fora" se algum for fora.
+  function _limConsolidar(){
+    const g={};
+    (LIM&&LIM.unidades||[]).forEach(u=>{ const key=_canonKey(u[0]);
+      const o=g[key]||(g[key]={nome:u[0], pM:0, pT:0, fora:false});
+      if(String(u[0]).length < String(o.nome).length) o.nome=u[0];
+      o.pM=Math.max(o.pM,+u[5]||0); o.pT=Math.max(o.pT,+u[6]||0);
+      if(String(u[7]||'').indexOf('Fora')===0) o.fora=true; });
+    const tk={}; (LIM&&LIM.turmas||[]).forEach(t=>{ const key=_canonKey(t[0]); (tk[key]||(tk[key]=[])).push(t); });
+    return Object.keys(g).map(key=>{ const o=g[key], ts=tk[key]||[]; const all=new Set(), sM=new Set(), sT=new Set();
+      ts.forEach(t=>{ const lab=_normEE(t[1]); all.add(lab); const p=String(t[2]||'').toUpperCase()[0]; if(p==='M')sM.add(lab); else if(p==='T')sT.add(lab); });
+      return [o.nome,'',all.size,sM.size,sT.size,o.pM,o.pT,o.fora?'Fora da rede municipal':''];   // [escola,tipo,total,salasM,salasT,profM,profT,status]
+    });
+  }
   const _perSig = p => (String(p||'').trim().toUpperCase()[0]||'');   // 'M' | 'T' | 'N'
   function _apoiosDaTurma(escola, turmaKey){
     const lab=_normEE(turmaKey);
@@ -383,7 +401,7 @@
   }
   // status de uma turma de liminar (rótulo ee_liminar_turma): mapeia seus alunos (nome) → turma AEE → vínculo
   function _statusLimTurmaAEE(escolaLim, turmaLim){
-    const nomes=(LIM&&LIM.alunos||[]).filter(a=>a[2]===escolaLim && a[3]===turmaLim).map(a=>_normEE(a[0]));
+    const nomes=(LIM&&LIM.alunos||[]).filter(a=>_matchEscEE(a[2],escolaLim) && a[3]===turmaLim).map(a=>_normEE(a[0]));
     if(!nomes.length) return 'Pendência';
     const un=[...new Set((_ALUNOS_ALL||[]).map(a=>a[0]))].find(x=>_matchEscEE(x,escolaLim)); if(!un) return 'Pendência';
     const aee=(_ALUNOS_ALL||[]).filter(a=>a[0]===un);
@@ -654,7 +672,7 @@
     if(v==='dash')carregarDash(); else if(v==='aee')carregarAEE(); else if(v==='liminar')carregarLim(); else if(v==='apoio')carregarApoio(); }
   function exportar(qual){
     if(qual==='aee'){ const t=(document.getElementById('buscaAluno').value||'').toLowerCase(); const l=ALUNOS.filter(a=>!t||String(a[4]).toLowerCase().includes(t)||String(a[3]).includes(t)); baixar(`aee_${_uAtiva||'rede'}.csv`,['Escola','Serie','Turma','RA','Aluno','Status','EC_Resp','EC_Quest','PEI_Resp','PEI_Quest','Pct'],l); }
-    else if(qual==='lim'){ const st=document.getElementById('filtroStatusLim').value,t=(document.getElementById('buscaLimUn').value||'').toLowerCase(); const l=(LIM.unidades||[]).filter(u=>(!st||u[7]===st)&&(!t||String(u[0]).toLowerCase().includes(t))).map(u=>[u[0],u[2],u[3],u[5],u[4],u[6],u[7]]); baixar('liminares_por_unidade.csv',['Escola','TurmasLiminar','SalasManha','ProfManha','SalasTarde','ProfTarde','Situacao'],l); }
+    else if(qual==='lim'){ const st=document.getElementById('filtroStatusLim').value,t=(document.getElementById('buscaLimUn').value||'').toLowerCase(); const l=_limConsolidar().map(u=>({u,s:_statusUnCov(u[0],u[7])})).filter(r=>(!st||r.s===st)&&(!t||String(r.u[0]).toLowerCase().includes(t))).map(({u,s})=>[u[0],u[2],u[3],u[5],u[4],u[6],s]); baixar('liminares_por_unidade.csv',['Escola','TurmasLiminar','SalasManha','ProfManha','SalasTarde','ProfTarde','Situacao'],l); }
     else { const tp=document.getElementById('filtroTipoApoio').value,t=(document.getElementById('buscaApoio').value||'').toLowerCase(); const l=(APOIO.escolas||[]).filter(e=>(!tp||e[0]===tp)&&(!t||String(e[1]).toLowerCase().includes(t))); baixar('apoio_pedagogico.csv',['Tipo','Escola','ProfManha','ProfTarde','Apoios'],l); }
   }
   document.getElementById('buscaUnidade').addEventListener('input',renderUnidades);
