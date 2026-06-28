@@ -170,7 +170,7 @@
         <div class="sec-tt"><i class="bi bi-building me-1"></i>Apoio pedagógico por escola</div>
         <div class="d-flex gap-2"><select id="filtroTipoApoio" class="form-select form-select-sm" style="max-width:130px;"><option value="">Todos</option><option>CEI</option><option>EMEI</option><option>EMEF</option></select><input id="buscaApoio" class="form-control form-control-sm" style="max-width:220px;" placeholder="Buscar escola…"><button class="btn btn-sm btn-success fw-bold" onclick="exportar('apoio')"><i class="bi bi-download me-1"></i>Excel</button></div>
       </div>
-      <div style="max-height:72vh;overflow:auto;"><table class="mapa"><thead><tr><th>Tipo</th><th>Escola</th><th class="text-center">Prof. Manhã</th><th class="text-center">Prof. Tarde</th><th class="text-center">Total Prof.</th><th class="text-center">Apoios (ASSEJ)</th></tr></thead><tbody id="tbApoio"></tbody></table></div>
+      <div style="max-height:72vh;overflow:auto;"><table class="mapa"><thead><tr><th>Tipo</th><th>Escola</th><th class="text-center">Prof. Manhã</th><th class="text-center">Prof. Tarde</th><th class="text-center">Total Prof.</th><th class="text-center">Apoios (ASSEJ)</th><th class="text-center">Salas vinculadas</th></tr></thead><tbody id="tbApoio"></tbody></table></div>
       <div class="text-muted mt-2" style="font-size:.75rem;" id="contadorApoio"></div>
     </div></div></div>
   </section>
@@ -205,6 +205,20 @@
     </div>
     <div style="padding:.7rem 1.2rem;border-bottom:1px solid #eef2f7;font-size:.85rem;" id="dashResumo"></div>
     <div style="overflow:auto;padding:.6rem 1.2rem 1rem;" id="dashContent"></div>
+  </div>
+</div>
+
+<!-- Popup Vincular professor de apoio às salas -->
+<div id="apoioOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)fecharApoioVinc()">
+  <div style="background:#fff;border-radius:16px;max-width:760px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="background:var(--primary);color:#fff;padding:.9rem 1.2rem;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+      <div style="min-width:0;">
+        <div style="font-weight:900;font-size:1.05rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="apoioTitulo"></div>
+        <div style="font-size:.62rem;opacity:.85;text-transform:uppercase;letter-spacing:.06em;" id="apoioSub"></div>
+      </div>
+      <button onclick="fecharApoioVinc()" style="background:#fff;color:var(--primary);border:0;border-radius:8px;width:32px;height:32px;font-weight:900;cursor:pointer;">✕</button>
+    </div>
+    <div style="overflow:auto;padding:.8rem 1.2rem 1rem;" id="apoioContent"></div>
   </div>
 </div>
 
@@ -313,10 +327,14 @@
   function fecharPop(){ document.getElementById('popOverlay').style.display='none'; }
 
   /* ───────── APOIO ───────── */
-  let APOIO=null;
-  async function carregarApoio(){ if(APOIO) return renderApoio(); const {data,error}=await SB.rpc('ee_apoio'); if(error){alert('Erro Apoio: '+error.message);return;}
+  let APOIO=null, _VINC=null;
+  async function carregarApoio(){ if(APOIO) return renderApoio(); await _eeAuth(); const {data,error}=await SB.rpc('ee_apoio'); if(error){alert('Erro Apoio: '+error.message);return;}
     if(_eeRestrito()){ var es=_eeFilt(data.escolas,1); APOIO={ ...data, escolas:es, geral:{ escolas:es.length, prof_manha:_soma(es,2), prof_tarde:_soma(es,3), professores:_soma(es,2)+_soma(es,3), apoios:_soma(es,4) } }; } else { APOIO=data; }
-    renderApoio(); }
+    await carregarVinculos(); renderApoio(); }
+  async function carregarVinculos(){ try{ const {data,error}=await SB.from('ee_apoio_vinculo').select('id,escola,periodo,slot,turma_label'); _VINC=error?[]:(data||[]); }catch(e){ _VINC=[]; } }
+  function vincDistinct(escola){ const s=new Set(); (_VINC||[]).forEach(v=>{ if(v.escola===escola) s.add(v.turma_label); }); return s.size; }
+  // pode editar = super admin OU gestor vinculado à escola (espelha a RLS de ee_apoio_vinculo)
+  function podeEditar(escola){ var a=window.MapaAuth; if(!a||!a.perfil) return false; if(a.perfil.is_super_admin) return true; return _eeRestrito() && _eePode(escola); }
   function renderApoio(){ const g=APOIO.geral||{}, es=APOIO.escolas||[];
     kpiHTML('kpisApoio',[['Escolas',fmt(g.escolas),'var(--primary)'],['Prof. Manhã',fmt(g.prof_manha),'#f59e0b'],['Prof. Tarde',fmt(g.prof_tarde),'#0ea5e9'],['Total Professores',fmt(g.professores),'#10b981'],['Apoios (ASSEJ)',fmt(g.apoios),'#8b5cf6']]);
     chart('donutApoio',{type:'doughnut',data:{labels:['Prof. Manhã','Prof. Tarde','Apoios (ASSEJ)'],datasets:[{data:[g.prof_manha||0,g.prof_tarde||0,g.apoios||0],backgroundColor:['#f59e0b','#0ea5e9','#8b5cf6'],borderColor:'#fff',borderWidth:3,hoverOffset:12}]},options:{maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{font:{size:10}}}}}});
@@ -326,8 +344,71 @@
   }
   function renderApoioTab(){ const tp=document.getElementById('filtroTipoApoio').value, t=(document.getElementById('buscaApoio').value||'').toLowerCase();
     const l=(APOIO.escolas||[]).filter(e=>(!tp||e[0]===tp)&&(!t||String(e[1]).toLowerCase().includes(t)));
-    document.getElementById('tbApoio').innerHTML=l.map(e=>`<tr><td><span class="badge bg-secondary">${esc(e[0])}</span></td><td title="${esc(e[1])}">${esc(e[1])}</td><td class="text-center" style="color:#f59e0b;font-weight:700;">${e[2]||0}</td><td class="text-center" style="color:#0ea5e9;font-weight:700;">${e[3]||0}</td><td class="text-center fw-bold">${(e[2]||0)+(e[3]||0)}</td><td class="text-center" style="color:#8b5cf6;">${e[4]||0}</td></tr>`).join('')||'<tr><td colspan="6" class="text-muted p-3 text-center">Sem dados</td></tr>';
+    document.getElementById('tbApoio').innerHTML=l.map(e=>{ const escola=e[1], cnt=vincDistinct(escola), ed=podeEditar(escola), total=(e[2]||0)+(e[3]||0);
+      const acao = (ed && total>0)
+        ? `<button class="btn btn-sm btn-outline-primary" style="font-weight:700;padding:2px 10px;" onclick="abrirApoioVinc('${esc(String(escola).replace(/'/g,"\\'"))}',${e[2]||0},${e[3]||0})"><i class="bi bi-link-45deg"></i> ${cnt?'Editar':'Vincular'}</button>`
+        : (cnt?`<span class="text-muted" style="font-size:.78rem;">${cnt} sala(s)</span>`:'<span class="text-muted">—</span>');
+      const badge = cnt?`<span class="badge bg-success me-1">${cnt}</span>`:'';
+      return `<tr><td><span class="badge bg-secondary">${esc(e[0])}</span></td><td title="${esc(escola)}">${esc(escola)}</td><td class="text-center" style="color:#f59e0b;font-weight:700;">${e[2]||0}</td><td class="text-center" style="color:#0ea5e9;font-weight:700;">${e[3]||0}</td><td class="text-center fw-bold">${(e[2]||0)+(e[3]||0)}</td><td class="text-center" style="color:#8b5cf6;">${e[4]||0}</td><td class="text-center">${badge}${acao}</td></tr>`;
+    }).join('')||'<tr><td colspan="7" class="text-muted p-3 text-center">Sem dados</td></tr>';
     document.getElementById('contadorApoio').textContent=`${l.length} escola(s)`; }
+
+  /* ───────── Vínculo Professor de Apoio × Sala (modal) ───────── */
+  let _vEscola=null, _vVinc=[], _vTurmas=[], _vProf={M:0,T:0}, _vEdit=false;
+  const _pLabel = p => ({M:'Manhã',T:'Tarde',N:'Noite'}[String(p||'').toUpperCase()]||p||'');
+  const _turmaLabel = t => (String(t[0]||'').trim()+' '+String(t[1]||'').trim()).trim();
+  async function abrirApoioVinc(escola, profM, profT){
+    _vEscola=escola; _vProf={M:profM,T:profT}; _vEdit=podeEditar(escola);
+    document.getElementById('apoioTitulo').textContent=escola;
+    document.getElementById('apoioSub').textContent='Professores de apoio × salas';
+    document.getElementById('apoioOverlay').style.display='flex';
+    document.getElementById('apoioContent').innerHTML='<div class="text-muted p-3"><span class="spinner-border spinner-border-sm me-2"></span>Carregando turmas…</div>';
+    const [tRes,vRes]=await Promise.all([ SB.rpc('escola_turmas',{p_escola:escola}), SB.from('ee_apoio_vinculo').select('*').eq('escola',escola) ]);
+    if(_vEscola!==escola) return;
+    _vTurmas = tRes.error?[]:(tRes.data||[]);
+    _vVinc   = vRes.error?[]:(vRes.data||[]);
+    renderApoioVinc();
+  }
+  function renderApoioVinc(){
+    const seen={}, turmas=[];
+    _vTurmas.forEach(t=>{ const lab=_turmaLabel(t); if(!lab||seen[lab])return; seen[lab]=1; turmas.push({lab,ano:t[0],letra:t[1],per:t[2]}); });
+    let h='';
+    if(!_vEdit) h+='<div class="alert alert-warning py-2 mb-2" style="font-size:.8rem;"><i class="bi bi-eye me-1"></i>Visualização — você não tem permissão para editar esta escola.</div>';
+    if(!turmas.length) h+='<div class="alert alert-info py-2 mb-2" style="font-size:.8rem;"><i class="bi bi-info-circle me-1"></i>Nenhuma turma encontrada para esta escola na base de turmas.</div>';
+    [['Manhã','M'],['Tarde','T']].forEach(([per,sig])=>{
+      const n=_vProf[sig]||0;
+      h+=`<div class="mb-3"><div class="fw-bold mb-2" style="color:var(--primary);"><i class="bi bi-clock me-1"></i>${per} — ${n} professor(es) de apoio</div>`;
+      if(!n){ h+='<div class="text-muted" style="font-size:.8rem;">Sem professores de apoio neste turno.</div></div>'; return; }
+      for(let s=1;s<=n;s++){
+        const links=_vVinc.filter(v=>v.periodo===per && v.slot===s);
+        const linked=new Set(links.map(v=>v.turma_label));
+        const chips=links.map(v=>`<span class="badge-st st-ok" style="font-size:.72rem;margin:2px;display:inline-flex;align-items:center;gap:5px;">${esc(v.turma_label)}${_vEdit?` <i class="bi bi-x-circle" style="cursor:pointer;" title="remover" onclick="removerVinc(${v.id})"></i>`:''}</span>`).join('') || '<span class="text-muted" style="font-size:.76rem;">nenhuma sala</span>';
+        const opts=turmas.filter(o=>!linked.has(o.lab)).map(o=>`<option value="${esc(o.lab)}" data-ano="${esc(o.ano)}" data-letra="${esc(o.letra)}">${esc(o.lab)}${o.per?' · '+esc(_pLabel(o.per)):''}</option>`).join('');
+        const sel=_vEdit?`<select class="form-select form-select-sm" style="max-width:210px;" onchange="adicionarVinc('${per}',${s},this)"><option value="">+ adicionar sala…</option>${opts}</select>`:'';
+        h+=`<div class="d-flex align-items-center flex-wrap gap-2 mb-1" style="border-bottom:1px solid #f1f5f9;padding:5px 0;"><b style="min-width:84px;font-size:.8rem;color:#475569;">Apoio ${sig} ${s}</b><div style="flex:1;min-width:140px;">${chips}</div>${sel}</div>`;
+      }
+      h+='</div>';
+    });
+    document.getElementById('apoioContent').innerHTML=h;
+  }
+  async function adicionarVinc(periodo, slot, selEl){
+    const lab=selEl.value; if(!lab) return; const opt=selEl.options[selEl.selectedIndex];
+    selEl.disabled=true;
+    const ano=opt.getAttribute('data-ano')||null, letra=opt.getAttribute('data-letra')||null;
+    const perfil_id=(window.MapaAuth&&window.MapaAuth.perfil)?window.MapaAuth.perfil.id:null;
+    const {data,error}=await SB.from('ee_apoio_vinculo').insert({escola:_vEscola,periodo,slot,ano_escolar:ano,letra_turma:letra,turma_label:lab,perfil_id}).select();
+    if(error){ alert('Erro ao vincular: '+error.message); selEl.disabled=false; return; }
+    const novos=data||[]; _vVinc.push(...novos);
+    if(_VINC) _VINC.push(...novos.map(v=>({id:v.id,escola:v.escola,periodo:v.periodo,slot:v.slot,turma_label:v.turma_label})));
+    renderApoioVinc(); renderApoioTab();
+  }
+  async function removerVinc(id){
+    const {error}=await SB.from('ee_apoio_vinculo').delete().eq('id',id);
+    if(error){ alert('Erro ao remover: '+error.message); return; }
+    _vVinc=_vVinc.filter(v=>v.id!==id); if(_VINC) _VINC=_VINC.filter(v=>v.id!==id);
+    renderApoioVinc(); renderApoioTab();
+  }
+  function fecharApoioVinc(){ _vEscola=null; document.getElementById('apoioOverlay').style.display='none'; }
 
   /* ───────── VISÃO GERAL (dash) ───────── */
   let DASH=null, _dashUni=null, _dashAlunosCache={};
