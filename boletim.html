@@ -129,8 +129,19 @@
     <!-- KPIs consolidados -->
     <div class="row g-2 g-lg-3 mb-3" id="kpisGerais"></div>
 
+    <!-- FLUÊNCIA LEITORA -->
+    <section class="sec" id="secFluencia" style="display:none;">
+      <div class="card-box p-3">
+        <div class="sec-head">
+          <div class="sec-tt"><span class="dot" style="background:#0369a1;"></span><i class="bi bi-book-half"></i>Fluência Leitora</div>
+          <a class="verlink" href="fluencia.html">ver tela completa <i class="bi bi-arrow-right-short"></i></a>
+        </div>
+        <div id="fluBody"><div class="empty"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div></div>
+      </div>
+    </section>
+
     <!-- AVALIAÇÕES -->
-    <section class="sec" id="secAval">
+    <section class="sec" id="secAval" style="display:none;">
       <div class="card-box p-3">
         <div class="sec-head">
           <div class="sec-tt"><span class="dot" style="background:#0ea5e9;"></span><i class="bi bi-clipboard-data-fill"></i>Avaliação Diagnóstica</div>
@@ -141,7 +152,7 @@
     </section>
 
     <!-- ELEFANTE LETRADO -->
-    <section class="sec" id="secElefante">
+    <section class="sec" id="secElefante" style="display:none;">
       <div class="card-box p-3">
         <div class="sec-head">
           <div class="sec-tt"><span class="dot" style="background:#10b981;"></span><i class="bi bi-book-fill"></i>Elefante Letrado</div>
@@ -151,19 +162,8 @@
       </div>
     </section>
 
-    <!-- FLUÊNCIA LEITORA -->
-    <section class="sec" id="secFluencia">
-      <div class="card-box p-3">
-        <div class="sec-head">
-          <div class="sec-tt"><span class="dot" style="background:#0369a1;"></span><i class="bi bi-book-half"></i>Fluência Leitora</div>
-          <a class="verlink" href="fluencia.html">ver tela completa <i class="bi bi-arrow-right-short"></i></a>
-        </div>
-        <div id="fluBody"><div class="empty"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div></div>
-      </div>
-    </section>
-
     <!-- EDUCAÇÃO ESPECIAL -->
-    <section class="sec" id="secEE">
+    <section class="sec" id="secEE" style="display:none;">
       <div class="card-box p-3">
         <div class="sec-head">
           <div class="sec-tt"><span class="dot" style="background:#f59e0b;"></span><i class="bi bi-universal-access-circle"></i>Educação Especial</div>
@@ -174,7 +174,7 @@
     </section>
 
     <!-- ATRIBUIÇÃO -->
-    <section class="sec" id="secAtrib">
+    <section class="sec" id="secAtrib" style="display:none;">
       <div class="card-box p-3">
         <div class="sec-head">
           <div class="sec-tt"><span class="dot" style="background:#8b5cf6;"></span><i class="bi bi-diagram-3-fill"></i>Atribuição de Aulas</div>
@@ -284,7 +284,7 @@
   async function renderAval(escola){
     try{
       const d = await carregarAval(escola);
-      if(!d.total){ $('avalBody').innerHTML='<div class="empty">Nenhum aluno avaliado nesta escola.</div>'; return d; }
+      if(!d.total){ return null; }   // sem dados → seção oculta
       let h='<div class="row g-2 mb-3">';
       h+=kpi('Alunos avaliados', fmt(d.total), '#0ea5e9');
       h+=kpi('Críticos', fmt(d.crit), '#ef4444', pct(d.crit,d.total)+'% dos alunos');
@@ -340,7 +340,7 @@
         const is2=classificarInativo(r.situacao_professor_sub, r.vinculo_funcao_sub); if(is2&&String(r.codigo_professor_sub||'').trim() && String(r.codigo_professor_sub)!=='0') inativos.push({nome:r.nome_professor_sub, cod:r.codigo_professor_sub, cat:is2});
       });
       const inatUnq = Array.from(new Map(inativos.map(x=>[String(x.cod)+'|'+norm(x.nome), x])).values());
-      if(!criadas){ $('atribBody').innerHTML='<div class="empty">Sem turmas/atribuições para esta escola.</div>'; return {criadas:0,atrib:0,pend:0}; }
+      if(!criadas){ return null; }   // sem dados → seção oculta
       let h='<div class="row g-2 mb-3">';
       h+=kpi('Turmas/aulas', fmt(criadas), '#8b5cf6');
       h+=kpi('Atribuídas', fmt(atrib), '#10b981', pct(atrib,criadas)+'% de atribuição');
@@ -460,10 +460,20 @@
     $('phNome').textContent=escola;
     $('phData').textContent='· gerado em '+new Date().toLocaleDateString('pt-BR');
     $('selStatus').innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>gerando…';
-    ['avalBody','elefBody','fluBody','eeBody','atribBody'].forEach(id=> $(id).innerHTML='<div class="empty"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</div>');
+    const SECS=['secFluencia','secAval','secElefante','secEE','secAtrib'];
+    SECS.forEach(id=> $(id).style.display='none');   // re-oculta antes de recarregar (troca de escola)
     const [d, el, fl, ee, at] = await Promise.all([ renderAval(escola), renderElefante(escola), renderFluencia(escola), renderEE(escola), renderAtrib(escola) ]);
     if(_escolaAtual!==escola) return; // troca rápida de escola: ignora resultado obsoleto
+    // mostra só os blocos COM dados (na ordem definida no HTML)
+    $('secFluencia').style.display = fl ? '' : 'none';
+    $('secAval').style.display     = d  ? '' : 'none';
+    $('secElefante').style.display = el ? '' : 'none';
+    $('secEE').style.display       = ee ? '' : 'none';
+    $('secAtrib').style.display    = at ? '' : 'none';
     montarKpisGerais(escola, d, el, fl, ee, at);
+    if(!d && !el && !fl && !ee && !at){
+      $('kpisGerais').innerHTML='<div class="col-12"><div class="kpi" style="border-left-color:#ef4444;"><div class="label">Sem dados</div><div class="val" style="font-size:1.05rem;color:#ef4444;">Nenhum dado encontrado para esta escola</div><div class="sub">Verifique a grafia do nome ou se a unidade possui registros nas bases.</div></div></div>';
+    }
     $('selStatus').textContent='';
   }
   // Faixa de KPIs consolidados no topo, com os destaques de cada domínio.
