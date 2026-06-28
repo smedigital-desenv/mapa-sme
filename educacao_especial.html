@@ -370,12 +370,13 @@
       Object.keys(t).forEach(k=>{ if(t[k]){ tot++; if(_apoiosDaTurma(un,k).length>0) cob++; } });
       _limCov[un]={tot,cob}; _limCovBase[_baseEE(un)]={tot,cob}; });
   }
-  // status da unidade pela cobertura AEE ("Fora da rede" preservado)
+  // status da unidade pela cobertura AEE ("Fora da rede" preservado). SEM fallback p/ o status
+  // antigo (contagem): só é "Atendida" se TODAS as turmas de liminar têm prof vinculado.
   function _statusUnCov(unidade, statusOrig){
     if(String(statusOrig||'').indexOf('Fora')===0) return statusOrig;
-    const c=_limCov[unidade] || _limCovBase[_baseEE(unidade)];
-    if(!c || !c.tot) return statusOrig;
-    return c.cob>=c.tot ? 'Atendida' : 'Pendência';
+    let c=_limCov[unidade] || _limCovBase[_baseEE(unidade)];
+    if(!c){ const k=Object.keys(_limCov).find(x=>_matchEscEE(x, unidade)); if(k) c=_limCov[k]; }
+    return (c && c.tot>0 && c.cob>=c.tot) ? 'Atendida' : 'Pendência';
   }
   // status de uma turma de liminar (rótulo ee_liminar_turma): mapeia seus alunos (nome) → turma AEE → vínculo
   function _statusLimTurmaAEE(escolaLim, turmaLim){
