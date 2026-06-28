@@ -211,6 +211,24 @@
   const cache = {};
   async function get(key, loader){ if(cache[key]) return cache[key]; cache[key] = await loader(); return cache[key]; }
 
+  // SELECT em tabela/view paginado: o PostgREST/Supabase devolve no máx. ~1000 linhas
+  // por request, então buscamos em janelas com .range() até esgotar (igual ao fetchAll
+  // das telas originais). eqs = [[coluna, valor], ...] filtros server-side opcionais.
+  async function fetchAll(table, cols, eqs){
+    const PAGE = 1000; let from = 0, all = [];
+    for(;;){
+      let q = SB.from(table).select(cols).range(from, from + PAGE - 1);
+      (eqs || []).forEach(e => { q = q.eq(e[0], e[1]); });
+      const r = await q;
+      if(r.error) throw r.error;
+      const rows = r.data || [];
+      all = all.concat(rows);
+      if(rows.length < PAGE) break;
+      from += PAGE;
+    }
+    return all;
+  }
+
   /* ───────── AVALIAÇÃO DIAGNÓSTICA ───────── */
   const MAP_ESC={'1':'Pré-silábica','2':'Silábica','3':'Silábico-alf.','4':'Alfabética','5':'Ortográfica'};
   const MAP_LEI={'1':'N1 Pré-leitor','2':'N2 Pré-leitor','3':'N3 Pré-leitor','4':'N4 Pré-leitor','5':'L. Iniciante','6':'L. Fluente'};
@@ -292,7 +310,7 @@
   async function renderAtrib(escola){
     try{
       const [turmas, exSet] = await Promise.all([
-        get('turmas', ()=> SB.from('turmas').select('nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,situacao_professor,vinculo_funcao_prop,nome_professor_sub,codigo_professor_sub,situacao_professor_sub,vinculo_funcao_sub').then(r=>{ if(r.error) throw r.error; return r.data||[]; })),
+        get('turmas', ()=> fetchAll('turmas','nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,situacao_professor,vinculo_funcao_prop,nome_professor_sub,codigo_professor_sub,situacao_professor_sub,vinculo_funcao_sub')),
         get('seriesEx', ()=> SB.from('config_series_excluidas').select('serie,excluido').then(r=> r.error?[]:(r.data||[])).catch(()=>[]))
       ]);
       const excl = new Set(exSet.filter(x=>x.excluido).map(x=>norm(x.serie)));
@@ -331,7 +349,7 @@
     try{
       const mes = await get('elefMes', ()=> SB.from('elefante_turmas').select('mes_referencia').order('mes_referencia',{ascending:false}).limit(1).then(r=> (r.data&&r.data[0])?r.data[0].mes_referencia:null));
       if(!mes){ $('elefBody').innerHTML='<div class="empty">Sem dados do Elefante Letrado.</div>'; return null; }
-      const turmas = await get('elef|'+mes, ()=> SB.from('elefante_turmas').select('escola,ano_escolar,turma,estudantes,leitores,livros_lidos,tempo_leitura_seg').eq('mes_referencia',mes).then(r=> r.error?[]:(r.data||[])));
+      const turmas = await get('elef|'+mes, ()=> fetchAll('elefante_turmas','escola,ano_escolar,turma,estudantes,leitores,livros_lidos,tempo_leitura_seg',[['mes_referencia',mes]]));
       const meus = turmas.filter(t=> matchEscola(escola, t.escola));
       if(!meus.length){ $('elefBody').innerHTML='<div class="empty">Sem dados do Elefante Letrado para esta escola.</div>'; return null; }
       const elef={ estud:0, leit:0, livros:0, seg:0, mes };
@@ -352,7 +370,7 @@
     try{
       const av = await get('fluAv', ()=> SB.from('v_fluencia_por_turma').select('avaliacao').order('avaliacao',{ascending:false}).limit(1).then(r=> (r.data&&r.data[0])?r.data[0].avaliacao:null));
       if(!av){ $('fluBody').innerHTML='<div class="empty">Sem dados de Fluência Leitora.</div>'; return null; }
-      const turmas = await get('flu|'+av, ()=> SB.from('v_fluencia_por_turma').select('escola,avaliacao,total_estudantes,avaliados,ausentes,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1').eq('avaliacao',av).then(r=> r.error?[]:(r.data||[])));
+      const turmas = await get('flu|'+av, ()=> fetchAll('v_fluencia_por_turma','escola,avaliacao,total_estudantes,avaliados,ausentes,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1',[['avaliacao',av]]));
       const meus = turmas.filter(t=> matchEscola(escola, t.escola));
       if(!meus.length){ $('fluBody').innerHTML='<div class="empty">Sem dados de Fluência Leitora para esta escola.</div>'; return null; }
       const flu={ av, matric:0, aval:0, aus:0, flu:0, ini:0, n4:0, n3:0, n2:0, n1:0 };
