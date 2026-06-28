@@ -331,10 +331,20 @@
   async function carregarApoio(){ if(APOIO) return renderApoio(); await _eeAuth(); const {data,error}=await SB.rpc('ee_apoio'); if(error){alert('Erro Apoio: '+error.message);return;}
     if(_eeRestrito()){ var es=_eeFilt(data.escolas,1); APOIO={ ...data, escolas:es, geral:{ escolas:es.length, prof_manha:_soma(es,2), prof_tarde:_soma(es,3), professores:_soma(es,2)+_soma(es,3), apoios:_soma(es,4) } }; } else { APOIO=data; }
     await carregarVinculos(); renderApoio(); }
-  async function carregarVinculos(){ try{ const {data,error}=await SB.from('ee_apoio_vinculo').select('id,escola,periodo,slot,turma_label'); _VINC=error?[]:(data||[]); }catch(e){ _VINC=[]; } }
+  async function carregarVinculos(){ if(_VINC!==null) return; try{ const {data,error}=await SB.from('ee_apoio_vinculo').select('id,escola,periodo,slot,turma_label'); _VINC=error?[]:(data||[]); }catch(e){ _VINC=[]; } }
   function vincDistinct(escola){ const s=new Set(); (_VINC||[]).forEach(v=>{ if(v.escola===escola) s.add(v.turma_label); }); return s.size; }
   // pode editar = super admin OU gestor vinculado à escola (espelha a RLS de ee_apoio_vinculo)
   function podeEditar(escola){ var a=window.MapaAuth; if(!a||!a.perfil) return false; if(a.perfil.is_super_admin) return true; return _eeRestrito() && _eePode(escola); }
+  // matching tolerante de escola/turma (p/ cruzar vínculos com a Visão Geral) e turno
+  const _normEE = s => String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+  const _baseEE = s => _normEE(String(s||'').split(',')[0]);
+  function _matchEscEE(a,b){ const na=_normEE(a),nb=_normEE(b); if(!na||!nb)return false; if(na===nb)return true; const ba=_baseEE(a),bb=_baseEE(b); return !!(ba&&bb&&(ba===bb||ba.indexOf(bb)===0||bb.indexOf(ba)===0)); }
+  const _perSig = p => (String(p||'').trim().toUpperCase()[0]||'');   // 'M' | 'T' | 'N'
+  function _apoiosDaTurma(escola, turmaKey){
+    const lab=_normEE(turmaKey);
+    return (_VINC||[]).filter(v=> _matchEscEE(v.escola, escola) && _normEE(v.turma_label)===lab)
+      .map(v=> 'Apoio '+(v.periodo==='Manhã'?'M':'T')+' '+v.slot).sort();
+  }
   function renderApoio(){ const g=APOIO.geral||{}, es=APOIO.escolas||[];
     kpiHTML('kpisApoio',[['Escolas',fmt(g.escolas),'var(--primary)'],['Prof. Manhã',fmt(g.prof_manha),'#f59e0b'],['Prof. Tarde',fmt(g.prof_tarde),'#0ea5e9'],['Total Professores',fmt(g.professores),'#10b981'],['Apoios (ASSEJ)',fmt(g.apoios),'#8b5cf6']]);
     chart('donutApoio',{type:'doughnut',data:{labels:['Prof. Manhã','Prof. Tarde','Apoios (ASSEJ)'],datasets:[{data:[g.prof_manha||0,g.prof_tarde||0,g.apoios||0],backgroundColor:['#f59e0b','#0ea5e9','#8b5cf6'],borderColor:'#fff',borderWidth:3,hoverOffset:12}]},options:{maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{font:{size:10}}}}}});
@@ -370,21 +380,24 @@
     renderApoioVinc();
   }
   function renderApoioVinc(){
-    const seen={}, turmas=[];
-    _vTurmas.forEach(t=>{ const lab=_turmaLabel(t); if(!lab||seen[lab])return; seen[lab]=1; turmas.push({lab,ano:t[0],letra:t[1],per:t[2]}); });
+    // turmas com período (dedup por rótulo+turno); cada turno só enxerga suas turmas
+    const seen={}, allTurmas=[];
+    _vTurmas.forEach(t=>{ const lab=_turmaLabel(t); if(!lab) return; const sig=_perSig(t[2]); const k=lab+'|'+sig; if(seen[k])return; seen[k]=1; allTurmas.push({lab,ano:t[0],letra:t[1],per:t[2],sig}); });
     let h='';
     if(!_vEdit) h+='<div class="alert alert-warning py-2 mb-2" style="font-size:.8rem;"><i class="bi bi-eye me-1"></i>Visualização — você não tem permissão para editar esta escola.</div>';
-    if(!turmas.length) h+='<div class="alert alert-info py-2 mb-2" style="font-size:.8rem;"><i class="bi bi-info-circle me-1"></i>Nenhuma turma encontrada para esta escola na base de turmas.</div>';
+    if(!allTurmas.length) h+='<div class="alert alert-info py-2 mb-2" style="font-size:.8rem;"><i class="bi bi-info-circle me-1"></i>Nenhuma turma encontrada para esta escola na base de turmas.</div>';
     [['Manhã','M'],['Tarde','T']].forEach(([per,sig])=>{
       const n=_vProf[sig]||0;
+      const turmasTurno=allTurmas.filter(o=>o.sig===sig);
       h+=`<div class="mb-3"><div class="fw-bold mb-2" style="color:var(--primary);"><i class="bi bi-clock me-1"></i>${per} — ${n} professor(es) de apoio</div>`;
       if(!n){ h+='<div class="text-muted" style="font-size:.8rem;">Sem professores de apoio neste turno.</div></div>'; return; }
       for(let s=1;s<=n;s++){
         const links=_vVinc.filter(v=>v.periodo===per && v.slot===s);
         const linked=new Set(links.map(v=>v.turma_label));
         const chips=links.map(v=>`<span class="badge-st st-ok" style="font-size:.72rem;margin:2px;display:inline-flex;align-items:center;gap:5px;">${esc(v.turma_label)}${_vEdit?` <i class="bi bi-x-circle" style="cursor:pointer;" title="remover" onclick="removerVinc(${v.id})"></i>`:''}</span>`).join('') || '<span class="text-muted" style="font-size:.76rem;">nenhuma sala</span>';
-        const opts=turmas.filter(o=>!linked.has(o.lab)).map(o=>`<option value="${esc(o.lab)}" data-ano="${esc(o.ano)}" data-letra="${esc(o.letra)}">${esc(o.lab)}${o.per?' · '+esc(_pLabel(o.per)):''}</option>`).join('');
-        const sel=_vEdit?`<select class="form-select form-select-sm" style="max-width:210px;" onchange="adicionarVinc('${per}',${s},this)"><option value="">+ adicionar sala…</option>${opts}</select>`:'';
+        const livres=turmasTurno.filter(o=>!linked.has(o.lab));
+        const opts=livres.map(o=>`<option value="${esc(o.lab)}" data-ano="${esc(o.ano)}" data-letra="${esc(o.letra)}">${esc(o.lab)}</option>`).join('');
+        const sel=(_vEdit && turmasTurno.length)?`<select class="form-select form-select-sm" style="max-width:210px;" onchange="adicionarVinc('${per}',${s},this)"><option value="">+ adicionar sala de ${per.toLowerCase()}…</option>${opts}</select>`:(_vEdit?'<span class="text-muted" style="font-size:.74rem;">sem turmas de '+per.toLowerCase()+'</span>':'');
         h+=`<div class="d-flex align-items-center flex-wrap gap-2 mb-1" style="border-bottom:1px solid #f1f5f9;padding:5px 0;"><b style="min-width:84px;font-size:.8rem;color:#475569;">Apoio ${sig} ${s}</b><div style="flex:1;min-width:140px;">${chips}</div>${sel}</div>`;
       }
       h+='</div>';
@@ -421,6 +434,7 @@
         ec_pct: al?Math.round(ecW/al):0, pei_pct: al?Math.round(peiW/al):0, liminar_turmas:_soma(du,5) } };
     } else { DASH=data; }
     if(!LIM){ try{ const r=await SB.rpc('ee_liminar'); if(!r.error) LIM=_filtLim(r.data); }catch(e){} }
+    await carregarVinculos();
     renderDash(); }
   // unidade = [unidade,turmas_nee,alunos_nee,ec_pct,pei_pct,liminar_turmas,liminar_manha,liminar_tarde,prof_manha,prof_tarde,liminar_status,liminar_escola]
   function renderDash(){ const g=DASH.geral||{};
@@ -457,8 +471,10 @@
     const turmas=Object.entries(tmap).sort((a,b)=>a[0].localeCompare(b[0]));
     const limEsc=u[11]; const limTurmas=(LIM&&limEsc)?(LIM.turmas||[]).filter(t=>t[0]===limEsc):[];
     let html='<div class="sec-tt mb-1" style="font-size:.85rem;">Turmas (AEE) — clique para ver os alunos</div>';
-    html+='<table class="mapa mb-3"><thead><tr><th>Turma</th><th class="text-center">Alunos AEE</th><th style="min-width:110px;">% Estudo de Caso</th><th style="min-width:110px;">% PEI</th></tr></thead><tbody>';
-    html+=turmas.map(([k,o])=>`<tr class="row-clic" onclick="abrirTurmaDash('${esc(k.replace(/'/g,"\\'"))}')"><td>${esc(k)}</td><td class="text-center fw-bold">${o.n}</td><td>${o.ecc?barra(Math.round(o.ecc/o.n*100),COR_EC):'<span class="text-muted">—</span>'}</td><td>${o.peic?barra(Math.round(o.peic/o.n*100),COR_PEI):'<span class="text-muted">—</span>'}</td></tr>`).join('')||'<tr><td colspan="4" class="text-muted text-center p-2">Sem turmas.</td></tr>';
+    html+='<table class="mapa mb-3"><thead><tr><th>Turma</th><th class="text-center">Alunos AEE</th><th style="min-width:110px;">% Estudo de Caso</th><th style="min-width:110px;">% PEI</th><th>Prof. de apoio</th></tr></thead><tbody>';
+    html+=turmas.map(([k,o])=>{ const ap=_apoiosDaTurma(unidade,k); const apH=ap.length?ap.map(x=>`<span class="badge bg-info text-dark" style="font-size:.64rem;margin:1px;font-weight:700;">${esc(x)}</span>`).join(' '):'<span class="text-muted">—</span>';
+      return `<tr class="row-clic" onclick="abrirTurmaDash('${esc(k.replace(/'/g,"\\'"))}')"><td>${esc(k)}</td><td class="text-center fw-bold">${o.n}</td><td>${o.ecc?barra(Math.round(o.ecc/o.n*100),COR_EC):'<span class="text-muted">—</span>'}</td><td>${o.peic?barra(Math.round(o.peic/o.n*100),COR_PEI):'<span class="text-muted">—</span>'}</td><td>${apH}</td></tr>`;
+    }).join('')||'<tr><td colspan="5" class="text-muted text-center p-2">Sem turmas.</td></tr>';
     html+='</tbody></table>';
     if(limEsc){ html+='<div class="sec-tt mb-1" style="font-size:.85rem;">Turmas de liminar nesta unidade</div>';
       html+='<table class="mapa"><thead><tr><th>Turma/Período</th><th class="text-center">Período</th><th class="text-center">Alunos</th><th class="text-center">Situação</th></tr></thead><tbody>';
@@ -471,7 +487,8 @@
     document.getElementById('dashBack').style.display='block';
     document.getElementById('dashTitulo').textContent=turmaKey;
     document.getElementById('dashSub').textContent=_dashUni;
-    document.getElementById('dashResumo').innerHTML=`<b>${alunos.length}</b> aluno(s) com AEE`;
+    const _ap=_apoiosDaTurma(_dashUni,turmaKey);
+    document.getElementById('dashResumo').innerHTML=`<b>${alunos.length}</b> aluno(s) com AEE`+(_ap.length?` &nbsp;|&nbsp; Prof. de apoio: `+_ap.map(x=>`<span class="badge bg-info text-dark" style="font-size:.66rem;font-weight:700;">${esc(x)}</span>`).join(' '):'');
     let html='<table class="mapa"><thead><tr><th>Aluno</th><th>RA</th><th style="min-width:110px;">% Estudo de Caso</th><th style="min-width:110px;">% PEI</th></tr></thead><tbody>';
     html+=alunos.map(a=>`<tr><td>${esc(a[4])}</td><td>${esc(a[3])}</td><td>${a[7]?barra(Math.round(a[6]/a[7]*100),COR_EC):'<span class="text-muted">—</span>'}</td><td>${a[9]?barra(Math.round(a[8]/a[9]*100),COR_PEI):'<span class="text-muted">—</span>'}</td></tr>`).join('')||'<tr><td colspan="4" class="text-muted text-center p-2">Sem alunos.</td></tr>';
     html+='</tbody></table>';
