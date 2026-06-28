@@ -183,15 +183,26 @@
   const fmt = n => Number(n||0).toLocaleString('pt-BR');
   const pct = (a,b) => b>0 ? Math.round(a/b*100) : 0;
 
-  // ── normalização / casamento tolerante de nome de escola (espelha auth.js) ──
+  // ── normalização / casamento tolerante de nome de escola ──
+  // As fontes grafam o nome de formas diferentes: "Antonio Palocci, EMEF" (seletor),
+  // "EMEF ANTONIO PALOCCI" (Fluência), "ANTONIO PALOCCI PROF" (turmas), etc. Para casar,
+  // removemos as siglas de tipo (EMEF/EMEI/CEI…) e comparamos por CONJUNTO de tokens:
+  // todos os tokens-núcleo do nome menor precisam existir no maior (≥2 tokens p/ evitar
+  // falso-positivo). Assim sigla em posição diferente e títulos extras (PROF/DR) casam.
   const norm = s => String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
                      .replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
-  const baseEsc = s => norm(String(s||'').split(',')[0]);
+  const TIPOS = /\b(?:EMEF|EMEI|EMEIEF|EMEIF|CEI|CEMEI|CEMEFEJA|EEI|CEEEF|CRECHE|AMES|NEI)\b/g;
+  const coreTokens = s => norm(s).replace(TIPOS,' ').replace(/\s+/g,' ').trim().split(' ').filter(Boolean);
   function matchEscola(sel, alvo){
     const a=norm(sel), b=norm(alvo); if(!a||!b) return false;
     if(a===b) return true;
-    const ba=baseEsc(sel), bb=baseEsc(alvo);
-    return !!(ba && bb && (ba===bb || ba.indexOf(bb)===0 || bb.indexOf(ba)===0));
+    const ta=coreTokens(sel), tb=coreTokens(alvo);
+    if(!ta.length || !tb.length) return false;
+    const small = ta.length<=tb.length ? ta : tb;
+    const bigSet = new Set(ta.length<=tb.length ? tb : ta);
+    const allIn = small.every(t=> bigSet.has(t));
+    if(small.length>=2) return allIn;                 // núcleo com 2+ tokens: subconjunto basta
+    return allIn && ta.join(' ')===tb.join(' ');       // núcleo de 1 token: exige igualdade
   }
 
   function barra(p,cor){ p=Math.max(0,Math.min(100,Math.round(p||0))); return `<div class="d-flex align-items-center gap-2"><div class="bar" style="flex:1;"><span style="width:${p}%;background:${cor};"></span></div><b style="font-size:.72rem;color:#475569;min-width:34px;">${p}%</b></div>`; }
