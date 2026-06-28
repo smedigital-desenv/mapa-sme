@@ -281,34 +281,38 @@
         atendidas:un.filter(u=>u[7]==='Atendida').length,
         pendentes:un.filter(u=>u[7]==='Pendência').length,
         fora:un.filter(u=>String(u[7]||'').indexOf('Fora')===0).length } }; }
-  async function carregarLim(){ if(LIM) return renderLim(); const {data,error}=await SB.rpc('ee_liminar'); if(error){alert('Erro Liminares: '+error.message);return;} LIM=_filtLim(data); renderLim(); }
+  async function carregarLim(){ if(LIM) return renderLim(); const {data,error}=await SB.rpc('ee_liminar'); if(error){alert('Erro Liminares: '+error.message);return;} LIM=_filtLim(data); await carregarVinculos(); renderLim(); }
   // unidade = [escola,tipo,total_turmas,turmas_manha,turmas_tarde,prof_manha,prof_tarde,status]
-  function renderLim(){ const g=LIM.geral||{}, un=LIM.unidades||[];
-    kpiHTML('kpisLim',[['Unidades',fmt(g.unidades),'var(--primary)'],['Turmas de liminar',fmt(g.turmas),'#0ea5e9'],['Atendidas',fmt(g.atendidas),'#10b981'],['Pendências',fmt(g.pendentes),'#ef4444'],['Fora da rede mun.',fmt(g.fora),'#94a3b8']]);
-    chart('donutLim',{type:'doughnut',data:{labels:['Atendida','Pendência','Fora da rede'],datasets:[{data:[g.atendidas||0,g.pendentes||0,g.fora||0],backgroundColor:['#10b981','#ef4444','#94a3b8'],borderColor:'#fff',borderWidth:3,hoverOffset:12}]},options:{maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{font:{size:11}}}}}});
-    const pend=un.filter(u=>u[7]==='Pendência').sort((a,b)=>b[2]-a[2]).slice(0,15);
+  function renderLim(){ const un=LIM.unidades||[];
+    const eff=un.map(u=>_statusLimUn(u[0],u[7]));   // status efetivo (vínculo) por unidade
+    const atendidas=eff.filter(s=>s==='Atendida').length, pendentes=eff.filter(s=>s==='Pendência').length, fora=eff.filter(s=>String(s||'').indexOf('Fora')===0).length;
+    kpiHTML('kpisLim',[['Unidades',fmt(un.length),'var(--primary)'],['Turmas de liminar',fmt(_soma(un,2)),'#0ea5e9'],['Atendidas',fmt(atendidas),'#10b981'],['Pendências',fmt(pendentes),'#ef4444'],['Fora da rede mun.',fmt(fora),'#94a3b8']]);
+    chart('donutLim',{type:'doughnut',data:{labels:['Atendida','Pendência','Fora da rede'],datasets:[{data:[atendidas,pendentes,fora],backgroundColor:['#10b981','#ef4444','#94a3b8'],borderColor:'#fff',borderWidth:3,hoverOffset:12}]},options:{maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{font:{size:11}}}}}});
+    const pend=un.filter((u,i)=>eff[i]==='Pendência').sort((a,b)=>b[2]-a[2]).slice(0,15);
     chart('barLim',{type:'bar',data:{labels:pend.map(u=>u[0].length>24?u[0].slice(0,22)+'…':u[0]),datasets:[{data:pend.map(u=>u[2]),backgroundColor:'#ef4444',borderRadius:5}]},options:{indexAxis:'y',maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>pend[i[0].dataIndex][0],label:x=>`${x.raw} turma(s) de liminar`}}},scales:{y:{ticks:{font:{size:9}}}}}});
     renderLimUn();
   }
   function renderLimUn(){ const st=document.getElementById('filtroStatusLim').value, t=(document.getElementById('buscaLimUn').value||'').toLowerCase();
-    const l=(LIM.unidades||[]).filter(u=>(!st||u[7]===st)&&(!t||String(u[0]).toLowerCase().includes(t))).sort((a,b)=> a[7]<b[7]?-1:a[7]>b[7]?1:(b[2]-a[2]));
+    const rows=(LIM.unidades||[]).map(u=>({u, s:_statusLimUn(u[0],u[7])}));
+    const l=rows.filter(r=>(!st||r.s===st)&&(!t||String(r.u[0]).toLowerCase().includes(t))).sort((a,b)=> a.s<b.s?-1:a.s>b.s?1:(b.u[2]-a.u[2]));
     const cov=(s,p)=> p>=s?'#10b981':'#ef4444';
-    document.getElementById('tbLimUn').innerHTML=l.map(u=>`<tr class="row-clic" onclick="abrirEscola('${esc(String(u[0]).replace(/'/g,"\\'"))}')"><td title="${esc(u[0])}">${esc(u[0])}</td><td class="text-center fw-bold" style="font-size:1rem;">${u[2]}</td><td class="text-center">${u[3]}</td><td class="text-center" style="color:${cov(u[3],u[5])};font-weight:700;">${u[5]}</td><td class="text-center">${u[4]}</td><td class="text-center" style="color:${cov(u[4],u[6])};font-weight:700;">${u[6]}</td><td class="text-center"><span class="badge-st ${clsSt(u[7])}">${esc(u[7])}</span></td></tr>`).join('')||'<tr><td colspan="7" class="text-muted p-3 text-center">Sem dados</td></tr>';
+    document.getElementById('tbLimUn').innerHTML=l.map(({u,s})=>`<tr class="row-clic" onclick="abrirEscola('${esc(String(u[0]).replace(/'/g,"\\'"))}')"><td title="${esc(u[0])}">${esc(u[0])}</td><td class="text-center fw-bold" style="font-size:1rem;">${u[2]}</td><td class="text-center">${u[3]}</td><td class="text-center" style="color:${cov(u[3],u[5])};font-weight:700;">${u[5]}</td><td class="text-center">${u[4]}</td><td class="text-center" style="color:${cov(u[4],u[6])};font-weight:700;">${u[6]}</td><td class="text-center"><span class="badge-st ${clsSt(s)}">${esc(s)}</span></td></tr>`).join('')||'<tr><td colspan="7" class="text-muted p-3 text-center">Sem dados</td></tr>';
     document.getElementById('contadorLim').textContent=`${l.length} unidade(s)`; }
   // ── Popup nível 1: turmas da escola ──
   function abrirEscola(escola){ _escAtual=escola;
     const un=(LIM.unidades||[]).find(u=>u[0]===escola)||[];
     const turmas=(LIM.turmas||[]).filter(t=>t[0]===escola);
+    const unS=_statusLimUn(un[0]||escola, un[7]);
     document.getElementById('popBack').style.display='none';
     document.getElementById('popTitulo').textContent=escola;
     document.getElementById('popSub').textContent='Turmas de liminar na unidade';
-    document.getElementById('popResumo').innerHTML=`<span class="badge-st ${clsSt(un[7])}">${esc(un[7]||'—')}</span> &nbsp; <b>${un[2]||turmas.length}</b> turma(s) &nbsp;·&nbsp; Manhã: ${un[3]||0} salas / <b style="color:#f59e0b;">${un[5]||0}</b> prof &nbsp; Tarde: ${un[4]||0} salas / <b style="color:#0ea5e9;">${un[6]||0}</b> prof`;
+    document.getElementById('popResumo').innerHTML=`<span class="badge-st ${clsSt(unS)}">${esc(unS||'—')}</span> &nbsp; <b>${un[2]||turmas.length}</b> turma(s) &nbsp;·&nbsp; Manhã: ${un[3]||0} salas / <b style="color:#f59e0b;">${un[5]||0}</b> prof &nbsp; Tarde: ${un[4]||0} salas / <b style="color:#0ea5e9;">${un[6]||0}</b> prof`;
     document.getElementById('popHead').innerHTML='<tr><th>Turma</th><th class="text-center">Alunos</th><th class="text-center">Situação</th></tr>';
     const ordemP=['Manhã','Tarde','Integral','Noite','Outro'];
     const porPer={}; turmas.forEach(t=>{ (porPer[t[2]]||(porPer[t[2]]=[])).push(t); });
     const grupos=ordemP.filter(p=>porPer[p]).concat(Object.keys(porPer).filter(p=>!ordemP.includes(p)));
     document.getElementById('popBody').innerHTML=grupos.map(p=>{
-      const linhas=porPer[p].map(t=>`<tr class="row-clic" onclick="abrirTurma('${esc(String(t[0]).replace(/'/g,"\\'"))}','${esc(String(t[1]).replace(/'/g,"\\'"))}')"><td>${esc(t[1])}</td><td class="text-center fw-bold">${t[3]}</td><td class="text-center"><span class="badge-st ${clsSt(t[4])}">${esc(t[4])}</span></td></tr>`).join('');
+      const linhas=porPer[p].map(t=>{ const ts=_statusLimTurma(t[0],t[1]); return `<tr class="row-clic" onclick="abrirTurma('${esc(String(t[0]).replace(/'/g,"\\'"))}','${esc(String(t[1]).replace(/'/g,"\\'"))}')"><td>${esc(t[1])}</td><td class="text-center fw-bold">${t[3]}</td><td class="text-center"><span class="badge-st ${clsSt(ts)}">${esc(ts)}</span></td></tr>`; }).join('');
       return `<tr><td colspan="3" style="background:#eef4ff;font-weight:800;color:var(--primary);"><i class="bi bi-clock me-1"></i>${esc(p)} <span style="font-weight:400;color:#64748b;">· ${porPer[p].length} turma(s)</span></td></tr>`+linhas;
     }).join('')||'<tr><td colspan="3" class="text-muted text-center p-3">Sem turmas.</td></tr>';
     document.getElementById('popOverlay').style.display='flex';
@@ -344,6 +348,19 @@
     const lab=_normEE(turmaKey);
     return (_VINC||[]).filter(v=> _matchEscEE(v.escola, escola) && _normEE(v.turma_label)===lab)
       .map(v=> 'Apoio '+(v.periodo==='Manhã'?'M':'T')+' '+v.slot).sort();
+  }
+  // ── Situação da liminar pela REGRA NOVA: "Atendida" = a turma tem professor de apoio
+  //    vinculado. Remove o período do rótulo p/ casar "2º Ano A Manhã" com o vínculo "2º ANO A".
+  const _turmaCore = s => _normEE(s).replace(/\b(MANHA|TARDE|NOITE|INTEGRAL|INTERMEDIARIO)\b/g,'').replace(/\s+/g,' ').trim();
+  function _limCoberta(escola, turmaLabel){ const core=_turmaCore(turmaLabel); if(!core) return false;
+    return (_VINC||[]).some(v=> _matchEscEE(v.escola, escola) && _turmaCore(v.turma_label)===core); }
+  const _statusLimTurma = (escola, turmaLabel) => _limCoberta(escola, turmaLabel) ? 'Atendida' : 'Pendência';
+  // status da unidade: "Fora da rede municipal" preservado; senão Atendida só se TODAS as salas cobertas
+  function _statusLimUn(escola, statusOrig){
+    if(String(statusOrig||'').indexOf('Fora')===0) return statusOrig;
+    const turmas=(LIM && LIM.turmas || []).filter(t=> _matchEscEE(t[0], escola));
+    if(!turmas.length) return statusOrig;
+    return turmas.every(t=> _limCoberta(t[0], t[1])) ? 'Atendida' : 'Pendência';
   }
   function renderApoio(){ const g=APOIO.geral||{}, es=APOIO.escolas||[];
     kpiHTML('kpisApoio',[['Escolas',fmt(g.escolas),'var(--primary)'],['Prof. Manhã',fmt(g.prof_manha),'#f59e0b'],['Prof. Tarde',fmt(g.prof_tarde),'#0ea5e9'],['Total Professores',fmt(g.professores),'#10b981'],['Apoios (ASSEJ)',fmt(g.apoios),'#8b5cf6']]);
@@ -442,7 +459,7 @@
     renderDashTab(); }
   function renderDashTab(){ const t=(document.getElementById('buscaDash').value||'').toLowerCase();
     const l=(DASH.unidades||[]).filter(u=>!t||String(u[0]).toLowerCase().includes(t));
-    document.getElementById('tbDash').innerHTML=l.map(u=>`<tr class="row-clic" onclick="abrirUnidadeDash('${esc(String(u[0]).replace(/'/g,"\\'"))}')">
+    document.getElementById('tbDash').innerHTML=l.map(u=>{ const ds=u[5]>0?_statusLimUn(u[11]||u[0],u[10]):''; return `<tr class="row-clic" onclick="abrirUnidadeDash('${esc(String(u[0]).replace(/'/g,"\\'"))}')">
       <td title="${esc(u[0])}">${esc(u[0])}</td>
       <td class="text-center fw-bold">${u[1]}</td><td class="text-center">${u[2]}</td>
       <td>${u[3]==null?'<span class="text-muted">—</span>':barra(u[3],COR_EC)}</td>
@@ -451,15 +468,16 @@
       <td class="text-center" style="font-weight:700;color:${u[6]>0?(u[8]>=u[6]?'#10b981':'#ef4444'):'#475569'};">${u[8]||0}</td>
       <td class="text-center" style="color:${u[7]>0?'#ef4444':'#94a3b8'};font-weight:${u[7]>0?'700':'400'};">${u[7]||'—'}</td>
       <td class="text-center" style="font-weight:700;color:${u[7]>0?(u[9]>=u[7]?'#10b981':'#ef4444'):'#475569'};">${u[9]||0}</td>
-      <td class="text-center">${u[10]?`<span class="badge-st ${clsSt(u[10])}">${esc(u[10])}</span>`:'<span class="text-muted" style="font-size:.72rem;">sem liminar</span>'}</td>
-    </tr>`).join('')||'<tr><td colspan="10" class="text-muted p-3 text-center">Sem dados</td></tr>';
+      <td class="text-center">${ds?`<span class="badge-st ${clsSt(ds)}">${esc(ds)}</span>`:'<span class="text-muted" style="font-size:.72rem;">sem liminar</span>'}</td>
+    </tr>`; }).join('')||'<tr><td colspan="10" class="text-muted p-3 text-center">Sem dados</td></tr>';
     document.getElementById('contadorDash').textContent=`${l.length} unidade(s)`; }
   async function abrirUnidadeDash(unidade){ _dashUni=unidade;
     const u=(DASH.unidades||[]).find(x=>x[0]===unidade)||[];
     document.getElementById('dashBack').style.display='none';
     document.getElementById('dashTitulo').textContent=unidade;
     document.getElementById('dashSub').textContent='Turmas com Atendimento Educacional Especializado (AEE)';
-    document.getElementById('dashResumo').innerHTML=`<b>${u[1]||0}</b> turmas AEE · <b>${u[2]||0}</b> alunos &nbsp;|&nbsp; EC <b style="color:${COR_EC}">${u[3]==null?'—':u[3]+'%'}</b> · PEI <b style="color:${COR_PEI}">${u[4]==null?'—':u[4]+'%'}</b> &nbsp;|&nbsp; Liminar: <b>${u[5]||0}</b> turma(s) (M ${u[6]||0}/<span style="color:#f59e0b;">${u[8]||0}p</span> · T ${u[7]||0}/<span style="color:#0ea5e9;">${u[9]||0}p</span>) ${u[10]?`<span class="badge-st ${clsSt(u[10])}">${esc(u[10])}</span>`:''}`;
+    const dsU=u[5]>0?_statusLimUn(u[11]||u[0],u[10]):'';   // status da unidade pela regra de vínculo
+    document.getElementById('dashResumo').innerHTML=`<b>${u[1]||0}</b> turmas AEE · <b>${u[2]||0}</b> alunos &nbsp;|&nbsp; EC <b style="color:${COR_EC}">${u[3]==null?'—':u[3]+'%'}</b> · PEI <b style="color:${COR_PEI}">${u[4]==null?'—':u[4]+'%'}</b> &nbsp;|&nbsp; Liminar: <b>${u[5]||0}</b> turma(s) (M ${u[6]||0}/<span style="color:#f59e0b;">${u[8]||0}p</span> · T ${u[7]||0}/<span style="color:#0ea5e9;">${u[9]||0}p</span>) ${dsU?`<span class="badge-st ${clsSt(dsU)}">${esc(dsU)}</span>`:''}`;
     document.getElementById('dashOverlay').style.display='flex';
     document.getElementById('dashContent').innerHTML='<div class="text-muted p-3"><span class="spinner-border spinner-border-sm me-2"></span>Carregando turmas…</div>';
     let alunos=_dashAlunosCache[unidade];
@@ -488,7 +506,8 @@
     html+=turmas.map(([k,o])=>{
       const ap=_apoiosDaTurma(unidade,k);
       const apH=ap.length?ap.map(x=>`<span class="badge bg-info text-dark" style="font-size:.64rem;margin:1px;font-weight:700;">${esc(x)}</span>`).join(' '):'<span class="text-muted">—</span>';
-      const limC=o.lim?`<span class="badge-st ${o.limPend>0?'st-pend':'st-ok'}">${o.lim} · ${o.limPend>0?'Pendência':'Atendida'}</span>${o.limPer?` <span class="text-muted" style="font-size:.66rem;">${esc(o.limPer)}</span>`:''}`:'<span class="text-muted">—</span>';
+      const atend=ap.length>0;   // "Atendida" = turma tem professor de apoio vinculado
+      const limC=o.lim?`<span class="badge-st ${atend?'st-ok':'st-pend'}">${o.lim} · ${atend?'Atendida':'Pendência'}</span>${o.limPer?` <span class="text-muted" style="font-size:.66rem;">${esc(o.limPer)}</span>`:''}`:'<span class="text-muted">—</span>';
       const gap=o.lim>0 && ap.length===0;   // liminar sem professor de apoio vinculado
       return `<tr class="row-clic" style="${gap?'background:#fef2f2;':''}" onclick="abrirTurmaDash('${esc(k.replace(/'/g,"\\'"))}')"><td style="${gap?'border-left:3px solid #ef4444;':''}">${esc(k)}</td><td class="text-center fw-bold">${o.n}</td><td>${limC}</td><td>${o.ecc?barra(Math.round(o.ecc/o.n*100),COR_EC):'<span class="text-muted">—</span>'}</td><td>${o.peic?barra(Math.round(o.peic/o.n*100),COR_PEI):'<span class="text-muted">—</span>'}</td><td>${apH}</td></tr>`;
     }).join('')||'<tr><td colspan="6" class="text-muted text-center p-2">Sem turmas.</td></tr>';
@@ -504,8 +523,9 @@
     const _ap=_apoiosDaTurma(_dashUni,turmaKey);
     document.getElementById('dashResumo').innerHTML=`<b>${alunos.length}</b> aluno(s) com AEE`+(_ap.length?` &nbsp;|&nbsp; Prof. de apoio: `+_ap.map(x=>`<span class="badge bg-info text-dark" style="font-size:.66rem;font-weight:700;">${esc(x)}</span>`).join(' '):'');
     let html='<table class="mapa"><thead><tr><th>Aluno</th><th>RA</th><th>Liminar / deficiência</th><th style="min-width:104px;">% Estudo de Caso</th><th style="min-width:104px;">% PEI</th></tr></thead><tbody>';
+    const _atend=_ap.length>0;   // situação da turma pela regra de vínculo
     html+=alunos.map(a=>{ const lr=_dashLim[_normEE(a[4])];
-      const limC=lr?`<span class="badge-st ${(lr.status||'')==='Pendência'?'st-pend':'st-ok'}">${esc(lr.status||'Liminar')}</span>${lr.deficiencia?` <span class="text-muted" style="font-size:.7rem;">${esc(lr.deficiencia)}</span>`:''}`:'<span class="text-muted">—</span>';
+      const limC=lr?`<span class="badge-st ${_atend?'st-ok':'st-pend'}">${_atend?'Atendida':'Pendência'}</span>${lr.deficiencia?` <span class="text-muted" style="font-size:.7rem;">${esc(lr.deficiencia)}</span>`:''}`:'<span class="text-muted">—</span>';
       return `<tr><td>${esc(a[4])}</td><td>${esc(a[3])}</td><td>${limC}</td><td>${a[7]?barra(Math.round(a[6]/a[7]*100),COR_EC):'<span class="text-muted">—</span>'}</td><td>${a[9]?barra(Math.round(a[8]/a[9]*100),COR_PEI):'<span class="text-muted">—</span>'}</td></tr>`;
     }).join('')||'<tr><td colspan="5" class="text-muted text-center p-2">Sem alunos.</td></tr>';
     html+='</tbody></table>';
