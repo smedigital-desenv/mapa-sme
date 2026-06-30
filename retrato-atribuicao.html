@@ -143,7 +143,7 @@
       <!-- PARTE 1 — Educação Infantil (Etapas) -->
       <div class="card-box p-3 p-lg-4 mb-3">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-          <div class="sec-tt"><i class="bi bi-flower1 me-2"></i>Parte 1 · Educação Infantil — Etapas</div>
+          <div class="sec-tt"><i class="bi bi-flower1 me-2"></i>Parte 1 · Educação Infantil — Etapas <span class="text-muted fw-normal" style="font-size:.8rem;">(todas as disciplinas/práticas)</span></div>
           <div class="legend"><span id="metricaLabel1"></span></div>
         </div>
         <div class="table-responsive">
@@ -173,13 +173,9 @@
         </div>
       </div>
 
-      <div class="legend mb-3 px-1">
-        <span class="me-1 text-muted">Parte 1 (Etapas):</span>
-        <span class="me-2"><span class="dot" style="background:var(--mag)"></span>Magistério II</span>
-        <span class="me-2"><span class="dot" style="background:var(--arte)"></span>Arte</span>
-        <span class="me-2"><span class="dot" style="background:var(--ing)"></span>Inglês</span>
-        <span class="me-3"><span class="dot" style="background:var(--ef)"></span>Educação Física</span>
-        <span class="text-muted">· Parte 2 (Fundamental) lista <b>todas as disciplinas</b> · coluna <b>Turmas</b> = turmas distintas (cada turma contada uma vez)</span>
+      <div class="legend mb-3 px-1 text-muted">
+        Partes 1 (Etapas) e 2 (Fundamental) listam <b>todas as disciplinas/práticas</b> presentes em cada etapa/ano ·
+        coluna <b>Turmas</b> = turmas distintas (escola + ano + letra + turno; manhã e tarde da turma integral contam separadas).
       </div>
 
       <!-- Gráfico -->
@@ -211,11 +207,13 @@
             </div>
           </div>
 
-          <h6 class="fw-bold mt-4">Cobertura de turmas por disciplina — Ensino Fundamental (1º ao 5º)</h6>
-          <p class="text-muted small mb-2">Para cada ano, quantas <b>turmas distintas</b> têm cada disciplina, comparado ao
-            total de turmas do ano (cabeçalho). <span style="color:#047857;font-weight:700;">Verde</span> = cobre todas as turmas;
-            <span style="color:#b45309;font-weight:700;">laranja</span> = falta em algumas (mostra <i>cobertas/total</i>).
-            É aqui que se vê, por exemplo, se toda turma de 1º ano tem Educação Financeira.</p>
+          <h6 class="fw-bold mt-4">Cobertura de turmas por disciplina — Etapas + Ensino Fundamental</h6>
+          <p class="text-muted small mb-2">Para cada etapa/ano, quantas <b>turmas distintas</b> têm cada disciplina/prática, comparado ao
+            total de turmas (cabeçalho). <span style="color:#047857;font-weight:700;">Verde</span> = cobre todas as turmas;
+            <span style="color:#b45309;font-weight:700;">laranja</span> = falta em algumas (mostra <i>cobertas/total</i>); clique para ver as turmas.
+            É aqui que se vê, por exemplo, se toda turma de 1º ano tem Educação Financeira, ou se cada etapa integral tem as práticas
+            (alimentação, relaxamento, ser e conviver). Obs.: como manhã e tarde da turma integral são contadas separadas,
+            as práticas de cada turno (ex.: ser e conviver à tarde) cobrem apenas as turmas daquele turno.</p>
           <div class="table-responsive" style="max-height:380px;overflow:auto;">
             <table class="table table-sm table-bordered align-middle mb-0" id="confCobertura"></table>
           </div>
@@ -308,18 +306,23 @@ function isAtribuido(row) {
 
 /* ── Classificação ANO/ETAPA → uma das 7 categorias (ou null) ───── */
 function classificarAno(anoRaw) {
-  const f = colapsar(anoRaw);              // ex.: ETAPAII, ETAPA2, 1ANO, EDINFETAPA1
-  // EJA / Termos / Ciclos NÃO são turmas de 1º-5º nem Etapas (ex.: "1º TERMO" é EJA,
-  // não 1º ano). Excluímos antes da regra do dígito inicial.
+  const n = normalizar(anoRaw);            // mantém espaços: "ETAPA I - INTEGRAL - M"
+  const f = colapsar(anoRaw);              // colapsado: "ETAPAIINTEGRALM"
+  // EJA / Termos / Ciclos NÃO são turmas de 1º-5º nem Etapas (ex.: "1º TERMO" é EJA).
   if (f.includes('TERMO') || f.includes('EJA') || f.includes('CICLO')) return null;
   if (f.includes('ETAPA')) {
-    const rest = f.slice(f.indexOf('ETAPA') + 5);
-    if (rest.startsWith('II') || rest.startsWith('2') || rest.includes('DOIS')) return 'Etapa II';
-    if (rest.startsWith('I')  || rest.startsWith('1') || rest.includes('UM'))   return 'Etapa I';
+    // Lê o número da etapa logo após "ETAPA" (token isolado), tolerando sufixos
+    // como "- INTEGRAL - M". Ex.: "ETAPA I - INTEGRAL - M" → Etapa I (não II).
+    const m = n.match(/ETAPA\s*-?\s*(II|2|DOIS|I|1|UM)\b/);
+    if (m) {
+      const t = m[1];
+      if (t === 'II' || t === '2' || t === 'DOIS') return 'Etapa II';
+      if (t === 'I'  || t === '1' || t === 'UM')   return 'Etapa I';
+    }
     return null;
   }
-  const m = f.match(/^(\d+)/);              // 1º ao 5º ano (número no início)
-  if (m) { const n = parseInt(m[1], 10); if (n >= 1 && n <= 5) return n + 'º Ano'; }
+  const md = f.match(/^(\d+)/);             // 1º ao 5º ano (número no início)
+  if (md) { const v = parseInt(md[1], 10); if (v >= 1 && v <= 5) return v + 'º Ano'; }
   return null;
 }
 
@@ -585,8 +588,8 @@ function render() {
       <div class="val">${gT.toLocaleString('pt-BR')}</div>
       <div class="sub">${gA.toLocaleString('pt-BR')} atribuídas <span class="pct-pill" style="color:${cg};background:${bgg};">${pG}%</span></div></div></div>`;
 
-  // Parte 1 (Etapas) = 4 baldes · Parte 2 (Fundamental) = TODAS as disciplinas
-  const colsEtapas = DISCS.map(d => ({ key:d.key, rgb:d.rgb, destaque:d.key === 'Magistério II', cell:a => bucketCell(cube, a, d.key) }));
+  // Parte 1 (Etapas) e Parte 2 (Fundamental) = TODAS as disciplinas/práticas presentes
+  const colsEtapas = disciplinasDe(cube, SECOES[0].anos).map(n => ({ key:n, rgb:corDisc(n), destaque:(n === 'Magistério II'), cell:a => cube[a].disc[n] }));
   const colsFund   = disciplinasDe(cube, SECOES[1].anos).map(n => ({ key:n, rgb:corDisc(n), destaque:false, cell:a => cube[a].disc[n] }));
   renderSecao(SECOES[0], cube, colsEtapas, a => cube[a].turmas);
   renderSecao(SECOES[1], cube, colsFund,   a => cube[a].turmas);
@@ -727,9 +730,9 @@ function renderConferencia() {
 function renderCobertura(cube) {
   const el = document.getElementById('confCobertura');
   if (!el) return;
-  const anos = SECOES[1].anos;                 // 1º ao 5º
+  const anos = ANOS;                           // Etapa I, II + 1º ao 5º
   const discs = disciplinasDe(cube, anos);
-  if (!discs.length) { el.innerHTML = '<tbody><tr><td class="text-muted p-2">Sem disciplinas no Fundamental.</td></tr></tbody>'; return; }
+  if (!discs.length) { el.innerHTML = '<tbody><tr><td class="text-muted p-2">Sem disciplinas.</td></tr></tbody>'; return; }
 
   const header = `<thead><tr><th style="text-align:left;">Disciplina \\ Ano</th>` +
     anos.map(a => `<th class="text-center">${escapeHtml(a.replace(' Ano','º'))}<br><small class="text-muted">${cube[a].turmas.size} turmas</small></th>`).join('') +
