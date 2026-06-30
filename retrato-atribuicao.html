@@ -117,7 +117,7 @@
     <span class="text-white-50 small fw-bold"><i class="bi bi-sliders me-1"></i>Métrica</span>
     <div class="seg" id="segMetrica">
       <button data-m="carga" class="active">Aulas (carga horária)</button>
-      <button data-m="turmas">Turmas (salas)</button>
+      <button data-m="turmas">Turmas distintas</button>
     </div>
     <span class="text-white-50 small fw-bold ms-2"><i class="bi bi-clock me-1"></i>Período</span>
     <div id="periodoChips" class="d-flex gap-1 flex-wrap"></div>
@@ -137,29 +137,43 @@
 
     <div id="conteudo" style="display:none;">
 
-      <!-- KPIs por disciplina -->
+      <!-- KPIs (turmas + atribuição) -->
       <div class="row g-2 g-lg-3 mb-3" id="kpis"></div>
 
-      <!-- Matriz -->
+      <!-- PARTE 1 — Educação Infantil (Etapas) -->
       <div class="card-box p-3 p-lg-4 mb-3">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-          <div class="sec-tt"><i class="bi bi-grid-3x3-gap-fill me-2"></i>Aulas atribuídas por etapa/ano × disciplina</div>
-          <div class="legend"><span id="metricaLabel"></span> · <span class="text-muted">valor menor = total criado</span></div>
+          <div class="sec-tt"><i class="bi bi-flower1 me-2"></i>Parte 1 · Educação Infantil — Etapas</div>
+          <div class="legend"><span id="metricaLabel1"></span></div>
         </div>
         <div class="table-responsive">
-          <table class="matriz" id="matriz"></table>
+          <table class="matriz" id="matrizEtapas"></table>
         </div>
-        <div class="legend mt-2">
-          <span class="me-3"><span class="dot" style="background:var(--mag)"></span>Magistério II</span>
-          <span class="me-3"><span class="dot" style="background:var(--arte)"></span>Arte</span>
-          <span class="me-3"><span class="dot" style="background:var(--ing)"></span>Inglês</span>
-          <span class="me-3"><span class="dot" style="background:var(--ef)"></span>Educação Física</span>
+      </div>
+
+      <!-- PARTE 2 — Ensino Fundamental (1º ao 5º Ano) -->
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div class="sec-tt"><i class="bi bi-1-circle me-2"></i>Parte 2 · Ensino Fundamental — 1º ao 5º Ano</div>
+          <div class="legend"><span id="metricaLabel2"></span></div>
         </div>
+        <div class="table-responsive">
+          <table class="matriz" id="matrizFund"></table>
+        </div>
+      </div>
+
+      <div class="legend mb-3 px-1">
+        <span class="me-1 text-muted">Disciplinas:</span>
+        <span class="me-3"><span class="dot" style="background:var(--mag)"></span>Magistério II</span>
+        <span class="me-3"><span class="dot" style="background:var(--arte)"></span>Arte</span>
+        <span class="me-3"><span class="dot" style="background:var(--ing)"></span>Inglês</span>
+        <span class="me-3"><span class="dot" style="background:var(--ef)"></span>Educação Física</span>
+        <span class="text-muted">· coluna <b>Turmas</b> = turmas distintas (cada turma contada uma vez)</span>
       </div>
 
       <!-- Gráfico -->
       <div class="card-box p-3 p-lg-4 mb-3" id="graficoWrap">
-        <div class="sec-tt mb-2"><i class="bi bi-bar-chart-fill me-2"></i>Comparativo por etapa/ano</div>
+        <div class="sec-tt mb-2"><i class="bi bi-bar-chart-fill me-2"></i>Comparativo por etapa/ano (aulas atribuídas)</div>
         <canvas id="grafico" height="110"></canvas>
       </div>
 
@@ -209,6 +223,11 @@ const DISCS = [
   { key:'Inglês',           cor:'var(--ing)',  rgb:'#0d9488' },
   { key:'Educação Física',  cor:'var(--ef)',   rgb:'#d97706' },
 ];
+// As duas partes do relatório
+const SECOES = [
+  { id:'Etapas', tabela:'matrizEtapas', labelMetrica:'metricaLabel1', anos:['Etapa I', 'Etapa II'] },
+  { id:'Fund',   tabela:'matrizFund',   labelMetrica:'metricaLabel2', anos:['1º Ano', '2º Ano', '3º Ano', '4º Ano', '5º Ano'] },
+];
 
 /* ── Estado ─────────────────────────────────────────────────────── */
 let ROWS = null;          // linhas cruas (após exclusão de séries)
@@ -224,6 +243,13 @@ function normalizar(txt) {
     .replace(/\s*-\s*/g, ' - ').replace(/\s+/g, ' ');
 }
 function colapsar(txt) { return normalizar(txt).replace(/[^A-Z0-9]/g, ''); }
+function cleanUnit(txt) { return String(txt || '').trim().replace(/\s+/g, ' '); }
+// Identidade de uma turma: escola + ano + letra + período (a mesma turma aparece
+// em várias linhas — uma por disciplina — então deduplicamos por esta chave).
+function turmaKey(row) {
+  return [cleanUnit(row.nome_unidade), String(row.ano_escolar || '').trim(),
+          String(row.letra_turma || '').trim(), String(row.periodo || '').trim()].join('¦');
+}
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 }
@@ -355,71 +381,110 @@ function filtrarTurmasPorEscola(rows) {
 }
 
 /* ── Agregação ──────────────────────────────────────────────────── */
+// cube[ano] = {
+//   turmas: Set,                              // turmas distintas do ano/etapa (qualquer disciplina)
+//   disc: { [disc]: { cargaCriada, cargaAtribuida, tCriadas:Set, tAtrib:Set } }
+// }
 function agregar() {
-  // estrutura: cube[ano][disc] = { criadas, atribuidas, cargaCriada, cargaAtribuida }
   const cube = {};
-  ANOS.forEach(a => { cube[a] = {}; DISCS.forEach(d => cube[a][d.key] = { criadas:0, atribuidas:0, cargaCriada:0, cargaAtribuida:0 }); });
+  ANOS.forEach(a => {
+    cube[a] = { turmas: new Set(), disc: {} };
+    DISCS.forEach(d => cube[a].disc[d.key] = { cargaCriada:0, cargaAtribuida:0, tCriadas:new Set(), tAtrib:new Set() });
+  });
 
   (ROWS || []).forEach(row => {
     if (periodosSel && !periodosSel.has(periodoDesc(row.periodo))) return;
     const ano = classificarAno(row.ano_escolar);
     if (!ano) return;
+    const tk = turmaKey(row);
+    cube[ano].turmas.add(tk);                 // turma distinta (independe da disciplina)
+
     const disc = classificarDisc(row.descricao_disciplina);
     if (!disc) return;
     const carga = Number(row.carga_horaria || 0) || 0;
-    const atrib = isAtribuido(row);
-    const cell = cube[ano][disc];
-    cell.criadas += 1;
+    const cell = cube[ano].disc[disc];
     cell.cargaCriada += carga;
-    if (atrib) { cell.atribuidas += 1; cell.cargaAtribuida += carga; }
+    cell.tCriadas.add(tk);
+    if (isAtribuido(row)) { cell.cargaAtribuida += carga; cell.tAtrib.add(tk); }
   });
   return cube;
 }
 
 /* ── Valores conforme métrica ativa ─────────────────────────────── */
-function val(cell)   { return metrica === 'carga' ? cell.cargaAtribuida : cell.atribuidas; }
-function valTot(cell){ return metrica === 'carga' ? cell.cargaCriada    : cell.criadas; }
+// 'carga'  → aulas (soma da carga horária)
+// 'turmas' → nº de turmas distintas (deduplicado)
+function val(cell)   { return metrica === 'carga' ? cell.cargaAtribuida : cell.tAtrib.size; }
+function valTot(cell){ return metrica === 'carga' ? cell.cargaCriada    : cell.tCriadas.size; }
 function fmt(n)      { return metrica === 'carga' ? Number(n).toLocaleString('pt-BR') : String(n); }
+// turmas distintas de um conjunto de anos (uniões de Sets)
+function turmasDistintas(cube, anos) {
+  const s = new Set();
+  anos.forEach(a => cube[a].turmas.forEach(t => s.add(t)));
+  return s.size;
+}
 
 /* ── Render ─────────────────────────────────────────────────────── */
 function corPct(p) { return p >= 90 ? ['#047857','#d1fae5'] : p >= 60 ? ['#b45309','#fef3c7'] : ['#b91c1c','#fee2e2']; }
 
 function render() {
   const cube = agregar();
-  document.getElementById('metricaLabel').textContent =
-    metrica === 'carga' ? 'Valor maior = aulas (carga horária) atribuídas' : 'Valor maior = turmas atribuídas';
+  const unidMetr = metrica === 'carga' ? 'aulas (carga horária)' : 'turmas distintas';
+  SECOES.forEach(s => {
+    const el = document.getElementById(s.labelMetrica);
+    if (el) el.innerHTML = `valor maior = <b>${unidMetr}</b> atribuídas · menor = total criado`;
+  });
 
-  // KPIs por disciplina (total da rede no filtro atual)
-  const kpis = DISCS.map(d => {
-    let atr = 0, tot = 0;
-    ANOS.forEach(a => { atr += val(cube[a][d.key]); tot += valTot(cube[a][d.key]); });
-    const p = tot > 0 ? Math.round(atr / tot * 100) : 0;
-    const [c, bg] = corPct(p);
-    return `<div class="col-6 col-lg-3">
-      <div class="kpi" style="border-left-color:${d.rgb};">
-        <div class="lbl">${escapeHtml(d.key)}</div>
-        <div class="val">${fmt(atr)}</div>
-        <div class="sub">de ${fmt(tot)} ${metrica === 'carga' ? 'aulas' : 'turmas'}
-          <span class="pct-pill" style="color:${c};background:${bg};">${p}%</span></div>
-      </div></div>`;
-  }).join('');
-  document.getElementById('kpis').innerHTML = kpis;
+  // KPIs: foco em turmas (por parte) + atribuição geral
+  const tEtapas = turmasDistintas(cube, SECOES[0].anos);
+  const tFund   = turmasDistintas(cube, SECOES[1].anos);
+  const subEtapas = SECOES[0].anos.map(a => `${a}: ${cube[a].turmas.size}`).join(' · ');
+  const subFund   = SECOES[1].anos.map(a => `${a.replace(' Ano','º')}: ${cube[a].turmas.size}`).join(' · ');
+  let gA = 0, gT = 0;
+  ANOS.forEach(a => DISCS.forEach(d => { gA += val(cube[a].disc[d.key]); gT += valTot(cube[a].disc[d.key]); }));
+  const pG = gT > 0 ? Math.round(gA / gT * 100) : 0;
+  const [cg, bgg] = corPct(pG);
+  document.getElementById('kpis').innerHTML = `
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#7c3aed;">
+      <div class="lbl"><i class="bi bi-flower1 me-1"></i>Turmas — Etapas</div>
+      <div class="val">${tEtapas}</div><div class="sub">${escapeHtml(subEtapas)}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#059669;">
+      <div class="lbl"><i class="bi bi-1-circle me-1"></i>Turmas — Fundamental</div>
+      <div class="val">${tFund}</div><div class="sub">${escapeHtml(subFund)}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#0f172a;">
+      <div class="lbl"><i class="bi bi-collection me-1"></i>Total de turmas</div>
+      <div class="val">${tEtapas + tFund}</div><div class="sub">Etapas + Fundamental (1º–5º)</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:${cg.replace('#','#')};">
+      <div class="lbl"><i class="bi bi-check2-circle me-1"></i>${metrica === 'carga' ? 'Aulas' : 'Turmas'} atribuídas</div>
+      <div class="val">${fmt(gA)}</div>
+      <div class="sub">de ${fmt(gT)} <span class="pct-pill" style="color:${cg};background:${bgg};">${pG}%</span></div></div></div>`;
 
-  // Matriz
+  SECOES.forEach(s => renderSecao(s, cube));
+  renderGrafico(cube);
+  renderConferencia();
+
+  const unidades = new Set((ROWS || []).map(r => r.nome_unidade)).size;
+  document.getElementById('rodape').textContent =
+    `Base: ${ (ROWS||[]).length.toLocaleString('pt-BR') } linhas de atribuição · ${unidades} unidades. `
+    + `Turmas contadas de forma distinta por escola+ano+letra+período. `
+    + `“Atribuído” segue a mesma regra da tela de Atribuição (titular/substituto na ativa ou em contratação).`;
+}
+
+// Monta a matriz de uma das partes (Etapas ou Fundamental)
+function renderSecao(secao, cube) {
   const thead = `<thead><tr>
       <th style="text-align:left;">Etapa / Ano</th>
+      <th title="Turmas distintas (cada turma contada uma vez)">Turmas</th>
       ${DISCS.map(d => `<th style="color:${d.rgb};">${escapeHtml(d.key)}</th>`).join('')}
       <th class="col-total">Total</th>
     </tr></thead>`;
 
-  const totCol = {};                       // totais por disciplina
-  DISCS.forEach(d => totCol[d.key] = { a:0, t:0 });
-  let totGeralA = 0, totGeralT = 0;
+  const totCol = {}; DISCS.forEach(d => totCol[d.key] = { a:0, t:0 });
+  let secA = 0, secT = 0;
 
-  const linhas = ANOS.map(a => {
+  const linhas = secao.anos.map(a => {
     let linA = 0, linT = 0;
     const tds = DISCS.map(d => {
-      const cell = cube[a][d.key];
+      const cell = cube[a].disc[d.key];
       const v = val(cell), vt = valTot(cell);
       totCol[d.key].a += v; totCol[d.key].t += vt;
       linA += v; linT += vt;
@@ -430,10 +495,12 @@ function render() {
         <div class="big">${v ? fmt(v) : '<span class="text-muted">0</span>'}</div>
         <div class="small">${vt ? 'de ' + fmt(vt) : '—'}</div>${pill}</td>`;
     }).join('');
-    totGeralA += linA; totGeralT += linT;
+    secA += linA; secT += linT;
     const pL = linT > 0 ? Math.round(linA / linT * 100) : 0;
     return `<tr>
-      <th>${escapeHtml(a)}</th>${tds}
+      <th>${escapeHtml(a)}</th>
+      <td><div class="big text-primary">${cube[a].turmas.size}</div><div class="small">turmas</div></td>
+      ${tds}
       <td class="col-total"><div class="big">${fmt(linA)}</div><div class="small">de ${fmt(linT)} · ${pL}%</div></td>
     </tr>`;
   }).join('');
@@ -443,21 +510,15 @@ function render() {
     const p = o.t > 0 ? Math.round(o.a / o.t * 100) : 0;
     return `<td><div class="big">${fmt(o.a)}</div><div class="small">de ${fmt(o.t)} · ${p}%</div></td>`;
   }).join('');
-  const pG = totGeralT > 0 ? Math.round(totGeralA / totGeralT * 100) : 0;
+  const pS = secT > 0 ? Math.round(secA / secT * 100) : 0;
   const linhaTotal = `<tr class="total-row">
-      <th>Total geral</th>${totaisTd}
-      <td class="col-total"><div class="big">${fmt(totGeralA)}</div><div class="small">de ${fmt(totGeralT)} · ${pG}%</div></td>
+      <th>Subtotal</th>
+      <td><div class="big text-primary">${turmasDistintas(cube, secao.anos)}</div><div class="small">turmas</div></td>
+      ${totaisTd}
+      <td class="col-total"><div class="big">${fmt(secA)}</div><div class="small">de ${fmt(secT)} · ${pS}%</div></td>
     </tr>`;
 
-  document.getElementById('matriz').innerHTML = thead + `<tbody>${linhas}${linhaTotal}</tbody>`;
-
-  renderGrafico(cube);
-  renderConferencia();
-
-  const unidades = new Set((ROWS || []).map(r => r.nome_unidade)).size;
-  document.getElementById('rodape').textContent =
-    `Base: ${ (ROWS||[]).length.toLocaleString('pt-BR') } linhas de atribuição · ${unidades} unidades. `
-    + `“Atribuído” segue a mesma regra da tela de Atribuição (titular/substituto na ativa ou em contratação).`;
+  document.getElementById(secao.tabela).innerHTML = thead + `<tbody>${linhas}${linhaTotal}</tbody>`;
 }
 
 function renderGrafico(cube) {
@@ -466,7 +527,7 @@ function renderGrafico(cube) {
     labels: ANOS,
     datasets: DISCS.map(d => ({
       label: d.key,
-      data: ANOS.map(a => val(cube[a][d.key])),
+      data: ANOS.map(a => val(cube[a].disc[d.key])),
       backgroundColor: d.rgb,
       borderRadius: 4,
     })),
@@ -541,27 +602,40 @@ async function exportarExcel() {
   const cube = agregar();
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Retrato Atribuições');
-  const unidMetr = metrica === 'carga' ? 'Aulas (carga horária)' : 'Turmas (salas)';
+  const unidMetr = metrica === 'carga' ? 'Aulas (carga horária)' : 'Turmas distintas atribuídas';
   ws.addRow([`Retrato Quantitativo de Atribuições — ${unidMetr}`]);
   ws.addRow([`Período: ${periodosSel ? Array.from(periodosSel).join(', ') : 'Todos'}`]);
   ws.addRow([]);
-  const head = ['Etapa / Ano'];
+
+  const head = ['Etapa / Ano', 'Turmas (distintas)'];
   DISCS.forEach(d => { head.push(d.key + ' (atrib.)', d.key + ' (total)'); });
   head.push('Total atrib.', 'Total criado');
-  ws.addRow(head);
-  ANOS.forEach(a => {
-    const r = [a]; let la = 0, lt = 0;
-    DISCS.forEach(d => { const c = cube[a][d.key]; r.push(val(c), valTot(c)); la += val(c); lt += valTot(c); });
-    r.push(la, lt); ws.addRow(r);
-  });
-  const tr = ['Total geral']; let ga = 0, gt = 0;
-  DISCS.forEach(d => {
-    let a = 0, t = 0; ANOS.forEach(an => { a += val(cube[an][d.key]); t += valTot(cube[an][d.key]); });
-    tr.push(a, t); ga += a; gt += t;
-  });
-  tr.push(ga, gt); ws.addRow(tr);
-  ws.getRow(4).font = { bold: true };
-  ws.getRow(ws.rowCount).font = { bold: true };
+  const headRow = ws.addRow(head); headRow.font = { bold: true };
+
+  const linhaAno = a => {
+    const r = [a, cube[a].turmas.size]; let la = 0, lt = 0;
+    DISCS.forEach(d => { const c = cube[a].disc[d.key]; r.push(val(c), valTot(c)); la += val(c); lt += valTot(c); });
+    r.push(la, lt); return ws.addRow(r);
+  };
+  const linhaSub = (rotulo, anos) => {
+    const r = [rotulo, turmasDistintas(cube, anos)]; let sa = 0, st = 0;
+    DISCS.forEach(d => {
+      let a = 0, t = 0; anos.forEach(an => { a += val(cube[an].disc[d.key]); t += valTot(cube[an].disc[d.key]); });
+      r.push(a, t); sa += a; st += t;
+    });
+    r.push(sa, st); const row = ws.addRow(r); row.font = { bold: true }; return row;
+  };
+
+  ws.addRow(['PARTE 1 — Educação Infantil (Etapas)']).font = { bold: true, italic: true };
+  SECOES[0].anos.forEach(linhaAno);
+  linhaSub('Subtotal Etapas', SECOES[0].anos);
+  ws.addRow([]);
+  ws.addRow(['PARTE 2 — Ensino Fundamental (1º ao 5º Ano)']).font = { bold: true, italic: true };
+  SECOES[1].anos.forEach(linhaAno);
+  linhaSub('Subtotal Fundamental', SECOES[1].anos);
+  ws.addRow([]);
+  linhaSub('Total geral', ANOS);
+
   ws.columns.forEach(c => c.width = 18);
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
