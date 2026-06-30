@@ -204,6 +204,34 @@
         </div>
       </div>
 
+      <!-- SIMULADOR 2027 -->
+      <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #1d4ed8;">
+        <div class="sec-tt mb-1"><i class="bi bi-calculator me-2"></i>Simulador 2027 — projeção do total de aulas</div>
+        <p class="text-muted small mb-3">Defina as aulas dos novos projetos de 2027. O restante (Magistério II, Educação Física,
+          PRA, Arte, Inglês, Educação Financeira) usa os números de <b>2026</b>. Os parâmetros ficam salvos no seu navegador.</p>
+        <div class="row g-3">
+          <div class="col-12 col-lg-4">
+            <label class="form-label fw-bold small mb-1">Etapas — Projeto Professor de Apoio</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text">aulas/turma</span>
+              <input type="number" min="0" step="1" class="form-control" id="simApoio" placeholder="0">
+            </div>
+            <div class="form-text" id="simApoioInfo"></div>
+          </div>
+          <div class="col-12 col-lg-8">
+            <label class="form-label fw-bold small mb-1">Fundamental — PPA (aulas por turma, por ano)</label>
+            <div class="row g-2">
+              <div class="col"><div class="input-group input-group-sm"><span class="input-group-text">1º</span><input type="number" min="0" step="1" class="form-control" id="simPPA1" placeholder="0"></div></div>
+              <div class="col"><div class="input-group input-group-sm"><span class="input-group-text">2º</span><input type="number" min="0" step="1" class="form-control" id="simPPA2" placeholder="0"></div></div>
+              <div class="col"><div class="input-group input-group-sm"><span class="input-group-text">3º</span><input type="number" min="0" step="1" class="form-control" id="simPPA3" placeholder="0"></div></div>
+              <div class="col"><div class="input-group input-group-sm"><span class="input-group-text">4º</span><input type="number" min="0" step="1" class="form-control" id="simPPA4" placeholder="0"></div></div>
+              <div class="col"><div class="input-group input-group-sm"><span class="input-group-text">5º</span><input type="number" min="0" step="1" class="form-control" id="simPPA5" placeholder="0"></div></div>
+            </div>
+          </div>
+        </div>
+        <div id="simResultado" class="mt-3"></div>
+      </div>
+
       <!-- Gráfico -->
       <div class="card-box p-3 p-lg-4 mb-3" id="graficoWrap">
         <div class="sec-tt mb-2"><i class="bi bi-bar-chart-fill me-2"></i>Comparativo por etapa/ano (total de aulas — disciplinas principais)</div>
@@ -297,6 +325,7 @@ let metrica = 'carga';    // 'carga' | 'turmas'
 let periodosSel = null;   // Set de períodos selecionados (null = todos)
 let grafico = null;
 let CUBE = null;          // último cubo agregado (para o drill-down de cobertura)
+let PROJ = null;          // últimos projetos agregados (para o simulador 2027)
 
 /* ── Helpers (espelham atribuicao.html) ─────────────────────────── */
 function normalizar(txt) {
@@ -671,7 +700,7 @@ function corPct(p) { return p >= 90 ? ['#047857','#d1fae5'] : p >= 60 ? ['#b4530
 
 function render() {
   const { cube, proj } = agregar();
-  CUBE = cube;
+  CUBE = cube; PROJ = proj;
   const unidMetr = metrica === 'carga' ? 'total de aulas (carga horária)' : 'total de turmas distintas';
   ['metricaLabel1', 'metricaLabel2', 'metricaLabel3'].forEach(id => {
     const el = document.getElementById(id);
@@ -711,6 +740,7 @@ function render() {
 
   renderProjetos(proj);
   renderPeb2();
+  recomputeSim();
   renderGrafico(cube);
   renderConferencia();
   renderCobertura(cube);
@@ -870,6 +900,89 @@ function renderPeb2Diag() {
   }).join('');
   tab.innerHTML = `<thead><tr><th>Coluna</th><th>Valor</th><th class="text-end">Linhas</th><th>Detectado</th></tr></thead>`
     + `<tbody>${linha('funcao_professor', fc)}${linha('vínculo (ativo)', vc)}</tbody>`;
+}
+
+/* ── Simulador 2027 ─────────────────────────────────────────────── */
+const SIM_KEY = 'mapa_retrato_sim2027';
+// As 6 disciplinas que continuam iguais em 2027 (números de 2026).
+const BASE6 = ['Magistério II', 'Educação Física', 'PRA — Recuperação', 'Arte', 'Inglês', 'Educação Financeira'];
+let _simPronto = false;
+
+function simSetup() {
+  // Carrega parâmetros salvos e liga os eventos uma única vez.
+  let p = {}; try { p = JSON.parse(localStorage.getItem(SIM_KEY)) || {}; } catch (e) {}
+  const ap = document.getElementById('simApoio'); if (ap && p.apoio != null) ap.value = p.apoio;
+  ANO_CATS.forEach((a, i) => { const el = document.getElementById('simPPA' + (i + 1)); if (el && p.ppa && p.ppa[i + 1] != null) el.value = p.ppa[i + 1]; });
+  if (!_simPronto) {
+    ['simApoio', 'simPPA1', 'simPPA2', 'simPPA3', 'simPPA4', 'simPPA5'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', () => { simSalvar(); recomputeSim(); });
+    });
+    _simPronto = true;
+  }
+  recomputeSim();
+}
+function simSalvar() {
+  const p = { apoio: Number(document.getElementById('simApoio').value) || 0, ppa: {} };
+  ANO_CATS.forEach((a, i) => { p.ppa[i + 1] = Number(document.getElementById('simPPA' + (i + 1)).value) || 0; });
+  try { localStorage.setItem(SIM_KEY, JSON.stringify(p)); } catch (e) {}
+}
+function recomputeSim() {
+  const box = document.getElementById('simResultado');
+  if (!box || !CUBE) return;
+  const br = n => Number(n).toLocaleString('pt-BR');
+
+  // Apoio nas etapas (todas as turmas: parcial + integral)
+  const apoio = Number((document.getElementById('simApoio') || {}).value) || 0;
+  const etapaTurmas = turmasDistintas(CUBE, ETAPA_CATS);
+  const apoioTotal = etapaTurmas * apoio;
+  const info = document.getElementById('simApoioInfo');
+  if (info) info.textContent = `${etapaTurmas} turmas de etapa × ${apoio} = ${br(apoioTotal)} aulas`;
+
+  // PPA no fundamental (1 por turma; aulas por ano)
+  let ppaTotal = 0;
+  const ppaLin = ANO_CATS.map((a, i) => {
+    const param = Number((document.getElementById('simPPA' + (i + 1)) || {}).value) || 0;
+    const turmas = CUBE[a].turmas.size, sub = turmas * param; ppaTotal += sub;
+    return `<tr><td>${escapeHtml(a)}</td><td class="text-end">${turmas}</td><td class="text-end">${param}</td><td class="text-end">${br(sub)}</td></tr>`;
+  }).join('');
+
+  // Base: 6 disciplinas que continuam iguais (carga de 2026)
+  let base6 = 0;
+  ANOS.forEach(a => BASE6.forEach(n => { const c = CUBE[a].disc[n]; if (c) base6 += c.cargaCriada; }));
+
+  // Total 2026 (tudo: todas as disciplinas + projetos atuais)
+  let t2026 = 0;
+  ANOS.forEach(a => Object.values(CUBE[a].disc).forEach(c => t2026 += c.cargaCriada));
+  Object.values(PROJ || {}).forEach(c => t2026 += c.cargaCriada);
+
+  const t2027 = apoioTotal + ppaTotal + base6;
+  const diff = t2027 - t2026;
+  const pct = t2026 > 0 ? Math.round(diff / t2026 * 1000) / 10 : 0;
+  const cor = diff > 0 ? '#b91c1c' : '#047857';
+
+  box.innerHTML = `
+    <div class="row g-3">
+      <div class="col-12 col-lg-6">
+        <table class="table table-sm align-middle mb-0">
+          <tbody>
+            <tr><td>Apoio (Etapas)</td><td class="text-end fw-bold">${br(apoioTotal)}</td></tr>
+            <tr><td>PPA (Fundamental)</td><td class="text-end fw-bold">${br(ppaTotal)}</td></tr>
+            <tr><td>Base — 6 disciplinas (2026)</td><td class="text-end fw-bold">${br(base6)}</td></tr>
+            <tr style="background:#dbeafe;"><td><b>Total 2027 (projeção)</b></td><td class="text-end fw-bold">${br(t2027)}</td></tr>
+            <tr><td>Total 2026 (atual)</td><td class="text-end">${br(t2026)}</td></tr>
+            <tr><td><b>Diferença</b></td><td class="text-end fw-bold" style="color:${cor};">${diff >= 0 ? '+' : ''}${br(diff)} (${pct >= 0 ? '+' : ''}${pct}%)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="col-12 col-lg-6">
+        <div class="small fw-bold text-muted mb-1">PPA por ano</div>
+        <table class="table table-sm table-bordered align-middle mb-0">
+          <thead><tr><th>Ano</th><th class="text-end">Turmas</th><th class="text-end">Aulas/turma</th><th class="text-end">Total</th></tr></thead>
+          <tbody>${ppaLin}<tr class="fw-bold"><td>Total</td><td></td><td></td><td class="text-end">${br(ppaTotal)}</td></tr></tbody>
+        </table>
+      </div>
+    </div>`;
 }
 
 function renderGrafico(cube) {
@@ -1116,6 +1229,7 @@ async function carregar() {
     document.getElementById('conteudo').style.display = 'block';
     montarPeriodos();
     render();   // depois de exibir o conteúdo, para o gráfico medir o canvas corretamente
+    simSetup(); // carrega parâmetros salvos do simulador e liga os eventos
   } catch (e) {
     document.getElementById('estado').innerHTML =
       `<div class="alert alert-danger d-inline-block">Erro ao carregar os dados: ${escapeHtml(e.message || e)}</div>`;
