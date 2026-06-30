@@ -170,8 +170,7 @@
       <!-- PARTE 3 — Projetos (esperado: total de aulas) -->
       <div class="card-box p-3 p-lg-4 mb-3">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-          <div class="sec-tt"><i class="bi bi-journal-bookmark-fill me-2"></i>Parte 3 · Projetos <span class="text-muted fw-normal" style="font-size:.8rem;">(esperado — total de aulas)</span></div>
-          <div class="legend"><span id="metricaLabel3"></span></div>
+          <div class="sec-tt"><i class="bi bi-journal-bookmark-fill me-2"></i>Parte 3 · Projetos <span class="text-muted fw-normal" style="font-size:.8rem;">(total de aulas — não são por turma)</span></div>
         </div>
         <div class="table-responsive">
           <table class="matriz" id="matrizProj"></table>
@@ -525,10 +524,22 @@ function filtrarTurmasPorEscola(rows) {
 function novaCell() { return { cargaCriada:0, cargaAtribuida:0, tCriadas:new Set(), tAtrib:new Set() }; }
 function agregar() {
   const cube = {};
-  ANOS.forEach(a => { cube[a] = { turmas: new Set(), disc: {}, proj: {}, turmaInfo: {} }; });
+  ANOS.forEach(a => { cube[a] = { turmas: new Set(), disc: {}, turmaInfo: {} }; });
+  const proj = {};   // projetos (PPA/PPP/PRP): { nome -> {cargaCriada,cargaAtribuida} } — não ligados a turmas
 
   (ROWS || []).forEach(row => {
     if (periodosSel && !periodosSel.has(periodoDesc(row.periodo))) return;
+    const carga = Number(row.carga_horaria || 0) || 0;
+    const atrib = isAtribuido(row);
+
+    // Projetos: agregados à parte (independem do ano/turma) — só somam aulas.
+    const projNome = nomeProjeto(row.descricao_disciplina);
+    if (projNome) {
+      const cell = (proj[projNome] ||= { cargaCriada:0, cargaAtribuida:0 });
+      cell.cargaCriada += carga; if (atrib) cell.cargaAtribuida += carga;
+      return;
+    }
+
     const ano = categoriaAno(row);
     if (!ano || !cube[ano]) return;
     const tk = turmaKey(row);
@@ -543,21 +554,13 @@ function agregar() {
       };
     }
 
-    const carga = Number(row.carga_horaria || 0) || 0;
-    const atrib = isAtribuido(row);
-    const acumula = cell => {
-      cell.cargaCriada += carga; cell.tCriadas.add(tk);
-      if (atrib) { cell.cargaAtribuida += carga; cell.tAtrib.add(tk); }
-    };
-
-    // Linhas de projeto vão para o bloco de Projetos; as demais, para disciplinas.
-    const proj = nomeProjeto(row.descricao_disciplina);
-    if (proj) { acumula(cube[ano].proj[proj] ||= novaCell()); return; }
     const nome = nomeDisc(row.descricao_disciplina);
     if (!nome) return;
-    acumula(cube[ano].disc[nome] ||= novaCell());
+    const cell = (cube[ano].disc[nome] ||= novaCell());
+    cell.cargaCriada += carga; cell.tCriadas.add(tk);
+    if (atrib) { cell.cargaAtribuida += carga; cell.tAtrib.add(tk); }
   });
-  return cube;
+  return { cube, proj };
 }
 
 // Junta várias células numa só (soma cargas, une conjuntos de turmas).
@@ -588,7 +591,6 @@ function chavesDe(cube, anos, campo) {
   return Object.keys(tot).sort((x, y) => tot[y] - tot[x] || x.localeCompare(y, 'pt-BR'));
 }
 function disciplinasDe(cube, anos) { return chavesDe(cube, anos, 'disc'); }
-function projetosDe(cube, anos)    { return chavesDe(cube, anos, 'proj'); }
 
 /* ── Valores conforme métrica ativa ─────────────────────────────── */
 // Análise por TOTAL de aulas (independe de atribuída ou não):
@@ -608,7 +610,7 @@ function turmasDistintas(cube, anos) {
 function corPct(p) { return p >= 90 ? ['#047857','#d1fae5'] : p >= 60 ? ['#b45309','#fef3c7'] : ['#b91c1c','#fee2e2']; }
 
 function render() {
-  const cube = agregar();
+  const { cube, proj } = agregar();
   CUBE = cube;
   const unidMetr = metrica === 'carga' ? 'total de aulas (carga horária)' : 'total de turmas distintas';
   ['metricaLabel1', 'metricaLabel2', 'metricaLabel3'].forEach(id => {
@@ -622,8 +624,8 @@ function render() {
   const subEtapas = ETAPAS.map(e => `${e}: ${turmasDistintas(cube, TURNOS.map(t => e + SEP + t))}`).join(' · ');
   const subFund   = ANO_CATS.map(a => `${a.replace(' Ano','º')}: ${cube[a].turmas.size}`).join(' · ');
   let gA = 0, gT = 0;
-  ANOS.forEach(a => [...Object.values(cube[a].disc), ...Object.values(cube[a].proj)]
-    .forEach(c => { gA += c.cargaAtribuida; gT += c.cargaCriada; }));
+  ANOS.forEach(a => Object.values(cube[a].disc).forEach(c => { gA += c.cargaAtribuida; gT += c.cargaCriada; }));
+  Object.values(proj).forEach(c => { gA += c.cargaAtribuida; gT += c.cargaCriada; });
   const pG = gT > 0 ? Math.round(gA / gT * 100) : 0;
   const [cg, bgg] = corPct(pG);
   document.getElementById('kpis').innerHTML = `
@@ -647,16 +649,7 @@ function render() {
   renderSecao(SECOES[1], cube, cols(ETAPA_II_CATS), a => cube[a].turmas);
   renderSecao(SECOES[2], cube, cols(ANO_CATS),      a => cube[a].turmas);
 
-  // Parte 3 (Projetos) = esperado (total de aulas) por projeto; turmas = só as com projeto
-  const anosProj = ANOS.filter(a => Object.keys(cube[a].proj).length);
-  const colsProj = projetosDe(cube, ANOS).map(n => ({ key:n, rgb:corDisc(n), destaque:false, cell:a => cube[a].proj[n] }));
-  if (anosProj.length && colsProj.length) {
-    renderSecao({ anos: anosProj, tabela: 'matrizProj', col1: 'Etapa/Ano/Turno', rotulo: rotuloCurto }, cube, colsProj, a => turmasProjSet(cube, a));
-  } else {
-    document.getElementById('matrizProj').innerHTML =
-      `<tbody><tr><td class="text-muted p-3">Nenhuma linha de projeto encontrada nos dados deste filtro.</td></tr></tbody>`;
-  }
-
+  renderProjetos(proj);
   renderGrafico(cube);
   renderConferencia();
   renderCobertura(cube);
@@ -666,13 +659,6 @@ function render() {
     `Base: ${ (ROWS||[]).length.toLocaleString('pt-BR') } linhas de atribuição · ${unidades} unidades. `
     + `Análise pelo TOTAL de aulas (criadas), independente de atribuição. `
     + `Turmas contadas de forma distinta por escola+ano+letra+período.`;
-}
-
-// Conjunto de turmas distintas que têm pelo menos uma linha de projeto, no ano.
-function turmasProjSet(cube, a) {
-  const s = new Set();
-  Object.values(cube[a].proj).forEach(c => c.tCriadas.forEach(t => s.add(t)));
-  return s;
 }
 
 // Monta a matriz de uma parte. colunas=[{key,rgb,destaque,cell(ano)}] · turmaSetOf(ano)→Set
@@ -725,6 +711,40 @@ function renderSecao(secao, cube, colunas, turmaSetOf) {
     </tr>`;
 
   document.getElementById(secao.tabela).innerHTML = thead + `<tbody>${linhas}${linhaTotal}</tbody>`;
+}
+
+// Parte 3 (Projetos): lista simples por projeto — total de aulas e atribuídas.
+// Projetos não são por turma, por isso sem coluna de turmas e sem quebra por ano.
+function renderProjetos(proj) {
+  const el = document.getElementById('matrizProj');
+  const nomes = Object.keys(proj).sort((x, y) => proj[y].cargaCriada - proj[x].cargaCriada || x.localeCompare(y, 'pt-BR'));
+  if (!nomes.length) {
+    el.innerHTML = `<tbody><tr><td class="text-muted p-3">Nenhuma linha de projeto encontrada neste filtro.</td></tr></tbody>`;
+    return;
+  }
+  const thead = `<thead><tr>
+      <th style="text-align:left;">Projeto</th>
+      <th class="text-center">Total de aulas</th>
+      <th class="text-center">Atribuídas</th>
+      <th class="text-center">%</th></tr></thead>`;
+  let tT = 0, tA = 0;
+  const linhas = nomes.map(n => {
+    const c = proj[n]; tT += c.cargaCriada; tA += c.cargaAtribuida;
+    const p = c.cargaCriada > 0 ? Math.round(c.cargaAtribuida / c.cargaCriada * 100) : 0;
+    const [cor, bg] = corPct(p);
+    return `<tr>
+      <th style="text-align:left;color:${corDisc(n)};">${escapeHtml(n)}</th>
+      <td class="text-center"><span class="big">${c.cargaCriada.toLocaleString('pt-BR')}</span></td>
+      <td class="text-center">${c.cargaAtribuida.toLocaleString('pt-BR')}</td>
+      <td class="text-center"><span class="pct-pill" style="color:${cor};background:${bg};">${p}%</span></td></tr>`;
+  }).join('');
+  const pT = tT > 0 ? Math.round(tA / tT * 100) : 0;
+  const total = `<tr class="total-row">
+      <th style="text-align:left;">Total</th>
+      <td class="text-center"><span class="big">${tT.toLocaleString('pt-BR')}</span></td>
+      <td class="text-center">${tA.toLocaleString('pt-BR')}</td>
+      <td class="text-center">${pT}%</td></tr>`;
+  el.innerHTML = thead + `<tbody>${linhas}${total}</tbody>`;
 }
 
 function renderGrafico(cube) {
@@ -885,7 +905,7 @@ document.getElementById('confCobertura').addEventListener('click', e => {
 /* ── Excel ──────────────────────────────────────────────────────── */
 async function exportarExcel() {
   if (!ROWS) return;
-  const cube = agregar();
+  const { cube, proj } = agregar();
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Retrato Atribuições');
   const unidMetr = metrica === 'carga' ? 'Total de aulas (carga horária)' : 'Total de turmas distintas';
@@ -894,8 +914,6 @@ async function exportarExcel() {
   ws.addRow([]);
 
   const colsDe = anos => disciplinasDe(cube, anos).map(n => ({ key:n, cell:a => cube[a].disc[n] }));
-  const anosProj   = ANOS.filter(a => Object.keys(cube[a].proj).length);
-  const colsProj   = projetosDe(cube, ANOS).map(n => ({ key:n, cell:a => cube[a].proj[n] }));
 
   const bloco = (titulo, anos, colunas, turmaSetOf) => {
     ws.addRow([titulo]).font = { bold: true, italic: true };
@@ -922,8 +940,14 @@ async function exportarExcel() {
   bloco('PARTE 1 — Educação Infantil · Etapa I (por turno)',  ETAPA_I_CATS,  colsDe(ETAPA_I_CATS),  a => cube[a].turmas);
   bloco('PARTE 1 — Educação Infantil · Etapa II (por turno)', ETAPA_II_CATS, colsDe(ETAPA_II_CATS), a => cube[a].turmas);
   bloco('PARTE 2 — Ensino Fundamental (1º ao 5º Ano) · todas as disciplinas', ANO_CATS, colsDe(ANO_CATS), a => cube[a].turmas);
-  if (anosProj.length && colsProj.length)
-    bloco('PARTE 3 — Projetos (esperado: total de aulas)', anosProj, colsProj, a => turmasProjSet(cube, a));
+
+  // PARTE 3 — Projetos (lista simples; não são por turma)
+  const projNomes = Object.keys(proj).sort((x, y) => proj[y].cargaCriada - proj[x].cargaCriada || x.localeCompare(y, 'pt-BR'));
+  if (projNomes.length) {
+    ws.addRow(['PARTE 3 — Projetos (total de aulas)']).font = { bold: true, italic: true };
+    ws.addRow(['Projeto', 'Total de aulas', 'Atribuídas']).font = { bold: true };
+    projNomes.forEach(n => ws.addRow([n, proj[n].cargaCriada, proj[n].cargaAtribuida]));
+  }
 
   ws.columns.forEach(c => c.width = 16);
   ws.getColumn(1).width = 22;
