@@ -410,6 +410,7 @@ const COR_DISC = {
   'Inglês':'#0d9488', 'Educação Física':'#d97706', 'Língua Portuguesa':'#dc2626', 'Matemática':'#0891b2',
   'Ciências':'#16a34a', 'História':'#b45309', 'Geografia':'#65a30d', 'Música':'#db2777', 'AEE':'#475569',
   'PRA — Recuperação':'#0ea5e9',
+  'PPA — Prof. Alfabetizador':'#2563eb', 'PPP — Práticas Pedagógicas':'#7c3aed', 'PRP — Recuperação Paralela':'#ea580c',
 };
 const PALETA = ['#2563eb','#7c3aed','#0d9488','#d97706','#dc2626','#0891b2','#16a34a','#b45309','#65a30d','#db2777','#475569','#9333ea','#ca8a04','#0369a1'];
 function corDisc(nome) {
@@ -430,10 +431,10 @@ function isPRADisc(disc) {
 function nomeProjeto(disc) {
   const f = colapsar(disc);
   if (!f) return null;
-  if (isPRADisc(disc)) return null;             // PRA vai para a grade (disciplinas)
-  if (f.includes('ALFABETIZADOR') || f === 'PPA' || f.includes('PPA')) return 'PPA — Prof. Alfabetizador';
-  if (f.includes('PROJETO') || f.includes('RECUPERACAO') || f.includes('RECUPER'))
-    return String(disc || '').trim().replace(/\s+/g, ' ');
+  if (isPRADisc(disc)) return null;                                   // PRA vai para a grade
+  if (f.includes('ALFABETIZADOR') || f === 'PPA') return 'PPA — Prof. Alfabetizador';
+  if (f.includes('PRATICA') && f.includes('PEDAGOG')) return 'PPP — Práticas Pedagógicas';
+  if (f.includes('PARALELA') && f.includes('RECUP')) return 'PRP — Recuperação Paralela';
   return null;
 }
 
@@ -531,10 +532,16 @@ function agregar() {
     const ano = categoriaAno(row);
     if (!ano || !cube[ano]) return;
     const tk = turmaKey(row);
-    cube[ano].turmas.add(tk);                 // turma distinta (independe da disciplina)
-    if (!cube[ano].turmaInfo[tk]) cube[ano].turmaInfo[tk] = {  // dados legíveis p/ o drill-down
-      unit: cleanUnit(row.nome_unidade), letra: String(row.letra_turma || '').trim(), per: periodoDesc(row.periodo)
-    };
+    // Só conta como turma/sala quem tem turno real (Manhã/Tarde/Noite). Linhas com
+    // período "integral"/vazio (ex.: vivência alimentação, relaxamento da turma integral)
+    // não criam uma sala nova — senão a turma integral seria contada 3x (manhã+tarde+integral).
+    const pc = periodoCanon(row.periodo);
+    if (pc === 'M' || pc === 'T' || pc === 'N') {
+      cube[ano].turmas.add(tk);               // turma distinta (independe da disciplina)
+      if (!cube[ano].turmaInfo[tk]) cube[ano].turmaInfo[tk] = {  // dados legíveis p/ o drill-down
+        unit: cleanUnit(row.nome_unidade), letra: String(row.letra_turma || '').trim(), per: periodoDesc(row.periodo)
+      };
+    }
 
     const carga = Number(row.carga_horaria || 0) || 0;
     const atrib = isAtribuido(row);
