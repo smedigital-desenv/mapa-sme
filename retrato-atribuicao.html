@@ -182,6 +182,28 @@
         coluna <b>Turmas</b> = turmas distintas (escola + ano + letra + turno; manhã e tarde da turma integral contam separadas).
       </div>
 
+      <!-- PARTE 4 — Aulas de PEB II fora do quadro regular e dos projetos -->
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div class="sec-tt"><i class="bi bi-person-badge me-2"></i>Parte 4 · Aulas atribuídas a PEB II <span class="text-muted fw-normal" style="font-size:.8rem;">(fora do quadro regular e dos projetos)</span></div>
+          <div class="legend"><span id="peb2Resumo"></span></div>
+        </div>
+        <p class="text-muted small mb-2">Aulas <b>atribuídas</b> a professores <b>PEB II</b> que <b>não</b> aparecem na grade
+          das Etapas/Fundamental (Partes 1 e 2) nem nos projetos PPA/PPP/PRP (Parte 3).</p>
+        <div class="table-responsive" style="max-height:460px;overflow:auto;">
+          <table class="table table-sm table-hover align-middle mb-0" id="tabelaPeb2"></table>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary mt-2" type="button" data-bs-toggle="collapse" data-bs-target="#peb2Diag">
+          <i class="bi bi-search me-1"></i>Valores de função/vínculo na base
+        </button>
+        <div class="collapse mt-2" id="peb2Diag">
+          <p class="text-muted small mb-1">Valores distintos encontrados (para conferir se a identificação de PEB II está certa):</p>
+          <div class="table-responsive" style="max-height:240px;overflow:auto;">
+            <table class="table table-sm table-bordered align-middle mb-0" id="peb2DiagTab"></table>
+          </div>
+        </div>
+      </div>
+
       <!-- Gráfico -->
       <div class="card-box p-3 p-lg-4 mb-3" id="graficoWrap">
         <div class="sec-tt mb-2"><i class="bi bi-bar-chart-fill me-2"></i>Comparativo por etapa/ano (total de aulas — disciplinas principais)</div>
@@ -331,6 +353,44 @@ function isAtribuido(row) {
   if (estaNaAtiva(row.situacao_professor_sub)) return true;
   return false;
 }
+// Quem está na sala: substituto quando o titular não ocupa a vaga.
+function isSubstituto(row) {
+  const cT = String(row.codigo_professor_prop || '').trim();
+  const cS = String(row.codigo_professor_sub  || '').trim();
+  const titularOcupa = estaEmContracao(cT) || (cT && cT !== '0' && estaNaAtiva(row.situacao_professor));
+  const subOcupa = (cS && cS !== '0') && (estaEmContracao(cS) || estaNaAtiva(row.situacao_professor_sub));
+  return !titularOcupa && subOcupa;
+}
+function profAtivoNome(row) {
+  return (isSubstituto(row) ? row.nome_professor_sub : row.nome_professor_prop) || '—';
+}
+// Vínculo/função do professor que está na sala (titular ou substituto).
+function vincAtivo(row) {
+  return isSubstituto(row) ? row.vinculo_funcao_sub : row.vinculo_funcao_prop;
+}
+// Nível do cargo (PEB/PB I, II, III) a partir de um texto de função/vínculo.
+// Cuidado para "II" não casar dentro de "III".
+function nivelPB(txt) {
+  const f = colapsar(txt);
+  const m = f.match(/(?:PEB|PB|EDUCACAOBASICA|BASICA)(III|II|I|3|2|1)(?![I0-9])/);
+  if (!m) return null;
+  const r = m[1];
+  if (r === 'III' || r === '3') return 'III';
+  if (r === 'II'  || r === '2') return 'II';
+  if (r === 'I'   || r === '1') return 'I';
+  return null;
+}
+// Nível considerando função do professor e o vínculo de quem está na sala.
+function nivelPBRow(row) {
+  return nivelPB(row.funcao_professor) || nivelPB(vincAtivo(row));
+}
+// Vínculo legível: Efetivo / Contratado.
+function vinculoTexto(row) {
+  const t = String(vincAtivo(row) || row.funcao_professor || '').toUpperCase();
+  if (t.includes('EFETIV')) return 'Efetivo';
+  if (t.includes('CONTRAT')) return 'Contratado';
+  return '—';
+}
 
 /* ── Classificação ANO/ETAPA → uma das 7 categorias (ou null) ───── */
 function classificarAno(anoRaw) {
@@ -455,7 +515,7 @@ async function fetchSeriesExcluidas() {
 }
 
 /* ── Busca de dados (mesmo cache da tela de Atribuição) ─────────── */
-const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,situacao_professor_sub';
+const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,situacao_professor_sub,vinculo_funcao_prop,vinculo_funcao_sub,funcao_professor';
 async function _fetchTurmasRede() {
   const PAGE = 1000;
   const H = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
@@ -650,6 +710,7 @@ function render() {
   renderSecao(SECOES[2], cube, cols(ANO_CATS),      a => cube[a].turmas);
 
   renderProjetos(proj);
+  renderPeb2();
   renderGrafico(cube);
   renderConferencia();
   renderCobertura(cube);
@@ -745,6 +806,70 @@ function renderProjetos(proj) {
       <td class="text-center">${tA.toLocaleString('pt-BR')}</td>
       <td class="text-center">${pT}%</td></tr>`;
   el.innerHTML = thead + `<tbody>${linhas}${total}</tbody>`;
+}
+
+// Parte 4: aulas atribuídas a PEB II que NÃO estão na grade (Partes 1/2) nem em projetos (Parte 3).
+function renderPeb2() {
+  const el = document.getElementById('tabelaPeb2');
+  const lista = (ROWS || []).filter(r => {
+    if (periodosSel && !periodosSel.has(periodoDesc(r.periodo))) return false;
+    if (!isAtribuido(r)) return false;                       // só atribuídas
+    if (nivelPBRow(r) !== 'II') return false;                // só PEB II
+    if (nomeProjeto(r.descricao_disciplina)) return false;   // projeto → Parte 3
+    const cat = categoriaAno(r), disc = nomeDisc(r.descricao_disciplina);
+    if (cat && disc) return false;                           // já está na grade → Parte 1/2
+    return true;
+  });
+  renderPeb2Diag();
+
+  if (!lista.length) {
+    el.innerHTML = `<tbody><tr><td class="text-muted p-3">Nenhuma aula de PEB II fora do quadro regular/projetos neste filtro.
+      Se esperava resultados, confira “Valores de função/vínculo na base” abaixo — a identificação de PEB II pode precisar de ajuste.</td></tr></tbody>`;
+    document.getElementById('peb2Resumo').textContent = '';
+    return;
+  }
+  lista.sort((a, b) =>
+    cleanUnit(a.nome_unidade).localeCompare(cleanUnit(b.nome_unidade), 'pt-BR') ||
+    String(a.ano_escolar || '').localeCompare(String(b.ano_escolar || ''), 'pt-BR') ||
+    String(a.descricao_disciplina || '').localeCompare(String(b.descricao_disciplina || ''), 'pt-BR'));
+
+  let totCarga = 0;
+  const linhas = lista.map(r => {
+    const carga = Number(r.carga_horaria || 0) || 0; totCarga += carga;
+    return `<tr>
+      <td>${escapeHtml(cleanUnit(r.nome_unidade))}</td>
+      <td>${escapeHtml(String(r.ano_escolar || '').trim())}</td>
+      <td>${escapeHtml(String(r.letra_turma || '').trim() || '—')}</td>
+      <td>${escapeHtml(String(r.descricao_disciplina || '').trim())}</td>
+      <td>${escapeHtml(profAtivoNome(r))}</td>
+      <td>${escapeHtml(vinculoTexto(r))}</td>
+      <td>${escapeHtml(periodoDesc(r.periodo))}</td>
+      <td class="text-end">${carga}</td></tr>`;
+  }).join('');
+  const thead = `<thead><tr>
+      <th>Escola</th><th>Série/Ano</th><th>Turma</th><th>Disciplina/Atividade</th>
+      <th>Professor</th><th>Vínculo</th><th>Turno</th><th class="text-end">Carga</th></tr></thead>`;
+  el.innerHTML = thead + `<tbody>${linhas}</tbody>`;
+  document.getElementById('peb2Resumo').innerHTML =
+    `<b>${lista.length}</b> aula(s) · <b>${totCarga.toLocaleString('pt-BR')}</b> h/a`;
+}
+
+// Diagnóstico: valores distintos de funcao_professor e vínculo (ativo), p/ conferir a detecção.
+function renderPeb2Diag() {
+  const tab = document.getElementById('peb2DiagTab');
+  if (!tab) return;
+  const fc = {}, vc = {};
+  (ROWS || []).forEach(r => {
+    const f = String(r.funcao_professor || '').trim() || '(vazio)'; fc[f] = (fc[f] || 0) + 1;
+    const v = String(vincAtivo(r) || '').trim() || '(vazio)';       vc[v] = (vc[v] || 0) + 1;
+  });
+  const linha = (col, map) => Object.keys(map).sort().map(k => {
+    const n = k === '(vazio)' ? null : nivelPB(k);
+    return `<tr><td class="text-muted">${col}</td><td>${escapeHtml(k)}</td><td class="text-end">${map[k]}</td>
+      <td>${n ? '<span class="badge bg-primary-subtle text-primary border">PEB ' + n + '</span>' : '—'}</td></tr>`;
+  }).join('');
+  tab.innerHTML = `<thead><tr><th>Coluna</th><th>Valor</th><th class="text-end">Linhas</th><th>Detectado</th></tr></thead>`
+    + `<tbody>${linha('funcao_professor', fc)}${linha('vínculo (ativo)', vc)}</tbody>`;
 }
 
 function renderGrafico(cube) {
@@ -947,10 +1072,29 @@ async function exportarExcel() {
     ws.addRow(['PARTE 3 — Projetos (total de aulas)']).font = { bold: true, italic: true };
     ws.addRow(['Projeto', 'Total de aulas', 'Atribuídas']).font = { bold: true };
     projNomes.forEach(n => ws.addRow([n, proj[n].cargaCriada, proj[n].cargaAtribuida]));
+    ws.addRow([]);
   }
 
   ws.columns.forEach(c => c.width = 16);
   ws.getColumn(1).width = 22;
+
+  // PARTE 4 — Aulas de PEB II fora do quadro regular/projetos (aba própria)
+  const peb2 = (ROWS || []).filter(r => {
+    if (periodosSel && !periodosSel.has(periodoDesc(r.periodo))) return false;
+    if (!isAtribuido(r) || nivelPBRow(r) !== 'II' || nomeProjeto(r.descricao_disciplina)) return false;
+    const cat = categoriaAno(r), disc = nomeDisc(r.descricao_disciplina);
+    return !(cat && disc);
+  });
+  if (peb2.length) {
+    const ws2 = wb.addWorksheet('PEB II fora do quadro');
+    ws2.addRow(['Escola', 'Série/Ano', 'Turma', 'Disciplina/Atividade', 'Professor', 'Vínculo', 'Turno', 'Carga']).font = { bold: true };
+    peb2.forEach(r => ws2.addRow([
+      cleanUnit(r.nome_unidade), String(r.ano_escolar || '').trim(), String(r.letra_turma || '').trim(),
+      String(r.descricao_disciplina || '').trim(), profAtivoNome(r), vinculoTexto(r),
+      periodoDesc(r.periodo), Number(r.carga_horaria || 0) || 0,
+    ]));
+    ws2.columns.forEach(c => c.width = 20);
+  }
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const a = document.createElement('a');
