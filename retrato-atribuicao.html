@@ -140,14 +140,19 @@
       <!-- KPIs (turmas + atribuição) -->
       <div class="row g-2 g-lg-3 mb-3" id="kpis"></div>
 
-      <!-- PARTE 1 — Educação Infantil (Etapas) -->
+      <!-- PARTE 1 — Educação Infantil (Etapas), separadas por turno: Manhã / Tarde / Integral -->
       <div class="card-box p-3 p-lg-4 mb-3">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-          <div class="sec-tt"><i class="bi bi-flower1 me-2"></i>Parte 1 · Educação Infantil — Etapas <span class="text-muted fw-normal" style="font-size:.8rem;">(todas as disciplinas/práticas)</span></div>
+          <div class="sec-tt"><i class="bi bi-flower1 me-2"></i>Parte 1 · Educação Infantil — Etapas <span class="text-muted fw-normal" style="font-size:.8rem;">(por turno: Manhã / Tarde / Integral)</span></div>
           <div class="legend"><span id="metricaLabel1"></span></div>
         </div>
+        <h6 class="fw-bold text-primary mt-2 mb-1">Etapa I</h6>
+        <div class="table-responsive mb-3">
+          <table class="matriz" id="matrizEtapaI"></table>
+        </div>
+        <h6 class="fw-bold text-primary mb-1">Etapa II</h6>
         <div class="table-responsive">
-          <table class="matriz" id="matrizEtapas"></table>
+          <table class="matriz" id="matrizEtapaII"></table>
         </div>
       </div>
 
@@ -235,17 +240,34 @@ const SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk';
 
 /* ── Categorias pedidas ─────────────────────────────────────────── */
-const ANOS = ['Etapa I', 'Etapa II', '1º Ano', '2º Ano', '3º Ano', '4º Ano', '5º Ano'];
+const SEP = ' — ';
+const ETAPAS = ['Etapa I', 'Etapa II'];
+const TURNOS = ['Manhã', 'Tarde', 'Integral'];          // dentro de cada etapa
+const ETAPA_CATS = [];                                   // Etapa I — Manhã, ... Etapa II — Integral
+ETAPAS.forEach(e => TURNOS.forEach(t => ETAPA_CATS.push(e + SEP + t)));
+const ANO_CATS = ['1º Ano', '2º Ano', '3º Ano', '4º Ano', '5º Ano'];
+const ANOS = [...ETAPA_CATS, ...ANO_CATS];               // todas as categorias-linha
+const ETAPA_I_CATS  = TURNOS.map(t => 'Etapa I'  + SEP + t);
+const ETAPA_II_CATS = TURNOS.map(t => 'Etapa II' + SEP + t);
+// Rótulo da linha dentro do bloco (só o turno nas etapas; o ano nos demais)
+function rotuloLinha(a) { return a.includes(SEP) ? a.split(SEP)[1] : a; }
+// Rótulo curto p/ cabeçalho de cobertura e gráfico
+function rotuloCurto(a) {
+  if (a.includes(SEP)) { const [e, t] = a.split(SEP); return e.replace('Etapa ', 'Et.') + ' ' + t; }
+  return a.replace(' Ano', 'º');
+}
+
 const DISCS = [
   { key:'Magistério II',    cor:'var(--mag)',  rgb:'#2563eb' },
   { key:'Arte',             cor:'var(--arte)', rgb:'#7c3aed' },
   { key:'Inglês',           cor:'var(--ing)',  rgb:'#0d9488' },
   { key:'Educação Física',  cor:'var(--ef)',   rgb:'#d97706' },
 ];
-// As duas partes do relatório
+// Blocos do relatório (Etapa I, Etapa II e Fundamental — cada um vira uma matriz)
 const SECOES = [
-  { id:'Etapas', tabela:'matrizEtapas', labelMetrica:'metricaLabel1', anos:['Etapa I', 'Etapa II'] },
-  { id:'Fund',   tabela:'matrizFund',   labelMetrica:'metricaLabel2', anos:['1º Ano', '2º Ano', '3º Ano', '4º Ano', '5º Ano'] },
+  { id:'EtapaI',  tabela:'matrizEtapaI',  col1:'Turno', anos: ETAPA_I_CATS },
+  { id:'EtapaII', tabela:'matrizEtapaII', col1:'Turno', anos: ETAPA_II_CATS },
+  { id:'Fund',    tabela:'matrizFund',    col1:'Ano',   anos: ANO_CATS },
 ];
 
 /* ── Estado ─────────────────────────────────────────────────────── */
@@ -324,6 +346,19 @@ function classificarAno(anoRaw) {
   const md = f.match(/^(\d+)/);             // 1º ao 5º ano (número no início)
   if (md) { const v = parseInt(md[1], 10); if (v >= 1 && v <= 5) return v + 'º Ano'; }
   return null;
+}
+
+// Categoria-linha final (considera o turno/modalidade nas etapas):
+//   Integral = ano_escolar contém "INTEGRAL"; senão Manhã/Tarde pelo campo período.
+function categoriaAno(row) {
+  const base = classificarAno(row.ano_escolar);
+  if (base === 'Etapa I' || base === 'Etapa II') {
+    let turno;
+    if (colapsar(row.ano_escolar).includes('INTEGRAL')) turno = 'Integral';
+    else { const p = periodoCanon(row.periodo); turno = p === 'M' ? 'Manhã' : p === 'T' ? 'Tarde' : null; }
+    return turno ? base + SEP + turno : null;   // turno desconhecido (ex.: noite) → fora
+  }
+  return base;
 }
 
 /* ── Classificação DISCIPLINA → uma das 4 categorias (ou null) ──── */
@@ -482,8 +517,8 @@ function agregar() {
 
   (ROWS || []).forEach(row => {
     if (periodosSel && !periodosSel.has(periodoDesc(row.periodo))) return;
-    const ano = classificarAno(row.ano_escolar);
-    if (!ano) return;
+    const ano = categoriaAno(row);
+    if (!ano || !cube[ano]) return;
     const tk = turmaKey(row);
     cube[ano].turmas.add(tk);                 // turma distinta (independe da disciplina)
     if (!cube[ano].turmaInfo[tk]) cube[ano].turmaInfo[tk] = {  // dados legíveis p/ o drill-down
@@ -564,10 +599,10 @@ function render() {
   });
 
   // KPIs: turmas por parte + total de aulas da rede (todas as disciplinas + projetos)
-  const tEtapas = turmasDistintas(cube, SECOES[0].anos);
-  const tFund   = turmasDistintas(cube, SECOES[1].anos);
-  const subEtapas = SECOES[0].anos.map(a => `${a}: ${cube[a].turmas.size}`).join(' · ');
-  const subFund   = SECOES[1].anos.map(a => `${a.replace(' Ano','º')}: ${cube[a].turmas.size}`).join(' · ');
+  const tEtapas = turmasDistintas(cube, ETAPA_CATS);
+  const tFund   = turmasDistintas(cube, ANO_CATS);
+  const subEtapas = ETAPAS.map(e => `${e}: ${turmasDistintas(cube, TURNOS.map(t => e + SEP + t))}`).join(' · ');
+  const subFund   = ANO_CATS.map(a => `${a.replace(' Ano','º')}: ${cube[a].turmas.size}`).join(' · ');
   let gA = 0, gT = 0;
   ANOS.forEach(a => [...Object.values(cube[a].disc), ...Object.values(cube[a].proj)]
     .forEach(c => { gA += c.cargaAtribuida; gT += c.cargaCriada; }));
@@ -588,17 +623,17 @@ function render() {
       <div class="val">${gT.toLocaleString('pt-BR')}</div>
       <div class="sub">${gA.toLocaleString('pt-BR')} atribuídas <span class="pct-pill" style="color:${cg};background:${bgg};">${pG}%</span></div></div></div>`;
 
-  // Parte 1 (Etapas) e Parte 2 (Fundamental) = TODAS as disciplinas/práticas presentes
-  const colsEtapas = disciplinasDe(cube, SECOES[0].anos).map(n => ({ key:n, rgb:corDisc(n), destaque:(n === 'Magistério II'), cell:a => cube[a].disc[n] }));
-  const colsFund   = disciplinasDe(cube, SECOES[1].anos).map(n => ({ key:n, rgb:corDisc(n), destaque:false, cell:a => cube[a].disc[n] }));
-  renderSecao(SECOES[0], cube, colsEtapas, a => cube[a].turmas);
-  renderSecao(SECOES[1], cube, colsFund,   a => cube[a].turmas);
+  // Etapa I, Etapa II e Fundamental = TODAS as disciplinas/práticas presentes em cada bloco
+  const cols = anos => disciplinasDe(cube, anos).map(n => ({ key:n, rgb:corDisc(n), destaque:(n === 'Magistério II'), cell:a => cube[a].disc[n] }));
+  renderSecao(SECOES[0], cube, cols(ETAPA_I_CATS),  a => cube[a].turmas);
+  renderSecao(SECOES[1], cube, cols(ETAPA_II_CATS), a => cube[a].turmas);
+  renderSecao(SECOES[2], cube, cols(ANO_CATS),      a => cube[a].turmas);
 
   // Parte 3 (Projetos) = esperado (total de aulas) por projeto; turmas = só as com projeto
   const anosProj = ANOS.filter(a => Object.keys(cube[a].proj).length);
   const colsProj = projetosDe(cube, ANOS).map(n => ({ key:n, rgb:corDisc(n), destaque:false, cell:a => cube[a].proj[n] }));
   if (anosProj.length && colsProj.length) {
-    renderSecao({ anos: anosProj, tabela: 'matrizProj' }, cube, colsProj, a => turmasProjSet(cube, a));
+    renderSecao({ anos: anosProj, tabela: 'matrizProj', col1: 'Etapa/Ano/Turno', rotulo: rotuloCurto }, cube, colsProj, a => turmasProjSet(cube, a));
   } else {
     document.getElementById('matrizProj').innerHTML =
       `<tbody><tr><td class="text-muted p-3">Nenhuma linha de projeto encontrada nos dados deste filtro.</td></tr></tbody>`;
@@ -625,7 +660,7 @@ function turmasProjSet(cube, a) {
 // Monta a matriz de uma parte. colunas=[{key,rgb,destaque,cell(ano)}] · turmaSetOf(ano)→Set
 function renderSecao(secao, cube, colunas, turmaSetOf) {
   const thead = `<thead><tr>
-      <th style="text-align:left;">Etapa / Ano</th>
+      <th style="text-align:left;">${escapeHtml(secao.col1 || 'Etapa / Ano')}</th>
       <th title="Turmas distintas (cada turma contada uma vez)">Turmas</th>
       ${colunas.map(c => `<th style="color:${c.rgb};">${escapeHtml(c.key)}</th>`).join('')}
       <th class="col-total">Total</th>
@@ -651,7 +686,7 @@ function renderSecao(secao, cube, colunas, turmaSetOf) {
     const tset = turmaSetOf(ano); tset.forEach(t => setUniao.add(t));
     const pL = linP > 0 ? Math.round(linA / linP * 100) : 0;
     return `<tr>
-      <th>${escapeHtml(ano)}</th>
+      <th>${escapeHtml((secao.rotulo || rotuloLinha)(ano))}</th>
       <td><div class="big text-primary">${tset.size}</div><div class="small">turmas</div></td>
       ${tds}
       <td class="col-total"><div class="big">${fmt(linP)}</div><div class="small">${fmt(linA)} atrib. · ${pL}%</div></td>
@@ -677,7 +712,7 @@ function renderSecao(secao, cube, colunas, turmaSetOf) {
 function renderGrafico(cube) {
   const ctx = document.getElementById('grafico');
   const data = {
-    labels: ANOS,
+    labels: ANOS.map(rotuloCurto),
     datasets: DISCS.map(d => ({
       label: d.key,
       data: ANOS.map(a => valPrinc(bucketCell(cube, a, d.key))),
@@ -735,7 +770,7 @@ function renderCobertura(cube) {
   if (!discs.length) { el.innerHTML = '<tbody><tr><td class="text-muted p-2">Sem disciplinas.</td></tr></tbody>'; return; }
 
   const header = `<thead><tr><th style="text-align:left;">Disciplina \\ Ano</th>` +
-    anos.map(a => `<th class="text-center">${escapeHtml(a.replace(' Ano','º'))}<br><small class="text-muted">${cube[a].turmas.size} turmas</small></th>`).join('') +
+    anos.map(a => `<th class="text-center">${escapeHtml(rotuloCurto(a))}<br><small class="text-muted">${cube[a].turmas.size} turmas</small></th>`).join('') +
     `</tr></thead>`;
 
   const corpo = discs.map(n => {
@@ -840,22 +875,20 @@ async function exportarExcel() {
   ws.addRow([`Período: ${periodosSel ? Array.from(periodosSel).join(', ') : 'Todos'}`]);
   ws.addRow([]);
 
-  // Colunas: Etapas = 4 baldes · Fundamental = todas as disciplinas · Projetos = todos os projetos
-  const colsEtapas = DISCS.map(d => ({ key:d.key, cell:a => bucketCell(cube, a, d.key) }));
-  const colsFund   = disciplinasDe(cube, SECOES[1].anos).map(n => ({ key:n, cell:a => cube[a].disc[n] }));
+  const colsDe = anos => disciplinasDe(cube, anos).map(n => ({ key:n, cell:a => cube[a].disc[n] }));
   const anosProj   = ANOS.filter(a => Object.keys(cube[a].proj).length);
   const colsProj   = projetosDe(cube, ANOS).map(n => ({ key:n, cell:a => cube[a].proj[n] }));
 
   const bloco = (titulo, anos, colunas, turmaSetOf) => {
     ws.addRow([titulo]).font = { bold: true, italic: true };
-    const head = ['Etapa / Ano', 'Turmas (distintas)'];
+    const head = ['Etapa/Ano/Turno', 'Turmas (distintas)'];
     colunas.forEach(c => head.push(c.key + ' (total)', c.key + ' (atrib.)'));
     head.push('Total geral', 'Atribuídas');
     ws.addRow(head).font = { bold: true };
     const uniao = new Set();
     anos.forEach(a => {
       const tset = turmaSetOf(a); tset.forEach(t => uniao.add(t));
-      const r = [a, tset.size]; let lp = 0, la = 0;
+      const r = [rotuloCurto(a), tset.size]; let lp = 0, la = 0;
       colunas.forEach(col => { const c = col.cell(a); r.push(valPrinc(c), valAtrib(c)); lp += valPrinc(c); la += valAtrib(c); });
       r.push(lp, la); ws.addRow(r);
     });
@@ -868,8 +901,9 @@ async function exportarExcel() {
     ws.addRow([]);
   };
 
-  bloco('PARTE 1 — Educação Infantil (Etapas)', SECOES[0].anos, colsEtapas, a => cube[a].turmas);
-  bloco('PARTE 2 — Ensino Fundamental (1º ao 5º Ano) · todas as disciplinas', SECOES[1].anos, colsFund, a => cube[a].turmas);
+  bloco('PARTE 1 — Educação Infantil · Etapa I (por turno)',  ETAPA_I_CATS,  colsDe(ETAPA_I_CATS),  a => cube[a].turmas);
+  bloco('PARTE 1 — Educação Infantil · Etapa II (por turno)', ETAPA_II_CATS, colsDe(ETAPA_II_CATS), a => cube[a].turmas);
+  bloco('PARTE 2 — Ensino Fundamental (1º ao 5º Ano) · todas as disciplinas', ANO_CATS, colsDe(ANO_CATS), a => cube[a].turmas);
   if (anosProj.length && colsProj.length)
     bloco('PARTE 3 — Projetos (esperado: total de aulas)', anosProj, colsProj, a => turmasProjSet(cube, a));
 
