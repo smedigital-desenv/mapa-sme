@@ -154,7 +154,7 @@
       <!-- PARTE 2 — Ensino Fundamental (1º ao 5º Ano) -->
       <div class="card-box p-3 p-lg-4 mb-3">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-          <div class="sec-tt"><i class="bi bi-1-circle me-2"></i>Parte 2 · Ensino Fundamental — 1º ao 5º Ano</div>
+          <div class="sec-tt"><i class="bi bi-1-circle me-2"></i>Parte 2 · Ensino Fundamental — 1º ao 5º Ano <span class="text-muted fw-normal" style="font-size:.8rem;">(todas as disciplinas)</span></div>
           <div class="legend"><span id="metricaLabel2"></span></div>
         </div>
         <div class="table-responsive">
@@ -163,12 +163,12 @@
       </div>
 
       <div class="legend mb-3 px-1">
-        <span class="me-1 text-muted">Disciplinas:</span>
-        <span class="me-3"><span class="dot" style="background:var(--mag)"></span>Magistério II</span>
-        <span class="me-3"><span class="dot" style="background:var(--arte)"></span>Arte</span>
-        <span class="me-3"><span class="dot" style="background:var(--ing)"></span>Inglês</span>
+        <span class="me-1 text-muted">Parte 1 (Etapas):</span>
+        <span class="me-2"><span class="dot" style="background:var(--mag)"></span>Magistério II</span>
+        <span class="me-2"><span class="dot" style="background:var(--arte)"></span>Arte</span>
+        <span class="me-2"><span class="dot" style="background:var(--ing)"></span>Inglês</span>
         <span class="me-3"><span class="dot" style="background:var(--ef)"></span>Educação Física</span>
-        <span class="text-muted">· coluna <b>Turmas</b> = turmas distintas (cada turma contada uma vez)</span>
+        <span class="text-muted">· Parte 2 (Fundamental) lista <b>todas as disciplinas</b> · coluna <b>Turmas</b> = turmas distintas (cada turma contada uma vez)</span>
       </div>
 
       <!-- Gráfico -->
@@ -301,6 +301,41 @@ function classificarDisc(discRaw) {
   return null;
 }
 
+/* ── Nome canônico de QUALQUER disciplina (para a parte do Fundamental) ── */
+function nomeDisc(raw) {
+  const f = colapsar(raw);
+  if (!f) return '';
+  if (f.includes('MAGISTERIO')) {
+    if (f.includes('MAGISTERIOII') || f.includes('MAGISTERIO2')) return 'Magistério II';
+    return 'Magistério I';
+  }
+  if ((f.includes('EDUCACAO') || f.includes('EDUC')) && (f.includes('FISICA') || f.includes('FIS'))) return 'Educação Física';
+  if (f.includes('INGLES') || f.includes('INGLESA')) return 'Inglês';
+  if (f.includes('ARTESVISUAIS')) return 'Artes Visuais';
+  if (f.includes('ARTE')) return 'Arte';
+  if (f.includes('PORTUGUES')) return 'Língua Portuguesa';
+  if (f.includes('MATEMATICA')) return 'Matemática';
+  if (f.includes('CIENCIAS')) return 'Ciências';
+  if (f.includes('HISTORIA')) return 'História';
+  if (f.includes('GEOGRAFIA')) return 'Geografia';
+  if (f.includes('MUSICA') || f.includes('MSICA')) return 'Música';
+  if (f.includes('ATENDIMENTOEDUCACIONAL') || f.includes('EDUCACIONALESPECIALIZADO') || f === 'AEE') return 'AEE';
+  return String(raw || '').trim().replace(/\s+/g, ' ');   // mantém o nome original p/ as demais
+}
+
+/* ── Cor de cada disciplina (fixa p/ as conhecidas, paleta p/ as demais) ── */
+const COR_DISC = {
+  'Magistério II':'#2563eb', 'Magistério I':'#1e40af', 'Arte':'#7c3aed', 'Artes Visuais':'#9333ea',
+  'Inglês':'#0d9488', 'Educação Física':'#d97706', 'Língua Portuguesa':'#dc2626', 'Matemática':'#0891b2',
+  'Ciências':'#16a34a', 'História':'#b45309', 'Geografia':'#65a30d', 'Música':'#db2777', 'AEE':'#475569',
+};
+const PALETA = ['#2563eb','#7c3aed','#0d9488','#d97706','#dc2626','#0891b2','#16a34a','#b45309','#65a30d','#db2777','#475569','#9333ea','#ca8a04','#0369a1'];
+function corDisc(nome) {
+  if (COR_DISC[nome]) return COR_DISC[nome];
+  let h = 0; for (let i = 0; i < nome.length; i++) h = (h * 31 + nome.charCodeAt(i)) >>> 0;
+  return PALETA[h % PALETA.length];
+}
+
 /* ── Séries excluídas (mesma config da tela de Atribuição) ──────── */
 let _seriesExcl = new Set();
 function serieNormConf(v) { return normalizar(v).replace(/[^A-Z0-9]+/g, ' ').trim(); }
@@ -383,14 +418,12 @@ function filtrarTurmasPorEscola(rows) {
 /* ── Agregação ──────────────────────────────────────────────────── */
 // cube[ano] = {
 //   turmas: Set,                              // turmas distintas do ano/etapa (qualquer disciplina)
-//   disc: { [disc]: { cargaCriada, cargaAtribuida, tCriadas:Set, tAtrib:Set } }
-// }
+//   disc: { [nomeDisc]: { cargaCriada, cargaAtribuida, tCriadas:Set, tAtrib:Set } }
+// }  -> agrega TODAS as disciplinas (a parte das Etapas usa só as 4; o Fundamental usa todas)
+function novaCell() { return { cargaCriada:0, cargaAtribuida:0, tCriadas:new Set(), tAtrib:new Set() }; }
 function agregar() {
   const cube = {};
-  ANOS.forEach(a => {
-    cube[a] = { turmas: new Set(), disc: {} };
-    DISCS.forEach(d => cube[a].disc[d.key] = { cargaCriada:0, cargaAtribuida:0, tCriadas:new Set(), tAtrib:new Set() });
-  });
+  ANOS.forEach(a => { cube[a] = { turmas: new Set(), disc: {} }; });
 
   (ROWS || []).forEach(row => {
     if (periodosSel && !periodosSel.has(periodoDesc(row.periodo))) return;
@@ -399,15 +432,43 @@ function agregar() {
     const tk = turmaKey(row);
     cube[ano].turmas.add(tk);                 // turma distinta (independe da disciplina)
 
-    const disc = classificarDisc(row.descricao_disciplina);
-    if (!disc) return;
+    const nome = nomeDisc(row.descricao_disciplina);
+    if (!nome) return;
     const carga = Number(row.carga_horaria || 0) || 0;
-    const cell = cube[ano].disc[disc];
+    const cell = (cube[ano].disc[nome] ||= novaCell());
     cell.cargaCriada += carga;
     cell.tCriadas.add(tk);
     if (isAtribuido(row)) { cell.cargaAtribuida += carga; cell.tAtrib.add(tk); }
   });
   return cube;
+}
+
+// Junta várias células numa só (soma cargas, une conjuntos de turmas).
+function mergeCells(cells) {
+  const out = novaCell();
+  cells.forEach(c => {
+    if (!c) return;
+    out.cargaCriada += c.cargaCriada; out.cargaAtribuida += c.cargaAtribuida;
+    c.tCriadas.forEach(t => out.tCriadas.add(t));
+    c.tAtrib.forEach(t => out.tAtrib.add(t));
+  });
+  return out;
+}
+// Célula de um dos 4 "baldes" (Etapas): junta todas as disciplinas que caem nele.
+function bucketCell(cube, ano, bucketKey) {
+  const cells = [];
+  Object.keys(cube[ano].disc).forEach(nome => {
+    if (classificarDisc(nome) === bucketKey) cells.push(cube[ano].disc[nome]);
+  });
+  return mergeCells(cells);
+}
+// Lista ordenada de todas as disciplinas presentes num conjunto de anos.
+function disciplinasDe(cube, anos) {
+  const tot = {};
+  anos.forEach(a => Object.keys(cube[a].disc).forEach(n => {
+    tot[n] = (tot[n] || 0) + cube[a].disc[n].cargaCriada;
+  }));
+  return Object.keys(tot).sort((x, y) => tot[y] - tot[x] || x.localeCompare(y, 'pt-BR'));
 }
 
 /* ── Valores conforme métrica ativa ─────────────────────────────── */
@@ -434,13 +495,13 @@ function render() {
     if (el) el.innerHTML = `valor maior = <b>${unidMetr}</b> atribuídas · menor = total criado`;
   });
 
-  // KPIs: foco em turmas (por parte) + atribuição geral
+  // KPIs: foco em turmas (por parte) + atribuição geral (carga, todas as disciplinas)
   const tEtapas = turmasDistintas(cube, SECOES[0].anos);
   const tFund   = turmasDistintas(cube, SECOES[1].anos);
   const subEtapas = SECOES[0].anos.map(a => `${a}: ${cube[a].turmas.size}`).join(' · ');
   const subFund   = SECOES[1].anos.map(a => `${a.replace(' Ano','º')}: ${cube[a].turmas.size}`).join(' · ');
   let gA = 0, gT = 0;
-  ANOS.forEach(a => DISCS.forEach(d => { gA += val(cube[a].disc[d.key]); gT += valTot(cube[a].disc[d.key]); }));
+  ANOS.forEach(a => Object.values(cube[a].disc).forEach(c => { gA += c.cargaAtribuida; gT += c.cargaCriada; }));
   const pG = gT > 0 ? Math.round(gA / gT * 100) : 0;
   const [cg, bgg] = corPct(pG);
   document.getElementById('kpis').innerHTML = `
@@ -453,12 +514,16 @@ function render() {
     <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#0f172a;">
       <div class="lbl"><i class="bi bi-collection me-1"></i>Total de turmas</div>
       <div class="val">${tEtapas + tFund}</div><div class="sub">Etapas + Fundamental (1º–5º)</div></div></div>
-    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:${cg.replace('#','#')};">
-      <div class="lbl"><i class="bi bi-check2-circle me-1"></i>${metrica === 'carga' ? 'Aulas' : 'Turmas'} atribuídas</div>
-      <div class="val">${fmt(gA)}</div>
-      <div class="sub">de ${fmt(gT)} <span class="pct-pill" style="color:${cg};background:${bgg};">${pG}%</span></div></div></div>`;
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:${cg};">
+      <div class="lbl"><i class="bi bi-check2-circle me-1"></i>Aulas atribuídas (rede)</div>
+      <div class="val">${gA.toLocaleString('pt-BR')}</div>
+      <div class="sub">de ${gT.toLocaleString('pt-BR')} aulas <span class="pct-pill" style="color:${cg};background:${bgg};">${pG}%</span></div></div></div>`;
 
-  SECOES.forEach(s => renderSecao(s, cube));
+  // Colunas de cada parte: Etapas = 4 baldes; Fundamental = TODAS as disciplinas
+  const colsEtapas = DISCS.map(d => ({ key:d.key, rgb:d.rgb, destaque:d.key === 'Magistério II', cell:a => bucketCell(cube, a, d.key) }));
+  const colsFund   = disciplinasDe(cube, SECOES[1].anos).map(n => ({ key:n, rgb:corDisc(n), destaque:false, cell:a => cube[a].disc[n] || novaCell() }));
+  renderSecao(SECOES[0], cube, colsEtapas);
+  renderSecao(SECOES[1], cube, colsFund);
   renderGrafico(cube);
   renderConferencia();
 
@@ -469,29 +534,29 @@ function render() {
     + `“Atribuído” segue a mesma regra da tela de Atribuição (titular/substituto na ativa ou em contratação).`;
 }
 
-// Monta a matriz de uma das partes (Etapas ou Fundamental)
-function renderSecao(secao, cube) {
+// Monta a matriz de uma das partes. `colunas` = [{key, rgb, destaque, cell(ano)→célula}]
+function renderSecao(secao, cube, colunas) {
   const thead = `<thead><tr>
       <th style="text-align:left;">Etapa / Ano</th>
       <th title="Turmas distintas (cada turma contada uma vez)">Turmas</th>
-      ${DISCS.map(d => `<th style="color:${d.rgb};">${escapeHtml(d.key)}</th>`).join('')}
+      ${colunas.map(c => `<th style="color:${c.rgb};">${escapeHtml(c.key)}</th>`).join('')}
       <th class="col-total">Total</th>
     </tr></thead>`;
 
-  const totCol = {}; DISCS.forEach(d => totCol[d.key] = { a:0, t:0 });
+  const totCol = colunas.map(() => ({ a:0, t:0 }));
   let secA = 0, secT = 0;
 
   const linhas = secao.anos.map(a => {
     let linA = 0, linT = 0;
-    const tds = DISCS.map(d => {
-      const cell = cube[a].disc[d.key];
+    const tds = colunas.map((col, i) => {
+      const cell = col.cell(a);
       const v = val(cell), vt = valTot(cell);
-      totCol[d.key].a += v; totCol[d.key].t += vt;
+      totCol[i].a += v; totCol[i].t += vt;
       linA += v; linT += vt;
       const p = vt > 0 ? Math.round(v / vt * 100) : 0;
       const [c, bg] = corPct(p);
       const pill = vt > 0 ? `<div class="pct-pill" style="color:${c};background:${bg};">${p}%</div>` : '';
-      return `<td class="${d.key === 'Magistério II' ? 'col-mag' : ''}">
+      return `<td class="${col.destaque ? 'col-mag' : ''}">
         <div class="big">${v ? fmt(v) : '<span class="text-muted">0</span>'}</div>
         <div class="small">${vt ? 'de ' + fmt(vt) : '—'}</div>${pill}</td>`;
     }).join('');
@@ -505,8 +570,8 @@ function renderSecao(secao, cube) {
     </tr>`;
   }).join('');
 
-  const totaisTd = DISCS.map(d => {
-    const o = totCol[d.key];
+  const totaisTd = colunas.map((col, i) => {
+    const o = totCol[i];
     const p = o.t > 0 ? Math.round(o.a / o.t * 100) : 0;
     return `<td><div class="big">${fmt(o.a)}</div><div class="small">de ${fmt(o.t)} · ${p}%</div></td>`;
   }).join('');
@@ -527,7 +592,7 @@ function renderGrafico(cube) {
     labels: ANOS,
     datasets: DISCS.map(d => ({
       label: d.key,
-      data: ANOS.map(a => val(cube[a].disc[d.key])),
+      data: ANOS.map(a => val(bucketCell(cube, a, d.key))),
       backgroundColor: d.rgb,
       borderRadius: 4,
     })),
@@ -561,13 +626,14 @@ function renderConferencia() {
   const discCount = {};
   (ROWS || []).forEach(r => { const k = String(r.descricao_disciplina || '—'); discCount[k] = (discCount[k] || 0) + 1; });
   const discHtml = Object.keys(discCount).sort().map(k => {
-    const cat = classificarDisc(k);
+    const nome = nomeDisc(k);
+    const balde = classificarDisc(k);   // entra também nas Etapas?
     return `<tr><td>${escapeHtml(k)}</td><td class="text-end">${discCount[k]}</td>
-      <td>${cat ? '<span class="badge bg-success-subtle text-success border">' + escapeHtml(cat) + '</span>'
-                : '<span class="badge bg-light text-muted border">ignorada</span>'}</td></tr>`;
+      <td><span class="badge bg-success-subtle text-success border">${escapeHtml(nome || '—')}</span>
+        ${balde ? '<span class="badge bg-primary-subtle text-primary border ms-1" title="Também aparece nas Etapas">Etapas</span>' : ''}</td></tr>`;
   }).join('');
   document.getElementById('confDiscs').innerHTML =
-    `<thead><tr><th>descricao_disciplina</th><th class="text-end">Linhas</th><th>Categoria</th></tr></thead><tbody>${discHtml}</tbody>`;
+    `<thead><tr><th>descricao_disciplina</th><th class="text-end">Linhas</th><th>Disciplina (Fundamental) / balde (Etapas)</th></tr></thead><tbody>${discHtml}</tbody>`;
 }
 
 /* ── Período chips ──────────────────────────────────────────────── */
@@ -607,36 +673,35 @@ async function exportarExcel() {
   ws.addRow([`Período: ${periodosSel ? Array.from(periodosSel).join(', ') : 'Todos'}`]);
   ws.addRow([]);
 
-  const head = ['Etapa / Ano', 'Turmas (distintas)'];
-  DISCS.forEach(d => { head.push(d.key + ' (atrib.)', d.key + ' (total)'); });
-  head.push('Total atrib.', 'Total criado');
-  const headRow = ws.addRow(head); headRow.font = { bold: true };
+  // Colunas de cada parte (mesma lógica da tela): Etapas = 4 baldes; Fundamental = todas
+  const colsEtapas = DISCS.map(d => ({ key:d.key, cell:a => bucketCell(cube, a, d.key) }));
+  const colsFund   = disciplinasDe(cube, SECOES[1].anos).map(n => ({ key:n, cell:a => cube[a].disc[n] || novaCell() }));
 
-  const linhaAno = a => {
-    const r = [a, cube[a].turmas.size]; let la = 0, lt = 0;
-    DISCS.forEach(d => { const c = cube[a].disc[d.key]; r.push(val(c), valTot(c)); la += val(c); lt += valTot(c); });
-    r.push(la, lt); return ws.addRow(r);
-  };
-  const linhaSub = (rotulo, anos) => {
-    const r = [rotulo, turmasDistintas(cube, anos)]; let sa = 0, st = 0;
-    DISCS.forEach(d => {
-      let a = 0, t = 0; anos.forEach(an => { a += val(cube[an].disc[d.key]); t += valTot(cube[an].disc[d.key]); });
-      r.push(a, t); sa += a; st += t;
+  const bloco = (titulo, anos, colunas) => {
+    ws.addRow([titulo]).font = { bold: true, italic: true };
+    const head = ['Etapa / Ano', 'Turmas (distintas)'];
+    colunas.forEach(c => head.push(c.key + ' (atrib.)', c.key + ' (total)'));
+    head.push('Total atrib.', 'Total criado');
+    ws.addRow(head).font = { bold: true };
+    anos.forEach(a => {
+      const r = [a, cube[a].turmas.size]; let la = 0, lt = 0;
+      colunas.forEach(col => { const c = col.cell(a); r.push(val(c), valTot(c)); la += val(c); lt += valTot(c); });
+      r.push(la, lt); ws.addRow(r);
     });
-    r.push(sa, st); const row = ws.addRow(r); row.font = { bold: true }; return row;
+    const sr = ['Subtotal', turmasDistintas(cube, anos)]; let sa = 0, st = 0;
+    colunas.forEach(col => {
+      let a = 0, t = 0; anos.forEach(an => { const c = col.cell(an); a += val(c); t += valTot(c); });
+      sr.push(a, t); sa += a; st += t;
+    });
+    sr.push(sa, st); ws.addRow(sr).font = { bold: true };
+    ws.addRow([]);
   };
 
-  ws.addRow(['PARTE 1 — Educação Infantil (Etapas)']).font = { bold: true, italic: true };
-  SECOES[0].anos.forEach(linhaAno);
-  linhaSub('Subtotal Etapas', SECOES[0].anos);
-  ws.addRow([]);
-  ws.addRow(['PARTE 2 — Ensino Fundamental (1º ao 5º Ano)']).font = { bold: true, italic: true };
-  SECOES[1].anos.forEach(linhaAno);
-  linhaSub('Subtotal Fundamental', SECOES[1].anos);
-  ws.addRow([]);
-  linhaSub('Total geral', ANOS);
+  bloco('PARTE 1 — Educação Infantil (Etapas)', SECOES[0].anos, colsEtapas);
+  bloco('PARTE 2 — Ensino Fundamental (1º ao 5º Ano) · todas as disciplinas', SECOES[1].anos, colsFund);
 
-  ws.columns.forEach(c => c.width = 18);
+  ws.columns.forEach(c => c.width = 16);
+  ws.getColumn(1).width = 22;
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const a = document.createElement('a');
