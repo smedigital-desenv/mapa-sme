@@ -41,6 +41,9 @@
   function baseEscola(s) { return normEscola(String(s || '').split(',')[0]); }
 
   function telaAtual() {
+    // Páginas podem compartilhar a permissão de outra tela definindo
+    // window.MAPA_TELA (ex.: um relatório que "pertence" à tela atribuicao).
+    if (window.MAPA_TELA) return window.MAPA_TELA;
     var f = (location.pathname.split('/').pop() || 'index.html').replace(/\.html$/i, '');
     return f === 'index' ? null : f;   // index = portal do sistema, sem tela específica
   }
