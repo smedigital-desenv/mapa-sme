@@ -309,6 +309,9 @@ function isAtribuido(row) {
 /* ── Classificação ANO/ETAPA → uma das 7 categorias (ou null) ───── */
 function classificarAno(anoRaw) {
   const f = colapsar(anoRaw);              // ex.: ETAPAII, ETAPA2, 1ANO, EDINFETAPA1
+  // EJA / Termos / Ciclos NÃO são turmas de 1º-5º nem Etapas (ex.: "1º TERMO" é EJA,
+  // não 1º ano). Excluímos antes da regra do dígito inicial.
+  if (f.includes('TERMO') || f.includes('EJA') || f.includes('CICLO')) return null;
   if (f.includes('ETAPA')) {
     const rest = f.slice(f.indexOf('ETAPA') + 5);
     if (rest.startsWith('II') || rest.startsWith('2') || rest.includes('DOIS')) return 'Etapa II';
