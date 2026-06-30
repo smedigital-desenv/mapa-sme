@@ -298,8 +298,15 @@ function periodoCanon(v) {
   if (p === 'I' || p.startsWith('INTEG')) return 'I';
   return p;
 }
+// Base do ano para a identidade da turma: remove o sufixo de turno do fim
+// ("... - M" / "- T" / "- N"), pois o turno vem do campo período. Assim as linhas
+// da mesma turma integral (regente manhã/tarde com "- M"/"- T" e especialistas sem
+// sufixo) não viram turmas diferentes — manhã e tarde continuam separadas pelo período.
+function anoTurma(ano) {
+  return normalizar(ano).replace(/\s*-\s*(MANHA|TARDE|NOITE|M|T|N)$/, '');
+}
 function turmaKey(row) {
-  return [normalizar(row.nome_unidade), normalizar(row.ano_escolar),
+  return [normalizar(row.nome_unidade), anoTurma(row.ano_escolar),
           normalizar(row.letra_turma), periodoCanon(row.periodo)].join('¦');
 }
 function escapeHtml(s) {
