@@ -385,6 +385,7 @@ function classificarDisc(discRaw) {
 function nomeDisc(raw) {
   const f = colapsar(raw);
   if (!f) return '';
+  if (isPRADisc(raw)) return 'PRA — Recuperação';   // faz parte da grade do 1º ao 5º
   if (f.includes('MAGISTERIO')) {
     if (f.includes('MAGISTERIOII') || f.includes('MAGISTERIO2')) return 'Magistério II';
     return 'Magistério I';
@@ -408,6 +409,7 @@ const COR_DISC = {
   'Magistério II':'#2563eb', 'Magistério I':'#1e40af', 'Arte':'#7c3aed', 'Artes Visuais':'#9333ea',
   'Inglês':'#0d9488', 'Educação Física':'#d97706', 'Língua Portuguesa':'#dc2626', 'Matemática':'#0891b2',
   'Ciências':'#16a34a', 'História':'#b45309', 'Geografia':'#65a30d', 'Música':'#db2777', 'AEE':'#475569',
+  'PRA — Recuperação':'#0ea5e9',
 };
 const PALETA = ['#2563eb','#7c3aed','#0d9488','#d97706','#dc2626','#0891b2','#16a34a','#b45309','#65a30d','#db2777','#475569','#9333ea','#ca8a04','#0369a1'];
 function corDisc(nome) {
@@ -423,11 +425,13 @@ function isPRADisc(disc) {
   return f.includes('RECUP') && (f.includes('APREND') || f.includes('APREN')) && f.includes('ANOS') && f.includes('INIC');
 }
 // Nome canônico de um projeto, ou null se a linha não for de projeto.
+// Obs.: o PRA NÃO é projeto aqui — ele faz parte da grade do 1º ao 5º
+// (tratado como disciplina em nomeDisc).
 function nomeProjeto(disc) {
   const f = colapsar(disc);
   if (!f) return null;
+  if (isPRADisc(disc)) return null;             // PRA vai para a grade (disciplinas)
   if (f.includes('ALFABETIZADOR') || f === 'PPA' || f.includes('PPA')) return 'PPA — Prof. Alfabetizador';
-  if (isPRADisc(disc)) return 'PRA — Recuperação (Anos Iniciais)';
   if (f.includes('PROJETO') || f.includes('RECUPERACAO') || f.includes('RECUPER'))
     return String(disc || '').trim().replace(/\s+/g, ' ');
   return null;
