@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <script src="auth-guard.js"></script>
+  <script>window.MAPA_SISTEMA = 'mapa';</script>
+  <!-- Compartilha a permissão da tela "atribuicao" (não é uma tela nova no controle de acesso). -->
+  <script>window.MAPA_TELA = 'atribuicao';</script>
+  <script src="auth.js" defer></script>
+  <script src="config-central.js" defer></script>
+  <script src="demo-mode.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Retrato Quantitativo de Atribuições | SME Ribeirão Preto</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  <style>
+    :root {
+      --primary:    #002b5e;
+      --neon-blue:  #00e5ff;
+      --neon-green: #39FF14;
+      --mag:  #2563eb;   /* Magistério I */
+      --arte: #7c3aed;   /* Arte */
+      --ing:  #0d9488;   /* Inglês */
+      --ef:   #d97706;   /* Educação Física */
+    }
+    body { background:#f0f4f8; font-family:'Segoe UI',sans-serif; padding-bottom:60px; }
+
+    /* ── HEADER ── */
+    .nav-header {
+      background:var(--primary); color:white;
+      border-bottom:4px solid var(--neon-blue);
+      padding:.9rem 1.6rem; position:static;
+      box-shadow:0 6px 18px rgba(0,43,94,.18);
+    }
+    .nav-header h1 { font-size:1.25rem; font-weight:800; margin:0; letter-spacing:.02em; }
+    .nav-header .sub { font-size:.7rem; color:rgba(255,255,255,.7); font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+    .nav-back { color:rgba(255,255,255,.85); text-decoration:none; font-size:.82rem; font-weight:700; }
+    .nav-back:hover { color:#fff; }
+
+    /* ── SUBNAV / TOOLBAR ── */
+    .toolbar {
+      background:rgba(0,43,94,.95); border-bottom:1px solid rgba(0,229,255,.2);
+      padding:.5rem 1.6rem; display:flex; align-items:center; gap:.6rem;
+      flex-wrap:wrap; position:sticky; top:0; z-index:1010;
+    }
+    .seg { display:inline-flex; background:rgba(255,255,255,.08); border:1px solid rgba(0,229,255,.35); border-radius:8px; overflow:hidden; }
+    .seg button { background:transparent; border:0; color:rgba(255,255,255,.8); font-size:.76rem; font-weight:700; padding:.3rem .8rem; cursor:pointer; }
+    .seg button.active { background:var(--neon-blue); color:#002b5e; }
+    .chip-per { background:transparent; border:1px solid rgba(0,229,255,.4); color:rgba(255,255,255,.82);
+      border-radius:999px; padding:.2rem .7rem; font-size:.74rem; font-weight:700; cursor:pointer; }
+    .chip-per.active { background:#fff; color:var(--primary); border-color:#fff; }
+    .btn-tool { background:transparent; border:1px solid rgba(0,229,255,.4); color:#fff; border-radius:7px;
+      padding:.28rem .7rem; font-size:.76rem; font-weight:700; cursor:pointer; }
+    .btn-tool:hover { background:rgba(0,229,255,.14); }
+
+    /* ── KPI CARDS ── */
+    .kpi { background:#fff; border-radius:14px; padding:.9rem 1.1rem; box-shadow:0 4px 14px rgba(0,0,0,.05);
+      border-left:5px solid #ccc; height:100%; }
+    .kpi .lbl { font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
+    .kpi .val { font-size:1.7rem; font-weight:900; color:#0f172a; line-height:1.1; }
+    .kpi .sub { font-size:.72rem; color:#94a3b8; font-weight:700; }
+
+    .card-box { background:#fff; border-radius:16px; box-shadow:0 4px 15px rgba(0,0,0,.05); }
+    .sec-tt { font-weight:900; color:var(--primary); font-size:1rem; }
+
+    /* ── MATRIZ ── */
+    table.matriz { width:100%; border-collapse:separate; border-spacing:0; }
+    table.matriz th, table.matriz td { padding:.55rem .7rem; text-align:center; border-bottom:1px solid #eef2f7; }
+    table.matriz thead th { position:sticky; top:0; background:#f8fafc; font-size:.72rem; text-transform:uppercase;
+      letter-spacing:.04em; color:#475569; z-index:1; }
+    table.matriz tbody th { text-align:left; font-weight:800; color:var(--primary); font-size:.84rem; white-space:nowrap; background:#fff; }
+    table.matriz td .big { font-size:1.02rem; font-weight:900; color:#0f172a; }
+    table.matriz td .small { font-size:.66rem; color:#94a3b8; font-weight:700; }
+    table.matriz tr.total-row th, table.matriz tr.total-row td { background:#f1f5f9; border-top:2px solid #cbd5e1; }
+    table.matriz td.col-total .big, table.matriz th.col-total { color:var(--primary); }
+    .col-mag  { box-shadow: inset 4px 0 0 0 color-mix(in srgb, var(--mag) 18%, transparent); }
+    .pct-pill { display:inline-block; font-size:.6rem; font-weight:800; padding:1px 6px; border-radius:999px; margin-top:2px; }
+
+    .legend { font-size:.74rem; color:#64748b; }
+    .legend .dot { width:10px; height:10px; border-radius:3px; display:inline-block; margin-right:4px; }
+
+    .loader { text-align:center; padding:3rem 1rem; color:#64748b; }
+    .spin { width:38px; height:38px; border:4px solid #e2e8f0; border-top-color:var(--neon-blue); border-radius:50%;
+      animation:sp 1s linear infinite; margin:0 auto .8rem; }
+    @keyframes sp { to { transform:rotate(360deg); } }
+
+    @media print {
+      .toolbar, .nav-back, .btn-tool, #graficoWrap { display:none !important; }
+      body { background:#fff; }
+      .card-box { box-shadow:none; border:1px solid #e2e8f0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── HEADER ── -->
+  <header class="nav-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-3">
+      <i class="bi bi-bar-chart-line-fill" style="font-size:1.6rem;color:var(--neon-blue);"></i>
+      <div>
+        <h1>Retrato Quantitativo de Atribuições</h1>
+        <div class="sub">Aulas atribuídas por etapa/ano e disciplina</div>
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+      <a class="nav-back" href="atribuicao.html"><i class="bi bi-diagram-3-fill me-1"></i>Atribuição</a>
+      <a class="nav-back" href="index.html"><i class="bi bi-house-fill me-1"></i>Início</a>
+    </div>
+  </header>
+
+  <!-- ── TOOLBAR ── -->
+  <div class="toolbar">
+    <span class="text-white-50 small fw-bold"><i class="bi bi-sliders me-1"></i>Métrica</span>
+    <div class="seg" id="segMetrica">
+      <button data-m="carga" class="active">Aulas (carga horária)</button>
+      <button data-m="turmas">Turmas (salas)</button>
+    </div>
+    <span class="text-white-50 small fw-bold ms-2"><i class="bi bi-clock me-1"></i>Período</span>
+    <div id="periodoChips" class="d-flex gap-1 flex-wrap"></div>
+    <div class="ms-auto d-flex gap-2">
+      <button class="btn-tool" onclick="atualizar()"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+      <button class="btn-tool" onclick="exportarExcel()"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+      <button class="btn-tool" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    </div>
+  </div>
+
+  <main class="container-fluid px-3 px-lg-4 py-3" style="max-width:1280px;">
+
+    <div id="estado" class="loader">
+      <div class="spin"></div>
+      <div>Carregando dados da atribuição…</div>
+    </div>
+
+    <div id="conteudo" style="display:none;">
+
+      <!-- KPIs por disciplina -->
+      <div class="row g-2 g-lg-3 mb-3" id="kpis"></div>
+
+      <!-- Matriz -->
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div class="sec-tt"><i class="bi bi-grid-3x3-gap-fill me-2"></i>Aulas atribuídas por etapa/ano × disciplina</div>
+          <div class="legend"><span id="metricaLabel"></span> · <span class="text-muted">valor menor = total criado</span></div>
+        </div>
+        <div class="table-responsive">
+          <table class="matriz" id="matriz"></table>
+        </div>
+        <div class="legend mt-2">
+          <span class="me-3"><span class="dot" style="background:var(--mag)"></span>Magistério I</span>
+          <span class="me-3"><span class="dot" style="background:var(--arte)"></span>Arte</span>
+          <span class="me-3"><span class="dot" style="background:var(--ing)"></span>Inglês</span>
+          <span class="me-3"><span class="dot" style="background:var(--ef)"></span>Educação Física</span>
+        </div>
+      </div>
+
+      <!-- Gráfico -->
+      <div class="card-box p-3 p-lg-4 mb-3" id="graficoWrap">
+        <div class="sec-tt mb-2"><i class="bi bi-bar-chart-fill me-2"></i>Comparativo por etapa/ano</div>
+        <canvas id="grafico" height="110"></canvas>
+      </div>
+
+      <!-- Conferência da classificação -->
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#confBox">
+          <i class="bi bi-search me-1"></i>Conferência da classificação dos dados
+        </button>
+        <div class="collapse mt-3" id="confBox">
+          <p class="text-muted small mb-2">Como cada valor do banco foi interpretado. Linhas “ignorado” não entram no relatório
+            (ex.: outras séries/disciplinas fora do escopo solicitado).</p>
+          <div class="row g-3">
+            <div class="col-12 col-lg-6">
+              <h6 class="fw-bold">Anos / Etapas (ano_escolar)</h6>
+              <div class="table-responsive" style="max-height:320px;overflow:auto;">
+                <table class="table table-sm table-bordered align-middle mb-0" id="confAnos"></table>
+              </div>
+            </div>
+            <div class="col-12 col-lg-6">
+              <h6 class="fw-bold">Disciplinas (descricao_disciplina)</h6>
+              <div class="table-responsive" style="max-height:320px;overflow:auto;">
+                <table class="table table-sm table-bordered align-middle mb-0" id="confDiscs"></table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-muted small px-1" id="rodape"></div>
+    </div>
+  </main>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   Retrato Quantitativo de Atribuições de Aula
+   Reaproveita a base de dados (tabela "turmas" do Supabase) e a mesma
+   regra de "atribuído" usada na tela de Atribuição (atribuicao.html).
+   ══════════════════════════════════════════════════════════════════ */
+const SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk';
+
+/* ── Categorias pedidas ─────────────────────────────────────────── */
+const ANOS = ['Etapa I', 'Etapa II', '1º Ano', '2º Ano', '3º Ano', '4º Ano', '5º Ano'];
+const DISCS = [
+  { key:'Magistério I',     cor:'var(--mag)',  rgb:'#2563eb' },
+  { key:'Arte',             cor:'var(--arte)', rgb:'#7c3aed' },
+  { key:'Inglês',           cor:'var(--ing)',  rgb:'#0d9488' },
+  { key:'Educação Física',  cor:'var(--ef)',   rgb:'#d97706' },
+];
+
+/* ── Estado ─────────────────────────────────────────────────────── */
+let ROWS = null;          // linhas cruas (após exclusão de séries)
+let metrica = 'carga';    // 'carga' | 'turmas'
+let periodosSel = null;   // Set de períodos selecionados (null = todos)
+let grafico = null;
+
+/* ── Helpers (espelham atribuicao.html) ─────────────────────────── */
+function normalizar(txt) {
+  return String(txt || '').trim().toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[º°]/g, '').replace(/[–—]/g, '-')
+    .replace(/\s*-\s*/g, ' - ').replace(/\s+/g, ' ');
+}
+function colapsar(txt) { return normalizar(txt).replace(/[^A-Z0-9]/g, ''); }
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+function periodoDesc(valor) {
+  const p = String(valor || '').trim().toUpperCase();
+  if (p === 'M') return 'Manhã';
+  if (p === 'T') return 'Tarde';
+  if (p === 'N') return 'Noite';
+  return p || '—';
+}
+function estaEmContracao(cod) { const c = Number(cod); return !isNaN(c) && c >= 99000; }
+function estaNaAtiva(sit) { const t = String(sit || '').toUpperCase().trim(); return t.includes('NA ATIVA') || t === 'ATIVA'; }
+function isAtribuido(row) {
+  if (!row) return false;
+  const cT = String(row.codigo_professor_prop || '').trim();
+  const cS = String(row.codigo_professor_sub  || '').trim();
+  if (estaEmContracao(cT)) return true;
+  if (cT && cT !== '0' && estaNaAtiva(row.situacao_professor)) return true;
+  if (!cS || cS === '0') return false;
+  if (estaEmContracao(cS)) return true;
+  if (estaNaAtiva(row.situacao_professor_sub)) return true;
+  return false;
+}
+
+/* ── Classificação ANO/ETAPA → uma das 7 categorias (ou null) ───── */
+function classificarAno(anoRaw) {
+  const f = colapsar(anoRaw);              // ex.: ETAPAII, ETAPA2, 1ANO, EDINFETAPA1
+  if (f.includes('ETAPA')) {
+    const rest = f.slice(f.indexOf('ETAPA') + 5);
+    if (rest.startsWith('II') || rest.startsWith('2') || rest.includes('DOIS')) return 'Etapa II';
+    if (rest.startsWith('I')  || rest.startsWith('1') || rest.includes('UM'))   return 'Etapa I';
+    return null;
+  }
+  const m = f.match(/^(\d+)/);              // 1º ao 5º ano (número no início)
+  if (m) { const n = parseInt(m[1], 10); if (n >= 1 && n <= 5) return n + 'º Ano'; }
+  return null;
+}
+
+/* ── Classificação DISCIPLINA → uma das 4 categorias (ou null) ──── */
+function classificarDisc(discRaw) {
+  const f = colapsar(discRaw);
+  if ((f.includes('EDUCACAO') || f.includes('EDUC')) && (f.includes('FISICA') || f.includes('FIS'))) return 'Educação Física';
+  if (f.includes('INGLES') || f.includes('INGLESA')) return 'Inglês';
+  if (f.includes('ARTE')) return 'Arte';                 // Arte, Artes, Artes Visuais
+  if (f.includes('MAGISTERIO')) {
+    if (f.includes('MAGISTERIOII') || f.includes('MAGISTERIO2')) return null;  // Magistério II não solicitado
+    return 'Magistério I';
+  }
+  return null;
+}
+
+/* ── Séries excluídas (mesma config da tela de Atribuição) ──────── */
+let _seriesExcl = new Set();
+function serieNormConf(v) { return normalizar(v).replace(/[^A-Z0-9]+/g, ' ').trim(); }
+function serieExcluida(ano) { return _seriesExcl.size > 0 && _seriesExcl.has(serieNormConf(ano)); }
+async function fetchSeriesExcluidas() {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/config_series_excluidas?select=serie,excluido`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+    if (r.ok) {
+      const linhas = await r.json();
+      const set = new Set();
+      (linhas || []).filter(x => x.excluido !== false).forEach(x => set.add(serieNormConf(x.serie)));
+      _seriesExcl = set;
+    }
+  } catch (_) {}
+}
+
+/* ── Busca de dados (mesmo cache da tela de Atribuição) ─────────── */
+const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,situacao_professor_sub';
+async function _fetchTurmasRede() {
+  const PAGE = 1000;
+  const H = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+  const pageUrl = off => `${SUPABASE_URL}/rest/v1/turmas?select=${SELECT}&order=nome_unidade.asc&limit=${PAGE}&offset=${off}`;
+  const first = await fetch(pageUrl(0), { headers: { ...H, Prefer: 'count=exact' } });
+  if (!first.ok) throw new Error(`Erro ${first.status}`);
+  const firstBatch = await first.json();
+  if (firstBatch.length < PAGE) return firstBatch;
+  const total = parseInt((first.headers.get('content-range') || '').split('/')[1], 10);
+  if (Number.isFinite(total)) {
+    const offsets = [];
+    for (let off = PAGE; off < total && off <= 300000; off += PAGE) offsets.push(off);
+    const restantes = await Promise.all(offsets.map(async off => {
+      const r = await fetch(pageUrl(off), { headers: H });
+      if (!r.ok) throw new Error(`Erro ${r.status}`);
+      return r.json();
+    }));
+    return firstBatch.concat(...restantes);
+  }
+  let rows = firstBatch.slice(), offset = PAGE;
+  while (true) {
+    const r = await fetch(pageUrl(offset), { headers: H });
+    if (!r.ok) throw new Error(`Erro ${r.status}`);
+    const batch = await r.json();
+    rows = rows.concat(batch);
+    if (batch.length < PAGE) break;
+    offset += PAGE;
+    if (offset > 300000) break;
+  }
+  return rows;
+}
+async function fetchTurmas() {
+  const CACHE_KEY = 'mapa_atrib_turmas_v2';   // mesmo cache da tela de Atribuição
+  const TTL = 10 * 60 * 1000;
+  if (!window.__forcarRefetch) {
+    try {
+      const o = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      if (o && o.ts && (Date.now() - o.ts) < TTL && Array.isArray(o.rows)) return o.rows;
+    } catch (e) {}
+  }
+  window.__forcarRefetch = false;
+  const rows = await _fetchTurmasRede();
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), rows })); } catch (e) {}
+  return rows;
+}
+function aguardarAuth() {
+  return new Promise(resolve => {
+    if (window.MapaAuth && window.MapaAuth.perfil) return resolve();
+    document.addEventListener('mapa-auth-pronto', () => resolve(), { once: true });
+    setTimeout(resolve, 8000);
+  });
+}
+function filtrarTurmasPorEscola(rows) {
+  try {
+    if (window.MapaAuth && window.MapaAuth.restritoEscola)
+      return window.MapaAuth.filtrarEscolas(rows, r => r.nome_unidade);
+  } catch (e) {}
+  return rows;
+}
+
+/* ── Agregação ──────────────────────────────────────────────────── */
+function agregar() {
+  // estrutura: cube[ano][disc] = { criadas, atribuidas, cargaCriada, cargaAtribuida }
+  const cube = {};
+  ANOS.forEach(a => { cube[a] = {}; DISCS.forEach(d => cube[a][d.key] = { criadas:0, atribuidas:0, cargaCriada:0, cargaAtribuida:0 }); });
+
+  (ROWS || []).forEach(row => {
+    if (periodosSel && !periodosSel.has(periodoDesc(row.periodo))) return;
+    const ano = classificarAno(row.ano_escolar);
+    if (!ano) return;
+    const disc = classificarDisc(row.descricao_disciplina);
+    if (!disc) return;
+    const carga = Number(row.carga_horaria || 0) || 0;
+    const atrib = isAtribuido(row);
+    const cell = cube[ano][disc];
+    cell.criadas += 1;
+    cell.cargaCriada += carga;
+    if (atrib) { cell.atribuidas += 1; cell.cargaAtribuida += carga; }
+  });
+  return cube;
+}
+
+/* ── Valores conforme métrica ativa ─────────────────────────────── */
+function val(cell)   { return metrica === 'carga' ? cell.cargaAtribuida : cell.atribuidas; }
+function valTot(cell){ return metrica === 'carga' ? cell.cargaCriada    : cell.criadas; }
+function fmt(n)      { return metrica === 'carga' ? Number(n).toLocaleString('pt-BR') : String(n); }
+
+/* ── Render ─────────────────────────────────────────────────────── */
+function corPct(p) { return p >= 90 ? ['#047857','#d1fae5'] : p >= 60 ? ['#b45309','#fef3c7'] : ['#b91c1c','#fee2e2']; }
+
+function render() {
+  const cube = agregar();
+  document.getElementById('metricaLabel').textContent =
+    metrica === 'carga' ? 'Valor maior = aulas (carga horária) atribuídas' : 'Valor maior = turmas atribuídas';
+
+  // KPIs por disciplina (total da rede no filtro atual)
+  const kpis = DISCS.map(d => {
+    let atr = 0, tot = 0;
+    ANOS.forEach(a => { atr += val(cube[a][d.key]); tot += valTot(cube[a][d.key]); });
+    const p = tot > 0 ? Math.round(atr / tot * 100) : 0;
+    const [c, bg] = corPct(p);
+    return `<div class="col-6 col-lg-3">
+      <div class="kpi" style="border-left-color:${d.rgb};">
+        <div class="lbl">${escapeHtml(d.key)}</div>
+        <div class="val">${fmt(atr)}</div>
+        <div class="sub">de ${fmt(tot)} ${metrica === 'carga' ? 'aulas' : 'turmas'}
+          <span class="pct-pill" style="color:${c};background:${bg};">${p}%</span></div>
+      </div></div>`;
+  }).join('');
+  document.getElementById('kpis').innerHTML = kpis;
+
+  // Matriz
+  const thead = `<thead><tr>
+      <th style="text-align:left;">Etapa / Ano</th>
+      ${DISCS.map(d => `<th style="color:${d.rgb};">${escapeHtml(d.key)}</th>`).join('')}
+      <th class="col-total">Total</th>
+    </tr></thead>`;
+
+  const totCol = {};                       // totais por disciplina
+  DISCS.forEach(d => totCol[d.key] = { a:0, t:0 });
+  let totGeralA = 0, totGeralT = 0;
+
+  const linhas = ANOS.map(a => {
+    let linA = 0, linT = 0;
+    const tds = DISCS.map(d => {
+      const cell = cube[a][d.key];
+      const v = val(cell), vt = valTot(cell);
+      totCol[d.key].a += v; totCol[d.key].t += vt;
+      linA += v; linT += vt;
+      const p = vt > 0 ? Math.round(v / vt * 100) : 0;
+      const [c, bg] = corPct(p);
+      const pill = vt > 0 ? `<div class="pct-pill" style="color:${c};background:${bg};">${p}%</div>` : '';
+      return `<td class="${d.key === 'Magistério I' ? 'col-mag' : ''}">
+        <div class="big">${v ? fmt(v) : '<span class="text-muted">0</span>'}</div>
+        <div class="small">${vt ? 'de ' + fmt(vt) : '—'}</div>${pill}</td>`;
+    }).join('');
+    totGeralA += linA; totGeralT += linT;
+    const pL = linT > 0 ? Math.round(linA / linT * 100) : 0;
+    return `<tr>
+      <th>${escapeHtml(a)}</th>${tds}
+      <td class="col-total"><div class="big">${fmt(linA)}</div><div class="small">de ${fmt(linT)} · ${pL}%</div></td>
+    </tr>`;
+  }).join('');
+
+  const totaisTd = DISCS.map(d => {
+    const o = totCol[d.key];
+    const p = o.t > 0 ? Math.round(o.a / o.t * 100) : 0;
+    return `<td><div class="big">${fmt(o.a)}</div><div class="small">de ${fmt(o.t)} · ${p}%</div></td>`;
+  }).join('');
+  const pG = totGeralT > 0 ? Math.round(totGeralA / totGeralT * 100) : 0;
+  const linhaTotal = `<tr class="total-row">
+      <th>Total geral</th>${totaisTd}
+      <td class="col-total"><div class="big">${fmt(totGeralA)}</div><div class="small">de ${fmt(totGeralT)} · ${pG}%</div></td>
+    </tr>`;
+
+  document.getElementById('matriz').innerHTML = thead + `<tbody>${linhas}${linhaTotal}</tbody>`;
+
+  renderGrafico(cube);
+  renderConferencia();
+
+  const unidades = new Set((ROWS || []).map(r => r.nome_unidade)).size;
+  document.getElementById('rodape').textContent =
+    `Base: ${ (ROWS||[]).length.toLocaleString('pt-BR') } linhas de atribuição · ${unidades} unidades. `
+    + `“Atribuído” segue a mesma regra da tela de Atribuição (titular/substituto na ativa ou em contratação).`;
+}
+
+function renderGrafico(cube) {
+  const ctx = document.getElementById('grafico');
+  const data = {
+    labels: ANOS,
+    datasets: DISCS.map(d => ({
+      label: d.key,
+      data: ANOS.map(a => val(cube[a][d.key])),
+      backgroundColor: d.rgb,
+      borderRadius: 4,
+    })),
+  };
+  if (grafico) { grafico.data = data; grafico.update(); return; }
+  grafico = new Chart(ctx, {
+    type: 'bar',
+    data,
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      scales: { x: { stacked: false }, y: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+}
+
+function renderConferencia() {
+  // Anos
+  const anosCount = {};
+  (ROWS || []).forEach(r => { const k = String(r.ano_escolar || '—'); anosCount[k] = (anosCount[k] || 0) + 1; });
+  const anosHtml = Object.keys(anosCount).sort().map(k => {
+    const cat = classificarAno(k);
+    return `<tr><td>${escapeHtml(k)}</td><td class="text-end">${anosCount[k]}</td>
+      <td>${cat ? '<span class="badge bg-success-subtle text-success border">' + escapeHtml(cat) + '</span>'
+                : '<span class="badge bg-light text-muted border">ignorado</span>'}</td></tr>`;
+  }).join('');
+  document.getElementById('confAnos').innerHTML =
+    `<thead><tr><th>ano_escolar</th><th class="text-end">Linhas</th><th>Categoria</th></tr></thead><tbody>${anosHtml}</tbody>`;
+
+  // Disciplinas
+  const discCount = {};
+  (ROWS || []).forEach(r => { const k = String(r.descricao_disciplina || '—'); discCount[k] = (discCount[k] || 0) + 1; });
+  const discHtml = Object.keys(discCount).sort().map(k => {
+    const cat = classificarDisc(k);
+    return `<tr><td>${escapeHtml(k)}</td><td class="text-end">${discCount[k]}</td>
+      <td>${cat ? '<span class="badge bg-success-subtle text-success border">' + escapeHtml(cat) + '</span>'
+                : '<span class="badge bg-light text-muted border">ignorada</span>'}</td></tr>`;
+  }).join('');
+  document.getElementById('confDiscs').innerHTML =
+    `<thead><tr><th>descricao_disciplina</th><th class="text-end">Linhas</th><th>Categoria</th></tr></thead><tbody>${discHtml}</tbody>`;
+}
+
+/* ── Período chips ──────────────────────────────────────────────── */
+function montarPeriodos() {
+  const pers = Array.from(new Set((ROWS || []).map(r => periodoDesc(r.periodo)))).filter(Boolean).sort();
+  const box = document.getElementById('periodoChips');
+  box.innerHTML = pers.map(p => {
+    const on = !periodosSel || periodosSel.has(p);
+    return `<button class="chip-per ${on ? 'active' : ''}" onclick="togglePeriodo('${escapeHtml(p)}')">${escapeHtml(p)}</button>`;
+  }).join('') || '';
+}
+function togglePeriodo(p) {
+  const todos = Array.from(new Set((ROWS || []).map(r => periodoDesc(r.periodo))));
+  if (!periodosSel) periodosSel = new Set(todos);
+  if (periodosSel.has(p)) periodosSel.delete(p); else periodosSel.add(p);
+  if (periodosSel.size === 0 || periodosSel.size === todos.length) periodosSel = null;
+  montarPeriodos();
+  render();
+}
+
+/* ── Toolbar: métrica ───────────────────────────────────────────── */
+document.getElementById('segMetrica').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  metrica = b.dataset.m;
+  document.querySelectorAll('#segMetrica button').forEach(x => x.classList.toggle('active', x === b));
+  render();
+});
+
+/* ── Excel ──────────────────────────────────────────────────────── */
+async function exportarExcel() {
+  if (!ROWS) return;
+  const cube = agregar();
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Retrato Atribuições');
+  const unidMetr = metrica === 'carga' ? 'Aulas (carga horária)' : 'Turmas (salas)';
+  ws.addRow([`Retrato Quantitativo de Atribuições — ${unidMetr}`]);
+  ws.addRow([`Período: ${periodosSel ? Array.from(periodosSel).join(', ') : 'Todos'}`]);
+  ws.addRow([]);
+  const head = ['Etapa / Ano'];
+  DISCS.forEach(d => { head.push(d.key + ' (atrib.)', d.key + ' (total)'); });
+  head.push('Total atrib.', 'Total criado');
+  ws.addRow(head);
+  ANOS.forEach(a => {
+    const r = [a]; let la = 0, lt = 0;
+    DISCS.forEach(d => { const c = cube[a][d.key]; r.push(val(c), valTot(c)); la += val(c); lt += valTot(c); });
+    r.push(la, lt); ws.addRow(r);
+  });
+  const tr = ['Total geral']; let ga = 0, gt = 0;
+  DISCS.forEach(d => {
+    let a = 0, t = 0; ANOS.forEach(an => { a += val(cube[an][d.key]); t += valTot(cube[an][d.key]); });
+    tr.push(a, t); ga += a; gt += t;
+  });
+  tr.push(ga, gt); ws.addRow(tr);
+  ws.getRow(4).font = { bold: true };
+  ws.getRow(ws.rowCount).font = { bold: true };
+  ws.columns.forEach(c => c.width = 18);
+  const buf = await wb.xlsx.writeBuffer();
+  const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = 'retrato-atribuicoes.xlsx'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ── Carregamento ───────────────────────────────────────────────── */
+async function carregar() {
+  document.getElementById('estado').style.display = 'block';
+  document.getElementById('conteudo').style.display = 'none';
+  try {
+    await aguardarAuth();
+    await fetchSeriesExcluidas();
+    const todas = await fetchTurmas();
+    const visiveis = filtrarTurmasPorEscola(todas);
+    ROWS = visiveis.filter(r => !serieExcluida(r.ano_escolar));
+    document.getElementById('estado').style.display = 'none';
+    document.getElementById('conteudo').style.display = 'block';
+    montarPeriodos();
+    render();   // depois de exibir o conteúdo, para o gráfico medir o canvas corretamente
+  } catch (e) {
+    document.getElementById('estado').innerHTML =
+      `<div class="alert alert-danger d-inline-block">Erro ao carregar os dados: ${escapeHtml(e.message || e)}</div>`;
+  }
+}
+function atualizar() { window.__forcarRefetch = true; periodosSel = null; carregar(); }
+
+carregar();
+</script>
+</body>
+</html>
