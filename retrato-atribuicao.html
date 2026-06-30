@@ -207,8 +207,9 @@
       <!-- SIMULADOR 2027 -->
       <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #1d4ed8;">
         <div class="sec-tt mb-1"><i class="bi bi-calculator me-2"></i>Simulador 2027 — projeção do total de aulas</div>
-        <p class="text-muted small mb-3">Defina as aulas dos novos projetos de 2027. O restante (Magistério II, Educação Física,
-          PRA, Arte, Inglês, Educação Financeira) usa os números de <b>2026</b>. Os parâmetros ficam salvos no seu navegador.</p>
+        <p class="text-muted small mb-3">Defina as aulas dos novos projetos de 2027. A <b>base</b> (tudo que não é projeto —
+          etapas + disciplinas do fundamental) usa os números de <b>2026</b> e não muda; os projetos novos (Apoio + PPA)
+          substituem os atuais (PPA/PPP/PRP). Os parâmetros ficam salvos no seu navegador.</p>
         <div class="row g-3">
           <div class="col-12 col-lg-4">
             <label class="form-label fw-bold small mb-1">Etapas — Projeto Professor de Apoio</label>
@@ -904,8 +905,6 @@ function renderPeb2Diag() {
 
 /* ── Simulador 2027 ─────────────────────────────────────────────── */
 const SIM_KEY = 'mapa_retrato_sim2027';
-// As 6 disciplinas que continuam iguais em 2027 (números de 2026).
-const BASE6 = ['Magistério II', 'Educação Física', 'PRA — Recuperação', 'Arte', 'Inglês', 'Educação Financeira'];
 let _simPronto = false;
 
 function simSetup() {
@@ -947,16 +946,16 @@ function recomputeSim() {
     return `<tr><td>${escapeHtml(a)}</td><td class="text-end">${turmas}</td><td class="text-end">${param}</td><td class="text-end">${br(sub)}</td></tr>`;
   }).join('');
 
-  // Base: 6 disciplinas que continuam iguais (carga de 2026)
-  let base6 = 0;
-  ANOS.forEach(a => BASE6.forEach(n => { const c = CUBE[a].disc[n]; if (c) base6 += c.cargaCriada; }));
+  // Base = tudo que NÃO é projeto (todas as disciplinas/práticas das etapas e do
+  // fundamental). Continua igual em 2027; o que muda são os projetos.
+  let base = 0;
+  ANOS.forEach(a => Object.values(CUBE[a].disc).forEach(c => base += c.cargaCriada));
+  // Projetos atuais (2026)
+  let proj2026 = 0;
+  Object.values(PROJ || {}).forEach(c => proj2026 += c.cargaCriada);
 
-  // Total 2026 (tudo: todas as disciplinas + projetos atuais)
-  let t2026 = 0;
-  ANOS.forEach(a => Object.values(CUBE[a].disc).forEach(c => t2026 += c.cargaCriada));
-  Object.values(PROJ || {}).forEach(c => t2026 += c.cargaCriada);
-
-  const t2027 = apoioTotal + ppaTotal + base6;
+  const t2026 = base + proj2026;                        // base + projetos atuais
+  const t2027 = base + apoioTotal + ppaTotal;           // base + projetos novos (substituem os atuais)
   const diff = t2027 - t2026;
   const pct = t2026 > 0 ? Math.round(diff / t2026 * 1000) / 10 : 0;
   const cor = diff > 0 ? '#b91c1c' : '#047857';
@@ -966,12 +965,15 @@ function recomputeSim() {
       <div class="col-12 col-lg-6">
         <table class="table table-sm align-middle mb-0">
           <tbody>
-            <tr><td>Apoio (Etapas)</td><td class="text-end fw-bold">${br(apoioTotal)}</td></tr>
-            <tr><td>PPA (Fundamental)</td><td class="text-end fw-bold">${br(ppaTotal)}</td></tr>
-            <tr><td>Base — 6 disciplinas (2026)</td><td class="text-end fw-bold">${br(base6)}</td></tr>
-            <tr style="background:#dbeafe;"><td><b>Total 2027 (projeção)</b></td><td class="text-end fw-bold">${br(t2027)}</td></tr>
-            <tr><td>Total 2026 (atual)</td><td class="text-end">${br(t2026)}</td></tr>
-            <tr><td><b>Diferença</b></td><td class="text-end fw-bold" style="color:${cor};">${diff >= 0 ? '+' : ''}${br(diff)} (${pct >= 0 ? '+' : ''}${pct}%)</td></tr>
+            <tr><td>Base — tudo que não é projeto (2026)</td><td class="text-end fw-bold">${br(base)}</td></tr>
+            <tr class="table-light"><td colspan="2" class="small text-muted fw-bold">2026</td></tr>
+            <tr><td>+ Projetos atuais (PPA/PPP/PRP)</td><td class="text-end">${br(proj2026)}</td></tr>
+            <tr><td><b>Total 2026</b></td><td class="text-end fw-bold">${br(t2026)}</td></tr>
+            <tr class="table-light"><td colspan="2" class="small text-muted fw-bold">2027 (projeção)</td></tr>
+            <tr><td>+ Apoio (Etapas)</td><td class="text-end">${br(apoioTotal)}</td></tr>
+            <tr><td>+ PPA (Fundamental)</td><td class="text-end">${br(ppaTotal)}</td></tr>
+            <tr style="background:#dbeafe;"><td><b>Total 2027</b></td><td class="text-end fw-bold">${br(t2027)}</td></tr>
+            <tr><td><b>Diferença (2027 − 2026)</b></td><td class="text-end fw-bold" style="color:${cor};">${diff >= 0 ? '+' : ''}${br(diff)} (${pct >= 0 ? '+' : ''}${pct}%)</td></tr>
           </tbody>
         </table>
       </div>
