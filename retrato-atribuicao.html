@@ -210,6 +210,15 @@
               </div>
             </div>
           </div>
+
+          <h6 class="fw-bold mt-4">Cobertura de turmas por disciplina — Ensino Fundamental (1º ao 5º)</h6>
+          <p class="text-muted small mb-2">Para cada ano, quantas <b>turmas distintas</b> têm cada disciplina, comparado ao
+            total de turmas do ano (cabeçalho). <span style="color:#047857;font-weight:700;">Verde</span> = cobre todas as turmas;
+            <span style="color:#b45309;font-weight:700;">laranja</span> = falta em algumas (mostra <i>cobertas/total</i>).
+            É aqui que se vê, por exemplo, se toda turma de 1º ano tem Educação Financeira.</p>
+          <div class="table-responsive" style="max-height:380px;overflow:auto;">
+            <table class="table table-sm table-bordered align-middle mb-0" id="confCobertura"></table>
+          </div>
         </div>
       </div>
 
@@ -256,10 +265,20 @@ function normalizar(txt) {
 function colapsar(txt) { return normalizar(txt).replace(/[^A-Z0-9]/g, ''); }
 function cleanUnit(txt) { return String(txt || '').trim().replace(/\s+/g, ' '); }
 // Identidade de uma turma: escola + ano + letra + período (a mesma turma aparece
-// em várias linhas — uma por disciplina — então deduplicamos por esta chave).
+// em várias linhas — uma por disciplina). Normalizamos cada parte (acentos, º,
+// caixa, espaços e o código de período) para NÃO contar a mesma turma mais de uma
+// vez quando as linhas vêm com grafias ligeiramente diferentes.
+function periodoCanon(v) {
+  const p = colapsar(v);                       // ex.: M, MANHA, T, TARDE, N, NOITE, I, INTEGRAL
+  if (p === 'M' || p.startsWith('MANHA')) return 'M';
+  if (p === 'T' || p.startsWith('TARDE')) return 'T';
+  if (p === 'N' || p.startsWith('NOITE')) return 'N';
+  if (p === 'I' || p.startsWith('INTEG')) return 'I';
+  return p;
+}
 function turmaKey(row) {
-  return [cleanUnit(row.nome_unidade), String(row.ano_escolar || '').trim(),
-          String(row.letra_turma || '').trim(), String(row.periodo || '').trim()].join('¦');
+  return [normalizar(row.nome_unidade), normalizar(row.ano_escolar),
+          normalizar(row.letra_turma), periodoCanon(row.periodo)].join('¦');
 }
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -575,6 +594,7 @@ function render() {
 
   renderGrafico(cube);
   renderConferencia();
+  renderCobertura(cube);
 
   const unidades = new Set((ROWS || []).map(r => r.nome_unidade)).size;
   document.getElementById('rodape').textContent =
@@ -692,6 +712,35 @@ function renderConferencia() {
   }).join('');
   document.getElementById('confDiscs').innerHTML =
     `<thead><tr><th>descricao_disciplina</th><th class="text-end">Linhas</th><th>Disciplina (Fundamental) / balde (Etapas)</th></tr></thead><tbody>${discHtml}</tbody>`;
+}
+
+// Cobertura: turmas com cada disciplina vs. total de turmas do ano (1º ao 5º)
+function renderCobertura(cube) {
+  const el = document.getElementById('confCobertura');
+  if (!el) return;
+  const anos = SECOES[1].anos;                 // 1º ao 5º
+  const discs = disciplinasDe(cube, anos);
+  if (!discs.length) { el.innerHTML = '<tbody><tr><td class="text-muted p-2">Sem disciplinas no Fundamental.</td></tr></tbody>'; return; }
+
+  const header = `<thead><tr><th style="text-align:left;">Disciplina \\ Ano</th>` +
+    anos.map(a => `<th class="text-center">${escapeHtml(a.replace(' Ano','º'))}<br><small class="text-muted">${cube[a].turmas.size} turmas</small></th>`).join('') +
+    `</tr></thead>`;
+
+  const corpo = discs.map(n => {
+    const tds = anos.map(a => {
+      const cell = cube[a].disc[n];
+      const cov = cell ? cell.tCriadas.size : 0;
+      const tot = cube[a].turmas.size;
+      if (!tot) return `<td class="text-center text-muted">—</td>`;
+      const cheia = cov === tot;
+      const cor = cov === 0 ? '#94a3b8' : cheia ? '#047857' : '#b45309';
+      const extra = (cov > 0 && !cheia) ? `<small class="text-muted">/${tot}</small>` : '';
+      return `<td class="text-center" style="color:${cor};font-weight:700;">${cov}${extra}</td>`;
+    }).join('');
+    return `<tr><td style="text-align:left;">${escapeHtml(n)}</td>${tds}</tr>`;
+  }).join('');
+
+  el.innerHTML = header + `<tbody>${corpo}</tbody>`;
 }
 
 /* ── Período chips ──────────────────────────────────────────────── */
