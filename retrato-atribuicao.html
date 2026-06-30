@@ -219,6 +219,7 @@
           <div class="table-responsive" style="max-height:380px;overflow:auto;">
             <table class="table table-sm table-bordered align-middle mb-0" id="confCobertura"></table>
           </div>
+          <div id="coberturaDetalhe" class="mt-2"></div>
         </div>
       </div>
 
@@ -254,6 +255,7 @@ let ROWS = null;          // linhas cruas (após exclusão de séries)
 let metrica = 'carga';    // 'carga' | 'turmas'
 let periodosSel = null;   // Set de períodos selecionados (null = todos)
 let grafico = null;
+let CUBE = null;          // último cubo agregado (para o drill-down de cobertura)
 
 /* ── Helpers (espelham atribuicao.html) ─────────────────────────── */
 function normalizar(txt) {
@@ -470,7 +472,7 @@ function filtrarTurmasPorEscola(rows) {
 function novaCell() { return { cargaCriada:0, cargaAtribuida:0, tCriadas:new Set(), tAtrib:new Set() }; }
 function agregar() {
   const cube = {};
-  ANOS.forEach(a => { cube[a] = { turmas: new Set(), disc: {}, proj: {} }; });
+  ANOS.forEach(a => { cube[a] = { turmas: new Set(), disc: {}, proj: {}, turmaInfo: {} }; });
 
   (ROWS || []).forEach(row => {
     if (periodosSel && !periodosSel.has(periodoDesc(row.periodo))) return;
@@ -478,6 +480,9 @@ function agregar() {
     if (!ano) return;
     const tk = turmaKey(row);
     cube[ano].turmas.add(tk);                 // turma distinta (independe da disciplina)
+    if (!cube[ano].turmaInfo[tk]) cube[ano].turmaInfo[tk] = {  // dados legíveis p/ o drill-down
+      unit: cleanUnit(row.nome_unidade), letra: String(row.letra_turma || '').trim(), per: periodoDesc(row.periodo)
+    };
 
     const carga = Number(row.carga_horaria || 0) || 0;
     const atrib = isAtribuido(row);
@@ -545,6 +550,7 @@ function corPct(p) { return p >= 90 ? ['#047857','#d1fae5'] : p >= 60 ? ['#b4530
 
 function render() {
   const cube = agregar();
+  CUBE = cube;
   const unidMetr = metrica === 'carga' ? 'total de aulas (carga horária)' : 'total de turmas distintas';
   ['metricaLabel1', 'metricaLabel2', 'metricaLabel3'].forEach(id => {
     const el = document.getElementById(id);
@@ -735,12 +741,54 @@ function renderCobertura(cube) {
       const cheia = cov === tot;
       const cor = cov === 0 ? '#94a3b8' : cheia ? '#047857' : '#b45309';
       const extra = (cov > 0 && !cheia) ? `<small class="text-muted">/${tot}</small>` : '';
-      return `<td class="text-center" style="color:${cor};font-weight:700;">${cov}${extra}</td>`;
+      const clic = cov > 0 ? ` cell-cob" style="cursor:pointer;color:${cor};font-weight:700;" data-ano="${escapeHtml(a)}" data-disc="${escapeHtml(n)}" title="Clique para ver as turmas` : `" style="color:${cor};font-weight:700;`;
+      return `<td class="text-center${clic}">${cov}${extra}</td>`;
     }).join('');
     return `<tr><td style="text-align:left;">${escapeHtml(n)}</td>${tds}</tr>`;
   }).join('');
 
   el.innerHTML = header + `<tbody>${corpo}</tbody>`;
+}
+
+// Drill-down: lista as turmas (escola · letra · turno) ao clicar numa célula da cobertura.
+function detalheCobertura(ano, disc) {
+  const box = document.getElementById('coberturaDetalhe');
+  if (!box || !CUBE || !CUBE[ano]) return;
+  const cell = CUBE[ano].disc[disc];
+  const cobertos = cell ? cell.tCriadas : new Set();
+  const todos = Object.keys(CUBE[ano].turmaInfo);
+  const tot = todos.length, cov = cobertos.size, falta = tot - cov;
+
+  // Mostra o conjunto MENOR (mais informativo): as que faltam, ou as que têm.
+  const mostrarFaltantes = falta <= cov;
+  const chaves = todos.filter(k => mostrarFaltantes ? !cobertos.has(k) : cobertos.has(k));
+  const titulo = mostrarFaltantes
+    ? `${falta} turma(s) do ${escapeHtml(ano)} que <b>NÃO têm</b> ${escapeHtml(disc)}`
+    : `${cov} turma(s) do ${escapeHtml(ano)} que <b>têm</b> ${escapeHtml(disc)}`;
+
+  // Agrupa por escola
+  const porEscola = {};
+  chaves.forEach(k => {
+    const info = CUBE[ano].turmaInfo[k];
+    (porEscola[info.unit] ||= []).push(`${info.letra || '—'} (${info.per})`);
+  });
+  const escolas = Object.keys(porEscola).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const linhas = escolas.map(e =>
+    `<tr><td>${escapeHtml(e)}</td><td class="text-center">${porEscola[e].length}</td>
+      <td>${porEscola[e].map(escapeHtml).join(', ')}</td></tr>`).join('');
+
+  box.innerHTML = `
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <div class="fw-bold">${titulo} <span class="text-muted">· ${escolas.length} escola(s)</span></div>
+      <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('coberturaDetalhe').innerHTML=''"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="table-responsive" style="max-height:300px;overflow:auto;">
+      <table class="table table-sm table-bordered align-middle mb-0">
+        <thead><tr><th>Escola</th><th class="text-center">Turmas</th><th>Letra (turno)</th></tr></thead>
+        <tbody>${linhas || '<tr><td colspan="3" class="text-muted">Nenhuma turma.</td></tr>'}</tbody>
+      </table>
+    </div>`;
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 /* ── Período chips ──────────────────────────────────────────────── */
@@ -767,6 +815,12 @@ document.getElementById('segMetrica').addEventListener('click', e => {
   metrica = b.dataset.m;
   document.querySelectorAll('#segMetrica button').forEach(x => x.classList.toggle('active', x === b));
   render();
+});
+
+/* ── Cobertura: clique numa célula abre o detalhe de turmas ─────── */
+document.getElementById('confCobertura').addEventListener('click', e => {
+  const td = e.target.closest('td.cell-cob'); if (!td) return;
+  detalheCobertura(td.dataset.ano, td.dataset.disc);
 });
 
 /* ── Excel ──────────────────────────────────────────────────────── */
