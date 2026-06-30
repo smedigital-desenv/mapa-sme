@@ -22,7 +22,7 @@
       --primary:    #002b5e;
       --neon-blue:  #00e5ff;
       --neon-green: #39FF14;
-      --mag:  #2563eb;   /* Magistério I */
+      --mag:  #2563eb;   /* Magistério II */
       --arte: #7c3aed;   /* Arte */
       --ing:  #0d9488;   /* Inglês */
       --ef:   #d97706;   /* Educação Física */
@@ -150,7 +150,7 @@
           <table class="matriz" id="matriz"></table>
         </div>
         <div class="legend mt-2">
-          <span class="me-3"><span class="dot" style="background:var(--mag)"></span>Magistério I</span>
+          <span class="me-3"><span class="dot" style="background:var(--mag)"></span>Magistério II</span>
           <span class="me-3"><span class="dot" style="background:var(--arte)"></span>Arte</span>
           <span class="me-3"><span class="dot" style="background:var(--ing)"></span>Inglês</span>
           <span class="me-3"><span class="dot" style="background:var(--ef)"></span>Educação Física</span>
@@ -204,7 +204,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 /* ── Categorias pedidas ─────────────────────────────────────────── */
 const ANOS = ['Etapa I', 'Etapa II', '1º Ano', '2º Ano', '3º Ano', '4º Ano', '5º Ano'];
 const DISCS = [
-  { key:'Magistério I',     cor:'var(--mag)',  rgb:'#2563eb' },
+  { key:'Magistério II',    cor:'var(--mag)',  rgb:'#2563eb' },
   { key:'Arte',             cor:'var(--arte)', rgb:'#7c3aed' },
   { key:'Inglês',           cor:'var(--ing)',  rgb:'#0d9488' },
   { key:'Educação Física',  cor:'var(--ef)',   rgb:'#d97706' },
@@ -269,8 +269,8 @@ function classificarDisc(discRaw) {
   if (f.includes('INGLES') || f.includes('INGLESA')) return 'Inglês';
   if (f.includes('ARTE')) return 'Arte';                 // Arte, Artes, Artes Visuais
   if (f.includes('MAGISTERIO')) {
-    if (f.includes('MAGISTERIOII') || f.includes('MAGISTERIO2')) return null;  // Magistério II não solicitado
-    return 'Magistério I';
+    if (f.includes('MAGISTERIOII') || f.includes('MAGISTERIO2')) return 'Magistério II';
+    return null;  // Magistério I fora do escopo (foco em Magistério II)
   }
   return null;
 }
@@ -426,7 +426,7 @@ function render() {
       const p = vt > 0 ? Math.round(v / vt * 100) : 0;
       const [c, bg] = corPct(p);
       const pill = vt > 0 ? `<div class="pct-pill" style="color:${c};background:${bg};">${p}%</div>` : '';
-      return `<td class="${d.key === 'Magistério I' ? 'col-mag' : ''}">
+      return `<td class="${d.key === 'Magistério II' ? 'col-mag' : ''}">
         <div class="big">${v ? fmt(v) : '<span class="text-muted">0</span>'}</div>
         <div class="small">${vt ? 'de ' + fmt(vt) : '—'}</div>${pill}</td>`;
     }).join('');
