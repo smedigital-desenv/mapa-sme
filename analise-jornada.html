@@ -105,6 +105,21 @@
         <div id="blocoUnidades"></div>
       </div>
 
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <div class="sec-tt mb-1"><i class="bi bi-arrow-left-right me-2"></i>Aulas criadas para completar jornada</div>
+        <p class="text-muted small mb-3">Pela série (coluna AC): aulas <b>fora dos anos regulares e projetos</b> — substituição,
+          complemento de pagamento, etc. — criadas para completar a jornada.</p>
+        <div id="blocoSubst"></div>
+        <button class="btn btn-sm btn-outline-secondary mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#substDet">
+          <i class="bi bi-list-ul me-1"></i>Detalhar as séries de substituição/complemento
+        </button>
+        <div class="collapse mt-2" id="substDet">
+          <div class="table-responsive" style="max-height:320px;overflow:auto;">
+            <table class="table table-sm table-bordered align-middle mb-0" id="substDetTab"></table>
+          </div>
+        </div>
+      </div>
+
       <div class="card-box p-3 p-lg-4 mb-3" id="graficoWrap">
         <div class="sec-tt mb-2"><i class="bi bi-bar-chart-fill me-2"></i>Aulas por tipo (disciplina AF)</div>
         <canvas id="grafico" height="120"></canvas>
@@ -152,6 +167,20 @@ let grafico = null;
 function escapeHtml(s){ return String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 function br(n){ return Number(n||0).toLocaleString('pt-BR'); }
 function num(v){ const n = Number(v); return isNaN(n) ? 0 : n; }
+function colapsar(s){ return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+
+// Categoria da série (coluna AC): distingue anos regulares, projetos e as aulas
+// criadas para completar jornada (substituição/complemento), entre outras.
+function catSerie(serie) {
+  const f = colapsar(serie);
+  if (f.includes('SUBS') || f.includes('COMPLEMENTO')) return 'Substituição/Complemento';
+  if (f.includes('TERMO')) return 'EJA (Termos)';
+  if (f.includes('SALAREC') || f.includes('INTERPRETE') || f.includes('AEE') || f.includes('SURDO')) return 'Educação Especial';
+  if (f.includes('PROJ') || f.includes('PRATICASPEDAGOGICAS') || f.includes('ALFABETIZADOR')) return 'Projeto';
+  if (/^\d+ANO/.test(f) || f.startsWith('ETAPA') || f.startsWith('CICLO')) return 'Anos regulares';
+  return 'Outros (oficinas etc.)';
+}
+const CAT_ALVO = 'Substituição/Complemento';
 
 /* ── Busca de dados ─────────────────────────────────────────────── */
 async function fetchTudo() {
@@ -256,6 +285,7 @@ function render() {
   document.getElementById('matriz').innerHTML = thead + `<tbody>${linhas}${totRow}</tbody>`;
 
   renderUnidades(rows);
+  renderSubstituicao(rows);
   renderGrafico(A);
   renderProfs(rows);
 
@@ -308,6 +338,57 @@ function renderUnidades(rows) {
       <tbody>${linhas}</tbody>
       <tfoot><tr class="fw-bold"><th class="text-center">Total</th><td class="text-end">${br(tot)}</td><td class="text-end">100%</td><td></td></tr></tfoot>
     </table></div>`;
+}
+
+// Mede as aulas criadas para completar jornada (substituição/complemento) pela série (AC).
+function renderSubstituicao(rows) {
+  const box = document.getElementById('blocoSubst');
+  const cats = {}; const detalhe = {}; let totAulas = 0;
+  rows.forEach(r => {
+    const cat = catSerie(r[COL.serie]), carga = num(r[COL.carga]);
+    totAulas += carga;
+    const o = (cats[cat] ||= { aulas:0, linhas:0, profs:new Set() });
+    o.aulas += carga; o.linhas++; o.profs.add(r[COL.prof]);
+    if (cat === CAT_ALVO) { const d = (detalhe[r[COL.serie]] ||= { aulas:0, linhas:0 }); d.aulas += carga; d.linhas++; }
+  });
+  const alvo = cats[CAT_ALVO] || { aulas:0, linhas:0, profs:new Set() };
+  const pc = totAulas ? (alvo.aulas/totAulas*100) : 0;
+  const ordem = Object.keys(cats).sort((a,b) => cats[b].aulas - cats[a].aulas);
+
+  const linhasCat = ordem.map(k => {
+    const o = cats[k], destaque = k === CAT_ALVO;
+    return `<tr${destaque ? ' style="background:#fff7ed;"' : ''}>
+      <th${destaque ? ' style="color:#c2410c;"' : ''}>${escapeHtml(k)}${destaque ? ' <i class="bi bi-arrow-left-right"></i>' : ''}</th>
+      <td class="text-end fw-bold">${br(o.aulas)}</td>
+      <td class="text-end">${totAulas ? (o.aulas/totAulas*100).toFixed(1) : 0}%</td>
+      <td class="text-end">${br(o.linhas)}</td>
+      <td class="text-end">${br(o.profs.size)}</td></tr>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div class="row g-2 g-lg-3 mb-3">
+      <div class="col-6 col-lg-4"><div class="kpi" style="border-left-color:#d97706;">
+        <div class="lbl"><i class="bi bi-arrow-left-right me-1"></i>Aulas p/ completar jornada</div>
+        <div class="val">${br(alvo.aulas)}</div><div class="sub">substituição / complemento</div></div></div>
+      <div class="col-6 col-lg-4"><div class="kpi" style="border-left-color:#b91c1c;">
+        <div class="lbl">% das aulas do filtro</div><div class="val">${pc.toFixed(1)}%</div>
+        <div class="sub">de ${br(totAulas)} aulas</div></div></div>
+      <div class="col-12 col-lg-4"><div class="kpi" style="border-left-color:#2563eb;">
+        <div class="lbl">Professores com essas aulas</div><div class="val">${br(alvo.profs.size)}</div>
+        <div class="sub">${br(alvo.linhas)} linhas</div></div></div>
+    </div>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Categoria da série (AC)</th><th class="text-end">Aulas</th><th class="text-end">%</th><th class="text-end">Linhas</th><th class="text-end">Profs</th></tr></thead>
+      <tbody>${linhasCat}</tbody>
+      <tfoot><tr class="fw-bold"><th>Total</th><td class="text-end">${br(totAulas)}</td><td class="text-end">100%</td><td></td><td></td></tr></tfoot>
+    </table></div>`;
+
+  // detalhe por série do bucket alvo
+  const det = Object.entries(detalhe).sort((a,b) => b[1].aulas - a[1].aulas);
+  document.getElementById('substDetTab').innerHTML =
+    `<thead><tr><th>Série (AC)</th><th class="text-end">Aulas</th><th class="text-end">Linhas</th></tr></thead>`
+    + `<tbody>${det.length ? det.map(([s,o]) => `<tr><td>${escapeHtml(s)}</td><td class="text-end fw-bold">${br(o.aulas)}</td><td class="text-end">${br(o.linhas)}</td></tr>`).join('')
+        : '<tr><td colspan="3" class="text-muted">Nenhuma neste filtro.</td></tr>'}</tbody>`;
 }
 
 function renderGrafico(A) {
@@ -410,6 +491,16 @@ async function exportarExcel() {
   ws.addRow(['Unidades', 'Professores', '%']).font = { bold:true };
   Object.keys(histU).map(Number).sort((a,b)=>a-b).forEach(n =>
     ws.addRow([n, histU[n], totU ? +(histU[n]/totU*100).toFixed(1) : 0]));
+
+  // resumo: aulas para completar jornada (categoria da série AC)
+  const catsE = {}; let totE = 0;
+  rows.forEach(r => { const cat = catSerie(r[COL.serie]), carga = num(r[COL.carga]); totE += carga;
+    const o = (catsE[cat] ||= { aulas:0, linhas:0, profs:new Set() }); o.aulas += carga; o.linhas++; o.profs.add(r[COL.prof]); });
+  ws.addRow([]); ws.addRow(['Aulas por categoria da série (completar jornada)']).font = { bold:true };
+  ws.addRow(['Categoria', 'Aulas', '%', 'Linhas', 'Profs']).font = { bold:true };
+  Object.keys(catsE).sort((a,b)=>catsE[b].aulas-catsE[a].aulas).forEach(k => {
+    const o = catsE[k]; ws.addRow([k, o.aulas, totE ? +(o.aulas/totE*100).toFixed(1) : 0, o.linhas, o.profs.size]);
+  });
 
   // aba por professor
   const ws2 = wb.addWorksheet('Por professor');
