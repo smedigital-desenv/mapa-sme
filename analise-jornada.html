@@ -261,7 +261,9 @@ function agregar(rows) {
   const profs = new Set();
   let total = 0;
   rows.forEach(r => {
-    const d = r[COL.disc] || '—', t = r[COL.tipo] || '—', c = num(r[COL.carga]);
+    // Aulas de substituição/complemento (pela série AC) viram linha própria por disciplina.
+    const sub = catSerie(r[COL.serie]) === CAT_ALVO;
+    const d = (r[COL.disc] || '—') + (sub ? ' — substituição/complemento' : ''), t = r[COL.tipo] || '—', c = num(r[COL.carga]);
     profs.add(r[COL.prof]); total += c;
     tipos[t] = (tipos[t]||0) + c;
     const o = (discs[d] ||= { aulas:0, profs:new Set(), porTipo:{} });
@@ -304,12 +306,14 @@ function render() {
   const colTot = {}; A.tiposOrd.forEach(t => colTot[t] = 0); let geral = 0;
   const linhas = A.discsOrd.map(d => {
     const o = A.discs[d];
+    const sub = d.includes('substituição/complemento');
     const tds = A.tiposOrd.map(t => {
       const v = o.porTipo[t] || 0; colTot[t] += v;
       return `<td class="${v?'':'zero'}">${v ? br(v) : '·'}</td>`;
     }).join('');
     geral += o.aulas;
-    return `<tr><th>${escapeHtml(d)}</th>
+    return `<tr${sub ? ' style="background:#fff7ed;"' : ''}>
+      <th${sub ? ' style="color:#c2410c;font-weight:700;"' : ''}>${sub ? '<i class="bi bi-arrow-left-right me-1"></i>' : ''}${escapeHtml(d)}</th>
       <td>${o.profs.size}</td>${tds}
       <td style="background:#f5f7ff;"><span class="big">${br(o.aulas)}</span></td></tr>`;
   }).join('');
