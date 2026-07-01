@@ -1293,13 +1293,15 @@ function computarCapacidade() {
   const turmasP = {};
   (TURMAS||[]).forEach(t => { const r = anoRegular(t.ano_escolar); if (!r) return;
     const key = turmaKeyT(t);
-    const o = (turmasP[key] ||= { escola:t.nome_unidade, integral:false });
+    const o = (turmasP[key] ||= { escola:t.nome_unidade, letra:t.letra_turma, seg:r.seg, ano:r.ano, integral:false, raws:new Set() });
+    o.raws.add((t.ano_escolar || '—') + '  ·  período=' + (t.periodo || '—'));
     if (colapsar(t.ano_escolar).includes('INTEGRAL')) o.integral = true;
   });
-  const escPer = {};
+  const escPer = {}, escPerDet = {};
   Object.values(turmasP).forEach(o => { const e = (escPer[o.escola] ||= { integral:0, parcial:0 });
-    if (o.integral) e.integral++; else e.parcial++; });
-  CAP = { turmasPorAno, totTurmas, gradeCell, gradeDisc, turmasComDisc, discs:Array.from(discSet), totGrade, anoSeg, anosOrd, segs, escPer };
+    if (o.integral) e.integral++; else e.parcial++;
+    (escPerDet[o.escola] ||= []).push(o); });
+  CAP = { turmasPorAno, totTurmas, gradeCell, gradeDisc, turmasComDisc, discs:Array.from(discSet), totGrade, anoSeg, anosOrd, segs, escPer, escPerDet };
   renderTurmasReg(); renderGrade(); renderSuficiencia(); renderCapKpis(); renderDupTurmas();
   montarEscPerTipo(); montarEscPerFiltro(); renderEscPer();
 }
@@ -1381,17 +1383,31 @@ function renderEscPer() {
   const contEl = document.getElementById('escPerContagem');
   if (contEl) { const filtrando = escPerTipoSel || escPerClasseSel || ((document.getElementById('escPerBusca')||{}).value||'').trim();
     contEl.textContent = `Mostrando ${br(lista.length)} de ${br(Object.keys(CAP.escPer).length)} escolas${filtrando ? ' (filtro aplicado)' : ''}.`; }
-  const linhas = lista.map(o => `<tr>
-    <td style="text-align:left;">${escapeHtml(o.escola)}</td>
-    <td class="text-center"><span class="badge" style="background:#ede9fe;color:#6d28d9;">${escapeHtml(o.tipo)}</span></td>
-    <td class="text-end">${o.integral ? br(o.integral) : '·'}</td>
-    <td class="text-end">${o.parcial ? br(o.parcial) : '·'}</td>
-    <td class="text-end fw-bold">${br(o.total)}</td>
-    <td class="text-center"><span style="color:${CLASSE_COR[o.classe]};font-weight:700;">${o.classe}</span></td></tr>`).join('');
-  box.innerHTML = `<thead><tr><th style="text-align:left;">Escola</th><th class="text-center">Tipo</th>
+  const linhas = lista.map((o,i) => {
+    const det = (CAP.escPerDet[o.escola] || []).slice()
+      .sort((a,b) => (SEG_ORDEM.indexOf(a.seg) - SEG_ORDEM.indexOf(b.seg)) || (rankAno(a.ano) - rankAno(b.ano)) || String(a.letra||'').localeCompare(String(b.letra||''),'pt-BR'));
+    const detRows = det.map(d => `<tr>
+      <td style="text-align:left;padding-left:2.4rem;">${escapeHtml(d.ano)} ${escapeHtml(d.letra||'')}</td>
+      <td class="text-center">${d.integral ? '<span style="color:#7c3aed;font-weight:700;">integral</span>' : '<span style="color:#2563eb;font-weight:700;">parcial</span>'}</td>
+      <td colspan="4" style="text-align:left;font-size:.76rem;color:#64748b;">${[...d.raws].map(escapeHtml).join('<br>')}</td></tr>`).join('');
+    return `<tr style="cursor:pointer;" onclick="escPerToggleDet(${i})">
+      <td style="text-align:left;"><i class="bi bi-caret-right-fill" style="font-size:.68rem;color:#94a3b8;"></i> ${escapeHtml(o.escola)}</td>
+      <td class="text-center"><span class="badge" style="background:#ede9fe;color:#6d28d9;">${escapeHtml(o.tipo)}</span></td>
+      <td class="text-end">${o.integral ? br(o.integral) : '·'}</td>
+      <td class="text-end">${o.parcial ? br(o.parcial) : '·'}</td>
+      <td class="text-end fw-bold">${br(o.total)}</td>
+      <td class="text-center"><span style="color:${CLASSE_COR[o.classe]};font-weight:700;">${o.classe}</span></td></tr>
+      <tr id="escdet-${i}" style="display:none;background:#faf5ff;"><td colspan="6" style="padding:.2rem .4rem;">
+        <table class="mtx" style="width:100%;margin:0;"><tbody>${detRows}</tbody></table></td></tr>`;
+  }).join('');
+  box.innerHTML = `<thead><tr><th style="text-align:left;">Escola <span class="text-muted fw-normal" style="font-size:.72rem;">(clique p/ ver turmas)</span></th><th class="text-center">Tipo</th>
     <th class="text-end">Turmas integrais</th><th class="text-end">Turmas parciais</th>
     <th class="text-end">Total</th><th class="text-center">Classificação</th></tr></thead>
     <tbody>${linhas || '<tr><td colspan="6" class="text-center text-muted">Nenhuma escola neste filtro.</td></tr>'}</tbody>`;
+}
+function escPerToggleDet(i) {
+  const el = document.getElementById('escdet-' + i);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
 }
 function baixarEscolasPeriodo() {
   const lista = escPerLista(); if (!lista.length) return;
