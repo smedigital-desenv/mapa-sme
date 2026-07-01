@@ -214,6 +214,22 @@
             <b>total</b> (pequeno = carga somada de todas as turmas). Rodapé = total de aulas por disciplina (grade × turmas).</p>
           <div class="table-responsive"><table class="mtx" id="tabGrade"></table></div>
         </div>
+
+        <!-- D. Suficiência: capacidade × grade -->
+        <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #059669;">
+          <div class="sec-tt mb-1"><i class="bi bi-check2-square me-2"></i>Suficiência — capacidade dos professores × aulas da grade</div>
+          <p class="text-muted small mb-2">Por disciplina: <b>Capacidade</b> = soma da jornada (parte com aluno) dos professores cuja
+            disciplina principal é essa · <b>Aulas atribuídas</b> = o que esses professores efetivamente dão hoje ·
+            <b>Aulas na grade</b> = necessidade curricular regular (carregue as turmas acima) · <b>Saldo</b> = capacidade − grade.
+            <b>Saldo negativo</b> indica que faltam professores dessa disciplina para a grade.</p>
+          <div class="alert alert-light border small py-2 mb-2">
+            <b>Como ler:</b> os especialistas (PEB III — Ed. Física, Arte, Inglês, Matemática, Português…) têm mapeamento direto.
+            <b>Magistério I</b> (PEB I) é da <b>creche/pré</b> — fica fora da grade regular (Etapas + 1º ao 9º), por isso aparece sem grade.
+            <b>Magistério II</b> (PEB II) é a regência de Etapas e 1º–5º, mas os mesmos professores também dão PRA, projetos e substituições —
+            por isso a capacidade supera a grade (o saldo é usado nessas outras frentes, não é ociosidade).
+          </div>
+          <div class="table-responsive"><table class="mtx" id="tabSufic"></table></div>
+        </div>
       </div>
     </div>
   </main>
@@ -1103,6 +1119,7 @@ function renderProfCap() {
   body += `<tr class="total-row"><th style="text-align:left;">TOTAL professores</th>
     ${jors.map(j => `<td class="text-end">${br(gTot[j])}</td>`).join('')}<td class="text-end">${br(gAll)}</td></tr>`;
   box.innerHTML = thead + `<tbody>${body}</tbody>`;
+  renderSuficiencia();
   renderCapKpis();
 }
 function renderCapKpis() {
@@ -1150,8 +1167,9 @@ function computarCapacidade() {
   const turmasPorAno = {}; let totTurmas = 0;
   ANO_ORDEM.forEach(a => { const n = turmaSeen[a] ? turmaSeen[a].size : 0; turmasPorAno[a] = n; totTurmas += n; });
   let totGrade = 0; Object.values(gradeCell).forEach(v => totGrade += v);
-  CAP = { turmasPorAno, totTurmas, gradeCell, turmasComDisc, discs:Array.from(discSet), totGrade };
-  renderTurmasReg(); renderGrade(); renderCapKpis();
+  const gradeDisc = {}; for (const ck in gradeCell) { const d = ck.split('¦')[1]; gradeDisc[d] = (gradeDisc[d]||0) + gradeCell[ck]; }
+  CAP = { turmasPorAno, totTurmas, gradeCell, gradeDisc, turmasComDisc, discs:Array.from(discSet), totGrade };
+  renderTurmasReg(); renderGrade(); renderSuficiencia(); renderCapKpis();
 }
 function renderTurmasReg() {
   const box = document.getElementById('tabTurmasReg'); if (!box || !CAP) return;
@@ -1183,6 +1201,61 @@ function renderGrade() {
   box.innerHTML = thead + `<tbody>${linhas}</tbody>
     <tfoot><tr class="total-row"><th style="text-align:left;">Total de aulas (todas as turmas)</th><td></td>
       ${discs.map(d => `<td class="text-end">${br(discTot[d])}</td>`).join('')}<td class="text-end">${br(CAP.totGrade)}</td></tr></tfoot>`;
+}
+
+// Agrupa disciplinas por "frente" de professor (a regência de Etapas/1º–5º —
+// Magistério II — inclui PRA, Educação Financeira e as práticas das etapas,
+// todas dadas pelos mesmos PEB II regentes). Magistério I é a creche/pré.
+const REGENCIA_NOMES = new Set(['Magistério II', 'PRA — Recuperação']);
+function grupoCap(d) {
+  if (d === 'Magistério I') return 'Magistério I (creche/pré-escola)';
+  if (REGENCIA_NOMES.has(d)) return 'Magistério II (regência Etapas/1º–5º)';
+  const f = colapsar(d);
+  if (f.includes('FINANCEIRA') || f.includes('RELAXAMENTO') || f.includes('VIVENCIA')) return 'Magistério II (regência Etapas/1º–5º)';
+  return d;   // especialistas (PEB III) mantêm o próprio nome
+}
+// D. Suficiência: capacidade (Σ jornada) dos professores × aulas da grade, por frente.
+function renderSuficiencia() {
+  const box = document.getElementById('tabSufic'); if (!box) return;
+  const M = profResumo();
+  const cap = {};   // grupo → { n, h }
+  Object.values(M).forEach(o => { const d = grupoCap(o.principal); const c = (cap[d] ||= { n:0, h:0 }); c.n++; c.h += o.jor; });
+  const atr = {};   // aulas atribuídas (PEB) por grupo
+  (ROWS||[]).forEach(r => { const c = String(r[COL.cargo]); if (!/^PEB (I|II|III)$/.test(c)) return;
+    const d = grupoCap(nomeDisc(r[COL.disc])); atr[d] = (atr[d]||0) + num(r[COL.carga]); });
+  const grade = {};   // aulas da grade por grupo
+  if (CAP && CAP.gradeDisc) for (const gd in CAP.gradeDisc) { const d = grupoCap(gd); grade[d] = (grade[d]||0) + CAP.gradeDisc[gd]; }
+  const temGrade = Object.keys(grade).length > 0;
+  // só as frentes que têm professores (evita linhas fantasma de projetos/oficinas)
+  const grupos = Object.keys(cap).sort((a,b) => cap[b].h - cap[a].h || a.localeCompare(b,'pt-BR'));
+
+  const thead = `<thead><tr><th style="text-align:left;">Frente / Disciplina</th>
+    <th class="text-end">Profs</th><th class="text-end">Capacidade<br><small class="text-muted">Σ jornada</small></th>
+    <th class="text-end">Aulas atribuídas<br><small class="text-muted">(PEB, rede)</small></th>
+    ${temGrade ? `<th class="text-end">Aulas na grade<br><small class="text-muted">(regular)</small></th><th class="text-end">Saldo<br><small class="text-muted">cap − grade</small></th>` : ''}
+    </tr></thead>`;
+  let sN = 0, sC = 0, sA = 0, sG = 0;
+  const linhas = grupos.map(d => {
+    const cp = cap[d], at = atr[d] || 0, gd = grade[d] || 0, saldo = cp.h - gd;
+    const creche = d.startsWith('Magistério I ');
+    sN += cp.n; sC += cp.h; sA += at; sG += gd;
+    const gradeTds = temGrade
+      ? (creche
+          ? `<td class="text-end text-muted">fora da grade</td><td class="text-end text-muted">—</td>`
+          : `<td class="text-end">${gd ? br(gd) : '·'}</td>
+             <td class="text-end fw-bold" style="color:${saldo < 0 ? '#b91c1c' : '#047857'};">${(saldo>=0?'+':'−')+br(Math.abs(saldo))}</td>`)
+      : '';
+    return `<tr><th style="text-align:left;">${escapeHtml(d)}</th>
+      <td class="text-end">${br(cp.n)}</td><td class="text-end fw-bold">${br(cp.h)}</td>
+      <td class="text-end text-muted">${br(at)}</td>${gradeTds}</tr>`;
+  }).join('');
+  const totSaldo = sC - sG;
+  const totTds = temGrade
+    ? `<td class="text-end">${br(sG)}</td><td class="text-end" style="color:${totSaldo<0?'#b91c1c':'#047857'};">${(totSaldo>=0?'+':'−')+br(Math.abs(totSaldo))}</td>`
+    : '';
+  box.innerHTML = thead + `<tbody>${linhas}
+    <tr class="total-row"><th style="text-align:left;">TOTAL PEB</th><td class="text-end">${br(sN)}</td>
+      <td class="text-end">${br(sC)}</td><td class="text-end">${br(sA)}</td>${totTds}</tr></tbody>`;
 }
 
 /* ── Carregamento ───────────────────────────────────────────────── */
