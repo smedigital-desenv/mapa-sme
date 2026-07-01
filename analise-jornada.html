@@ -99,6 +99,12 @@
     <div id="estado" class="loader"><div class="spin"></div><div>Carregando dados da atribuição…</div></div>
 
     <div id="conteudo" style="display:none;">
+      <ul class="nav nav-tabs mb-3">
+        <li class="nav-item"><button class="nav-link active" id="aba-analise" type="button" onclick="mostrarAba('analise')"><i class="bi bi-grid-3x3-gap-fill me-1"></i>Composição &amp; Conferência</button></li>
+        <li class="nav-item"><button class="nav-link" id="aba-capacidade" type="button" onclick="mostrarAba('capacidade')"><i class="bi bi-calculator me-1"></i>Professores × Grade (capacidade)</button></li>
+      </ul>
+
+      <div id="tab-analise">
       <div class="row g-2 g-lg-3 mb-3" id="kpis"></div>
 
       <div class="card-box p-3 p-lg-4 mb-3">
@@ -173,6 +179,40 @@
       </div>
 
       <div class="text-muted small px-1" id="rodape"></div>
+      </div><!-- /tab-analise -->
+
+      <!-- ══════════ ABA CAPACIDADE ══════════ -->
+      <div id="tab-capacidade" style="display:none;">
+        <div class="row g-2 g-lg-3 mb-3" id="capKpis"></div>
+
+        <!-- A. Professores por tipo, jornada e disciplina -->
+        <div class="card-box p-3 p-lg-4 mb-3">
+          <div class="sec-tt mb-1"><i class="bi bi-person-badge me-2"></i>Professores por tipo, jornada e disciplina</div>
+          <p class="text-muted small mb-2">Professores <b>distintos</b> — PEB I, PEB II e PEB III (<b>monitores fora</b>) — classificados pela
+            <b>disciplina principal</b> (aquela em que têm mais aulas). Cada professor conta uma vez. Colunas = jornada (horas).</p>
+          <div class="fbar mb-2" id="capCargoChips"></div>
+          <div class="table-responsive"><table class="mtx" id="tabProfCap"></table></div>
+        </div>
+
+        <!-- B. Turmas regulares -->
+        <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #2563eb;">
+          <div class="sec-tt mb-1"><i class="bi bi-easel me-2"></i>Turmas regulares e grade curricular</div>
+          <p class="text-muted small mb-2">Da tabela <b>turmas</b>: turmas <b>distintas</b> (escola + ano + letra + turno) e a grade curricular,
+            só a grade regular (Etapas + 1º ao 9º; EJA/ciclos/especial fora; projetos fora da grade).</p>
+          <button class="chip active" id="btnCap" onclick="carregarCapacidade()"><i class="bi bi-arrow-repeat me-1"></i>Carregar turmas (grade)</button>
+          <div id="capDiag" class="text-muted small mt-2 mb-2"></div>
+          <h6 class="fw-bold mt-2 mb-2" style="color:var(--primary);">Turmas regulares por ano escolar</h6>
+          <div class="table-responsive" style="max-width:460px;"><table class="mtx" id="tabTurmasReg"></table></div>
+        </div>
+
+        <!-- C. Grade curricular por ano -->
+        <div class="card-box p-3 p-lg-4 mb-3">
+          <div class="sec-tt mb-1"><i class="bi bi-journal-text me-2"></i>Grade curricular por ano escolar</div>
+          <p class="text-muted small mb-2">Aulas de cada disciplina por ano. Em cada célula: <b>aulas por turma</b> (grande) e o
+            <b>total</b> (pequeno = carga somada de todas as turmas). Rodapé = total de aulas por disciplina (grade × turmas).</p>
+          <div class="table-responsive"><table class="mtx" id="tabGrade"></table></div>
+        </div>
+      </div>
     </div>
   </main>
 
@@ -962,6 +1002,185 @@ async function carregarTurmas() {
     diag.innerHTML = `<span class="text-danger">${escapeHtml(e.message || e)}</span>`;
     btn.innerHTML = txt0;
   } finally { btn.disabled = false; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   ABA CAPACIDADE — professores (por cargo/jornada/disciplina),
+   turmas regulares e grade curricular por ano escolar.
+   ══════════════════════════════════════════════════════════════════ */
+const PEB_ORDEM = ['PEB I','PEB II','PEB III'];
+const ANO_ORDEM = ['Etapa I','Etapa II','1º Ano','2º Ano','3º Ano','4º Ano','5º Ano','6º Ano','7º Ano','8º Ano','9º Ano'];
+let _capProfInit = false;
+let capCargoSel = null;    // null = todos os PEB
+let CAP = null;            // resultados da grade (após carregar turmas)
+
+// ano_escolar → ano regular (Etapas + 1º ao 9º) | null (EJA/ciclo/especial).
+function classificarAnoReg(anoRaw) {
+  const n = normalizar(anoRaw), f = colapsar(anoRaw);
+  if (f.includes('TERMO') || f.includes('EJA') || f.includes('CICLO')) return null;
+  if (f.includes('ETAPA')) {
+    const m = n.match(/ETAPA\s*-?\s*(II|2|DOIS|I|1|UM)\b/);
+    if (m) { const t = m[1];
+      if (t === 'II' || t === '2' || t === 'DOIS') return 'Etapa II';
+      if (t === 'I'  || t === '1' || t === 'UM')   return 'Etapa I'; }
+    return null;
+  }
+  const md = f.match(/^(\d+)/);
+  if (md) { const v = parseInt(md[1], 10); if (v >= 1 && v <= 9) return v + 'º Ano'; }
+  return null;
+}
+function anoTurma(ano) { return normalizar(ano).replace(/\s*-\s*(MANHA|TARDE|NOITE|M|T|N)$/, ''); }
+function periodoCanon(v) { const p = colapsar(v);
+  if (p === 'M' || p.startsWith('MANHA')) return 'M';
+  if (p === 'T' || p.startsWith('TARDE')) return 'T';
+  if (p === 'N' || p.startsWith('NOITE')) return 'N';
+  if (p === 'I' || p.startsWith('INTEG')) return 'I';
+  return p; }
+function turmaKeyT(t) { return [colapsar(t.nome_unidade), anoTurma(t.ano_escolar), colapsar(t.letra_turma), periodoCanon(t.periodo)].join('¦'); }
+
+function mostrarAba(a) {
+  ['analise','capacidade'].forEach(x => {
+    document.getElementById('tab-'+x).style.display = x === a ? '' : 'none';
+    const b = document.getElementById('aba-'+x); if (b) b.classList.toggle('active', x === a);
+  });
+  if (a === 'capacidade' && !_capProfInit && ROWS) { _capProfInit = true; montarCapCargo(); renderProfCap(); }
+}
+
+// Professor distinto → { cargo, jornada, disciplina principal }.
+function profResumo() {
+  const m = {};
+  (ROWS||[]).forEach(r => {
+    const c = String(r[COL.cargo]); if (!/^PEB (I|II|III)$/.test(c)) return;   // exclui monitores/outros
+    const p = r[COL.prof];
+    const o = (m[p] ||= { cargo:c, jor:num(r[COL.jornada]), disc:{} });
+    const d = nomeDisc(r[COL.disc]); o.disc[d] = (o.disc[d]||0) + num(r[COL.carga]);
+  });
+  Object.values(m).forEach(o => { let best='—', bv=-1; for (const d in o.disc) if (o.disc[d] > bv) { bv = o.disc[d]; best = d; } o.principal = best; });
+  return m;
+}
+function montarCapCargo() {
+  const bar = document.getElementById('capCargoChips'); if (!bar) return;
+  bar.innerHTML = `<span class="flbl">Cargo</span>` + PEB_ORDEM.map(c => {
+    const on = !capCargoSel || capCargoSel.has(c);
+    return `<button class="fchip ${on?'active':''}" onclick="capToggleCargo('${c}')">${c}</button>`;
+  }).join('');
+}
+function capToggleCargo(c) {
+  if (!capCargoSel) capCargoSel = new Set(PEB_ORDEM);
+  if (capCargoSel.has(c)) capCargoSel.delete(c); else capCargoSel.add(c);
+  if (capCargoSel.size === 0 || capCargoSel.size === PEB_ORDEM.length) capCargoSel = null;
+  montarCapCargo(); renderProfCap();
+}
+function renderProfCap() {
+  const box = document.getElementById('tabProfCap'); if (!box) return;
+  const M = profResumo();
+  const cargos = PEB_ORDEM.filter(c => !capCargoSel || capCargoSel.has(c));
+  const profs = Object.values(M).filter(o => cargos.includes(o.cargo));
+  const jors = Array.from(new Set(profs.map(o => o.jor))).filter(j => j > 0).sort((a,b) => a-b);
+  const grid = {};   // cargo → disc → { jor:count, tot }
+  profs.forEach(o => { const g = (grid[o.cargo] ||= {}); const d = (g[o.principal] ||= { tot:0 }); d[o.jor] = (d[o.jor]||0) + 1; d.tot++; });
+
+  const thead = `<thead><tr><th style="text-align:left;">Cargo / Disciplina principal</th>
+    ${jors.map(j => `<th class="text-end">${j}h</th>`).join('')}<th class="text-end" style="background:#eef2ff;">Total</th></tr></thead>`;
+  let body = '', gTot = {}, gAll = 0; jors.forEach(j => gTot[j] = 0);
+  cargos.forEach(c => {
+    const g = grid[c]; if (!g) return;
+    body += `<tr class="total-row"><th colspan="${jors.length+2}" style="text-align:left;">${c}</th></tr>`;
+    const discsOrd = Object.keys(g).sort((a,b) => g[b].tot-g[a].tot || a.localeCompare(b,'pt-BR'));
+    let cTot = {}, cAll = 0; jors.forEach(j => cTot[j] = 0);
+    discsOrd.forEach(d => { const row = g[d];
+      body += `<tr><th style="text-align:left;padding-left:1.4rem;">${escapeHtml(d)}</th>
+        ${jors.map(j => { const v = row[j]||0; cTot[j]+=v; gTot[j]+=v; return `<td class="text-end ${v?'':'zero'}">${v?br(v):'·'}</td>`; }).join('')}
+        <td class="text-end fw-bold" style="background:#f5f7ff;">${br(row.tot)}</td></tr>`;
+      cAll += row.tot;
+    });
+    body += `<tr style="background:#f8fafc;"><th style="text-align:left;">Subtotal ${c}</th>
+      ${jors.map(j => `<td class="text-end fw-bold">${br(cTot[j])}</td>`).join('')}<td class="text-end fw-bold">${br(cAll)}</td></tr>`;
+    gAll += cAll;
+  });
+  body += `<tr class="total-row"><th style="text-align:left;">TOTAL professores</th>
+    ${jors.map(j => `<td class="text-end">${br(gTot[j])}</td>`).join('')}<td class="text-end">${br(gAll)}</td></tr>`;
+  box.innerHTML = thead + `<tbody>${body}</tbody>`;
+  renderCapKpis();
+}
+function renderCapKpis() {
+  const box = document.getElementById('capKpis'); if (!box) return;
+  const all = Object.values(profResumo());
+  const porCargo = {}; PEB_ORDEM.forEach(c => porCargo[c] = { n:0 });
+  all.forEach(o => { if (porCargo[o.cargo]) porCargo[o.cargo].n++; });
+  const totN = all.length, totH = all.reduce((s,o) => s + o.jor, 0);
+  const turmas = CAP ? CAP.totTurmas : null, aulas = CAP ? CAP.totGrade : null;
+  box.innerHTML = `
+    <div class="col-6 col-lg-3"><div class="kpi"><div class="lbl"><i class="bi bi-person-badge me-1"></i>Professores PEB</div>
+      <div class="val">${br(totN)}</div><div class="sub">${PEB_ORDEM.map(c => `${c}: ${br(porCargo[c].n)}`).join(' · ')}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#7c3aed;"><div class="lbl"><i class="bi bi-clock me-1"></i>Capacidade (Σ jornada)</div>
+      <div class="val">${br(totH)}</div><div class="sub">horas/semana dos PEB</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#2563eb;"><div class="lbl"><i class="bi bi-easel me-1"></i>Turmas regulares</div>
+      <div class="val">${turmas!=null?br(turmas):'—'}</div><div class="sub">${turmas!=null?'Etapas + 1º–9º':'clique em carregar turmas'}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#059669;"><div class="lbl"><i class="bi bi-journals me-1"></i>Aulas da grade</div>
+      <div class="val">${aulas!=null?br(aulas):'—'}</div><div class="sub">${aulas!=null?'total curricular (regular)':'clique em carregar turmas'}</div></div></div>`;
+}
+
+async function carregarCapacidade() {
+  const btn = document.getElementById('btnCap'), diag = document.getElementById('capDiag');
+  btn.disabled = true; const t0 = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Carregando turmas…';
+  try {
+    if (!TURMAS) TURMAS = await fetchTurmasRede();
+    computarCapacidade();
+    diag.textContent = `${br((TURMAS||[]).length)} linhas de turmas carregadas.`;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Recarregar turmas';
+  } catch (e) { diag.innerHTML = `<span class="text-danger">${escapeHtml(e.message || e)}</span>`; btn.innerHTML = t0; }
+  finally { btn.disabled = false; }
+}
+function computarCapacidade() {
+  const gradeCell = {}, turmasComDisc = {}, turmaSeen = {}, discSet = new Set();
+  (TURMAS||[]).forEach(t => {
+    const ano = classificarAnoReg(t.ano_escolar); if (!ano) return;
+    if (nomeProjeto(t.descricao_disciplina)) return;         // projetos não são grade
+    const c = num(t.carga_horaria), tk = turmaKeyT(t);
+    (turmaSeen[ano] ||= new Set()).add(tk);
+    const d = nomeDisc(t.descricao_disciplina); discSet.add(d);
+    const ck = ano + '¦' + d;
+    gradeCell[ck] = (gradeCell[ck]||0) + c;
+    (turmasComDisc[ck] ||= new Set()).add(tk);
+  });
+  const turmasPorAno = {}; let totTurmas = 0;
+  ANO_ORDEM.forEach(a => { const n = turmaSeen[a] ? turmaSeen[a].size : 0; turmasPorAno[a] = n; totTurmas += n; });
+  let totGrade = 0; Object.values(gradeCell).forEach(v => totGrade += v);
+  CAP = { turmasPorAno, totTurmas, gradeCell, turmasComDisc, discs:Array.from(discSet), totGrade };
+  renderTurmasReg(); renderGrade(); renderCapKpis();
+}
+function renderTurmasReg() {
+  const box = document.getElementById('tabTurmasReg'); if (!box || !CAP) return;
+  const anos = ANO_ORDEM.filter(a => CAP.turmasPorAno[a] > 0);
+  const linhas = anos.map(a => `<tr><th style="text-align:left;">${a}</th><td class="text-end fw-bold">${br(CAP.turmasPorAno[a])}</td></tr>`).join('');
+  box.innerHTML = `<thead><tr><th style="text-align:left;">Ano escolar</th><th class="text-end">Turmas distintas</th></tr></thead>
+    <tbody>${linhas}<tr class="total-row"><th style="text-align:left;">Total</th><td class="text-end">${br(CAP.totTurmas)}</td></tr></tbody>`;
+}
+function renderGrade() {
+  const box = document.getElementById('tabGrade'); if (!box || !CAP) return;
+  const anos = ANO_ORDEM.filter(a => CAP.turmasPorAno[a] > 0);
+  const discTot = {}; CAP.discs.forEach(d => discTot[d] = 0);
+  anos.forEach(a => CAP.discs.forEach(d => { discTot[d] += CAP.gradeCell[a+'¦'+d] || 0; }));
+  const discs = CAP.discs.filter(d => discTot[d] > 0).sort((a,b) => discTot[b]-discTot[a] || a.localeCompare(b,'pt-BR'));
+  const fmt = v => v % 1 ? v.toFixed(1) : String(v);
+  const thead = `<thead><tr><th style="text-align:left;">Ano</th><th class="text-end">Turmas</th>
+    ${discs.map(d => `<th class="text-end">${escapeHtml(d)}</th>`).join('')}<th class="text-end" style="background:#eef2ff;">Aulas/turma</th></tr></thead>`;
+  const linhas = anos.map(a => {
+    const nt = CAP.turmasPorAno[a] || 0; let somaTurma = 0;
+    const tds = discs.map(d => {
+      const tot = CAP.gradeCell[a+'¦'+d] || 0;
+      const nd = CAP.turmasComDisc[a+'¦'+d] ? CAP.turmasComDisc[a+'¦'+d].size : 0;
+      const porTurma = nd ? tot/nd : 0; somaTurma += porTurma;
+      return tot ? `<td class="text-end"><span class="big">${fmt(porTurma)}</span><br><small class="text-muted">${br(tot)}</small></td>` : `<td class="text-end zero">·</td>`;
+    }).join('');
+    return `<tr><th style="text-align:left;">${a}</th><td class="text-end">${br(nt)}</td>${tds}
+      <td class="text-end fw-bold" style="background:#f5f7ff;">${fmt(somaTurma)}</td></tr>`;
+  }).join('');
+  box.innerHTML = thead + `<tbody>${linhas}</tbody>
+    <tfoot><tr class="total-row"><th style="text-align:left;">Total de aulas (todas as turmas)</th><td></td>
+      ${discs.map(d => `<td class="text-end">${br(discTot[d])}</td>`).join('')}<td class="text-end">${br(CAP.totGrade)}</td></tr></tfoot>`;
 }
 
 /* ── Carregamento ───────────────────────────────────────────────── */
