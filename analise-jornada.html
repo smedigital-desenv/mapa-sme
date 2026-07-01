@@ -250,10 +250,12 @@
       <!-- ══════════ ABA ESCOLAS POR PERÍODO ══════════ -->
       <div id="tab-escolas" style="display:none;">
         <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #7c3aed;">
-          <div class="sec-tt mb-1"><i class="bi bi-buildings me-2"></i>Escolas por período — integral / parcial / misto</div>
-          <p class="text-muted small mb-2">Classifica cada escola pelas suas turmas: <b>Só integral</b>, <b>Só parcial</b> ou
-            <b>Misto</b> (tem os dois). Turma <b>integral</b> = tem "INTEGRAL" no ano; as demais são <b>parciais</b>.
-            Baseado na tabela <b>turmas</b>; EJA/Termos e liminares ficam fora; a turma integral conta uma vez.</p>
+          <div class="sec-tt mb-1"><i class="bi bi-buildings me-2"></i>Escolas por período — por segmento</div>
+          <p class="text-muted small mb-2">Cada escola é classificada <b>em cada segmento</b> — <b>Ciclos</b>, <b>Etapas</b> e
+            <b>Ensino Fundamental</b> (1º–9º) — como <b style="color:#7c3aed;">Integral</b>, <b style="color:#2563eb;">Parcial</b> ou
+            <b style="color:#d97706;">Misto</b> (tem os dois); "—" = a escola não tem esse segmento. Assim uma escola com
+            etapas parciais e ciclos integrais aparece corretamente em cada coluna. Turma <b>integral</b> = tem "INTEGRAL" no ano.
+            Clique na escola para ver as turmas. EJA/Termos e liminares ficam fora; a turma integral conta uma vez.</p>
           <div id="escPerEstado" class="text-muted small mb-2"></div>
           <div id="escPerResumo" class="row g-2 mb-3"></div>
           <div class="fbar mb-2" id="escPerTipoChips"></div>
@@ -1305,17 +1307,30 @@ function computarCapacidade() {
   renderTurmasReg(); renderGrade(); renderSuficiencia(); renderCapKpis(); renderDupTurmas();
   montarEscPerTipo(); montarEscPerFiltro(); renderEscPer();
 }
-// ── Escolas por período (integral / parcial / misto) ──────────────
-let escPerClasseSel = null;   // null = todas as classes
-function classeEscola(e) {
-  if (e.integral > 0 && e.parcial === 0) return 'Só integral';
-  if (e.parcial > 0 && e.integral === 0) return 'Só parcial';
+// ── Escolas por período — classificação POR SEGMENTO ──────────────
+// Cada escola é classificada em cada segmento (Ciclos, Etapas, Ensino
+// Fundamental) como Integral, Parcial ou Misto — ou vazio se não tem o segmento.
+const SEG_GRUPOS = [
+  { key:'ciclos', label:'Ciclos', segs:['Ciclos'] },
+  { key:'etapas', label:'Etapas', segs:['Etapas'] },
+  { key:'fund',   label:'Ensino Fundamental', segs:['Fund I','Fund II'] },
+];
+const CLASSE_COR = { 'Integral':'#7c3aed', 'Parcial':'#2563eb', 'Misto':'#d97706' };
+let escPerClasseSel = null;   // null = todas as classes (Integral/Parcial/Misto)
+let escPerSegSel = 'etapas';  // segmento em que o filtro de classe atua
+let escPerTipoSel = null;     // null = todos os tipos
+
+// Classe de um segmento a partir das turmas (detalhe) da escola.
+function classeSeg(det, segs) {
+  let integ = 0, parc = 0;
+  det.forEach(d => { if (segs.includes(d.seg)) { if (d.integral) integ++; else parc++; } });
+  if (integ === 0 && parc === 0) return null;             // escola não tem esse segmento
+  if (integ > 0 && parc === 0) return 'Integral';
+  if (parc > 0 && integ === 0) return 'Parcial';
   return 'Misto';
 }
-const CLASSE_COR = { 'Só integral':'#7c3aed', 'Só parcial':'#2563eb', 'Misto':'#d97706' };
-// Tipo da escola pelo token no nome (CEI / EMEI / EMEF / …), evitando falso-positivo
-// (ex.: "CEI" dentro de "CONCEIÇÃO") ao casar tokens inteiros.
-let escPerTipoSel = null;     // null = todos os tipos
+// Tipo da escola pelo token no nome (CEI / EMEI / EMEF / …), casando tokens
+// inteiros (evita "CEI" dentro de "CONCEIÇÃO").
 function tipoEscola(nome) {
   const toks = new Set(normalizar(nome).split(/[^A-Z0-9]+/).filter(Boolean));
   for (const t of ['CEMEI','EMEIEF','CEEEF','EMEF','EMEI','CEI']) if (toks.has(t)) return t;
@@ -1343,14 +1358,17 @@ function escPerTipoToggle(t) {
 }
 function montarEscPerFiltro() {
   const bar = document.getElementById('escPerFiltro'); if (!bar || !CAP) return;
-  const classes = ['Só integral','Só parcial','Misto'];
-  bar.innerHTML = `<span class="flbl">Período</span>` + classes.map(c => {
-    const on = !escPerClasseSel || escPerClasseSel.has(c);
-    return `<button class="fchip ${on?'active':''}" onclick="escPerToggle('${c}')">${c}</button>`;
-  }).join('');
+  const opts = SEG_GRUPOS.map(g => `<option value="${g.key}" ${escPerSegSel===g.key?'selected':''}>${g.label}</option>`).join('')
+    + `<option value="any" ${escPerSegSel==='any'?'selected':''}>Qualquer segmento</option>`;
+  const classes = ['Integral','Parcial','Misto'];
+  bar.innerHTML = `<span class="flbl">Filtrar período em</span>`
+    + `<select class="form-select form-select-sm" style="width:auto;display:inline-block;" onchange="escPerSegChange(this.value)">${opts}</select>`
+    + classes.map(c => { const on = !escPerClasseSel || escPerClasseSel.has(c);
+        return `<button class="fchip ${on?'active':''}" onclick="escPerToggle('${c}')">${c}</button>`; }).join('');
 }
+function escPerSegChange(v) { escPerSegSel = v; renderEscPer(); }
 function escPerToggle(c) {
-  const classes = ['Só integral','Só parcial','Misto'];
+  const classes = ['Integral','Parcial','Misto'];
   if (!escPerClasseSel) escPerClasseSel = new Set(classes);
   if (escPerClasseSel.has(c)) escPerClasseSel.delete(c); else escPerClasseSel.add(c);
   if (escPerClasseSel.size === 0 || escPerClasseSel.size === classes.length) escPerClasseSel = null;
@@ -1359,26 +1377,41 @@ function escPerToggle(c) {
 function escPerLista() {
   if (!CAP || !CAP.escPer) return [];
   const busca = colapsar((document.getElementById('escPerBusca')||{}).value || '');
-  return Object.entries(CAP.escPer)
-    .map(([escola, e]) => ({ escola, tipo:tipoEscola(escola), integral:e.integral, parcial:e.parcial, total:e.integral+e.parcial, classe:classeEscola(e) }))
-    .filter(o => (!escPerTipoSel || escPerTipoSel.has(o.tipo))
-              && (!escPerClasseSel || escPerClasseSel.has(o.classe))
-              && (!busca || colapsar(o.escola).includes(busca)))
-    .sort((a,b) => a.escola.localeCompare(b.escola,'pt-BR'));
+  return Object.entries(CAP.escPer).map(([escola, e]) => {
+    const det = CAP.escPerDet[escola] || [];
+    const cls = {}; SEG_GRUPOS.forEach(g => cls[g.key] = classeSeg(det, g.segs));
+    return { escola, tipo:tipoEscola(escola), total:e.integral+e.parcial, cls };
+  }).filter(o => {
+    if (escPerTipoSel && !escPerTipoSel.has(o.tipo)) return false;
+    if (busca && !colapsar(o.escola).includes(busca)) return false;
+    if (escPerClasseSel) {
+      if (escPerSegSel === 'any') { if (!SEG_GRUPOS.some(g => o.cls[g.key] && escPerClasseSel.has(o.cls[g.key]))) return false; }
+      else if (!escPerClasseSel.has(o.cls[escPerSegSel])) return false;
+    }
+    return true;
+  }).sort((a,b) => a.escola.localeCompare(b.escola,'pt-BR'));
+}
+function celClasse(c) {
+  if (!c) return `<td class="text-center" style="color:#cbd5e1;">—</td>`;
+  return `<td class="text-center"><span style="color:${CLASSE_COR[c]};font-weight:700;">${c}</span></td>`;
 }
 function renderEscPer() {
   const box = document.getElementById('tabEscPer'), res = document.getElementById('escPerResumo');
   if (!box || !CAP || !CAP.escPer) return;
-  // resumo (contagem por classe — sobre toda a rede, ignorando filtros)
-  const cont = { 'Só integral':0, 'Só parcial':0, 'Misto':0 };
-  Object.values(CAP.escPer).forEach(e => cont[classeEscola(e)]++);
-  const totEsc = Object.keys(CAP.escPer).length;
-  if (res) res.innerHTML = [['Total de escolas', totEsc, '#0f172a'],
-      ['Só integral', cont['Só integral'], CLASSE_COR['Só integral']],
-      ['Só parcial', cont['Só parcial'], CLASSE_COR['Só parcial']],
-      ['Misto', cont['Misto'], CLASSE_COR['Misto']]]
-    .map(([lbl,v,cor]) => `<div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:${cor};padding:.6rem .8rem;">
-      <div class="lbl">${lbl}</div><div class="val" style="font-size:1.4rem;">${br(v)}</div></div></div>`).join('');
+  // resumo: por segmento, quantas escolas são Integral / Parcial / Misto (rede toda).
+  const cont = {}; SEG_GRUPOS.forEach(g => cont[g.key] = { Integral:0, Parcial:0, Misto:0, tem:0 });
+  Object.entries(CAP.escPer).forEach(([escola]) => { const det = CAP.escPerDet[escola] || [];
+    SEG_GRUPOS.forEach(g => { const c = classeSeg(det, g.segs); if (c) { cont[g.key][c]++; cont[g.key].tem++; } }); });
+  if (res) res.innerHTML = `<div class="col-12"><div class="table-responsive"><table class="mtx" style="max-width:640px;">
+      <thead><tr><th style="text-align:left;">Segmento</th>
+        <th class="text-end" style="color:${CLASSE_COR.Integral};">Integral</th>
+        <th class="text-end" style="color:${CLASSE_COR.Parcial};">Parcial</th>
+        <th class="text-end" style="color:${CLASSE_COR.Misto};">Misto</th>
+        <th class="text-end">Escolas c/ o segmento</th></tr></thead>
+      <tbody>${SEG_GRUPOS.map(g => `<tr><th style="text-align:left;">${g.label}</th>
+        <td class="text-end">${br(cont[g.key].Integral)}</td><td class="text-end">${br(cont[g.key].Parcial)}</td>
+        <td class="text-end">${br(cont[g.key].Misto)}</td><td class="text-end fw-bold">${br(cont[g.key].tem)}</td></tr>`).join('')}</tbody>
+      </table></div></div>`;
   const lista = escPerLista();
   const contEl = document.getElementById('escPerContagem');
   if (contEl) { const filtrando = escPerTipoSel || escPerClasseSel || ((document.getElementById('escPerBusca')||{}).value||'').trim();
@@ -1393,16 +1426,14 @@ function renderEscPer() {
     return `<tr style="cursor:pointer;" onclick="escPerToggleDet(${i})">
       <td style="text-align:left;"><i class="bi bi-caret-right-fill" style="font-size:.68rem;color:#94a3b8;"></i> ${escapeHtml(o.escola)}</td>
       <td class="text-center"><span class="badge" style="background:#ede9fe;color:#6d28d9;">${escapeHtml(o.tipo)}</span></td>
-      <td class="text-end">${o.integral ? br(o.integral) : '·'}</td>
-      <td class="text-end">${o.parcial ? br(o.parcial) : '·'}</td>
-      <td class="text-end fw-bold">${br(o.total)}</td>
-      <td class="text-center"><span style="color:${CLASSE_COR[o.classe]};font-weight:700;">${o.classe}</span></td></tr>
+      ${celClasse(o.cls.ciclos)}${celClasse(o.cls.etapas)}${celClasse(o.cls.fund)}
+      <td class="text-end fw-bold">${br(o.total)}</td></tr>
       <tr id="escdet-${i}" style="display:none;background:#faf5ff;"><td colspan="6" style="padding:.2rem .4rem;">
         <table class="mtx" style="width:100%;margin:0;"><tbody>${detRows}</tbody></table></td></tr>`;
   }).join('');
-  box.innerHTML = `<thead><tr><th style="text-align:left;">Escola <span class="text-muted fw-normal" style="font-size:.72rem;">(clique p/ ver turmas)</span></th><th class="text-center">Tipo</th>
-    <th class="text-end">Turmas integrais</th><th class="text-end">Turmas parciais</th>
-    <th class="text-end">Total</th><th class="text-center">Classificação</th></tr></thead>
+  box.innerHTML = `<thead><tr><th style="text-align:left;">Escola <span class="text-muted fw-normal" style="font-size:.72rem;">(clique p/ ver turmas)</span></th>
+    <th class="text-center">Tipo</th><th class="text-center">Ciclos</th><th class="text-center">Etapas</th>
+    <th class="text-center">Ens. Fundamental</th><th class="text-end">Total turmas</th></tr></thead>
     <tbody>${linhas || '<tr><td colspan="6" class="text-center text-muted">Nenhuma escola neste filtro.</td></tr>'}</tbody>`;
 }
 function escPerToggleDet(i) {
@@ -1412,8 +1443,8 @@ function escPerToggleDet(i) {
 function baixarEscolasPeriodo() {
   const lista = escPerLista(); if (!lista.length) return;
   const esc = s => `"${String(s==null?'':s).replace(/"/g,'""')}"`;
-  const linhas = [['Escola','Tipo','Turmas integrais','Turmas parciais','Total','Classificacao'].join(';')]
-    .concat(lista.map(o => [esc(o.escola), esc(o.tipo), o.integral, o.parcial, o.total, esc(o.classe)].join(';')));
+  const linhas = [['Escola','Tipo','Ciclos','Etapas','Ensino Fundamental','Total turmas'].join(';')]
+    .concat(lista.map(o => [esc(o.escola), esc(o.tipo), esc(o.cls.ciclos||''), esc(o.cls.etapas||''), esc(o.cls.fund||''), o.total].join(';')));
   const blob = new Blob(['﻿' + linhas.join('\r\n')], { type:'text/csv;charset=utf-8;' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = 'escolas-por-periodo.csv'; a.click(); URL.revokeObjectURL(a.href);
