@@ -53,7 +53,15 @@
     .loader { text-align:center; padding:3rem 1rem; color:#64748b; }
     .spin { width:38px; height:38px; border:4px solid #e2e8f0; border-top-color:var(--neon-blue); border-radius:50%; animation:sp 1s linear infinite; margin:0 auto .8rem; }
     @keyframes sp { to { transform:rotate(360deg); } }
-    @media print { .toolbar,.nav-back,.btn-tool,#graficoWrap { display:none !important; } body { background:#fff; } }
+    .fbar { display:flex; flex-wrap:wrap; gap:.3rem .45rem; align-items:center; }
+    .fbar .flbl { font-size:.66rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:#64748b; margin:0 .1rem 0 .4rem; }
+    .fbar .flbl:first-child { margin-left:0; }
+    .fchip { background:#f1f5f9; border:1px solid #cbd5e1; color:#334155; border-radius:999px;
+      padding:.14rem .58rem; font-size:.71rem; font-weight:700; cursor:pointer; white-space:nowrap; }
+    .fchip:hover { border-color:#94a3b8; }
+    .fchip.active { background:#059669; border-color:#059669; color:#fff; }
+    .fchip.clear { background:#fff; border-style:dashed; color:#64748b; }
+    @media print { .toolbar,.nav-back,.btn-tool,#graficoWrap,.fbar { display:none !important; } body { background:#fff; } }
   </style>
 </head>
 <body>
@@ -141,12 +149,14 @@
       <!-- Visão geral (rede toda) para conferir com o retrato -->
       <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #059669;">
         <div class="sec-tt mb-1"><i class="bi bi-clipboard-check me-2"></i>Visão geral das atribuições (rede) — conferência com o Retrato</div>
-        <p class="text-muted small mb-3"><b>Toda a base</b> (ignora cargo/jornada/vínculo; respeita o filtro de Status). Categorias iguais às do retrato
+        <p class="text-muted small mb-2">Categorias iguais às do retrato
           (projetos pela disciplina AF; etapa/ano pela série AC) para comparar linha a linha com o
-          <a href="retrato-atribuicao.html" target="_blank">retrato-atribuicao</a>.<br>
+          <a href="retrato-atribuicao.html" target="_blank">retrato-atribuicao</a>.
+          Por padrão usa <b>toda a base</b>; use os filtros abaixo para recortar por disciplina, cargo, vínculo, jornada ou status.<br>
           <b>Aulas necessárias</b> = cada turma × disciplina contada <b>uma única vez</b> (é o que se compara ao retrato):
           quando um slot foi trocado de professor (ATRIBUIDA → TROCA) ou aparece duplicado, a <b>troca não é contada duas vezes</b>.
           A coluna <b>Atribuídas (c/ trocas)</b> mostra a carga bruta de todas as linhas; o valor <span style="color:#b45309;">(+n)</span> é quanto as trocas/duplicidades inflam o total.</p>
+        <div class="fbar mb-3 pb-2" id="vgFiltros" style="border-bottom:1px dashed #e2e8f0;"></div>
         <div class="table-responsive"><table class="mtx" id="tabVisao"></table></div>
       </div>
 
@@ -190,6 +200,8 @@ let cargoSel = 'PEB II';
 let jornadasSel = new Set([28, 32]);   // padrão pedido
 let vinculosSel = null;                // null = todos
 let statusSel = null;                  // null = todos (ATRIBUIDA + TROCA)
+// Filtros próprios da "Visão geral" (recorte independente da toolbar principal).
+let vgDisc = null, vgCargo = null, vgVinc = null, vgJor = null, vgStatus = null;  // null = todos
 let grafico = null;
 
 function escapeHtml(s){ return String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
@@ -456,10 +468,19 @@ function renderSubstituicao(rows) {
         : '<tr><td colspan="3" class="text-muted">Nenhuma neste filtro.</td></tr>'}</tbody>`;
 }
 
-// Visão geral da rede (todas as linhas), nas categorias do retrato, para conferência.
+// Linhas da base após os filtros próprios da visão geral (disciplina/cargo/vínculo/jornada/status).
+function baseVisao() {
+  return (ROWS||[]).filter(r =>
+    (!vgStatus || vgStatus.has(String(r[COL.status]))) &&
+    (!vgCargo  || vgCargo.has(String(r[COL.cargo]))) &&
+    (!vgVinc   || vgVinc.has(String(r[COL.vinculo]))) &&
+    (!vgJor    || vgJor.has(num(r[COL.jornada]))) &&
+    (!vgDisc   || vgDisc.has(nomeDisc(r[COL.disc]))));
+}
+// Visão geral da rede (nas categorias do retrato), com filtros próprios, para conferência.
 function renderVisaoGeral() {
   const box = document.getElementById('tabVisao'); if (!box || !ROWS) return;
-  const base = statusSel ? ROWS.filter(r => statusSel.has(String(r[COL.status]))) : ROWS;
+  const base = baseVisao();
   // Para cada categoria acumulamos:
   //   nec   = aulas necessárias (cada slot turma×disciplina 1×; troca não conta 2×)
   //   aulas = carga bruta de todas as linhas (com trocas/duplicidades)
@@ -515,6 +536,52 @@ function renderVisaoGeral() {
     </tbody>`;
 }
 
+/* ── Filtros próprios da Visão geral (disciplina/cargo/vínculo/jornada/status) ── */
+function vgOpts() {
+  const R = ROWS || [];
+  const uniq = arr => Array.from(new Set(arr)).filter(v => v !== '' && v != null);
+  const discTot = {};
+  R.forEach(r => { const d = nomeDisc(r[COL.disc]); discTot[d] = (discTot[d]||0) + num(r[COL.carga]); });
+  return {
+    disc:   Object.keys(discTot).sort((a,b) => discTot[b]-discTot[a] || a.localeCompare(b,'pt-BR')),
+    cargo:  uniq(R.map(r => String(r[COL.cargo]))).sort((a,b)=>a.localeCompare(b,'pt-BR')),
+    vinc:   uniq(R.map(r => String(r[COL.vinculo]))).sort((a,b)=>a.localeCompare(b,'pt-BR')),
+    jor:    uniq(R.map(r => num(r[COL.jornada]))).filter(j => j>0).sort((a,b)=>a-b),
+    status: uniq(R.map(r => String(r[COL.status]))).sort((a,b)=>a.localeCompare(b,'pt-BR')),
+  };
+}
+const VG_LBL = { disc:'Disciplina', cargo:'Cargo', vinc:'Vínculo', jor:'Jornada', status:'Status' };
+function vgSel(g){ return { disc:vgDisc, cargo:vgCargo, vinc:vgVinc, jor:vgJor, status:vgStatus }[g]; }
+function vgSetSel(g,v){ if(g==='disc')vgDisc=v; else if(g==='cargo')vgCargo=v; else if(g==='vinc')vgVinc=v; else if(g==='jor')vgJor=v; else vgStatus=v; }
+function vgChipTxt(g,v){ if(g==='vinc')return v==='E'?'Efetivo':v==='C'?'Contratado':v; if(g==='jor')return v+'h'; return v; }
+function montarFiltrosVisao() {
+  const bar = document.getElementById('vgFiltros'); if(!bar) return;
+  const O = vgOpts();
+  let html = '';
+  ['disc','cargo','vinc','jor','status'].forEach(g => {
+    const vals = O[g], sel = vgSel(g); if (!vals.length) return;
+    html += `<span class="flbl">${VG_LBL[g]}</span>`;
+    vals.forEach((v,i) => { const on = !sel || sel.has(v);
+      html += `<button class="fchip ${on?'active':''}" onclick="vgToggle('${g}',${i})">${escapeHtml(String(vgChipTxt(g,v)))}</button>`;
+    });
+  });
+  const algum = vgDisc||vgCargo||vgVinc||vgJor||vgStatus;
+  html += `<button class="fchip clear ms-2"${algum?'':' style="display:none;"'} onclick="vgLimpar()"><i class="bi bi-x-circle me-1"></i>limpar</button>`;
+  bar.innerHTML = html;
+}
+function vgToggle(g,i) {
+  const vals = vgOpts()[g], v = vals[i];
+  let sel = vgSel(g); if (!sel) sel = new Set(vals);
+  if (sel.has(v)) sel.delete(v); else sel.add(v);
+  if (sel.size === 0 || sel.size === vals.length) sel = null;
+  vgSetSel(g, sel);
+  montarFiltrosVisao(); renderVisaoGeral();
+}
+function vgLimpar() {
+  vgDisc = vgCargo = vgVinc = vgJor = vgStatus = null;
+  montarFiltrosVisao(); renderVisaoGeral();
+}
+
 function renderGrafico(A) {
   const ctx = document.getElementById('grafico');
   const labels = A.discsOrd, data = labels.map(d => A.discs[d].aulas);
@@ -559,6 +626,7 @@ function montarToolbar() {
   montarJornadas();
   montarVinculos();
   montarStatus();
+  montarFiltrosVisao();
 }
 function montarJornadas() {
   const base = (ROWS||[]).filter(r => cargoSel === 'TODOS' || String(r[COL.cargo]) === cargoSel);
