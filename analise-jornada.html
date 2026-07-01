@@ -183,7 +183,10 @@
 
       <!-- ══════════ ABA CAPACIDADE ══════════ -->
       <div id="tab-capacidade" style="display:none;">
-        <div class="fbar mb-3 pb-2" id="capVincChips" style="border-bottom:1px dashed #e2e8f0;"></div>
+        <div class="mb-3 pb-2" style="border-bottom:1px dashed #e2e8f0;">
+          <div class="fbar mb-1" id="capVincChips"></div>
+          <div class="fbar" id="capSitChips"></div>
+        </div>
         <div class="row g-2 g-lg-3 mb-3" id="capKpis"></div>
 
         <!-- A. Professores por tipo, jornada e disciplina -->
@@ -193,7 +196,9 @@
             <b>disciplina principal</b> (aquela em que têm mais aulas). Cada professor conta uma vez. Colunas = jornada (horas).
             A jornada da planilha é a <b>parte com aluno</b> (aulas) — não inclui horas-atividade —, então equivale
             diretamente às aulas que o professor assume e pode ser comparada com as aulas da grade.
-            O <b>filtro de Vínculo</b> (Efetivo/Contratado) no topo recorta todos os quadros de professores desta aba.</p>
+            Os filtros de <b>Vínculo</b> (Efetivo/Contratado) e <b>Situação</b> (coluna H — NA ATIVA, afastado, readaptado, etc.)
+            no topo recortam todos os quadros de professores desta aba. Obs.: os PEB II de 28h e 32h são <b>todos efetivos</b>
+            (os contratados são de 19h), então em <i>Contratado</i> só aparece a coluna 19h.</p>
           <div class="fbar mb-2" id="capCargoChips"></div>
           <div class="table-responsive"><table class="mtx" id="tabProfCap"></table></div>
         </div>
@@ -250,7 +255,7 @@ const TABELA = 'atribuicao_professores';
 // Colunas (nomes amigáveis do CSV importado)
 const COL = {
   prof:'cod_professor', nome:'nome_professor', cargo:'cargo', vinculo:'vinculo',
-  jornada:'jornada', disc:'disciplina_atribuida', tipo:'tipo_atribuicao',
+  situacao:'situacao', jornada:'jornada', disc:'disciplina_atribuida', tipo:'tipo_atribuicao',
   carga:'carga_horaria', unidade:'unidade_atribuida', unidCod:'cod_unidade_atribuida',
   serie:'serie', letra:'letra_turma', status:'status_atribuicao'
 };
@@ -317,7 +322,7 @@ function catGeral(r) {
 
 /* ── Busca de dados ─────────────────────────────────────────────── */
 async function fetchTudo() {
-  const CACHE = 'mapa_atrib_prof_v3', TTL = 10*60*1000;
+  const CACHE = 'mapa_atrib_prof_v4', TTL = 10*60*1000;
   if (!window.__forcar) {
     try { const o = JSON.parse(localStorage.getItem(CACHE)||'null');
       if (o && o.ts && (Date.now()-o.ts) < TTL && Array.isArray(o.rows)) return o.rows; } catch(e){}
@@ -1035,6 +1040,7 @@ const SEG_ORDEM = ['Etapas','Fund I','Fund II','Ciclos'];   // segmentos da grad
 let _capProfInit = false;
 let capCargoSel = null;    // null = todos os PEB
 let capVincSel = null;     // null = todos (E + C)
+let capSitSel = null;      // null = todas as situações (coluna H)
 let CAP = null;            // resultados da grade (após carregar turmas)
 
 // ano_escolar → { seg, ano } | null (EJA/Termos/especial fora).
@@ -1080,7 +1086,7 @@ function mostrarAba(a) {
     document.getElementById('tab-'+x).style.display = x === a ? '' : 'none';
     const b = document.getElementById('aba-'+x); if (b) b.classList.toggle('active', x === a);
   });
-  if (a === 'capacidade' && !_capProfInit && ROWS) { _capProfInit = true; montarCapCargo(); montarCapVinc(); renderProfCap(); }
+  if (a === 'capacidade' && !_capProfInit && ROWS) { _capProfInit = true; montarCapCargo(); montarCapVinc(); montarCapSit(); renderProfCap(); }
 }
 
 // Professor distinto → { cargo, jornada, disciplina principal }. Respeita o filtro de vínculo.
@@ -1089,6 +1095,7 @@ function profResumo() {
   (ROWS||[]).forEach(r => {
     const c = String(r[COL.cargo]); if (!/^PEB (I|II|III)$/.test(c)) return;   // exclui monitores/outros
     if (capVincSel && !capVincSel.has(String(r[COL.vinculo]))) return;
+    if (capSitSel && !capSitSel.has(String(r[COL.situacao]))) return;
     const p = r[COL.prof];
     const o = (m[p] ||= { cargo:c, jor:num(r[COL.jornada]), disc:{} });
     const d = nomeDisc(r[COL.disc]); o.disc[d] = (o.disc[d]||0) + num(r[COL.carga]);
@@ -1123,6 +1130,27 @@ function capToggleVinc(v) {
   if (capVincSel.size === 0 || capVincSel.size === 2) capVincSel = null;
   montarCapVinc(); renderProfCap();   // renderProfCap encadeia suficiência + KPIs
 }
+// Situação do professor (coluna H): NA ATIVA, AFASTADO, READAPTADO, EXONERADO, etc.
+function capSitOpts() {
+  return Array.from(new Set((ROWS||[]).filter(r => /^PEB (I|II|III)$/.test(String(r[COL.cargo])))
+    .map(r => String(r[COL.situacao])))).filter(Boolean).sort((a,b) => a.localeCompare(b,'pt-BR'));
+}
+function montarCapSit() {
+  const bar = document.getElementById('capSitChips'); if (!bar) return;
+  const sits = capSitOpts();
+  bar.innerHTML = `<span class="flbl">Situação (col. H)</span>` + sits.map((s,i) => {
+    const on = !capSitSel || capSitSel.has(s);
+    return `<button class="fchip ${on?'active':''}" onclick="capToggleSit(${i})">${escapeHtml(s)}</button>`;
+  }).join('') + (capSitSel ? `<button class="fchip clear ms-1" onclick="capSitLimpar()"><i class="bi bi-x-circle me-1"></i>todas</button>` : '');
+}
+function capToggleSit(i) {
+  const sits = capSitOpts(), s = sits[i];
+  if (!capSitSel) capSitSel = new Set(sits);
+  if (capSitSel.has(s)) capSitSel.delete(s); else capSitSel.add(s);
+  if (capSitSel.size === 0 || capSitSel.size === sits.length) capSitSel = null;
+  montarCapSit(); renderProfCap();
+}
+function capSitLimpar() { capSitSel = null; montarCapSit(); renderProfCap(); }
 function renderProfCap() {
   const box = document.getElementById('tabProfCap'); if (!box) return;
   const M = profResumo();
@@ -1276,6 +1304,7 @@ function renderSuficiencia() {
   const atr = {};   // aulas atribuídas (PEB) por grupo
   (ROWS||[]).forEach(r => { const c = String(r[COL.cargo]); if (!/^PEB (I|II|III)$/.test(c)) return;
     if (capVincSel && !capVincSel.has(String(r[COL.vinculo]))) return;
+    if (capSitSel && !capSitSel.has(String(r[COL.situacao]))) return;
     const d = grupoCap(nomeDisc(r[COL.disc])); atr[d] = (atr[d]||0) + num(r[COL.carga]); });
   const grade = {};   // aulas da grade por grupo
   if (CAP && CAP.gradeDisc) for (const gd in CAP.gradeDisc) { const d = grupoCap(gd); grade[d] = (grade[d]||0) + CAP.gradeDisc[gd]; }
