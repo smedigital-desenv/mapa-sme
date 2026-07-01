@@ -150,6 +150,18 @@
         <div class="table-responsive"><table class="mtx" id="tabVisao"></table></div>
       </div>
 
+      <!-- Conciliação ao vivo: turmas (currículo) × atribuição -->
+      <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #2563eb;">
+        <div class="sec-tt mb-1"><i class="bi bi-diagram-3 me-2"></i>Conciliação com o Retrato — turmas (currículo) × atribuição <span class="text-muted fw-normal" style="font-size:.8rem;">(ao vivo)</span></div>
+        <p class="text-muted small mb-2">Cruza a tabela <b>turmas</b> (o que cada turma precisa — base do retrato) com a
+          <b>atribuição</b> (o que já foi atribuído, cada slot turma×disciplina contado 1×).
+          <b>Falta</b> = necessário − atribuído. Categorias e disciplinas pela mesma regra do retrato.</p>
+        <button class="chip active" id="btnConc" onclick="carregarTurmas()"><i class="bi bi-arrow-repeat me-1"></i>Carregar turmas e comparar</button>
+        <div id="concDiag" class="text-muted small mt-2 mb-2"></div>
+        <div class="table-responsive"><table class="mtx" id="tabConc"></table></div>
+        <div id="concDetalhe" class="mt-3"></div>
+      </div>
+
       <div class="text-muted small px-1" id="rodape"></div>
     </div>
   </main>
@@ -644,6 +656,244 @@ async function exportarExcel() {
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const a = document.createElement('a'); a.href = url; a.download = 'composicao-jornada.xlsx'; a.click(); URL.revokeObjectURL(url);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Conciliação: tabela `turmas` (currículo — base do retrato) × atribuição
+   Compara o que cada turma precisa com o que já foi atribuído.
+   ══════════════════════════════════════════════════════════════════ */
+let TURMAS = null;
+const SELECT_TURMAS = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria';
+
+// Helpers portados do retrato (a tabela turmas usa colunas/grafias próprias).
+function normalizar(txt) {
+  return String(txt || '').trim().toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[º°]/g, '').replace(/[–—]/g, '-')
+    .replace(/\s*-\s*/g, ' - ').replace(/\s+/g, ' ');
+}
+// ano_escolar → 'Etapa I' | 'Etapa II' | '1º Ano'…'5º Ano' | null (fora do escopo).
+function classificarAno(anoRaw) {
+  const n = normalizar(anoRaw), f = colapsar(anoRaw);
+  if (f.includes('TERMO') || f.includes('EJA') || f.includes('CICLO')) return null;
+  if (f.includes('ETAPA')) {
+    const m = n.match(/ETAPA\s*-?\s*(II|2|DOIS|I|1|UM)\b/);
+    if (m) { const t = m[1];
+      if (t === 'II' || t === '2' || t === 'DOIS') return 'Etapa II';
+      if (t === 'I'  || t === '1' || t === 'UM')   return 'Etapa I'; }
+    return null;
+  }
+  const md = f.match(/^(\d+)/);
+  if (md) { const v = parseInt(md[1], 10); if (v >= 1 && v <= 5) return v + 'º Ano'; }
+  return null;
+}
+function isPRADisc(disc) { const f = colapsar(disc);
+  return f.includes('RECUP') && (f.includes('APREND') || f.includes('APREN')) && f.includes('ANOS') && f.includes('INIC'); }
+// Projeto pela disciplina (PPA/PPP/PRP). PRA NÃO é projeto (faz parte da grade).
+function nomeProjeto(disc) { const f = colapsar(disc); if (!f) return null;
+  if (isPRADisc(disc)) return null;
+  if (f.includes('ALFABETIZADOR') || f === 'PPA') return 'PPA';
+  if (f.includes('PRATICA') && f.includes('PEDAGOG')) return 'PPP';
+  if (f.includes('PARALELA') && f.includes('RECUP')) return 'PRP';
+  return null;
+}
+// Nome canônico de disciplina — MESMA regra para turmas e atribuição, para casarem.
+function nomeDisc(raw) { const f = colapsar(raw); if (!f) return '';
+  if (isPRADisc(raw)) return 'PRA — Recuperação';
+  if (f.includes('MAGISTERIO')) return (f.includes('MAGISTERIOII') || f.includes('MAGISTERIO2')) ? 'Magistério II' : 'Magistério I';
+  if ((f.includes('EDUCACAO') || f.includes('EDUC')) && (f.includes('FISICA') || f.includes('FIS'))) return 'Educação Física';
+  if (f.includes('INGLES') || f.includes('INGLESA')) return 'Inglês';
+  if (f.includes('ARTESVISUAIS')) return 'Artes Visuais';
+  if (f.includes('ARTE')) return 'Arte';
+  if (f.includes('PORTUGUES')) return 'Língua Portuguesa';
+  if (f.includes('MATEMATICA')) return 'Matemática';
+  if (f.includes('CIENCIAS')) return 'Ciências';
+  if (f.includes('HISTORIA')) return 'História';
+  if (f.includes('GEOGRAFIA')) return 'Geografia';
+  if (f.includes('MUSICA') || f.includes('MSICA')) return 'Música';
+  return String(raw || '').trim().replace(/\s+/g, ' ');
+}
+// Chave turma×disciplina turno-agnóstica (a atribuição não traz turno).
+function turmaDiscKey(unidade, anoRaw, letra, discRaw) {
+  const cg = classificarAno(anoRaw);
+  return cg ? [colapsar(unidade), cg, colapsar(letra), nomeDisc(discRaw)].join('|') : null;
+}
+
+async function fetchTurmasRede() {
+  const CACHE = 'mapa_atrib_turmas_v2', TTL = 10*60*1000;   // compartilha o cache do retrato
+  try { const o = JSON.parse(localStorage.getItem(CACHE) || 'null');
+    if (o && o.ts && (Date.now()-o.ts) < TTL && Array.isArray(o.rows) && o.rows.length) return o.rows; } catch(e){}
+  const PAGE = 1000, H = { apikey:SUPABASE_KEY, Authorization:`Bearer ${SUPABASE_KEY}` };
+  const url = off => `${SUPABASE_URL}/rest/v1/turmas?select=${SELECT_TURMAS}&order=nome_unidade.asc&limit=${PAGE}&offset=${off}`;
+  const first = await fetch(url(0), { headers:{ ...H, Prefer:'count=exact' } });
+  if (!first.ok) throw new Error(`Erro ${first.status} ao ler a tabela "turmas" (permissão/RLS?).`);
+  let rows = await first.json();
+  if (rows.length === PAGE) {
+    const total = parseInt((first.headers.get('content-range')||'').split('/')[1], 10);
+    if (Number.isFinite(total)) {
+      const offs = []; for (let o=PAGE;o<total;o+=PAGE) offs.push(o);
+      const rest = await Promise.all(offs.map(async o => { const r = await fetch(url(o), {headers:H}); return r.ok ? r.json() : []; }));
+      rows = rows.concat(...rest);
+    }
+  }
+  // Não sobrescreve o cache do retrato (que guarda mais colunas).
+  return rows;
+}
+
+const CONC_GRADE = ['Etapa I','Etapa II','1º Ano','2º Ano','3º Ano','4º Ano','5º Ano'];
+const CONC_PROJ  = ['PPA','PPP','PRP'];
+
+// Necessário (turmas) por categoria+disciplina e por projeto.
+function necessarioTurmas() {
+  const nec = {}, proj = {};
+  (TURMAS||[]).forEach(t => {
+    const c = num(t.carga_horaria);
+    const pj = nomeProjeto(t.descricao_disciplina);
+    if (pj) { proj[pj] = (proj[pj]||0) + c; return; }
+    const cg = classificarAno(t.ano_escolar); if (!cg) return;
+    const o = (nec[cg] ||= { tot:0, disc:{} }); o.tot += c;
+    const d = nomeDisc(t.descricao_disciplina); o.disc[d] = (o.disc[d]||0) + c;
+  });
+  return { nec, proj };
+}
+// Atribuído (atribuição, cada slot 1×) por categoria+disciplina e por projeto.
+function atribuidoRede() {
+  const atr = {}, proj = {}, seen = new Set();
+  (ROWS||[]).forEach(r => {
+    const k = slotKey(r); if (seen.has(k)) return; seen.add(k);
+    const c = num(r[COL.carga]);
+    const cg = catGeral(r);
+    if (cg.startsWith('Projeto: ')) { const p = cg.slice(9); proj[p] = (proj[p]||0) + c; return; }
+    const o = (atr[cg] ||= { tot:0, disc:{} }); o.tot += c;
+    const d = nomeDisc(r[COL.disc]); o.disc[d] = (o.disc[d]||0) + c;
+  });
+  return { atr, proj };
+}
+
+function renderConciliacao() {
+  const box = document.getElementById('tabConc'); if (!box) return;
+  const { nec, proj:necP } = necessarioTurmas();
+  const { atr, proj:atrP } = atribuidoRede();
+
+  const cel = (n, a) => { const falta = n - a, pct = n ? Math.round(a/n*100) : (a?100:0);
+    const fCor = falta > 0 ? '#b91c1c' : falta < 0 ? '#047857' : '#334155';
+    const fTxt = falta > 0 ? br(falta) : falta < 0 ? '−'+br(-falta) : '0';
+    return `<td class="text-end fw-bold">${br(n)}</td><td class="text-end">${br(a)}</td>
+      <td class="text-end fw-bold" style="color:${fCor};">${fTxt}</td>
+      <td class="text-end" style="color:${pct>=100?'#047857':pct>=90?'#b45309':'#b91c1c'};">${pct}%</td>`; };
+
+  const linhaGrade = k => { const n = (nec[k]||{}).tot||0, a = (atr[k]||{}).tot||0;
+    return `<tr><th style="text-align:left;padding-left:1.4rem;cursor:pointer;" onclick="toggleConcDisc('${k}')">
+      <i class="bi bi-caret-right-fill" style="font-size:.7rem;"></i> ${escapeHtml(k)}</th>${cel(n,a)}</tr>
+      <tr id="cd-${k.replace(/\W/g,'')}" style="display:none;"><td colspan="5" style="padding:0;">
+      <div style="padding:.3rem 2.2rem .6rem;">${discTabela(nec[k], atr[k])}</div></td></tr>`; };
+
+  const somaN = ks => ks.reduce((s,k)=>s+((nec[k]||{}).tot||0), 0);
+  const somaA = ks => ks.reduce((s,k)=>s+((atr[k]||{}).tot||0), 0);
+  const inf = ['Etapa I','Etapa II'], fund = ['1º Ano','2º Ano','3º Ano','4º Ano','5º Ano'];
+  const subLinha = (rot, ks, st) => `<tr style="${st}"><th style="text-align:left;">${rot}</th>${cel(somaN(ks), somaA(ks))}</tr>`;
+
+  const projLinha = k => { const n = necP[k]||0, a = atrP[k]||0;
+    return `<tr><th style="text-align:left;padding-left:1.4rem;">${k}</th>${cel(n,a)}</tr>`; };
+  const grupo = tit => `<tr class="total-row"><th colspan="5" style="text-align:left;">${escapeHtml(tit)}</th></tr>`;
+
+  box.innerHTML = `
+    <thead><tr><th style="text-align:left;">Categoria</th>
+      <th class="text-end">Necessário<br><small class="text-muted">(turmas)</small></th>
+      <th class="text-end">Atribuído<br><small class="text-muted">(slot 1×)</small></th>
+      <th class="text-end">Falta</th><th class="text-end">% atrib.</th></tr></thead>
+    <tbody>
+      ${grupo('Educação Infantil — Etapas')}
+      ${inf.map(linhaGrade).join('')}
+      ${grupo('Ensino Fundamental — 1º ao 5º')}
+      ${fund.map(linhaGrade).join('')}
+      ${subLinha('Subtotal 1º–5º', fund, 'background:#f8fafc;')}
+      ${subLinha('▶ Subtotal grade (Etapas + 1º–5º)', CONC_GRADE, 'background:#dbeafe;')}
+      ${grupo('Projetos (PPA / PPP / PRP)')}
+      ${CONC_PROJ.map(projLinha).join('')}
+      <tr style="background:#f8fafc;"><th style="text-align:left;">Subtotal projetos</th>${cel(CONC_PROJ.reduce((s,k)=>s+(necP[k]||0),0), CONC_PROJ.reduce((s,k)=>s+(atrP[k]||0),0))}</tr>
+    </tbody>`;
+
+  renderConcFalta();
+}
+// Tabela de disciplinas dentro de uma categoria (drill).
+function discTabela(necO, atrO) {
+  const nd = (necO||{}).disc||{}, ad = (atrO||{}).disc||{};
+  const keys = Array.from(new Set([...Object.keys(nd), ...Object.keys(ad)]))
+    .sort((a,b) => ((nd[b]||0)-(ad[b]||0)) - ((nd[a]||0)-(ad[a]||0)) || a.localeCompare(b,'pt-BR'));
+  const linhas = keys.map(d => { const n = nd[d]||0, a = ad[d]||0, falta = n-a;
+    const cor = falta>0?'#b91c1c':falta<0?'#047857':'#334155';
+    return `<tr><td style="text-align:left;">${escapeHtml(d)}</td>
+      <td class="text-end">${br(n)}</td><td class="text-end">${br(a)}</td>
+      <td class="text-end fw-bold" style="color:${cor};">${falta>0?br(falta):falta<0?'−'+br(-falta):'0'}</td></tr>`; }).join('');
+  return `<table class="mtx" style="width:auto;min-width:60%;font-size:.82rem;">
+    <thead><tr><th style="text-align:left;">Disciplina</th><th class="text-end">Nec.</th><th class="text-end">Atrib.</th><th class="text-end">Falta</th></tr></thead>
+    <tbody>${linhas}</tbody></table>`;
+}
+function toggleConcDisc(k) {
+  const el = document.getElementById('cd-' + k.replace(/\W/g,''));
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+// Turma a turma (1º–5º): onde o currículo precisa e a atribuição não cobre.
+function renderConcFalta() {
+  const box = document.getElementById('concDetalhe'); if (!box) return;
+  // Necessário por turma×disciplina (só 1º–5º; etapas têm turno que a atribuição não traz).
+  const need = new Map();
+  (TURMAS||[]).forEach(t => {
+    const cg = classificarAno(t.ano_escolar); if (!cg || cg.includes('Etapa')) return;
+    if (nomeProjeto(t.descricao_disciplina)) return;
+    const k = turmaDiscKey(t.nome_unidade, t.ano_escolar, t.letra_turma, t.descricao_disciplina); if (!k) return;
+    const o = need.get(k) || { un:t.nome_unidade, ano:cg, letra:t.letra_turma, disc:nomeDisc(t.descricao_disciplina), nec:0 };
+    o.nec += num(t.carga_horaria); need.set(k, o);
+  });
+  // Atribuído por turma×disciplina (slot 1×).
+  const atrMap = new Map(), seen = new Set();
+  (ROWS||[]).forEach(r => {
+    const sk = slotKey(r); if (seen.has(sk)) return; seen.add(sk);
+    const cg = catGeral(r); if (cg.startsWith('Projeto:') || cg.includes('Etapa')) return;
+    const k = turmaDiscKey(r[COL.unidade], r[COL.serie], r[COL.letra], r[COL.disc]); if (!k) return;
+    atrMap.set(k, (atrMap.get(k)||0) + num(r[COL.carga]));
+  });
+  // Diagnóstico de casamento + lista de faltas.
+  let casadas = 0; const gaps = [];
+  need.forEach((o, k) => { const a = atrMap.get(k) || 0; if (atrMap.has(k)) casadas++;
+    if (o.nec - a > 0) gaps.push({ ...o, atr:a, falta:o.nec - a }); });
+  gaps.sort((x,y) => y.falta - x.falta || String(x.un).localeCompare(String(y.un),'pt-BR'));
+  const totNeed = need.size, pct = totNeed ? Math.round(casadas/totNeed*100) : 0;
+  const LIM = 300, mostradas = gaps.slice(0, LIM);
+  const linhas = mostradas.map(g => `<tr><td style="text-align:left;">${escapeHtml(g.un)}</td>
+    <td class="text-center">${escapeHtml(g.ano)}</td><td class="text-center">${escapeHtml(g.letra)}</td>
+    <td style="text-align:left;">${escapeHtml(g.disc)}</td>
+    <td class="text-end">${br(g.nec)}</td><td class="text-end">${br(g.atr)}</td>
+    <td class="text-end fw-bold" style="color:#b91c1c;">${br(g.falta)}</td></tr>`).join('');
+  box.innerHTML = `
+    <div class="alert ${pct>=80?'alert-success':pct>=50?'alert-warning':'alert-danger'} py-2 small mb-2">
+      <b>Diagnóstico do cruzamento (1º–5º):</b> ${br(casadas)} de ${br(totNeed)} pares turma×disciplina do currículo
+      casaram com a atribuição (<b>${pct}%</b>) — casamento por escola + ano + letra + disciplina.
+      ${pct < 80 ? 'Casamento baixo pode indicar diferença de grafia entre as tabelas (escola/letra); me avise para ajustar as chaves.' : ''}
+    </div>
+    <div class="sec-tt mb-1" style="font-size:.95rem;"><i class="bi bi-exclamation-triangle me-2"></i>Turmas do 1º–5º onde falta atribuir <span class="text-muted fw-normal" style="font-size:.8rem;">(${br(gaps.length)} pares com falta${gaps.length>LIM?`; mostrando os ${LIM} maiores`:''})</span></div>
+    <div class="table-responsive"><table class="mtx" style="font-size:.82rem;">
+      <thead><tr><th style="text-align:left;">Escola</th><th class="text-center">Ano</th><th class="text-center">Letra</th>
+        <th style="text-align:left;">Disciplina</th><th class="text-end">Nec.</th><th class="text-end">Atrib.</th><th class="text-end">Falta</th></tr></thead>
+      <tbody>${linhas || '<tr><td colspan="7" class="text-center text-muted">Nenhuma falta encontrada no 1º–5º.</td></tr>'}</tbody>
+    </table></div>`;
+}
+
+async function carregarTurmas() {
+  const btn = document.getElementById('btnConc'), diag = document.getElementById('concDiag');
+  btn.disabled = true; const txt0 = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Carregando turmas…';
+  try {
+    TURMAS = await fetchTurmasRede();
+    diag.textContent = `${br((TURMAS||[]).length)} linhas de turmas carregadas.`;
+    renderConciliacao();
+    btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Recarregar turmas';
+  } catch (e) {
+    diag.innerHTML = `<span class="text-danger">${escapeHtml(e.message || e)}</span>`;
+    btn.innerHTML = txt0;
+  } finally { btn.disabled = false; }
 }
 
 /* ── Carregamento ───────────────────────────────────────────────── */
