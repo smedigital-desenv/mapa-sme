@@ -197,7 +197,8 @@
             A jornada da planilha é a <b>parte com aluno</b> (aulas) — não inclui horas-atividade —, então equivale
             diretamente às aulas que o professor assume e pode ser comparada com as aulas da grade.
             Os filtros de <b>Vínculo</b> (Efetivo/Contratado) e <b>Situação</b> (coluna H — NA ATIVA, afastado, readaptado, etc.)
-            no topo recortam todos os quadros de professores desta aba. Obs.: os PEB II de 28h e 32h são <b>todos efetivos</b>
+            no topo recortam todos os quadros de professores desta aba. Por padrão vem marcado só <b>NA ATIVA</b>
+            (clique em "todas" para incluir afastados/readaptados). Obs.: os PEB II de 28h e 32h são <b>todos efetivos</b>
             (os contratados são de 19h), então em <i>Contratado</i> só aparece a coluna 19h.</p>
           <div class="fbar mb-2" id="capCargoChips"></div>
           <div class="table-responsive"><table class="mtx" id="tabProfCap"></table></div>
@@ -1086,7 +1087,9 @@ function mostrarAba(a) {
     document.getElementById('tab-'+x).style.display = x === a ? '' : 'none';
     const b = document.getElementById('aba-'+x); if (b) b.classList.toggle('active', x === a);
   });
-  if (a === 'capacidade' && !_capProfInit && ROWS) { _capProfInit = true; montarCapCargo(); montarCapVinc(); montarCapSit(); renderProfCap(); }
+  if (a === 'capacidade' && !_capProfInit && ROWS) { _capProfInit = true;
+    if (capSitOpts().includes('NA ATIVA')) capSitSel = new Set(['NA ATIVA']);   // padrão: só quem está na ativa
+    montarCapCargo(); montarCapVinc(); montarCapSit(); renderProfCap(); }
 }
 
 // Professor distinto → { cargo, jornada, disciplina principal }. Respeita o filtro de vínculo.
