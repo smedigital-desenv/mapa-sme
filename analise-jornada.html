@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <script src="auth-guard.js"></script>
+  <script>window.MAPA_SISTEMA = 'mapa';</script>
+  <script>window.MAPA_TELA = 'atribuicao';</script>
+  <script src="auth.js" defer></script>
+  <script src="config-central.js" defer></script>
+  <script src="demo-mode.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Composição da Jornada dos Professores | SME Ribeirão Preto</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧮</text></svg>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  <style>
+    :root { --primary:#002b5e; --neon-blue:#00e5ff; }
+    body { background:#f0f4f8; font-family:'Segoe UI',sans-serif; padding-bottom:60px; }
+    .nav-header { background:var(--primary); color:#fff; border-bottom:4px solid var(--neon-blue);
+      padding:.9rem 1.6rem; box-shadow:0 6px 18px rgba(0,43,94,.18); }
+    .nav-header h1 { font-size:1.25rem; font-weight:800; margin:0; }
+    .nav-header .sub { font-size:.7rem; color:rgba(255,255,255,.7); font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+    .nav-back { color:rgba(255,255,255,.85); text-decoration:none; font-size:.82rem; font-weight:700; }
+    .nav-back:hover { color:#fff; }
+    .toolbar { background:rgba(0,43,94,.95); border-bottom:1px solid rgba(0,229,255,.2);
+      padding:.5rem 1.6rem; display:flex; align-items:center; gap:.7rem; flex-wrap:wrap; position:sticky; top:0; z-index:1010; }
+    .toolbar label { color:rgba(255,255,255,.72); font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin:0; }
+    .chip { background:transparent; border:1px solid rgba(0,229,255,.4); color:rgba(255,255,255,.82);
+      border-radius:999px; padding:.2rem .7rem; font-size:.74rem; font-weight:700; cursor:pointer; }
+    .chip.active { background:#fff; color:var(--primary); border-color:#fff; }
+    .btn-tool { background:transparent; border:1px solid rgba(0,229,255,.4); color:#fff; border-radius:7px;
+      padding:.28rem .7rem; font-size:.76rem; font-weight:700; cursor:pointer; }
+    .btn-tool:hover { background:rgba(0,229,255,.14); }
+    .selCargo { background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(0,229,255,.4); border-radius:7px;
+      font-size:.78rem; font-weight:700; padding:.25rem .5rem; }
+    .selCargo option { color:#0f172a; }
+    .kpi { background:#fff; border-radius:14px; padding:.9rem 1.1rem; box-shadow:0 4px 14px rgba(0,0,0,.05); border-left:5px solid #1d4ed8; height:100%; }
+    .kpi .lbl { font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
+    .kpi .val { font-size:1.7rem; font-weight:900; color:#0f172a; line-height:1.1; }
+    .kpi .sub { font-size:.72rem; color:#94a3b8; font-weight:700; }
+    .card-box { background:#fff; border-radius:16px; box-shadow:0 4px 15px rgba(0,0,0,.05); }
+    .sec-tt { font-weight:900; color:var(--primary); font-size:1rem; }
+    table.mtx { width:100%; border-collapse:separate; border-spacing:0; }
+    table.mtx th, table.mtx td { padding:.5rem .6rem; text-align:center; border-bottom:1px solid #eef2f7; font-size:.82rem; }
+    table.mtx thead th { position:sticky; top:0; background:#f8fafc; font-size:.7rem; text-transform:uppercase; color:#475569; z-index:1; }
+    table.mtx tbody th { text-align:left; font-weight:800; color:var(--primary); white-space:nowrap; background:#fff; }
+    table.mtx td .big { font-weight:800; color:#0f172a; }
+    table.mtx tr.total-row th, table.mtx tr.total-row td { background:#f1f5f9; border-top:2px solid #cbd5e1; font-weight:800; }
+    table.mtx td.zero { color:#cbd5e1; }
+    .loader { text-align:center; padding:3rem 1rem; color:#64748b; }
+    .spin { width:38px; height:38px; border:4px solid #e2e8f0; border-top-color:var(--neon-blue); border-radius:50%; animation:sp 1s linear infinite; margin:0 auto .8rem; }
+    @keyframes sp { to { transform:rotate(360deg); } }
+    @media print { .toolbar,.nav-back,.btn-tool,#graficoWrap { display:none !important; } body { background:#fff; } }
+  </style>
+</head>
+<body>
+  <header class="nav-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-3">
+      <i class="bi bi-easel2-fill" style="font-size:1.6rem;color:var(--neon-blue);"></i>
+      <div>
+        <h1>Composição da Jornada dos Professores</h1>
+        <div class="sub">Tipo de aula (AF) × tipo de atribuição (AH), por cargo e jornada</div>
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+      <a class="nav-back" href="atribuicao.html"><i class="bi bi-diagram-3-fill me-1"></i>Atribuição</a>
+      <a class="nav-back" href="index.html"><i class="bi bi-house-fill me-1"></i>Início</a>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <label><i class="bi bi-person-badge me-1"></i>Cargo</label>
+    <select class="selCargo" id="selCargo"></select>
+    <label class="ms-2"><i class="bi bi-clock me-1"></i>Jornada</label>
+    <div id="jornadaChips" class="d-flex gap-1 flex-wrap"></div>
+    <label class="ms-2">Vínculo</label>
+    <div id="vinculoChips" class="d-flex gap-1 flex-wrap"></div>
+    <div class="ms-auto d-flex gap-2">
+      <button class="btn-tool" onclick="atualizar()"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+      <button class="btn-tool" onclick="exportarExcel()"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+      <button class="btn-tool" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    </div>
+  </div>
+
+  <main class="container-fluid px-3 px-lg-4 py-3" style="max-width:1280px;">
+    <div id="estado" class="loader"><div class="spin"></div><div>Carregando dados da atribuição…</div></div>
+
+    <div id="conteudo" style="display:none;">
+      <div class="row g-2 g-lg-3 mb-3" id="kpis"></div>
+
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div class="sec-tt"><i class="bi bi-grid-3x3-gap-fill me-2"></i>Composição da jornada — tipo de aula × tipo de atribuição</div>
+          <div class="text-muted small">valores em <b>aulas</b> (soma da carga horária)</div>
+        </div>
+        <div class="table-responsive"><table class="mtx" id="matriz"></table></div>
+      </div>
+
+      <div class="card-box p-3 p-lg-4 mb-3" id="graficoWrap">
+        <div class="sec-tt mb-2"><i class="bi bi-bar-chart-fill me-2"></i>Aulas por tipo (disciplina AF)</div>
+        <canvas id="grafico" height="120"></canvas>
+      </div>
+
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#profBox">
+          <i class="bi bi-people me-1"></i>Detalhe por professor
+        </button>
+        <div class="collapse mt-3" id="profBox">
+          <div class="table-responsive" style="max-height:460px;overflow:auto;">
+            <table class="table table-sm table-hover align-middle mb-0" id="tabProf"></table>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-muted small px-1" id="rodape"></div>
+    </div>
+  </main>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   Composição da jornada — analisa a tabela `atribuicao_professores`
+   (relatório original de atribuição importado para o Supabase).
+   Se você usou outro nome de tabela/coluna, ajuste as constantes abaixo.
+   ══════════════════════════════════════════════════════════════════ */
+const SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk';
+const TABELA = 'atribuicao_professores';
+// Colunas (nomes amigáveis do CSV importado)
+const COL = {
+  prof:'cod_professor', nome:'nome_professor', cargo:'cargo', vinculo:'vinculo',
+  jornada:'jornada', disc:'disciplina_atribuida', tipo:'tipo_atribuicao',
+  carga:'carga_horaria', unidade:'unidade_atribuida', serie:'serie'
+};
+const SELECT = Object.values(COL).join(',');
+
+/* ── Estado ─────────────────────────────────────────────────────── */
+let ROWS = null;
+let cargoSel = 'PEB II';
+let jornadasSel = new Set([28, 32]);   // padrão pedido
+let vinculosSel = null;                // null = todos
+let grafico = null;
+
+function escapeHtml(s){ return String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+function br(n){ return Number(n||0).toLocaleString('pt-BR'); }
+function num(v){ const n = Number(v); return isNaN(n) ? 0 : n; }
+
+/* ── Busca de dados ─────────────────────────────────────────────── */
+async function fetchTudo() {
+  const CACHE = 'mapa_atrib_prof_v1', TTL = 10*60*1000;
+  if (!window.__forcar) {
+    try { const o = JSON.parse(localStorage.getItem(CACHE)||'null');
+      if (o && o.ts && (Date.now()-o.ts) < TTL && Array.isArray(o.rows)) return o.rows; } catch(e){}
+  }
+  window.__forcar = false;
+  const PAGE = 1000, H = { apikey:SUPABASE_KEY, Authorization:`Bearer ${SUPABASE_KEY}` };
+  const url = off => `${SUPABASE_URL}/rest/v1/${TABELA}?select=${SELECT}&limit=${PAGE}&offset=${off}`;
+  const first = await fetch(url(0), { headers:{ ...H, Prefer:'count=exact' } });
+  if (!first.ok) throw new Error(`Erro ${first.status} ao ler a tabela "${TABELA}". Verifique o nome da tabela e se há permissão de leitura (RLS).`);
+  let rows = await first.json();
+  if (rows.length === PAGE) {
+    const total = parseInt((first.headers.get('content-range')||'').split('/')[1], 10);
+    if (Number.isFinite(total)) {
+      const offs = []; for (let o=PAGE;o<total;o+=PAGE) offs.push(o);
+      const rest = await Promise.all(offs.map(async o => { const r = await fetch(url(o), {headers:H}); return r.ok ? r.json() : []; }));
+      rows = rows.concat(...rest);
+    }
+  }
+  try { localStorage.setItem(CACHE, JSON.stringify({ ts:Date.now(), rows })); } catch(e){}
+  return rows;
+}
+function aguardarAuth() {
+  return new Promise(res => {
+    if (window.MapaAuth && window.MapaAuth.perfil) return res();
+    document.addEventListener('mapa-auth-pronto', () => res(), { once:true });
+    setTimeout(res, 8000);
+  });
+}
+
+/* ── Filtro + agregação ─────────────────────────────────────────── */
+function filtradas() {
+  return (ROWS||[]).filter(r =>
+    (cargoSel === 'TODOS' || String(r[COL.cargo]) === cargoSel) &&
+    jornadasSel.has(num(r[COL.jornada])) &&
+    (!vinculosSel || vinculosSel.has(String(r[COL.vinculo]))));
+}
+function agregar(rows) {
+  const discs = {};                 // disc -> { aulas, profs:Set, porTipo:{} }
+  const tipos = {};                 // tipo -> aulas (total coluna)
+  const profs = new Set();
+  let total = 0;
+  rows.forEach(r => {
+    const d = r[COL.disc] || '—', t = r[COL.tipo] || '—', c = num(r[COL.carga]);
+    profs.add(r[COL.prof]); total += c;
+    tipos[t] = (tipos[t]||0) + c;
+    const o = (discs[d] ||= { aulas:0, profs:new Set(), porTipo:{} });
+    o.aulas += c; o.profs.add(r[COL.prof]); o.porTipo[t] = (o.porTipo[t]||0) + c;
+  });
+  const tiposOrd = Object.keys(tipos).sort((a,b) => tipos[b]-tipos[a] || a.localeCompare(b,'pt-BR'));
+  const discsOrd = Object.keys(discs).sort((a,b) => discs[b].aulas-discs[a].aulas || a.localeCompare(b,'pt-BR'));
+  return { discs, tipos, tiposOrd, discsOrd, profs:profs.size, total, linhas:rows.length };
+}
+
+/* ── Render ─────────────────────────────────────────────────────── */
+function render() {
+  const rows = filtradas();
+  const A = agregar(rows);
+
+  // KPIs (incluindo quebra por jornada selecionada)
+  const porJor = {};
+  [...jornadasSel].sort((a,b)=>a-b).forEach(j => {
+    const rj = rows.filter(r => num(r[COL.jornada]) === j);
+    porJor[j] = { profs:new Set(rj.map(r=>r[COL.prof])).size, aulas:rj.reduce((s,r)=>s+num(r[COL.carga]),0) };
+  });
+  const jorSub = Object.entries(porJor).map(([j,o]) => `${j}h: ${o.profs} prof · ${br(o.aulas)} aulas`).join(' · ');
+  const mediaAulas = A.profs ? Math.round(A.total / A.profs) : 0;
+  document.getElementById('kpis').innerHTML = `
+    <div class="col-6 col-lg-3"><div class="kpi"><div class="lbl"><i class="bi bi-person-badge me-1"></i>Professores</div>
+      <div class="val">${br(A.profs)}</div><div class="sub">${escapeHtml(cargoSel)}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#059669;"><div class="lbl"><i class="bi bi-journals me-1"></i>Aulas (carga)</div>
+      <div class="val">${br(A.total)}</div><div class="sub">${br(A.linhas)} linhas de atribuição</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#7c3aed;"><div class="lbl"><i class="bi bi-clock me-1"></i>Jornada(s)</div>
+      <div class="val">${[...jornadasSel].sort((a,b)=>a-b).join(' · ')||'—'}</div><div class="sub">${escapeHtml(jorSub)}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#d97706;"><div class="lbl"><i class="bi bi-calculator me-1"></i>Média aulas/prof</div>
+      <div class="val">${mediaAulas}</div><div class="sub">tipos de aula: ${A.discsOrd.length}</div></div></div>`;
+
+  // Matriz disciplina (AF) × tipo de atribuição (AH)
+  const thead = `<thead><tr>
+      <th style="text-align:left;">Tipo de aula (AF)</th>
+      <th>Profs</th>
+      ${A.tiposOrd.map(t => `<th>${escapeHtml(t)}</th>`).join('')}
+      <th style="background:#eef2ff;">Total</th></tr></thead>`;
+  const colTot = {}; A.tiposOrd.forEach(t => colTot[t] = 0); let geral = 0;
+  const linhas = A.discsOrd.map(d => {
+    const o = A.discs[d];
+    const tds = A.tiposOrd.map(t => {
+      const v = o.porTipo[t] || 0; colTot[t] += v;
+      return `<td class="${v?'':'zero'}">${v ? br(v) : '·'}</td>`;
+    }).join('');
+    geral += o.aulas;
+    return `<tr><th>${escapeHtml(d)}</th>
+      <td>${o.profs.size}</td>${tds}
+      <td style="background:#f5f7ff;"><span class="big">${br(o.aulas)}</span></td></tr>`;
+  }).join('');
+  const totRow = `<tr class="total-row"><th>Total</th><td>${A.profs}</td>
+    ${A.tiposOrd.map(t => `<td>${br(colTot[t])}</td>`).join('')}
+    <td>${br(geral)}</td></tr>`;
+  document.getElementById('matriz').innerHTML = thead + `<tbody>${linhas}${totRow}</tbody>`;
+
+  renderGrafico(A);
+  renderProfs(rows);
+
+  const escolas = new Set(rows.map(r => r[COL.unidade])).size;
+  document.getElementById('rodape').textContent =
+    `${br(A.linhas)} linhas · ${br(A.profs)} professores · ${escolas} unidades atribuídas. `
+    + `AF = disciplina/atividade atribuída · AH = tipo de atribuição.`;
+}
+
+function renderGrafico(A) {
+  const ctx = document.getElementById('grafico');
+  const labels = A.discsOrd, data = labels.map(d => A.discs[d].aulas);
+  const cfg = { labels, datasets:[{ label:'Aulas', data, backgroundColor:'#2563eb', borderRadius:4 }] };
+  if (grafico) { grafico.data = cfg; grafico.update(); return; }
+  grafico = new Chart(ctx, { type:'bar', data:cfg, options:{
+    indexAxis:'y', responsive:true, plugins:{ legend:{ display:false } },
+    scales:{ x:{ beginAtZero:true, ticks:{ precision:0 } } } } });
+}
+
+function renderProfs(rows) {
+  // por professor: jornada, e composição (disciplina: aulas)
+  const byP = {};
+  rows.forEach(r => {
+    const p = r[COL.prof];
+    const o = (byP[p] ||= { nome:r[COL.nome], jor:num(r[COL.jornada]), vinc:r[COL.vinculo], unid:r[COL.unidade], total:0, comp:{} });
+    const c = num(r[COL.carga]); o.total += c;
+    o.comp[r[COL.disc]] = (o.comp[r[COL.disc]]||0) + c;
+  });
+  const lista = Object.entries(byP).sort((a,b) => String(a[1].nome).localeCompare(String(b[1].nome),'pt-BR'));
+  const linhas = lista.map(([p,o]) => {
+    const comp = Object.entries(o.comp).sort((a,b)=>b[1]-a[1])
+      .map(([d,v]) => `${escapeHtml(d)} <b>${br(v)}</b>`).join(' · ');
+    return `<tr><td>${escapeHtml(o.nome)}</td><td class="text-center">${o.jor}</td>
+      <td class="text-center">${escapeHtml(o.vinc)}</td><td class="text-center">${br(o.total)}</td>
+      <td style="font-size:.8rem;">${comp}</td></tr>`;
+  }).join('');
+  document.getElementById('tabProf').innerHTML =
+    `<thead><tr><th>Professor</th><th class="text-center">Jornada</th><th class="text-center">Vínculo</th>
+      <th class="text-center">Aulas</th><th>Composição (disciplina: aulas)</th></tr></thead><tbody>${linhas}</tbody>`;
+}
+
+/* ── Toolbar ────────────────────────────────────────────────────── */
+function montarToolbar() {
+  // Cargo
+  const cargos = Array.from(new Set((ROWS||[]).map(r => String(r[COL.cargo])))).filter(Boolean).sort();
+  const sc = document.getElementById('selCargo');
+  sc.innerHTML = `<option value="TODOS">Todos</option>` + cargos.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  if (!cargos.includes(cargoSel)) cargoSel = cargos.includes('PEB II') ? 'PEB II' : 'TODOS';
+  sc.value = cargoSel;
+  sc.onchange = () => { cargoSel = sc.value; montarJornadas(); render(); };
+  montarJornadas();
+  montarVinculos();
+}
+function montarJornadas() {
+  const base = (ROWS||[]).filter(r => cargoSel === 'TODOS' || String(r[COL.cargo]) === cargoSel);
+  const jors = Array.from(new Set(base.map(r => num(r[COL.jornada])))).filter(j => j>0).sort((a,b)=>a-b);
+  // mantém seleção válida
+  const validas = new Set([...jornadasSel].filter(j => jors.includes(j)));
+  jornadasSel = validas.size ? validas : new Set(jors.filter(j => j===28||j===32));
+  if (!jornadasSel.size) jornadasSel = new Set(jors);
+  document.getElementById('jornadaChips').innerHTML = jors.map(j =>
+    `<button class="chip ${jornadasSel.has(j)?'active':''}" onclick="toggleJornada(${j})">${j}h</button>`).join('');
+}
+function toggleJornada(j) {
+  if (jornadasSel.has(j)) jornadasSel.delete(j); else jornadasSel.add(j);
+  if (!jornadasSel.size) jornadasSel.add(j);
+  montarJornadas(); render();
+}
+function montarVinculos() {
+  const vs = Array.from(new Set((ROWS||[]).map(r => String(r[COL.vinculo])))).filter(Boolean).sort();
+  const lbl = v => v === 'E' ? 'Efetivo' : v === 'C' ? 'Contratado' : v;
+  document.getElementById('vinculoChips').innerHTML = vs.map(v => {
+    const on = !vinculosSel || vinculosSel.has(v);
+    return `<button class="chip ${on?'active':''}" onclick="toggleVinculo('${escapeHtml(v)}')">${escapeHtml(lbl(v))}</button>`;
+  }).join('');
+}
+function toggleVinculo(v) {
+  const todos = Array.from(new Set((ROWS||[]).map(r => String(r[COL.vinculo]))));
+  if (!vinculosSel) vinculosSel = new Set(todos);
+  if (vinculosSel.has(v)) vinculosSel.delete(v); else vinculosSel.add(v);
+  if (vinculosSel.size === 0 || vinculosSel.size === todos.length) vinculosSel = null;
+  montarVinculos(); render();
+}
+
+/* ── Excel ──────────────────────────────────────────────────────── */
+async function exportarExcel() {
+  if (!ROWS) return;
+  const rows = filtradas(), A = agregar(rows);
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Composição jornada');
+  ws.addRow([`Cargo: ${cargoSel} · Jornada(s): ${[...jornadasSel].sort((a,b)=>a-b).join(', ')}h · Vínculo: ${vinculosSel?[...vinculosSel].join(', '):'Todos'}`]);
+  ws.addRow([]);
+  ws.addRow(['Tipo de aula (AF)', 'Profs', ...A.tiposOrd, 'Total']).font = { bold:true };
+  A.discsOrd.forEach(d => {
+    const o = A.discs[d];
+    ws.addRow([d, o.profs.size, ...A.tiposOrd.map(t => o.porTipo[t]||0), o.aulas]);
+  });
+  const colTot = A.tiposOrd.map(t => A.discsOrd.reduce((s,d) => s + (A.discs[d].porTipo[t]||0), 0));
+  ws.addRow(['Total', A.profs, ...colTot, A.total]).font = { bold:true };
+  ws.columns.forEach(c => c.width = 16); ws.getColumn(1).width = 32;
+
+  // aba por professor
+  const ws2 = wb.addWorksheet('Por professor');
+  ws2.addRow(['Professor','Jornada','Vínculo','Unidade','Aulas','Composição']).font = { bold:true };
+  const byP = {};
+  rows.forEach(r => { const p=r[COL.prof]; const o=(byP[p]||={nome:r[COL.nome],jor:num(r[COL.jornada]),vinc:r[COL.vinculo],unid:r[COL.unidade],total:0,comp:{}});
+    const c=num(r[COL.carga]); o.total+=c; o.comp[r[COL.disc]]=(o.comp[r[COL.disc]]||0)+c; });
+  Object.values(byP).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR')).forEach(o => {
+    const comp = Object.entries(o.comp).sort((a,b)=>b[1]-a[1]).map(([d,v])=>`${d}: ${v}`).join(' | ');
+    ws2.addRow([o.nome, o.jor, o.vinc, o.unid, o.total, comp]);
+  });
+  ws2.columns.forEach(c => c.width = 22); ws2.getColumn(6).width = 60;
+
+  const buf = await wb.xlsx.writeBuffer();
+  const url = URL.createObjectURL(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  const a = document.createElement('a'); a.href = url; a.download = 'composicao-jornada.xlsx'; a.click(); URL.revokeObjectURL(url);
+}
+
+/* ── Carregamento ───────────────────────────────────────────────── */
+async function carregar() {
+  document.getElementById('estado').style.display = 'block';
+  document.getElementById('conteudo').style.display = 'none';
+  try {
+    await aguardarAuth();
+    ROWS = await fetchTudo();
+    document.getElementById('estado').style.display = 'none';
+    document.getElementById('conteudo').style.display = 'block';
+    montarToolbar();
+    render();
+  } catch (e) {
+    document.getElementById('estado').innerHTML =
+      `<div class="alert alert-danger d-inline-block text-start">${escapeHtml(e.message || e)}</div>`;
+  }
+}
+function atualizar() { window.__forcar = true; carregar(); }
+carregar();
+</script>
+</body>
+</html>
