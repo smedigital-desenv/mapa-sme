@@ -99,6 +99,12 @@
         <div class="table-responsive"><table class="mtx" id="matriz"></table></div>
       </div>
 
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <div class="sec-tt mb-1"><i class="bi bi-building me-2"></i>Em quantas unidades compuseram a jornada</div>
+        <p class="text-muted small mb-3">Quantas <b>unidades distintas</b> (coluna W — unidade atribuída) cada professor usou para fechar a jornada.</p>
+        <div id="blocoUnidades"></div>
+      </div>
+
       <div class="card-box p-3 p-lg-4 mb-3" id="graficoWrap">
         <div class="sec-tt mb-2"><i class="bi bi-bar-chart-fill me-2"></i>Aulas por tipo (disciplina AF)</div>
         <canvas id="grafico" height="120"></canvas>
@@ -249,6 +255,7 @@ function render() {
     <td>${br(geral)}</td></tr>`;
   document.getElementById('matriz').innerHTML = thead + `<tbody>${linhas}${totRow}</tbody>`;
 
+  renderUnidades(rows);
   renderGrafico(A);
   renderProfs(rows);
 
@@ -256,6 +263,51 @@ function render() {
   document.getElementById('rodape').textContent =
     `${br(A.linhas)} linhas · ${br(A.profs)} professores · ${escolas} unidades atribuídas. `
     + `AF = disciplina/atividade atribuída · AH = tipo de atribuição.`;
+}
+
+// Em quantas unidades distintas (unidade_atribuida) cada professor compôs a jornada.
+function renderUnidades(rows) {
+  const box = document.getElementById('blocoUnidades');
+  const byp = {};
+  rows.forEach(r => { (byp[r[COL.prof]] ||= new Set()).add(r[COL.unidade]); });
+  const sets = Object.values(byp), tot = sets.length;
+  if (!tot) { box.innerHTML = '<div class="text-muted">Sem professores no filtro.</div>'; return; }
+  const hist = {}; let somaUn = 0;
+  sets.forEach(s => { const n = s.size; hist[n] = (hist[n]||0) + 1; somaUn += n; });
+  const media = somaUn / tot;
+  const multi = sets.filter(s => s.size > 1).length;
+  const maxCount = Math.max(...Object.values(hist));
+  const niveis = Object.keys(hist).map(Number).sort((a,b)=>a-b);
+
+  const linhas = niveis.map(n => {
+    const q = hist[n], pc = q/tot*100, larg = q/maxCount*100;
+    return `<tr>
+      <th class="text-center">${n} unidade${n>1?'s':''}</th>
+      <td class="text-end fw-bold">${br(q)}</td>
+      <td class="text-end">${pc.toFixed(1)}%</td>
+      <td style="width:45%;">
+        <div style="background:#e0e7ff;border-radius:6px;overflow:hidden;">
+          <div style="width:${larg.toFixed(1)}%;background:${n>1?'#d97706':'#2563eb'};height:16px;"></div>
+        </div>
+      </td></tr>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div class="row g-2 g-lg-3 mb-3">
+      <div class="col-6 col-lg-4"><div class="kpi" style="border-left-color:#2563eb;">
+        <div class="lbl">Média de unidades / prof</div><div class="val">${media.toFixed(2)}</div></div></div>
+      <div class="col-6 col-lg-4"><div class="kpi" style="border-left-color:#059669;">
+        <div class="lbl">Em 1 unidade só</div><div class="val">${br(hist[1]||0)}</div>
+        <div class="sub">${(((hist[1]||0)/tot)*100).toFixed(1)}% dos professores</div></div></div>
+      <div class="col-12 col-lg-4"><div class="kpi" style="border-left-color:#d97706;">
+        <div class="lbl">Em mais de 1 unidade</div><div class="val">${br(multi)}</div>
+        <div class="sub">${(multi/tot*100).toFixed(1)}% — compõem a jornada em escolas diferentes</div></div></div>
+    </div>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+      <thead><tr><th class="text-center">Unidades</th><th class="text-end">Professores</th><th class="text-end">%</th><th></th></tr></thead>
+      <tbody>${linhas}</tbody>
+      <tfoot><tr class="fw-bold"><th class="text-center">Total</th><td class="text-end">${br(tot)}</td><td class="text-end">100%</td><td></td></tr></tfoot>
+    </table></div>`;
 }
 
 function renderGrafico(A) {
@@ -349,6 +401,15 @@ async function exportarExcel() {
   const colTot = A.tiposOrd.map(t => A.discsOrd.reduce((s,d) => s + (A.discs[d].porTipo[t]||0), 0));
   ws.addRow(['Total', A.profs, ...colTot, A.total]).font = { bold:true };
   ws.columns.forEach(c => c.width = 16); ws.getColumn(1).width = 32;
+
+  // resumo: em quantas unidades compuseram a jornada
+  const byU = {}; rows.forEach(r => { (byU[r[COL.prof]] ||= new Set()).add(r[COL.unidade]); });
+  const setsU = Object.values(byU), totU = setsU.length, histU = {};
+  setsU.forEach(s => { histU[s.size] = (histU[s.size]||0) + 1; });
+  ws.addRow([]); ws.addRow(['Em quantas unidades compuseram a jornada']).font = { bold:true };
+  ws.addRow(['Unidades', 'Professores', '%']).font = { bold:true };
+  Object.keys(histU).map(Number).sort((a,b)=>a-b).forEach(n =>
+    ws.addRow([n, histU[n], totU ? +(histU[n]/totU*100).toFixed(1) : 0]));
 
   // aba por professor
   const ws2 = wb.addWorksheet('Por professor');
