@@ -5,9 +5,10 @@
 -- relatorios/boletim) com dados isolados na unidade. Idempotente.
 -- Pré-requisito: sql/07,08,12 (norm_escola), 20. Rode depois deles.
 -- ============================================================================
-begin;
-
-create temp table _imp (email text, nome text, escola text, vinculo text) on commit drop;
+-- Temp de SESSÃO (sem "on commit drop" e sem begin/commit): o SQL Editor do
+-- Supabase confirma cada statement, então a temp precisa sobreviver entre eles.
+drop table if exists _imp;
+create temp table _imp (email text, nome text, escola text, vinculo text);
 insert into _imp (email, nome, escola, vinculo) values
     ('jacquelineiossi@educacao.pmrp.sp.gov.br','JACQUELINE PISCHIOTTIN IOSSI','ADRIANA COUTINHO BRANDANI CAMILO, EMEI','gestor'),
     ('dianenilson@educacao.pmrp.sp.gov.br','DIANE RODRIGUES NILSON','ALAOR GALVAO CESAR CEI','gestor'),
@@ -199,7 +200,7 @@ join public.perfis  p on p.email = lower(i.email)
 join public.escolas e on public.norm_escola(e.nome) = public.norm_escola(i.escola)
 on conflict (perfil_id, escola_id) do nothing;
 
-commit;
+drop table _imp;
 
 -- Conferência:
 -- select count(*) from public.perfis where tipo='escola';
