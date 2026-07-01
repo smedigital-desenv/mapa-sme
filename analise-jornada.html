@@ -816,6 +816,8 @@ function normalizar(txt) {
 function classificarAno(anoRaw) {
   const n = normalizar(anoRaw), f = colapsar(anoRaw);
   if (f.includes('TERMO') || f.includes('EJA') || f.includes('CICLO')) return null;
+  if (f.includes('LIMINAR')) return null;   // aulas p/ completar jornada, não turma
+
   if (f.includes('ETAPA')) {
     const m = n.match(/ETAPA\s*-?\s*(II|2|DOIS|I|1|UM)\b/);
     if (m) { const t = m[1];
