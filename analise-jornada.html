@@ -1048,10 +1048,13 @@ let capVincSel = null;     // null = todos (E + C)
 let capSitSel = null;      // null = todas as situações (coluna H)
 let CAP = null;            // resultados da grade (após carregar turmas)
 
-// ano_escolar → { seg, ano } | null (EJA/Termos/especial fora).
+// ano_escolar → { seg, ano } | null (EJA/Termos/especial/liminar fora).
 function anoRegular(anoRaw) {
   const n = normalizar(anoRaw), f = colapsar(anoRaw);
   if (f.includes('TERMO') || f.includes('EJA')) return null;
+  // "LIMINAR" (ex.: "ETAPA II - PARCIAL - LIMINAR 12H/A") não é turma: são aulas
+  // criadas para completar jornada (por decisão judicial). Fica fora da grade.
+  if (f.includes('LIMINAR')) return null;
   if (f.includes('CICLO')) {
     const m = n.match(/CICLO\s*-?\s*([IVX]+|\d+)/);
     return { seg:'Ciclos', ano: m ? ('Ciclo ' + m[1]) : 'Ciclos' };
