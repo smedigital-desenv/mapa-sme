@@ -258,6 +258,11 @@
       });
       if (!ok) el.style.display = 'none';
     });
+    // data-superadmin: elemento visível SÓ para super admin (ex.: Retrato Quantitativo).
+    var ehAdm = !!(api.perfil && api.perfil.is_super_admin);
+    document.querySelectorAll('[data-superadmin]').forEach(function (el) {
+      if (!ehAdm) el.style.display = 'none';
+    });
 
     // chip do usuário + sair, fixado no canto (não depende do layout da página)
     if (!document.getElementById('mapa-user-chip')) {
