@@ -141,9 +141,12 @@
       <!-- Visão geral (rede toda) para conferir com o retrato -->
       <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #059669;">
         <div class="sec-tt mb-1"><i class="bi bi-clipboard-check me-2"></i>Visão geral das atribuições (rede) — conferência com o Retrato</div>
-        <p class="text-muted small mb-3"><b>Toda a base</b> (ignora cargo/jornada/vínculo; <b>respeita o filtro de Status</b> — desmarque "TROCA" para aproximar do retrato). Categorias iguais às do retrato
+        <p class="text-muted small mb-3"><b>Toda a base</b> (ignora cargo/jornada/vínculo; respeita o filtro de Status). Categorias iguais às do retrato
           (projetos pela disciplina AF; etapa/ano pela série AC) para comparar linha a linha com o
-          <a href="retrato-atribuicao.html" target="_blank">retrato-atribuicao</a>.</p>
+          <a href="retrato-atribuicao.html" target="_blank">retrato-atribuicao</a>.<br>
+          <b>Aulas necessárias</b> = cada turma × disciplina contada <b>uma única vez</b> (é o que se compara ao retrato):
+          quando um slot foi trocado de professor (ATRIBUIDA → TROCA) ou aparece duplicado, a <b>troca não é contada duas vezes</b>.
+          A coluna <b>Atribuídas (c/ trocas)</b> mostra a carga bruta de todas as linhas; o valor <span style="color:#b45309;">(+n)</span> é quanto as trocas/duplicidades inflam o total.</p>
         <div class="table-responsive"><table class="mtx" id="tabVisao"></table></div>
       </div>
 
@@ -164,7 +167,8 @@ const TABELA = 'atribuicao_professores';
 const COL = {
   prof:'cod_professor', nome:'nome_professor', cargo:'cargo', vinculo:'vinculo',
   jornada:'jornada', disc:'disciplina_atribuida', tipo:'tipo_atribuicao',
-  carga:'carga_horaria', unidade:'unidade_atribuida', serie:'serie', status:'status_atribuicao'
+  carga:'carga_horaria', unidade:'unidade_atribuida', unidCod:'cod_unidade_atribuida',
+  serie:'serie', letra:'letra_turma', status:'status_atribuicao'
 };
 const SELECT = Object.values(COL).join(',');
 
@@ -204,6 +208,12 @@ function projAF(af) {
   if (f.includes('PARALELA') && f.includes('RECUP')) return 'PRP';
   return null;
 }
+// Chave do "slot" (turma × disciplina). Duas linhas com a mesma chave são a
+// MESMA necessidade da turma: troca de professor (ATRIBUIDA → TROCA) ou
+// duplicidade. Para "aulas necessárias" cada slot conta uma única vez.
+function slotKey(r) {
+  return [r[COL.unidCod], r[COL.serie], r[COL.letra], r[COL.disc]].join('|');
+}
 // Categoria da linha p/ a visão geral (mesma estrutura do retrato).
 function catGeral(r) {
   const p = projAF(r[COL.disc]); if (p) return 'Projeto: ' + p;
@@ -221,7 +231,7 @@ function catGeral(r) {
 
 /* ── Busca de dados ─────────────────────────────────────────────── */
 async function fetchTudo() {
-  const CACHE = 'mapa_atrib_prof_v2', TTL = 10*60*1000;
+  const CACHE = 'mapa_atrib_prof_v3', TTL = 10*60*1000;
   if (!window.__forcar) {
     try { const o = JSON.parse(localStorage.getItem(CACHE)||'null');
       if (o && o.ts && (Date.now()-o.ts) < TTL && Array.isArray(o.rows)) return o.rows; } catch(e){}
@@ -438,39 +448,58 @@ function renderSubstituicao(rows) {
 function renderVisaoGeral() {
   const box = document.getElementById('tabVisao'); if (!box || !ROWS) return;
   const base = statusSel ? ROWS.filter(r => statusSel.has(String(r[COL.status]))) : ROWS;
-  const agg = {};
+  // Para cada categoria acumulamos:
+  //   nec   = aulas necessárias (cada slot turma×disciplina 1×; troca não conta 2×)
+  //   aulas = carga bruta de todas as linhas (com trocas/duplicidades)
+  //   linhas, profs
+  const agg = {}, vistos = new Set();
   base.forEach(r => { const k = catGeral(r);
-    const o = (agg[k] ||= { aulas:0, linhas:0, profs:new Set() });
-    o.aulas += num(r[COL.carga]); o.linhas++; o.profs.add(r[COL.prof]); });
-  const V = k => agg[k] || { aulas:0, linhas:0, profs:new Set() };
-  const linha = (rot, k, cls='') => { const o = V(k);
+    const o = (agg[k] ||= { nec:0, aulas:0, linhas:0, profs:new Set() });
+    const c = num(r[COL.carga]);
+    o.aulas += c; o.linhas++; o.profs.add(r[COL.prof]);
+    const sk = k + '¦' + slotKey(r);                    // slot dentro da categoria
+    if (!vistos.has(sk)) { vistos.add(sk); o.nec += c; } // conta a necessidade 1×
+  });
+  const V = k => agg[k] || { nec:0, aulas:0, linhas:0, profs:new Set() };
+  const linha = (rot, k, cls='') => { const o = V(k); const dup = o.aulas - o.nec;
     return `<tr class="${cls}"><th style="text-align:left;padding-left:1.4rem;">${escapeHtml(rot)}</th>
-      <td class="text-end fw-bold">${br(o.aulas)}</td><td class="text-end">${br(o.linhas)}</td><td class="text-end">${br(o.profs.size)}</td></tr>`; };
-  const grupo = tit => `<tr class="total-row"><th colspan="4" style="text-align:left;">${escapeHtml(tit)}</th></tr>`;
+      <td class="text-end fw-bold">${br(o.nec)}</td>
+      <td class="text-end text-muted">${br(o.aulas)}${dup?` <span style="color:#b45309;font-size:.78rem;">(+${br(dup)})</span>`:''}</td>
+      <td class="text-end">${br(o.linhas)}</td><td class="text-end">${br(o.profs.size)}</td></tr>`; };
+  const grupo = tit => `<tr class="total-row"><th colspan="5" style="text-align:left;">${escapeHtml(tit)}</th></tr>`;
 
   const infKeys = ['Etapa I','Etapa II'];
   const fundKeys = ['1º Ano','2º Ano','3º Ano','4º Ano','5º Ano'];
   const projKeys = ['Projeto: PPA','Projeto: PPP','Projeto: PRP'];
   const foraKeys = ['6º–9º Ano','Ciclos','EJA (Termos)','Educação Especial','Substituição/Complemento','Outros (oficinas etc.)'];
-  const somaK = ks => ks.reduce((s,k)=>s+V(k).aulas,0);
-  const comp = somaK(infKeys) + somaK(fundKeys) + somaK(projKeys);
-  const totalGeral = Object.values(agg).reduce((s,o)=>s+o.aulas,0);
-  const subLinha = (rot,val,st) => `<tr style="${st||''}"><th style="text-align:left;">${rot}</th><td class="text-end fw-bold">${br(val)}</td><td colspan="2"></td></tr>`;
+  const somaNec = ks => ks.reduce((s,k)=>s+V(k).nec,0);
+  const somaAul = ks => ks.reduce((s,k)=>s+V(k).aulas,0);
+  const compNec = somaNec(infKeys) + somaNec(fundKeys) + somaNec(projKeys);
+  const compAul = somaAul(infKeys) + somaAul(fundKeys) + somaAul(projKeys);
+  const totNec = Object.values(agg).reduce((s,o)=>s+o.nec,0);
+  const totAul = Object.values(agg).reduce((s,o)=>s+o.aulas,0);
+  const subLinha = (rot,nec,aul,st) => { const dup = aul-nec;
+    return `<tr style="${st||''}"><th style="text-align:left;">${rot}</th>
+      <td class="text-end fw-bold">${br(nec)}</td>
+      <td class="text-end text-muted">${br(aul)}${dup?` <span style="color:#b45309;font-size:.78rem;">(+${br(dup)})</span>`:''}</td>
+      <td colspan="2"></td></tr>`; };
 
   box.innerHTML = `
-    <thead><tr><th style="text-align:left;">Categoria</th><th class="text-end">Aulas</th><th class="text-end">Linhas</th><th class="text-end">Profs</th></tr></thead>
+    <thead><tr><th style="text-align:left;">Categoria</th>
+      <th class="text-end">Aulas necessárias</th><th class="text-end">Atribuídas (c/ trocas)</th>
+      <th class="text-end">Linhas</th><th class="text-end">Profs</th></tr></thead>
     <tbody>
       ${grupo('Educação Infantil — Etapas')}
       ${infKeys.map(k=>linha(k,k)).join('')}
       ${grupo('Ensino Fundamental — 1º ao 5º')}
       ${fundKeys.map(k=>linha(k,k)).join('')}
-      ${subLinha('Subtotal 1º–5º', somaK(fundKeys), 'background:#f8fafc;')}
+      ${subLinha('Subtotal 1º–5º', somaNec(fundKeys), somaAul(fundKeys), 'background:#f8fafc;')}
       ${grupo('Projetos')}
       ${projKeys.map(k=>linha(k.replace('Projeto: ',''),k)).join('')}
-      ${subLinha('▶ Subtotal comparável ao Retrato (Etapas + 1º–5º + Projetos)', comp, 'background:#dbeafe;')}
+      ${subLinha('▶ Subtotal comparável ao Retrato (Etapas + 1º–5º + Projetos)', compNec, compAul, 'background:#dbeafe;')}
       ${grupo('Fora do escopo do retrato')}
       ${foraKeys.map(k=>linha(k,k)).join('')}
-      ${subLinha('TOTAL GERAL DA BASE', totalGeral, 'background:#f1f5f9;border-top:2px solid #cbd5e1;')}
+      ${subLinha('TOTAL GERAL DA BASE', totNec, totAul, 'background:#f1f5f9;border-top:2px solid #cbd5e1;')}
     </tbody>`;
 }
 
