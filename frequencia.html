@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <script src="auth-guard.js"></script>
+  <script>window.MAPA_SISTEMA = 'mapa'; window.MAPA_TELA = 'frequencia';</script>
+  <script src="auth.js" defer></script>
+  <script src="config-central.js" defer></script>
+  <script src="demo-mode.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MAPA — Frequência × Distância</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    window.MAPA_SUPABASE = {
+      url: "https://gmwotfulohkmuqrezeef.supabase.co",
+      anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk"
+    };
+  </script>
+  <style>
+    :root { --primary:#002b5e; --neon-blue:#00e5ff; --verde:#10b981; --amber:#f59e0b; --vermelho:#ef4444; }
+    html,body { background:#eef2f7; } body { font-family:'Inter',sans-serif; }
+    .mg-header { background:var(--primary); color:#fff; border-bottom:5px solid var(--neon-blue); padding:.9rem 1.6rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; position:sticky; top:0; z-index:1050; box-shadow:0 6px 18px rgba(0,43,94,.18); }
+    .mg-brand { display:flex; align-items:center; gap:.6rem; min-width:180px; cursor:pointer; }
+    .mg-brand-icon { width:34px; height:34px; display:grid; place-items:center; color:var(--neon-blue); font-size:1.4rem; }
+    .mg-brand h4 { margin:0; font-weight:900; font-size:1.4rem; line-height:1; }
+    .mg-brand-sub { font-size:.63rem; color:rgba(255,255,255,.68); font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-top:2px; }
+    .mg-nav { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; flex:1; min-width:280px; }
+    .mg-nav-btn { display:inline-flex; align-items:center; gap:.4rem; justify-content:center; min-width:120px; font-size:.78rem; font-weight:900; padding:6px 14px; border-radius:8px; border:2px solid transparent; color:#fff; text-decoration:none; transition:.2s; white-space:nowrap; cursor:pointer; }
+    .mg-nav-btn:hover { border-color:rgba(255,255,255,.4); } .mg-nav-btn.active { background:#fff; color:var(--primary); }
+    .mg-nav-icon { min-width:auto; padding:6px 10px; }
+    .mg-action-btn { background:#fff; color:var(--primary); border:0; border-radius:8px; padding:6px 12px; font-weight:900; font-size:.78rem; display:inline-flex; align-items:center; gap:.4rem; cursor:pointer; }
+    @media (max-width:992px){ .mg-nav-btn{ min-width:auto; } }
+    .faixa { background:linear-gradient(90deg,#013a7d,#002b5e); color:#fff; padding:.6rem 1.6rem; display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+    .faixa .ic { color:var(--neon-blue); font-size:1.3rem; } .faixa h5 { margin:0; font-weight:900; }
+    .faixa .sub { font-size:.62rem; color:rgba(255,255,255,.7); font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .kpi { background:#fff; border-radius:14px; padding:.85rem 1rem; box-shadow:0 4px 14px rgba(0,0,0,.05); border-left:5px solid var(--primary); height:100%; }
+    .kpi .label { font-size:.66rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.03em; }
+    .kpi .val { font-size:1.7rem; font-weight:900; color:var(--primary); line-height:1.1; }
+    .kpi .sub2 { font-size:.7rem; color:#94a3b8; font-weight:700; }
+    .card-box { background:#fff; border-radius:16px; box-shadow:0 4px 14px rgba(0,0,0,.05); }
+    .sec-tt { font-weight:900; color:var(--primary); font-size:.98rem; }
+    .sec-sub { font-size:.76rem; color:#64748b; }
+    .insight { border-radius:14px; padding:.9rem 1.15rem; font-weight:800; display:flex; align-items:center; gap:.7rem; }
+    table.mapa { width:100%; font-size:.84rem; }
+    table.mapa thead th { position:sticky; top:0; background:var(--primary); color:#fff; font-weight:800; font-size:.68rem; text-transform:uppercase; letter-spacing:.02em; padding:8px 10px; white-space:nowrap; }
+    table.mapa tbody td { padding:6px 10px; border-bottom:1px solid #eef2f7; }
+    table.mapa tbody tr:hover { background:#f1f6ff; }
+    .bar { height:9px; border-radius:999px; background:#e5e7eb; overflow:hidden; min-width:60px; } .bar > span { display:block; height:100%; }
+    .pill { font-weight:800; font-size:.72rem; padding:2px 9px; border-radius:999px; }
+    .row-clic { cursor:pointer; }
+  </style>
+</head>
+<body>
+
+<header class="mg-header">
+  <div class="mg-brand" onclick="location.href='index.html'" title="Página inicial do MAPA">
+    <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div><div><h4>MAPA</h4><div class="mg-brand-sub">SME Ribeirão Preto</div></div>
+  </div>
+  <nav class="mg-nav">
+    <div class="mg-dd" data-tela-any="avaliacao,elefante,fluencia">
+      <a class="mg-nav-btn mg-dd-toggle" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+        <a class="mg-dd-item" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <a class="mg-nav-btn active" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+    <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+    <a class="mg-nav-btn" href="boletim.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+    <a class="mg-nav-btn mg-nav-icon" href="#" id="btnConfig" style="display:none" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
+  </nav>
+  <div><button class="mg-action-btn" onclick="location.reload()" title="Atualizar"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button></div>
+</header>
+
+<div class="faixa">
+  <i class="bi bi-geo-alt-fill ic"></i>
+  <div><h5>Frequência × Distância</h5><div class="sub">SME Ribeirão Preto · Presença do aluno vs. distância da unidade</div></div>
+  <div class="ms-auto" id="seletorUnidadeBox" style="display:none">
+    <select id="seletorUnidade" class="form-select form-select-sm fw-bold" style="min-width:260px" onchange="trocarUnidade()"></select>
+  </div>
+  <div class="ms-auto fw-bold" id="lockUnidade" style="display:none;font-size:.85rem"></div>
+</div>
+
+<main class="container-fluid px-3 px-lg-4 py-3">
+  <div id="estado" class="text-center text-muted py-5">
+    <div class="spinner-border text-primary mb-2"></div><div>Carregando frequência…</div>
+  </div>
+
+  <div id="conteudo" style="display:none">
+    <!-- Insight headline -->
+    <div id="insightBox" class="insight mb-3"></div>
+
+    <!-- KPIs -->
+    <div class="row g-2 g-lg-3 mb-3" id="kpis"></div>
+
+    <div class="row g-3 mb-3">
+      <!-- Gráfico principal: composição por faixa -->
+      <div class="col-lg-8">
+        <div class="card-box p-3 h-100">
+          <div class="sec-tt"><i class="bi bi-bar-chart-steps me-1"></i>Composição da frequência por distância</div>
+          <div class="sec-sub mb-2">Cada barra = 100% das chamadas dos alunos daquela faixa de 500&nbsp;m. Verde = presença · Amarelo = falta justificada · Vermelho = falta não justificada.</div>
+          <div style="position:relative;height:340px;"><canvas id="chFaixas"></canvas></div>
+        </div>
+      </div>
+      <!-- Donut geral -->
+      <div class="col-lg-4">
+        <div class="card-box p-3 h-100">
+          <div class="sec-tt"><i class="bi bi-pie-chart-fill me-1"></i>Visão geral</div>
+          <div class="sec-sub mb-2">Somatório de todas as chamadas.</div>
+          <div style="position:relative;height:250px;"><canvas id="chDonut"></canvas></div>
+          <div id="donutLegenda" class="mt-2 small"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <!-- Linha de presença + distribuição -->
+      <div class="col-lg-7">
+        <div class="card-box p-3 h-100">
+          <div class="sec-tt"><i class="bi bi-graph-down-arrow me-1"></i>Taxa de presença conforme a distância</div>
+          <div class="sec-sub mb-2">Quanto mais longe o aluno mora, o que acontece com a presença?</div>
+          <div style="position:relative;height:280px;"><canvas id="chLinha"></canvas></div>
+        </div>
+      </div>
+      <!-- Distribuição de alunos -->
+      <div class="col-lg-5">
+        <div class="card-box p-3 h-100">
+          <div class="sec-tt"><i class="bi bi-people-fill me-1"></i>Quantos alunos em cada faixa</div>
+          <div class="sec-sub mb-2">Distribuição dos alunos por distância da unidade.</div>
+          <div style="position:relative;height:280px;"><canvas id="chDistrib"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grupos de avaliação (tabela) -->
+    <div class="card-box p-3 mb-3">
+      <div class="sec-tt mb-2"><i class="bi bi-collection-fill me-1"></i>Grupos de avaliação (faixas de 500&nbsp;m)</div>
+      <div class="table-responsive" style="max-height:360px;overflow:auto">
+        <table class="mapa">
+          <thead><tr>
+            <th>Faixa de distância</th><th class="text-center">Alunos</th>
+            <th>Presença</th><th>Falta justificada</th><th>Falta não justificada</th>
+          </tr></thead>
+          <tbody id="tbFaixas"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Ranking de unidades (só rede/super admin) -->
+    <div class="card-box p-3" id="boxUnidades" style="display:none">
+      <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+        <div class="sec-tt"><i class="bi bi-building me-1"></i>Unidades — menor presença primeiro</div>
+        <input id="buscaUn" class="form-control form-control-sm" style="max-width:260px" placeholder="Buscar unidade…" oninput="renderUnidades()">
+      </div>
+      <div class="table-responsive" style="max-height:420px;overflow:auto">
+        <table class="mapa">
+          <thead><tr><th>Unidade</th><th class="text-center">Alunos</th><th>Presença</th><th class="text-center">Dist. média</th></tr></thead>
+          <tbody id="tbUnidades"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  const SB = window.MAPA_SB || window.supabase.createClient(window.MAPA_SUPABASE.url, window.MAPA_SUPABASE.anonKey);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const fmt = n => Number(n||0).toLocaleString('pt-BR');
+  const COR = { pre:'#10b981', jus:'#f59e0b', aus:'#ef4444' };
+  const charts = {};
+  function chart(id, cfg){ if(charts[id]) charts[id].destroy(); charts[id] = new Chart(document.getElementById(id), cfg); }
+  function faixaLabel(min){ return min >= 10000 ? '10 km+' : (min/1000).toFixed(1).replace('.0','')+'–'+((min+500)/1000).toFixed(1)+' km'; }
+  function corFreq(p){ return p>=73?'#10b981' : p>=70?'#84cc16' : p>=67?'#f59e0b' : '#ef4444'; }
+  function barra(p,cor){ p=Math.max(0,Math.min(100,p||0)); return '<div class="d-flex align-items-center gap-2"><div class="bar" style="flex:1"><span style="width:'+p+'%;background:'+cor+'"></span></div><b style="font-size:.74rem;color:#475569;min-width:44px">'+p.toFixed(1)+'%</b></div>'; }
+
+  let DADOS = null, UNIDADE = null, isRede = false;
+
+  function aguardarAuth(){ return new Promise(r=>{ if(window.MapaAuth&&window.MapaAuth.perfil)return r(); document.addEventListener('mapa-auth-pronto',()=>r(),{once:true}); setTimeout(r,8000); }); }
+
+  async function carregar(){
+    await aguardarAuth();
+    // Escola/gestor -> só a própria unidade. Super admin -> rede + seletor.
+    if (window.MapaAuth && window.MapaAuth.restritoEscola && window.MapaAuth.escolas && window.MapaAuth.escolas.length){
+      UNIDADE = window.MapaAuth.escolas[0].nome; isRede = false;
+      document.getElementById('lockUnidade').style.display = '';
+      document.getElementById('lockUnidade').innerHTML = '<i class="bi bi-lock-fill me-1"></i>' + esc(UNIDADE);
+    } else {
+      UNIDADE = null; isRede = true;
+    }
+    await buscar(UNIDADE);
+  }
+
+  async function buscar(unidade){
+    document.getElementById('estado').style.display = '';
+    document.getElementById('conteudo').style.display = 'none';
+    const { data, error } = await SB.rpc('freq_dist_resumo', { p_unidade: unidade });
+    if (error){ document.getElementById('estado').innerHTML = '<div class="alert alert-danger">Erro: '+esc(error.message)+'</div>'; return; }
+    DADOS = data || {};
+    if (isRede) montarSeletor();
+    render();
+    document.getElementById('estado').style.display = 'none';
+    document.getElementById('conteudo').style.display = 'block';
+  }
+
+  function montarSeletor(){
+    const box = document.getElementById('seletorUnidadeBox'); box.style.display = '';
+    const uns = (DADOS.por_unidade||[]).slice().sort((a,b)=> String(a[0]).localeCompare(String(b[0])));
+    const sel = document.getElementById('seletorUnidade');
+    sel.innerHTML = '<option value="">🌐 Toda a rede</option>' + uns.map(u=>'<option value="'+esc(u[0])+'"'+(UNIDADE===u[0]?' selected':'')+'>'+esc(u[0])+'</option>').join('');
+  }
+  window.trocarUnidade = function(){ const v = document.getElementById('seletorUnidade').value; UNIDADE = v||null; buscar(UNIDADE); };
+
+  function render(){
+    const g = DADOS.geral || {};
+    const fx = DADOS.faixas || [];
+
+    // ── Insight headline: compara faixa mais perto x mais longe ──
+    const comDados = fx.filter(f=>f[1]>=30); // faixas com pelo menos 30 alunos
+    const perto = comDados[0], longe = comDados[comDados.length-1];
+    const box = document.getElementById('insightBox');
+    if (perto && longe && perto[0] !== longe[0]){
+      const dif = (perto[2]-longe[2]);
+      const piora = dif > 1.5;
+      box.style.background = piora ? '#fef2f2' : '#ecfdf5';
+      box.style.color = piora ? '#991b1b' : '#065f46';
+      box.style.border = '1px solid ' + (piora ? '#fecaca' : '#a7f3d0');
+      box.innerHTML = '<i class="bi bi-'+(piora?'exclamation-triangle-fill':'check-circle-fill')+'" style="font-size:1.5rem"></i>'
+        + '<div>Alunos que moram <b>até '+faixaLabel(perto[0]).split('–')[1]+'</b> têm <b>'+perto[2]+'% de presença</b>; '
+        + 'os mais distantes (<b>'+faixaLabel(longe[0])+'</b>) têm <b>'+longe[2]+'%</b> — '
+        + (piora ? 'uma queda de <b>'+dif.toFixed(1)+' pontos</b> conforme a distância aumenta.' : 'sem queda relevante com a distância.') +'</div>';
+    } else { box.style.display='none'; }
+
+    // ── KPIs ──
+    const kpi = (lb,v,sub,cor)=>'<div class="col-6 col-md-4 col-lg"><div class="kpi" style="border-left-color:'+cor+'"><div class="label">'+lb+'</div><div class="val" style="color:'+cor+'">'+v+'</div><div class="sub2">'+(sub||'')+'</div></div></div>';
+    document.getElementById('kpis').innerHTML =
+      kpi('Alunos', fmt(g.alunos), (g.unidades?fmt(g.unidades)+' unidade(s)':''), 'var(--primary)') +
+      kpi('Taxa de presença', (g.freq_pct||0)+'%', 'do total de chamadas', COR.pre) +
+      kpi('Falta não justificada', (g.aus_pct||0)+'%', fmt(g.ausencia)+' faltas', COR.aus) +
+      kpi('Falta justificada', (g.jus_pct||0)+'%', fmt(g.justificada)+' faltas', COR.amber) +
+      kpi('Distância média', fmt(g.dist_media)+' m', 'da unidade', '#0ea5e9');
+
+    // ── Gráfico principal: 100% empilhado por faixa ──
+    const labels = fx.map(f=>faixaLabel(f[0]));
+    chart('chFaixas', { type:'bar',
+      data:{ labels, datasets:[
+        { label:'Presença', data:fx.map(f=>f[2]), backgroundColor:COR.pre, stack:'s', borderRadius:3 },
+        { label:'Falta justificada', data:fx.map(f=>f[4]), backgroundColor:COR.amber, stack:'s', borderRadius:3 },
+        { label:'Falta não justificada', data:fx.map(f=>f[3]), backgroundColor:COR.aus, stack:'s', borderRadius:3 } ]},
+      options:{ maintainAspectRatio:false, plugins:{ legend:{position:'top',labels:{font:{size:11},boxWidth:12}},
+        tooltip:{ callbacks:{ label:c=>c.dataset.label+': '+c.raw+'%' , footer:it=>'Alunos: '+fmt(fx[it[0].dataIndex][1]) } } },
+        scales:{ x:{ stacked:true, ticks:{font:{size:9},maxRotation:60,minRotation:45} },
+                 y:{ stacked:true, max:100, ticks:{callback:v=>v+'%'} } } } });
+
+    // ── Linha: presença% por faixa ──
+    chart('chLinha', { type:'line',
+      data:{ labels, datasets:[{ label:'Presença %', data:fx.map(f=>f[2]),
+        borderColor:'#0ea5e9', backgroundColor:'rgba(14,165,233,.12)', fill:true, tension:.35, pointRadius:3,
+        pointBackgroundColor:fx.map(f=>corFreq(f[2])) }]},
+      options:{ maintainAspectRatio:false, plugins:{ legend:{display:false},
+        tooltip:{callbacks:{label:c=>'Presença: '+c.raw+'%', footer:it=>'Alunos: '+fmt(fx[it[0].dataIndex][1])}} },
+        scales:{ x:{ ticks:{font:{size:9},maxRotation:60,minRotation:45} },
+                 y:{ ticks:{callback:v=>v+'%'} } } } });
+
+    // ── Distribuição de alunos por faixa ──
+    chart('chDistrib', { type:'bar',
+      data:{ labels, datasets:[{ label:'Alunos', data:fx.map(f=>f[1]), backgroundColor:'#6366f1', borderRadius:4 }]},
+      options:{ maintainAspectRatio:false, plugins:{ legend:{display:false},
+        tooltip:{callbacks:{label:c=>fmt(c.raw)+' aluno(s)'}} },
+        scales:{ x:{ ticks:{font:{size:9},maxRotation:60,minRotation:45} }, y:{ ticks:{precision:0} } } } });
+
+    // ── Donut geral ──
+    chart('chDonut', { type:'doughnut',
+      data:{ labels:['Presença','Falta justificada','Falta não justificada'],
+        datasets:[{ data:[g.presenca||0, g.justificada||0, g.ausencia||0],
+          backgroundColor:[COR.pre,COR.amber,COR.aus], borderColor:'#fff', borderWidth:3, hoverOffset:10 }]},
+      options:{ maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{display:false},
+        tooltip:{callbacks:{label:c=>c.label+': '+fmt(c.raw)+' ('+(g.total?Math.round(c.raw/g.total*100):0)+'%)'}} } } });
+    document.getElementById('donutLegenda').innerHTML =
+      '<span class="pill" style="background:#d1fae5;color:#065f46">Presença '+(g.freq_pct||0)+'%</span> '+
+      '<span class="pill" style="background:#fef3c7;color:#92400e">Justificada '+(g.jus_pct||0)+'%</span> '+
+      '<span class="pill" style="background:#fee2e2;color:#991b1b">Não justificada '+(g.aus_pct||0)+'%</span>';
+
+    // ── Tabela de grupos ──
+    document.getElementById('tbFaixas').innerHTML = fx.map(f=>
+      '<tr><td class="fw-bold">'+faixaLabel(f[0])+'</td><td class="text-center fw-bold">'+fmt(f[1])+'</td>'
+      +'<td>'+barra(f[2],COR.pre)+'</td><td>'+barra(f[4],COR.amber)+'</td><td>'+barra(f[3],COR.aus)+'</td></tr>').join('')
+      || '<tr><td colspan="5" class="text-muted text-center p-3">Sem dados.</td></tr>';
+
+    // ── Ranking de unidades (só na visão de rede) ──
+    document.getElementById('boxUnidades').style.display = (isRede && !UNIDADE) ? '' : 'none';
+    if (isRede && !UNIDADE) renderUnidades();
+  }
+
+  window.renderUnidades = function(){
+    const t = (document.getElementById('buscaUn').value||'').toLowerCase();
+    const uns = (DADOS.por_unidade||[]).filter(u=>!t||String(u[0]).toLowerCase().includes(t));
+    document.getElementById('tbUnidades').innerHTML = uns.map(u=>
+      '<tr class="row-clic" onclick="irUnidade(\''+esc(String(u[0]).replace(/\x27/g,"\\x27"))+'\')">'
+      +'<td title="'+esc(u[0])+'">'+esc(u[0])+'</td><td class="text-center fw-bold">'+fmt(u[1])+'</td>'
+      +'<td>'+barra(u[2],corFreq(u[2]))+'</td><td class="text-center">'+fmt(u[3])+' m</td></tr>').join('')
+      || '<tr><td colspan="4" class="text-muted text-center p-3">Sem dados.</td></tr>';
+  };
+  window.irUnidade = function(nome){
+    UNIDADE = nome;
+    const sel = document.getElementById('seletorUnidade'); if(sel) sel.value = nome;
+    buscar(nome);
+    window.scrollTo({top:0,behavior:'smooth'});
+  };
+
+  carregar();
+</script>
+</body>
+</html>

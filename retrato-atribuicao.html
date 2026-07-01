@@ -4,8 +4,9 @@
   <meta charset="UTF-8">
   <script src="auth-guard.js"></script>
   <script>window.MAPA_SISTEMA = 'mapa';</script>
-  <!-- Compartilha a permissão da tela "atribuicao" (não é uma tela nova no controle de acesso). -->
-  <script>window.MAPA_TELA = 'atribuicao';</script>
+  <!-- Restrito ao SUPER ADMIN: usa um slug de tela que ninguém possui (só super admin
+       passa pelo can() do auth.js). Unidades NÃO acessam o Retrato Quantitativo. -->
+  <script>window.MAPA_TELA = 'retrato';</script>
   <script src="auth.js" defer></script>
   <script src="config-central.js" defer></script>
   <script src="demo-mode.js"></script>
