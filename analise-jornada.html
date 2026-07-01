@@ -244,6 +244,21 @@
           </div>
           <div class="table-responsive"><table class="mtx" id="tabSufic"></table></div>
         </div>
+
+        <!-- E. Escolas por período -->
+        <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #7c3aed;">
+          <div class="sec-tt mb-1"><i class="bi bi-buildings me-2"></i>Escolas por período — integral / parcial / misto</div>
+          <p class="text-muted small mb-2">Classifica cada escola pelas suas turmas: <b>Só integral</b>, <b>Só parcial</b> ou
+            <b>Misto</b> (tem os dois). Turma <b>integral</b> = tem "INTEGRAL" no ano; as demais são <b>parciais</b>.
+            Baseado na tabela <b>turmas</b> (carregue acima); EJA/Termos e liminares ficam fora.</p>
+          <div id="escPerResumo" class="row g-2 mb-3"></div>
+          <div class="fbar mb-2" id="escPerFiltro"></div>
+          <div class="d-flex gap-2 mb-2 flex-wrap">
+            <input id="escPerBusca" class="form-control form-control-sm" style="max-width:280px;" placeholder="filtrar por nome da escola…" oninput="renderEscPer()">
+            <button class="btn btn-sm btn-outline-success" onclick="baixarEscolasPeriodo()"><i class="bi bi-download me-1"></i>Baixar lista (CSV)</button>
+          </div>
+          <div class="table-responsive" style="max-height:520px;overflow:auto;"><table class="mtx" id="tabEscPer"></table></div>
+        </div>
       </div>
     </div>
   </main>
@@ -1253,8 +1268,84 @@ function computarCapacidade() {
   let totGrade = 0; Object.values(gradeCell).forEach(v => totGrade += v);
   const gradeDisc = {}; for (const ck in gradeCell) { const d = ck.split('¦')[1]; gradeDisc[d] = (gradeDisc[d]||0) + gradeCell[ck]; }
   const segs = SEG_ORDEM.filter(s => anosOrd.some(a => anoSeg[a] === s));
-  CAP = { turmasPorAno, totTurmas, gradeCell, gradeDisc, turmasComDisc, discs:Array.from(discSet), totGrade, anoSeg, anosOrd, segs };
+  // Escolas por período: por turma distinta, se é integral (tem "INTEGRAL" no ano) ou parcial.
+  const turmasP = {};
+  (TURMAS||[]).forEach(t => { const r = anoRegular(t.ano_escolar); if (!r) return;
+    const key = turmaKeyT(t);
+    const o = (turmasP[key] ||= { escola:t.nome_unidade, integral:false });
+    if (colapsar(t.ano_escolar).includes('INTEGRAL')) o.integral = true;
+  });
+  const escPer = {};
+  Object.values(turmasP).forEach(o => { const e = (escPer[o.escola] ||= { integral:0, parcial:0 });
+    if (o.integral) e.integral++; else e.parcial++; });
+  CAP = { turmasPorAno, totTurmas, gradeCell, gradeDisc, turmasComDisc, discs:Array.from(discSet), totGrade, anoSeg, anosOrd, segs, escPer };
   renderTurmasReg(); renderGrade(); renderSuficiencia(); renderCapKpis(); renderDupTurmas();
+  montarEscPerFiltro(); renderEscPer();
+}
+// ── Escolas por período (integral / parcial / misto) ──────────────
+let escPerClasseSel = null;   // null = todas as classes
+function classeEscola(e) {
+  if (e.integral > 0 && e.parcial === 0) return 'Só integral';
+  if (e.parcial > 0 && e.integral === 0) return 'Só parcial';
+  return 'Misto';
+}
+const CLASSE_COR = { 'Só integral':'#7c3aed', 'Só parcial':'#2563eb', 'Misto':'#d97706' };
+function montarEscPerFiltro() {
+  const bar = document.getElementById('escPerFiltro'); if (!bar || !CAP) return;
+  const classes = ['Só integral','Só parcial','Misto'];
+  bar.innerHTML = `<span class="flbl">Tipo</span>` + classes.map(c => {
+    const on = !escPerClasseSel || escPerClasseSel.has(c);
+    return `<button class="fchip ${on?'active':''}" onclick="escPerToggle('${c}')">${c}</button>`;
+  }).join('');
+}
+function escPerToggle(c) {
+  const classes = ['Só integral','Só parcial','Misto'];
+  if (!escPerClasseSel) escPerClasseSel = new Set(classes);
+  if (escPerClasseSel.has(c)) escPerClasseSel.delete(c); else escPerClasseSel.add(c);
+  if (escPerClasseSel.size === 0 || escPerClasseSel.size === classes.length) escPerClasseSel = null;
+  montarEscPerFiltro(); renderEscPer();
+}
+function escPerLista() {
+  if (!CAP || !CAP.escPer) return [];
+  const busca = colapsar((document.getElementById('escPerBusca')||{}).value || '');
+  return Object.entries(CAP.escPer)
+    .map(([escola, e]) => ({ escola, integral:e.integral, parcial:e.parcial, total:e.integral+e.parcial, classe:classeEscola(e) }))
+    .filter(o => (!escPerClasseSel || escPerClasseSel.has(o.classe)) && (!busca || colapsar(o.escola).includes(busca)))
+    .sort((a,b) => a.escola.localeCompare(b.escola,'pt-BR'));
+}
+function renderEscPer() {
+  const box = document.getElementById('tabEscPer'), res = document.getElementById('escPerResumo');
+  if (!box || !CAP || !CAP.escPer) return;
+  // resumo (contagem por classe — sobre toda a rede, ignorando filtros)
+  const cont = { 'Só integral':0, 'Só parcial':0, 'Misto':0 };
+  Object.values(CAP.escPer).forEach(e => cont[classeEscola(e)]++);
+  const totEsc = Object.keys(CAP.escPer).length;
+  if (res) res.innerHTML = [['Total de escolas', totEsc, '#0f172a'],
+      ['Só integral', cont['Só integral'], CLASSE_COR['Só integral']],
+      ['Só parcial', cont['Só parcial'], CLASSE_COR['Só parcial']],
+      ['Misto', cont['Misto'], CLASSE_COR['Misto']]]
+    .map(([lbl,v,cor]) => `<div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:${cor};padding:.6rem .8rem;">
+      <div class="lbl">${lbl}</div><div class="val" style="font-size:1.4rem;">${br(v)}</div></div></div>`).join('');
+  const lista = escPerLista();
+  const linhas = lista.map(o => `<tr>
+    <td style="text-align:left;">${escapeHtml(o.escola)}</td>
+    <td class="text-end">${o.integral ? br(o.integral) : '·'}</td>
+    <td class="text-end">${o.parcial ? br(o.parcial) : '·'}</td>
+    <td class="text-end fw-bold">${br(o.total)}</td>
+    <td class="text-center"><span style="color:${CLASSE_COR[o.classe]};font-weight:700;">${o.classe}</span></td></tr>`).join('');
+  box.innerHTML = `<thead><tr><th style="text-align:left;">Escola</th>
+    <th class="text-end">Turmas integrais</th><th class="text-end">Turmas parciais</th>
+    <th class="text-end">Total</th><th class="text-center">Classificação</th></tr></thead>
+    <tbody>${linhas || '<tr><td colspan="5" class="text-center text-muted">Nenhuma escola neste filtro.</td></tr>'}</tbody>`;
+}
+function baixarEscolasPeriodo() {
+  const lista = escPerLista(); if (!lista.length) return;
+  const esc = s => `"${String(s==null?'':s).replace(/"/g,'""')}"`;
+  const linhas = [['Escola','Turmas integrais','Turmas parciais','Total','Classificacao'].join(';')]
+    .concat(lista.map(o => [esc(o.escola), o.integral, o.parcial, o.total, esc(o.classe)].join(';')));
+  const blob = new Blob(['﻿' + linhas.join('\r\n')], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'escolas-por-periodo.csv'; a.click(); URL.revokeObjectURL(a.href);
 }
 // Diagnóstico: mesma escola+ano+letra que ainda gera mais de uma turma (turnos
 // diferentes que não colapsaram) — normalmente integrais mal rotuladas.
