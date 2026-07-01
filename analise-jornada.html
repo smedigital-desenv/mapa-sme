@@ -214,6 +214,10 @@
           <div id="capDiag" class="text-muted small mt-2 mb-2"></div>
           <h6 class="fw-bold mt-2 mb-2" style="color:var(--primary);">Turmas regulares por segmento / ano</h6>
           <div class="table-responsive" style="max-width:460px;"><table class="mtx" id="tabTurmasReg"></table></div>
+          <button class="btn btn-sm btn-outline-secondary mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#capDupBox">
+            <i class="bi bi-search me-1"></i>Diagnóstico: turmas contadas mais de uma vez
+          </button>
+          <div class="collapse mt-2" id="capDupBox"><div id="capDupWrap"></div></div>
         </div>
 
         <!-- C. Grade curricular por ano -->
@@ -1245,7 +1249,36 @@ function computarCapacidade() {
   const gradeDisc = {}; for (const ck in gradeCell) { const d = ck.split('¦')[1]; gradeDisc[d] = (gradeDisc[d]||0) + gradeCell[ck]; }
   const segs = SEG_ORDEM.filter(s => anosOrd.some(a => anoSeg[a] === s));
   CAP = { turmasPorAno, totTurmas, gradeCell, gradeDisc, turmasComDisc, discs:Array.from(discSet), totGrade, anoSeg, anosOrd, segs };
-  renderTurmasReg(); renderGrade(); renderSuficiencia(); renderCapKpis();
+  renderTurmasReg(); renderGrade(); renderSuficiencia(); renderCapKpis(); renderDupTurmas();
+}
+// Diagnóstico: mesma escola+ano+letra que ainda gera mais de uma turma (turnos
+// diferentes que não colapsaram) — normalmente integrais mal rotuladas.
+function renderDupTurmas() {
+  const box = document.getElementById('capDupWrap'); if (!box) return;
+  const grp = {};
+  (TURMAS||[]).forEach(t => {
+    const r = anoRegular(t.ano_escolar); if (!r) return;
+    if (nomeProjeto(t.descricao_disciplina)) return;
+    const base = [colapsar(t.nome_unidade), r.ano, colapsar(t.letra_turma)].join('¦');
+    const o = (grp[base] ||= { ano:r.ano, seg:r.seg, un:t.nome_unidade, letra:t.letra_turma, keys:new Set(), raw:{} });
+    o.keys.add(turmaKeyT(t));
+    const rk = (t.ano_escolar || '—') + '  ·  período=' + (t.periodo || '—');
+    o.raw[rk] = (o.raw[rk]||0) + 1;
+  });
+  const dups = Object.values(grp).filter(g => g.keys.size > 1)
+    .sort((a,b) => (SEG_ORDEM.indexOf(a.seg) - SEG_ORDEM.indexOf(b.seg)) || String(a.un).localeCompare(String(b.un),'pt-BR'));
+  if (!dups.length) { box.innerHTML = `<div class="text-muted small">Nenhuma turma contada mais de uma vez. ✔</div>`; return; }
+  const porSeg = {}; dups.forEach(g => porSeg[g.seg] = (porSeg[g.seg]||0) + (g.keys.size - 1));
+  const extra = dups.reduce((s,g) => s + (g.keys.size - 1), 0);
+  const linhas = dups.map(g => `<tr><td class="text-start">${escapeHtml(g.un)}</td><td class="text-center">${escapeHtml(g.ano)}</td>
+    <td class="text-center">${escapeHtml(g.letra || '—')}</td><td class="text-end">${g.keys.size}×</td>
+    <td class="text-start" style="font-size:.78rem;">${Object.keys(g.raw).map(escapeHtml).join('<br>')}</td></tr>`).join('');
+  box.innerHTML = `
+    <div class="alert alert-warning py-2 small mb-2"><b>${br(extra)}</b> turma(s) contada(s) a mais
+      (${Object.entries(porSeg).map(([s,n]) => `${s}: +${n}`).join(' · ')}). Mesma escola + ano + letra aparecendo com turnos diferentes:</div>
+    <div class="table-responsive"><table class="mtx" style="font-size:.82rem;">
+      <thead><tr><th class="text-start">Escola</th><th>Ano</th><th>Letra</th><th class="text-end">Contagem</th><th class="text-start">Linhas na tabela (ano_escolar · período)</th></tr></thead>
+      <tbody>${linhas}</tbody></table></div>`;
 }
 function renderTurmasReg() {
   const box = document.getElementById('tabTurmasReg'); if (!box || !CAP) return;
