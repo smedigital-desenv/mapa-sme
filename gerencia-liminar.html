@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <script src="auth-guard.js"></script>
+  <!-- Tela RESTRITA: só quem tem a tela 'gerencia_liminar' (equipe Ed. Especial + super admin). -->
+  <script>window.MAPA_SISTEMA = 'mapa'; window.MAPA_TELA = 'gerencia_liminar';</script>
+  <script src="auth.js" defer></script>
+  <script src="config-central.js" defer></script>
+  <script src="demo-mode.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MAPA — Gerência de Liminares</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    window.MAPA_SUPABASE = {
+      url: "https://gmwotfulohkmuqrezeef.supabase.co",
+      anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk"
+    };
+  </script>
+  <style>
+    :root { --primary:#002b5e; --neon-blue:#00e5ff; }
+    html,body { background:#eef2f7; } body { font-family:'Inter',sans-serif; }
+    .mg-header { background:var(--primary); color:#fff; border-bottom:5px solid var(--neon-blue); padding:.9rem 1.6rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; position:sticky; top:0; z-index:1050; box-shadow:0 6px 18px rgba(0,43,94,.18); }
+    .mg-brand { display:flex; align-items:center; gap:.6rem; cursor:pointer; }
+    .mg-brand-icon { width:34px; height:34px; display:grid; place-items:center; color:var(--neon-blue); font-size:1.4rem; }
+    .mg-brand h4 { margin:0; font-weight:900; font-size:1.4rem; line-height:1; }
+    .mg-brand-sub { font-size:.63rem; color:rgba(255,255,255,.68); font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-top:2px; }
+    .mg-action-btn { background:#fff; color:var(--primary); border:0; border-radius:8px; padding:6px 12px; font-weight:900; font-size:.78rem; display:inline-flex; align-items:center; gap:.4rem; cursor:pointer; text-decoration:none; }
+    .mg-action-btn.ghost { background:transparent; color:#fff; border:2px solid rgba(255,255,255,.4); }
+    .faixa { background:linear-gradient(90deg,#013a7d,#002b5e); color:#fff; padding:.6rem 1.6rem; display:flex; align-items:center; gap:.6rem; }
+    .faixa .ic { color:var(--neon-blue); font-size:1.3rem; } .faixa h5 { margin:0; font-weight:900; }
+    .faixa .sub { font-size:.62rem; color:rgba(255,255,255,.7); font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .kpi { background:#fff; border-radius:14px; padding:.7rem 1rem; box-shadow:0 4px 14px rgba(0,0,0,.05); border-left:5px solid var(--primary); }
+    .kpi .label { font-size:.64rem; font-weight:800; color:#64748b; text-transform:uppercase; }
+    .kpi .val { font-size:1.5rem; font-weight:900; color:var(--primary); }
+    .card-box { background:#fff; border-radius:16px; box-shadow:0 4px 14px rgba(0,0,0,.05); }
+    table.mapa { width:100%; font-size:.84rem; }
+    table.mapa thead th { position:sticky; top:0; background:var(--primary); color:#fff; font-weight:800; font-size:.68rem; text-transform:uppercase; padding:8px 10px; white-space:nowrap; }
+    table.mapa tbody td { padding:6px 10px; border-bottom:1px solid #eef2f7; vertical-align:middle; }
+    table.mapa tbody tr:hover { background:#f1f6ff; }
+    .btn-ic { border:0; background:#f1f5f9; border-radius:7px; width:30px; height:30px; cursor:pointer; color:#475569; }
+    .btn-ic:hover { background:#e2e8f0; }
+    .badge-per { font-weight:800; font-size:.66rem; padding:2px 8px; border-radius:999px; background:#e0f2fe; color:#0369a1; }
+    #ovl { position:fixed; inset:0; background:rgba(2,16,38,.55); z-index:3000; display:none; padding:18px; overflow:auto; }
+    #ovl.show { display:block; }
+    .modal-card { background:#fff; border-radius:16px; max-width:560px; margin:4vh auto; box-shadow:0 24px 70px rgba(0,0,0,.4); overflow:hidden; }
+    .modal-head { background:var(--primary); color:#fff; padding:.9rem 1.2rem; display:flex; align-items:center; justify-content:space-between; }
+    .modal-head h5 { margin:0; font-weight:900; }
+  </style>
+</head>
+<body>
+
+<header class="mg-header">
+  <div class="mg-brand" onclick="location.href='educacao_especial.html'">
+    <div class="mg-brand-icon"><i class="bi bi-hammer"></i></div><div><h4>MAPA</h4><div class="mg-brand-sub">Gerência de Liminares</div></div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="mg-action-btn ghost" href="educacao_especial.html"><i class="bi bi-arrow-left"></i>Educação Especial</a>
+    <button class="mg-action-btn" onclick="carregar()"><i class="bi bi-arrow-clockwise"></i>Atualizar</button>
+  </div>
+</header>
+
+<div class="faixa">
+  <i class="bi bi-hammer ic"></i>
+  <div><h5>Gerência de Liminares</h5><div class="sub">Incluir · editar · remover (com motivo) — reflete na tela de Liminares</div></div>
+</div>
+
+<main class="container-fluid px-3 px-lg-4 py-3">
+  <div id="erro" class="alert alert-danger" style="display:none"></div>
+
+  <div class="row g-2 mb-3" id="kpis"></div>
+
+  <div class="card-box p-3">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+      <div class="d-flex gap-2 flex-wrap">
+        <input id="busca" class="form-control form-control-sm" style="max-width:260px" placeholder="Buscar aluno, RA, escola, turma…" oninput="render()">
+        <div class="form-check align-self-center ms-1">
+          <input class="form-check-input" type="checkbox" id="chkRemovidos" onchange="carregar()">
+          <label class="form-check-label small fw-bold" for="chkRemovidos">Mostrar removidos</label>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm fw-bold" onclick="abrirForm(null)"><i class="bi bi-plus-lg"></i> Novo aluno com liminar</button>
+    </div>
+    <div class="table-responsive" style="max-height:66vh;overflow:auto">
+      <table class="mapa">
+        <thead><tr>
+          <th>Aluno</th><th>RA</th><th>Escola</th><th>Turma</th><th class="text-center">Período</th>
+          <th>Deficiência</th><th id="thMotivo" style="display:none">Motivo da remoção</th><th class="text-end">Ações</th>
+        </tr></thead>
+        <tbody id="tb"><tr><td colspan="8" class="text-muted p-3">Carregando…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="small text-muted mt-2" id="contador"></div>
+  </div>
+</main>
+
+<!-- Modal form -->
+<div id="ovl">
+  <div class="modal-card">
+    <div class="modal-head"><h5 id="mTitulo">Novo aluno</h5><button class="btn-ic" style="background:transparent;color:#fff" onclick="fecharForm()">&times;</button></div>
+    <div class="p-3">
+      <div class="row g-2">
+        <div class="col-12"><label class="form-label small fw-bold">Aluno *</label><input id="fAluno" class="form-control form-control-sm"></div>
+        <div class="col-6"><label class="form-label small fw-bold">RA</label><input id="fRa" class="form-control form-control-sm"></div>
+        <div class="col-6"><label class="form-label small fw-bold">Turma</label><input id="fTurma" class="form-control form-control-sm" placeholder="ex.: 6º A"></div>
+        <div class="col-12"><label class="form-label small fw-bold">Escola *</label>
+          <input id="fEscola" class="form-control form-control-sm" list="listaEscolas" placeholder="Digite ou selecione">
+          <datalist id="listaEscolas"></datalist></div>
+        <div class="col-6"><label class="form-label small fw-bold">Período</label>
+          <select id="fPeriodo" class="form-select form-select-sm">
+            <option>Manhã</option><option>Tarde</option><option>Integral</option><option>Outro</option></select></div>
+        <div class="col-6"><label class="form-label small fw-bold">Deficiência</label><input id="fDef" class="form-control form-control-sm"></div>
+      </div>
+      <div class="d-flex justify-content-end gap-2 mt-3">
+        <button class="btn btn-secondary btn-sm" onclick="fecharForm()">Cancelar</button>
+        <button class="btn btn-primary btn-sm fw-bold" onclick="salvar()"><i class="bi bi-check-lg"></i> Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const SB = window.MAPA_SB || window.supabase.createClient(window.MAPA_SUPABASE.url, window.MAPA_SUPABASE.anonKey);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  let ROWS = [], editId = null;
+
+  function erro(m){ const e=document.getElementById('erro'); if(!m){e.style.display='none';return;} e.textContent=m; e.style.display='block'; }
+  function aguardarAuth(){ return new Promise(r=>{ if(window.MapaAuth&&window.MapaAuth.perfil)return r(); document.addEventListener('mapa-auth-pronto',()=>r(),{once:true}); setTimeout(r,8000); }); }
+
+  async function carregar(){
+    await aguardarAuth();
+    erro('');
+    const mostrarRem = document.getElementById('chkRemovidos').checked;
+    let q = SB.from('ee_liminar_aluno').select('*').order('escola').order('turma').order('aluno');
+    if (!mostrarRem) q = q.eq('ativo', true);
+    const { data, error } = await q;
+    if (error){ erro('Erro ao carregar: ' + error.message); return; }
+    ROWS = data || [];
+    document.getElementById('thMotivo').style.display = mostrarRem ? '' : 'none';
+    render();
+    carregarEscolas();
+  }
+
+  async function carregarEscolas(){
+    const { data } = await SB.from('escolas').select('nome').eq('ativo', true).order('nome');
+    document.getElementById('listaEscolas').innerHTML = (data||[]).map(e=>'<option value="'+esc(e.nome)+'">').join('');
+  }
+
+  function kpi(lb,v,cor){ return '<div class="col-6 col-md-3"><div class="kpi" style="border-left-color:'+cor+'"><div class="label">'+lb+'</div><div class="val" style="color:'+cor+'">'+v+'</div></div></div>'; }
+  function render(){
+    const mostrarRem = document.getElementById('chkRemovidos').checked;
+    const t = (document.getElementById('busca').value||'').toLowerCase();
+    const ativos = ROWS.filter(r=>r.ativo);
+    document.getElementById('kpis').innerHTML =
+      kpi('Alunos com liminar', ativos.length, 'var(--primary)') +
+      kpi('Unidades', new Set(ativos.map(r=>r.escola)).size, '#0ea5e9') +
+      kpi('Turmas', new Set(ativos.map(r=>r.escola+'|'+r.turma)).size, '#10b981') +
+      kpi('Removidos', ROWS.filter(r=>!r.ativo).length, '#ef4444');
+
+    const lista = ROWS.filter(r => !t || [r.aluno,r.ra,r.escola,r.turma,r.deficiencia].some(x=>String(x||'').toLowerCase().includes(t)));
+    document.getElementById('tb').innerHTML = lista.map(r=>{
+      const rem = !r.ativo;
+      return '<tr'+(rem?' style="opacity:.6;background:#fef2f2"':'')+'>'
+        + '<td class="fw-bold">'+esc(r.aluno)+'</td><td>'+esc(r.ra||'')+'</td>'
+        + '<td title="'+esc(r.escola)+'">'+esc(r.escola||'')+'</td><td>'+esc(r.turma||'')+'</td>'
+        + '<td class="text-center"><span class="badge-per">'+esc(r.periodo||'—')+'</span></td>'
+        + '<td>'+esc(r.deficiencia||'')+'</td>'
+        + (mostrarRem ? '<td class="small text-danger">'+esc(r.motivo_remocao||'')+'</td>' : '')
+        + '<td class="text-end" style="white-space:nowrap">'
+        + (rem
+            ? '<button class="btn-ic" title="Restaurar" onclick="restaurar('+r.id+')"><i class="bi bi-arrow-counterclockwise"></i></button>'
+            : '<button class="btn-ic me-1" title="Editar" onclick="abrirForm('+r.id+')"><i class="bi bi-pencil"></i></button>'
+              +'<button class="btn-ic" title="Remover" onclick="remover('+r.id+')" style="color:#dc2626"><i class="bi bi-trash"></i></button>')
+        + '</td></tr>';
+    }).join('') || '<tr><td colspan="8" class="text-muted p-3 text-center">Nenhum aluno.</td></tr>';
+    document.getElementById('contador').textContent = lista.length + ' registro(s)';
+  }
+
+  window.abrirForm = function(id){
+    editId = id;
+    const r = id ? ROWS.find(x=>x.id===id) : null;
+    document.getElementById('mTitulo').textContent = id ? 'Editar aluno' : 'Novo aluno com liminar';
+    document.getElementById('fAluno').value = r? (r.aluno||'') : '';
+    document.getElementById('fRa').value = r? (r.ra||'') : '';
+    document.getElementById('fTurma').value = r? (r.turma||'') : '';
+    document.getElementById('fEscola').value = r? (r.escola||'') : '';
+    document.getElementById('fPeriodo').value = r? (r.periodo||'Manhã') : 'Manhã';
+    document.getElementById('fDef').value = r? (r.deficiencia||'') : '';
+    document.getElementById('ovl').classList.add('show');
+  };
+  window.fecharForm = function(){ document.getElementById('ovl').classList.remove('show'); };
+
+  window.salvar = async function(){
+    const dados = {
+      aluno: document.getElementById('fAluno').value.trim(),
+      ra: document.getElementById('fRa').value.trim() || null,
+      turma: document.getElementById('fTurma').value.trim() || null,
+      escola: document.getElementById('fEscola').value.trim(),
+      periodo: document.getElementById('fPeriodo').value,
+      deficiencia: document.getElementById('fDef').value.trim() || null,
+      ativo: true, atualizado_em: new Date().toISOString()
+    };
+    if (!dados.aluno || !dados.escola){ alert('Informe ao menos o Aluno e a Escola.'); return; }
+    let res;
+    if (editId) res = await SB.from('ee_liminar_aluno').update(dados).eq('id', editId);
+    else res = await SB.from('ee_liminar_aluno').insert(dados);
+    if (res.error){ alert('Erro ao salvar: ' + res.error.message); return; }
+    fecharForm(); carregar();
+  };
+
+  window.remover = async function(id){
+    const r = ROWS.find(x=>x.id===id); if(!r) return;
+    const motivo = prompt('Remover "'+r.aluno+'". Informe o MOTIVO da retirada (ex.: aluno não está mais na rede):', '');
+    if (motivo === null) return;
+    if (!motivo.trim()){ alert('É obrigatório informar o motivo.'); return; }
+    const res = await SB.from('ee_liminar_aluno').update({ ativo:false, motivo_remocao:motivo.trim(), removido_em:new Date().toISOString(), atualizado_em:new Date().toISOString() }).eq('id', id);
+    if (res.error){ alert('Erro ao remover: ' + res.error.message); return; }
+    carregar();
+  };
+
+  window.restaurar = async function(id){
+    if (!confirm('Restaurar este aluno para a lista de liminares ativas?')) return;
+    const res = await SB.from('ee_liminar_aluno').update({ ativo:true, motivo_remocao:null, removido_em:null, atualizado_em:new Date().toISOString() }).eq('id', id);
+    if (res.error){ alert('Erro ao restaurar: ' + res.error.message); return; }
+    carregar();
+  };
+
+  carregar();
+</script>
+</body>
+</html>
