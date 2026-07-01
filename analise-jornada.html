@@ -102,6 +102,7 @@
       <ul class="nav nav-tabs mb-3">
         <li class="nav-item"><button class="nav-link active" id="aba-analise" type="button" onclick="mostrarAba('analise')"><i class="bi bi-grid-3x3-gap-fill me-1"></i>Composição &amp; Conferência</button></li>
         <li class="nav-item"><button class="nav-link" id="aba-capacidade" type="button" onclick="mostrarAba('capacidade')"><i class="bi bi-calculator me-1"></i>Professores × Grade (capacidade)</button></li>
+        <li class="nav-item"><button class="nav-link" id="aba-escolas" type="button" onclick="mostrarAba('escolas')"><i class="bi bi-buildings me-1"></i>Escolas por período</button></li>
       </ul>
 
       <div id="tab-analise">
@@ -244,20 +245,25 @@
           </div>
           <div class="table-responsive"><table class="mtx" id="tabSufic"></table></div>
         </div>
+      </div><!-- /tab-capacidade -->
 
-        <!-- E. Escolas por período -->
+      <!-- ══════════ ABA ESCOLAS POR PERÍODO ══════════ -->
+      <div id="tab-escolas" style="display:none;">
         <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #7c3aed;">
           <div class="sec-tt mb-1"><i class="bi bi-buildings me-2"></i>Escolas por período — integral / parcial / misto</div>
           <p class="text-muted small mb-2">Classifica cada escola pelas suas turmas: <b>Só integral</b>, <b>Só parcial</b> ou
             <b>Misto</b> (tem os dois). Turma <b>integral</b> = tem "INTEGRAL" no ano; as demais são <b>parciais</b>.
-            Baseado na tabela <b>turmas</b> (carregue acima); EJA/Termos e liminares ficam fora.</p>
+            Baseado na tabela <b>turmas</b>; EJA/Termos e liminares ficam fora; a turma integral conta uma vez.</p>
+          <div id="escPerEstado" class="text-muted small mb-2"></div>
           <div id="escPerResumo" class="row g-2 mb-3"></div>
-          <div class="fbar mb-2" id="escPerFiltro"></div>
-          <div class="d-flex gap-2 mb-2 flex-wrap">
+          <div class="d-flex gap-2 mb-2 flex-wrap align-items-center">
+            <div class="fbar" id="escPerFiltro"></div>
             <input id="escPerBusca" class="form-control form-control-sm" style="max-width:280px;" placeholder="filtrar por nome da escola…" oninput="renderEscPer()">
-            <button class="btn btn-sm btn-outline-success" onclick="baixarEscolasPeriodo()"><i class="bi bi-download me-1"></i>Baixar lista (CSV)</button>
+            <button class="btn btn-sm btn-outline-success" onclick="baixarEscolasPeriodo()"><i class="bi bi-download me-1"></i>Baixar CSV</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="recarregarEscolas()"><i class="bi bi-arrow-repeat me-1"></i>Recarregar</button>
           </div>
-          <div class="table-responsive" style="max-height:520px;overflow:auto;"><table class="mtx" id="tabEscPer"></table></div>
+          <div id="escPerContagem" class="text-muted small mb-2"></div>
+          <div class="table-responsive"><table class="mtx" id="tabEscPer"></table></div>
         </div>
       </div>
     </div>
@@ -1112,14 +1118,28 @@ function turmaKeyT(t) {
   return [colapsar(t.nome_unidade), anoTurma(t.ano_escolar), colapsar(t.letra_turma), per].join('¦');
 }
 
-function mostrarAba(a) {
-  ['analise','capacidade'].forEach(x => {
-    document.getElementById('tab-'+x).style.display = x === a ? '' : 'none';
+async function mostrarAba(a) {
+  ['analise','capacidade','escolas'].forEach(x => {
+    const t = document.getElementById('tab-'+x); if (t) t.style.display = x === a ? '' : 'none';
     const b = document.getElementById('aba-'+x); if (b) b.classList.toggle('active', x === a);
   });
   if (a === 'capacidade' && !_capProfInit && ROWS) { _capProfInit = true;
     if (capSitOpts().includes('NA ATIVA')) capSitSel = new Set(['NA ATIVA']);   // padrão: só quem está na ativa
     montarCapCargo(); montarCapVinc(); montarCapSit(); renderProfCap(); }
+  if (a === 'escolas') await garantirTurmasEscolas();
+}
+// Garante que as turmas estão carregadas para a aba Escolas (carrega sob demanda).
+async function garantirTurmasEscolas() {
+  const st = document.getElementById('escPerEstado');
+  if (CAP && CAP.escPer) { montarEscPerFiltro(); renderEscPer(); return; }
+  if (st) st.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Carregando turmas…';
+  try { if (!TURMAS) TURMAS = await fetchTurmasRede(); computarCapacidade(); if (st) st.textContent = ''; }
+  catch (e) { if (st) st.innerHTML = `<span class="text-danger">${escapeHtml(e.message || e)}</span>`; }
+}
+function recarregarEscolas() {
+  try { localStorage.removeItem('mapa_atrib_turmas_v2'); } catch (e) {}
+  TURMAS = null; CAP = null;
+  garantirTurmasEscolas();
 }
 
 // Professor distinto → { cargo, jornada, disciplina principal }. Respeita o filtro de vínculo.
@@ -1327,6 +1347,9 @@ function renderEscPer() {
     .map(([lbl,v,cor]) => `<div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:${cor};padding:.6rem .8rem;">
       <div class="lbl">${lbl}</div><div class="val" style="font-size:1.4rem;">${br(v)}</div></div></div>`).join('');
   const lista = escPerLista();
+  const contEl = document.getElementById('escPerContagem');
+  if (contEl) { const filtrando = escPerClasseSel || ((document.getElementById('escPerBusca')||{}).value||'').trim();
+    contEl.textContent = `Mostrando ${br(lista.length)} de ${br(Object.keys(CAP.escPer).length)} escolas${filtrando ? ' (filtro aplicado)' : ''}.`; }
   const linhas = lista.map(o => `<tr>
     <td style="text-align:left;">${escapeHtml(o.escola)}</td>
     <td class="text-end">${o.integral ? br(o.integral) : '·'}</td>
