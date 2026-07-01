@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <script src="auth-guard.js"></script>
+  <script>window.MAPA_SISTEMA = 'mapa';</script>
+  <!-- Compartilha a permissão da tela "atribuicao" (não é uma tela nova no controle de acesso). -->
+  <script>window.MAPA_TELA = 'atribuicao';</script>
+  <script src="auth.js" defer></script>
+  <script src="config-central.js" defer></script>
+  <script src="demo-mode.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Retrato Quantitativo de Atribuições | SME Ribeirão Preto</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  <style>
+    :root {
+      --primary:    #002b5e;
+      --neon-blue:  #00e5ff;
+      --neon-green: #39FF14;
+      --mag:  #2563eb;   /* Magistério II */
+      --arte: #7c3aed;   /* Arte */
+      --ing:  #0d9488;   /* Inglês */
+      --ef:   #d97706;   /* Educação Física */
+    }
+    body { background:#f0f4f8; font-family:'Segoe UI',sans-serif; padding-bottom:60px; }
+
+    /* ── HEADER ── */
+    .nav-header {
+      background:var(--primary); color:white;
+      border-bottom:4px solid var(--neon-blue);
+      padding:.9rem 1.6rem; position:static;
+      box-shadow:0 6px 18px rgba(0,43,94,.18);
+    }
+    .nav-header h1 { font-size:1.25rem; font-weight:800; margin:0; letter-spacing:.02em; }
+    .nav-header .sub { font-size:.7rem; color:rgba(255,255,255,.7); font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+    .nav-back { color:rgba(255,255,255,.85); text-decoration:none; font-size:.82rem; font-weight:700; }
+    .nav-back:hover { color:#fff; }
+
+    /* ── SUBNAV / TOOLBAR ── */
+    .toolbar {
+      background:rgba(0,43,94,.95); border-bottom:1px solid rgba(0,229,255,.2);
+      padding:.5rem 1.6rem; display:flex; align-items:center; gap:.6rem;
+      flex-wrap:wrap; position:sticky; top:0; z-index:1010;
+    }
+    .seg { display:inline-flex; background:rgba(255,255,255,.08); border:1px solid rgba(0,229,255,.35); border-radius:8px; overflow:hidden; }
+    .seg button { background:transparent; border:0; color:rgba(255,255,255,.8); font-size:.76rem; font-weight:700; padding:.3rem .8rem; cursor:pointer; }
+    .seg button.active { background:var(--neon-blue); color:#002b5e; }
+    .chip-per { background:transparent; border:1px solid rgba(0,229,255,.4); color:rgba(255,255,255,.82);
+      border-radius:999px; padding:.2rem .7rem; font-size:.74rem; font-weight:700; cursor:pointer; }
+    .chip-per.active { background:#fff; color:var(--primary); border-color:#fff; }
+    .btn-tool { background:transparent; border:1px solid rgba(0,229,255,.4); color:#fff; border-radius:7px;
+      padding:.28rem .7rem; font-size:.76rem; font-weight:700; cursor:pointer; }
+    .btn-tool:hover { background:rgba(0,229,255,.14); }
+
+    /* ── KPI CARDS ── */
+    .kpi { background:#fff; border-radius:14px; padding:.9rem 1.1rem; box-shadow:0 4px 14px rgba(0,0,0,.05);
+      border-left:5px solid #ccc; height:100%; }
+    .kpi .lbl { font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
+    .kpi .val { font-size:1.7rem; font-weight:900; color:#0f172a; line-height:1.1; }
+    .kpi .sub { font-size:.72rem; color:#94a3b8; font-weight:700; }
+
+    .card-box { background:#fff; border-radius:16px; box-shadow:0 4px 15px rgba(0,0,0,.05); }
+    .sec-tt { font-weight:900; color:var(--primary); font-size:1rem; }
+
+    /* ── MATRIZ ── */
+    table.matriz { width:100%; border-collapse:separate; border-spacing:0; }
+    table.matriz th, table.matriz td { padding:.55rem .7rem; text-align:center; border-bottom:1px solid #eef2f7; }
+    table.matriz thead th { position:sticky; top:0; background:#f8fafc; font-size:.72rem; text-transform:uppercase;
+      letter-spacing:.04em; color:#475569; z-index:1; }
+    table.matriz tbody th { text-align:left; font-weight:800; color:var(--primary); font-size:.84rem; white-space:nowrap; background:#fff; }
+    table.matriz td .big { font-size:1.02rem; font-weight:900; color:#0f172a; }
+    table.matriz td .small { font-size:.66rem; color:#94a3b8; font-weight:700; }
+    table.matriz tr.total-row th, table.matriz tr.total-row td { background:#f1f5f9; border-top:2px solid #cbd5e1; }
+    table.matriz td.col-total .big, table.matriz th.col-total { color:var(--primary); }
+    .col-mag  { box-shadow: inset 4px 0 0 0 color-mix(in srgb, var(--mag) 18%, transparent); }
+    .pct-pill { display:inline-block; font-size:.6rem; font-weight:800; padding:1px 6px; border-radius:999px; margin-top:2px; }
+
+    .legend { font-size:.74rem; color:#64748b; }
+    .legend .dot { width:10px; height:10px; border-radius:3px; display:inline-block; margin-right:4px; }
+
+    .loader { text-align:center; padding:3rem 1rem; color:#64748b; }
+    .spin { width:38px; height:38px; border:4px solid #e2e8f0; border-top-color:var(--neon-blue); border-radius:50%;
+      animation:sp 1s linear infinite; margin:0 auto .8rem; }
+    @keyframes sp { to { transform:rotate(360deg); } }
+
+    @media print {
+      .toolbar, .nav-back, .btn-tool, #graficoWrap { display:none !important; }
+      body { background:#fff; }
+      .card-box { box-shadow:none; border:1px solid #e2e8f0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── HEADER ── -->
+  <header class="nav-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-3">
+      <i class="bi bi-bar-chart-line-fill" style="font-size:1.6rem;color:var(--neon-blue);"></i>
+      <div>
+        <h1>Retrato Quantitativo de Atribuições</h1>
+        <div class="sub">Aulas atribuídas por etapa/ano e disciplina</div>
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+      <a class="nav-back" href="atribuicao.html"><i class="bi bi-diagram-3-fill me-1"></i>Atribuição</a>
+      <a class="nav-back" href="index.html"><i class="bi bi-house-fill me-1"></i>Início</a>
+    </div>
+  </header>
+
+  <!-- ── TOOLBAR ── -->
+  <div class="toolbar">
+    <span class="text-white-50 small fw-bold"><i class="bi bi-sliders me-1"></i>Métrica</span>
+    <div class="seg" id="segMetrica">
+      <button data-m="carga" class="active">Aulas (carga horária)</button>
+      <button data-m="turmas">Turmas distintas</button>
+    </div>
+    <span class="text-white-50 small fw-bold ms-2"><i class="bi bi-clock me-1"></i>Período</span>
+    <div id="periodoChips" class="d-flex gap-1 flex-wrap"></div>
+    <div class="ms-auto d-flex gap-2">
+      <button class="btn-tool" onclick="atualizar()"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+      <button class="btn-tool" onclick="exportarExcel()"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+      <button class="btn-tool" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    </div>
+  </div>
+
+  <main class="container-fluid px-3 px-lg-4 py-3" style="max-width:1280px;">
+
+    <div id="estado" class="loader">
+      <div class="spin"></div>
+      <div>Carregando dados da atribuição…</div>
+    </div>
+
+    <div id="conteudo" style="display:none;">
+
+      <!-- KPIs (turmas + atribuição) -->
+      <div class="row g-2 g-lg-3 mb-3" id="kpis"></div>
+
+      <!-- SIMULADOR 2027 -->
+      <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #1d4ed8;">
+        <div class="sec-tt mb-1"><i class="bi bi-calculator me-2"></i>Simulador 2027 — projeção do total de aulas</div>
+        <p class="text-muted small mb-3">Defina as aulas dos novos projetos de 2027. A <b>base</b> (tudo que não é projeto —
+          etapas + disciplinas do fundamental) usa os números de <b>2026</b> e não muda; os projetos novos (Apoio + PPA)
+          substituem os atuais (PPA/PPP/PRP). Os parâmetros ficam salvos no seu navegador.</p>
+        <div class="row g-3">
+          <div class="col-12 col-lg-4">
+            <label class="form-label fw-bold small mb-1">Etapas — Projeto Professor de Apoio</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text">aulas/turma</span>
+              <input type="number" min="0" step="1" class="form-control" id="simApoio" placeholder="0">
+            </div>
+            <div class="form-text" id="simApoioInfo"></div>
+          </div>
+          <div class="col-12 col-lg-8">
+            <label class="form-label fw-bold small mb-1">Fundamental — PPA (aulas por turma, por ano)</label>
+            <div class="row g-2">
+              <div class="col"><div class="input-group input-group-sm"><span class="input-group-text">1º</span><input type="number" min="0" step="1" class="form-control" id="simPPA1" placeholder="0"></div></div>
+              <div class="col"><div class="input-group input-group-sm"><span class="input-group-text">2º</span><input type="number" min="0" step="1" class="form-control" id="simPPA2" placeholder="0"></div></div>
+              <div class="col"><div class="input-group input-group-sm"><span class="input-group-text">3º</span><input type="number" min="0" step="1" class="form-control" id="simPPA3" placeholder="0"></div></div>
+              <div class="col"><div class="input-group input-group-sm"><span class="input-group-text">4º</span><input type="number" min="0" step="1" class="form-control" id="simPPA4" placeholder="0"></div></div>
+              <div class="col"><div class="input-group input-group-sm"><span class="input-group-text">5º</span><input type="number" min="0" step="1" class="form-control" id="simPPA5" placeholder="0"></div></div>
+            </div>
+          </div>
+        </div>
+        <div id="simResultado" class="mt-3"></div>
+      </div>
+
+      <!-- PARTE 1 — Educação Infantil (Etapas), separadas por turno: Manhã / Tarde / Integral -->
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div class="sec-tt"><i class="bi bi-flower1 me-2"></i>Parte 1 · Educação Infantil — Etapas <span class="text-muted fw-normal" style="font-size:.8rem;">(por turno: Manhã / Tarde / Integral)</span></div>
+          <div class="legend"><span id="metricaLabel1"></span></div>
+        </div>
+        <h6 class="fw-bold text-primary mt-2 mb-1">Etapa I</h6>
+        <div class="table-responsive mb-3">
+          <table class="matriz" id="matrizEtapaI"></table>
+        </div>
+        <h6 class="fw-bold text-primary mb-1">Etapa II</h6>
+        <div class="table-responsive">
+          <table class="matriz" id="matrizEtapaII"></table>
+        </div>
+      </div>
+
+      <!-- PARTE 2 — Ensino Fundamental (1º ao 5º Ano) -->
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div class="sec-tt"><i class="bi bi-1-circle me-2"></i>Parte 2 · Ensino Fundamental — 1º ao 5º Ano <span class="text-muted fw-normal" style="font-size:.8rem;">(todas as disciplinas)</span></div>
+          <div class="legend"><span id="metricaLabel2"></span></div>
+        </div>
+        <div class="table-responsive">
+          <table class="matriz" id="matrizFund"></table>
+        </div>
+      </div>
+
+      <!-- PARTE 3 — Projetos (esperado: total de aulas) -->
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div class="sec-tt"><i class="bi bi-journal-bookmark-fill me-2"></i>Parte 3 · Projetos <span class="text-muted fw-normal" style="font-size:.8rem;">(total de aulas — não são por turma)</span></div>
+        </div>
+        <div class="table-responsive">
+          <table class="matriz" id="matrizProj"></table>
+        </div>
+      </div>
+
+      <div class="legend mb-3 px-1 text-muted">
+        Partes 1 (Etapas) e 2 (Fundamental) listam <b>todas as disciplinas/práticas</b> presentes em cada etapa/ano ·
+        coluna <b>Turmas</b> = turmas distintas (escola + ano + letra + turno; manhã e tarde da turma integral contam separadas).
+      </div>
+
+      <!-- Gráfico -->
+      <div class="card-box p-3 p-lg-4 mb-3" id="graficoWrap">
+        <div class="sec-tt mb-2"><i class="bi bi-bar-chart-fill me-2"></i>Comparativo por etapa/ano (total de aulas — disciplinas principais)</div>
+        <canvas id="grafico" height="110"></canvas>
+      </div>
+
+      <!-- Conferência da classificação -->
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#confBox">
+          <i class="bi bi-search me-1"></i>Conferência da classificação dos dados
+        </button>
+        <div class="collapse mt-3" id="confBox">
+          <p class="text-muted small mb-2">Como cada valor do banco foi interpretado. Linhas “ignorado” não entram no relatório
+            (ex.: outras séries/disciplinas fora do escopo solicitado).</p>
+          <div class="row g-3">
+            <div class="col-12 col-lg-6">
+              <h6 class="fw-bold">Anos / Etapas (ano_escolar)</h6>
+              <div class="table-responsive" style="max-height:320px;overflow:auto;">
+                <table class="table table-sm table-bordered align-middle mb-0" id="confAnos"></table>
+              </div>
+            </div>
+            <div class="col-12 col-lg-6">
+              <h6 class="fw-bold">Disciplinas (descricao_disciplina)</h6>
+              <div class="table-responsive" style="max-height:320px;overflow:auto;">
+                <table class="table table-sm table-bordered align-middle mb-0" id="confDiscs"></table>
+              </div>
+            </div>
+          </div>
+
+          <h6 class="fw-bold mt-4">Cobertura de turmas por disciplina — Etapas + Ensino Fundamental</h6>
+          <p class="text-muted small mb-2">Para cada etapa/ano, quantas <b>turmas distintas</b> têm cada disciplina/prática, comparado ao
+            total de turmas (cabeçalho). <span style="color:#047857;font-weight:700;">Verde</span> = cobre todas as turmas;
+            <span style="color:#b45309;font-weight:700;">laranja</span> = falta em algumas (mostra <i>cobertas/total</i>); clique para ver as turmas.
+            É aqui que se vê, por exemplo, se toda turma de 1º ano tem Educação Financeira, ou se cada etapa integral tem as práticas
+            (alimentação, relaxamento, ser e conviver). Obs.: como manhã e tarde da turma integral são contadas separadas,
+            as práticas de cada turno (ex.: ser e conviver à tarde) cobrem apenas as turmas daquele turno.</p>
+          <div class="table-responsive" style="max-height:380px;overflow:auto;">
+            <table class="table table-sm table-bordered align-middle mb-0" id="confCobertura"></table>
+          </div>
+          <div id="coberturaDetalhe" class="mt-2"></div>
+        </div>
+      </div>
+
+      <div class="text-muted small px-1" id="rodape"></div>
+    </div>
+  </main>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   Retrato Quantitativo de Atribuições de Aula
+   Reaproveita a base de dados (tabela "turmas" do Supabase) e a mesma
+   regra de "atribuído" usada na tela de Atribuição (atribuicao.html).
+   ══════════════════════════════════════════════════════════════════ */
+const SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk';
+
+/* ── Categorias pedidas ─────────────────────────────────────────── */
+const SEP = ' — ';
+const ETAPAS = ['Etapa I', 'Etapa II'];
+const TURNOS = ['Manhã', 'Tarde', 'Integral'];          // dentro de cada etapa
+const ETAPA_CATS = [];                                   // Etapa I — Manhã, ... Etapa II — Integral
+ETAPAS.forEach(e => TURNOS.forEach(t => ETAPA_CATS.push(e + SEP + t)));
+const ANO_CATS = ['1º Ano', '2º Ano', '3º Ano', '4º Ano', '5º Ano'];
+const ANOS = [...ETAPA_CATS, ...ANO_CATS];               // todas as categorias-linha
+const ETAPA_I_CATS  = TURNOS.map(t => 'Etapa I'  + SEP + t);
+const ETAPA_II_CATS = TURNOS.map(t => 'Etapa II' + SEP + t);
+// Rótulo da linha dentro do bloco (só o turno nas etapas; o ano nos demais)
+function rotuloLinha(a) { return a.includes(SEP) ? a.split(SEP)[1] : a; }
+// Rótulo curto p/ cabeçalho de cobertura e gráfico
+function rotuloCurto(a) {
+  if (a.includes(SEP)) { const [e, t] = a.split(SEP); return e.replace('Etapa ', 'Et.') + ' ' + t; }
+  return a.replace(' Ano', 'º');
+}
+
+const DISCS = [
+  { key:'Magistério II',    cor:'var(--mag)',  rgb:'#2563eb' },
+  { key:'Arte',             cor:'var(--arte)', rgb:'#7c3aed' },
+  { key:'Inglês',           cor:'var(--ing)',  rgb:'#0d9488' },
+  { key:'Educação Física',  cor:'var(--ef)',   rgb:'#d97706' },
+];
+// Blocos do relatório (Etapa I, Etapa II e Fundamental — cada um vira uma matriz)
+const SECOES = [
+  { id:'EtapaI',  tabela:'matrizEtapaI',  col1:'Turno', anos: ETAPA_I_CATS },
+  { id:'EtapaII', tabela:'matrizEtapaII', col1:'Turno', anos: ETAPA_II_CATS },
+  { id:'Fund',    tabela:'matrizFund',    col1:'Ano',   anos: ANO_CATS },
+];
+
+/* ── Estado ─────────────────────────────────────────────────────── */
+let ROWS = null;          // linhas cruas (após exclusão de séries)
+let metrica = 'carga';    // 'carga' | 'turmas'
+let periodosSel = null;   // Set de períodos selecionados (null = todos)
+let grafico = null;
+let CUBE = null;          // último cubo agregado (para o drill-down de cobertura)
+let PROJ = null;          // últimos projetos agregados (para o simulador 2027)
+
+/* ── Helpers (espelham atribuicao.html) ─────────────────────────── */
+function normalizar(txt) {
+  return String(txt || '').trim().toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[º°]/g, '').replace(/[–—]/g, '-')
+    .replace(/\s*-\s*/g, ' - ').replace(/\s+/g, ' ');
+}
+function colapsar(txt) { return normalizar(txt).replace(/[^A-Z0-9]/g, ''); }
+function cleanUnit(txt) { return String(txt || '').trim().replace(/\s+/g, ' '); }
+// Identidade de uma turma: escola + ano + letra + período (a mesma turma aparece
+// em várias linhas — uma por disciplina). Normalizamos cada parte (acentos, º,
+// caixa, espaços e o código de período) para NÃO contar a mesma turma mais de uma
+// vez quando as linhas vêm com grafias ligeiramente diferentes.
+function periodoCanon(v) {
+  const p = colapsar(v);                       // ex.: M, MANHA, T, TARDE, N, NOITE, I, INTEGRAL
+  if (p === 'M' || p.startsWith('MANHA')) return 'M';
+  if (p === 'T' || p.startsWith('TARDE')) return 'T';
+  if (p === 'N' || p.startsWith('NOITE')) return 'N';
+  if (p === 'I' || p.startsWith('INTEG')) return 'I';
+  return p;
+}
+// Base do ano para a identidade da turma: remove o sufixo de turno do fim
+// ("... - M" / "- T" / "- N"), pois o turno vem do campo período. Assim as linhas
+// da mesma turma integral (regente manhã/tarde com "- M"/"- T" e especialistas sem
+// sufixo) não viram turmas diferentes — manhã e tarde continuam separadas pelo período.
+function anoTurma(ano) {
+  return normalizar(ano).replace(/\s*-\s*(MANHA|TARDE|NOITE|M|T|N)$/, '');
+}
+function turmaKey(row) {
+  return [normalizar(row.nome_unidade), anoTurma(row.ano_escolar),
+          normalizar(row.letra_turma), periodoCanon(row.periodo)].join('¦');
+}
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+function periodoDesc(valor) {
+  const p = String(valor || '').trim().toUpperCase();
+  if (p === 'M') return 'Manhã';
+  if (p === 'T') return 'Tarde';
+  if (p === 'N') return 'Noite';
+  return p || '—';
+}
+function estaEmContracao(cod) { const c = Number(cod); return !isNaN(c) && c >= 99000; }
+function estaNaAtiva(sit) { const t = String(sit || '').toUpperCase().trim(); return t.includes('NA ATIVA') || t === 'ATIVA'; }
+function isAtribuido(row) {
+  if (!row) return false;
+  const cT = String(row.codigo_professor_prop || '').trim();
+  const cS = String(row.codigo_professor_sub  || '').trim();
+  if (estaEmContracao(cT)) return true;
+  if (cT && cT !== '0' && estaNaAtiva(row.situacao_professor)) return true;
+  if (!cS || cS === '0') return false;
+  if (estaEmContracao(cS)) return true;
+  if (estaNaAtiva(row.situacao_professor_sub)) return true;
+  return false;
+}
+// Quem está na sala: substituto quando o titular não ocupa a vaga.
+function isSubstituto(row) {
+  const cT = String(row.codigo_professor_prop || '').trim();
+  const cS = String(row.codigo_professor_sub  || '').trim();
+  const titularOcupa = estaEmContracao(cT) || (cT && cT !== '0' && estaNaAtiva(row.situacao_professor));
+  const subOcupa = (cS && cS !== '0') && (estaEmContracao(cS) || estaNaAtiva(row.situacao_professor_sub));
+  return !titularOcupa && subOcupa;
+}
+function profAtivoNome(row) {
+  return (isSubstituto(row) ? row.nome_professor_sub : row.nome_professor_prop) || '—';
+}
+// Vínculo/função do professor que está na sala (titular ou substituto).
+function vincAtivo(row) {
+  return isSubstituto(row) ? row.vinculo_funcao_sub : row.vinculo_funcao_prop;
+}
+// Nível do cargo (PEB/PB I, II, III) a partir de um texto de função/vínculo.
+// Cuidado para "II" não casar dentro de "III".
+function nivelPB(txt) {
+  const f = colapsar(txt);
+  const m = f.match(/(?:PEB|PB|EDUCACAOBASICA|BASICA)(III|II|I|3|2|1)(?![I0-9])/);
+  if (!m) return null;
+  const r = m[1];
+  if (r === 'III' || r === '3') return 'III';
+  if (r === 'II'  || r === '2') return 'II';
+  if (r === 'I'   || r === '1') return 'I';
+  return null;
+}
+// Nível considerando função do professor e o vínculo de quem está na sala.
+function nivelPBRow(row) {
+  return nivelPB(row.funcao_professor) || nivelPB(vincAtivo(row));
+}
+// Vínculo legível: Efetivo / Contratado.
+function vinculoTexto(row) {
+  const t = String(vincAtivo(row) || row.funcao_professor || '').toUpperCase();
+  if (t.includes('EFETIV')) return 'Efetivo';
+  if (t.includes('CONTRAT')) return 'Contratado';
+  return '—';
+}
+
+/* ── Classificação ANO/ETAPA → uma das 7 categorias (ou null) ───── */
+function classificarAno(anoRaw) {
+  const n = normalizar(anoRaw);            // mantém espaços: "ETAPA I - INTEGRAL - M"
+  const f = colapsar(anoRaw);              // colapsado: "ETAPAIINTEGRALM"
+  // EJA / Termos / Ciclos NÃO são turmas de 1º-5º nem Etapas (ex.: "1º TERMO" é EJA).
+  if (f.includes('TERMO') || f.includes('EJA') || f.includes('CICLO')) return null;
+  if (f.includes('ETAPA')) {
+    // Lê o número da etapa logo após "ETAPA" (token isolado), tolerando sufixos
+    // como "- INTEGRAL - M". Ex.: "ETAPA I - INTEGRAL - M" → Etapa I (não II).
+    const m = n.match(/ETAPA\s*-?\s*(II|2|DOIS|I|1|UM)\b/);
+    if (m) {
+      const t = m[1];
+      if (t === 'II' || t === '2' || t === 'DOIS') return 'Etapa II';
+      if (t === 'I'  || t === '1' || t === 'UM')   return 'Etapa I';
+    }
+    return null;
+  }
+  const md = f.match(/^(\d+)/);             // 1º ao 5º ano (número no início)
+  if (md) { const v = parseInt(md[1], 10); if (v >= 1 && v <= 5) return v + 'º Ano'; }
+  return null;
+}
+
+// Categoria-linha final (considera o turno/modalidade nas etapas):
+//   Integral = ano_escolar contém "INTEGRAL"; senão Manhã/Tarde pelo campo período.
+function categoriaAno(row) {
+  const base = classificarAno(row.ano_escolar);
+  if (base === 'Etapa I' || base === 'Etapa II') {
+    let turno;
+    if (colapsar(row.ano_escolar).includes('INTEGRAL')) turno = 'Integral';
+    else { const p = periodoCanon(row.periodo); turno = p === 'M' ? 'Manhã' : p === 'T' ? 'Tarde' : null; }
+    return turno ? base + SEP + turno : null;   // turno desconhecido (ex.: noite) → fora
+  }
+  return base;
+}
+
+/* ── Classificação DISCIPLINA → uma das 4 categorias (ou null) ──── */
+function classificarDisc(discRaw) {
+  const f = colapsar(discRaw);
+  if ((f.includes('EDUCACAO') || f.includes('EDUC')) && (f.includes('FISICA') || f.includes('FIS'))) return 'Educação Física';
+  if (f.includes('INGLES') || f.includes('INGLESA')) return 'Inglês';
+  if (f.includes('ARTE')) return 'Arte';                 // Arte, Artes, Artes Visuais
+  if (f.includes('MAGISTERIO')) {
+    if (f.includes('MAGISTERIOII') || f.includes('MAGISTERIO2')) return 'Magistério II';
+    return null;  // Magistério I fora do escopo (foco em Magistério II)
+  }
+  return null;
+}
+
+/* ── Nome canônico de QUALQUER disciplina (para a parte do Fundamental) ── */
+function nomeDisc(raw) {
+  const f = colapsar(raw);
+  if (!f) return '';
+  if (isPRADisc(raw)) return 'PRA — Recuperação';   // faz parte da grade do 1º ao 5º
+  if (f.includes('MAGISTERIO')) {
+    if (f.includes('MAGISTERIOII') || f.includes('MAGISTERIO2')) return 'Magistério II';
+    return 'Magistério I';
+  }
+  if ((f.includes('EDUCACAO') || f.includes('EDUC')) && (f.includes('FISICA') || f.includes('FIS'))) return 'Educação Física';
+  if (f.includes('INGLES') || f.includes('INGLESA')) return 'Inglês';
+  if (f.includes('ARTESVISUAIS')) return 'Artes Visuais';
+  if (f.includes('ARTE')) return 'Arte';
+  if (f.includes('PORTUGUES')) return 'Língua Portuguesa';
+  if (f.includes('MATEMATICA')) return 'Matemática';
+  if (f.includes('CIENCIAS')) return 'Ciências';
+  if (f.includes('HISTORIA')) return 'História';
+  if (f.includes('GEOGRAFIA')) return 'Geografia';
+  if (f.includes('MUSICA') || f.includes('MSICA')) return 'Música';
+  if (f.includes('ATENDIMENTOEDUCACIONAL') || f.includes('EDUCACIONALESPECIALIZADO') || f === 'AEE') return 'AEE';
+  return String(raw || '').trim().replace(/\s+/g, ' ');   // mantém o nome original p/ as demais
+}
+
+/* ── Cor de cada disciplina (fixa p/ as conhecidas, paleta p/ as demais) ── */
+const COR_DISC = {
+  'Magistério II':'#2563eb', 'Magistério I':'#1e40af', 'Arte':'#7c3aed', 'Artes Visuais':'#9333ea',
+  'Inglês':'#0d9488', 'Educação Física':'#d97706', 'Língua Portuguesa':'#dc2626', 'Matemática':'#0891b2',
+  'Ciências':'#16a34a', 'História':'#b45309', 'Geografia':'#65a30d', 'Música':'#db2777', 'AEE':'#475569',
+  'PRA — Recuperação':'#0ea5e9',
+  'PPA — Prof. Alfabetizador':'#2563eb', 'PPP — Práticas Pedagógicas':'#7c3aed', 'PRP — Recuperação Paralela':'#ea580c',
+};
+const PALETA = ['#2563eb','#7c3aed','#0d9488','#d97706','#dc2626','#0891b2','#16a34a','#b45309','#65a30d','#db2777','#475569','#9333ea','#ca8a04','#0369a1'];
+function corDisc(nome) {
+  if (COR_DISC[nome]) return COR_DISC[nome];
+  let h = 0; for (let i = 0; i < nome.length; i++) h = (h * 31 + nome.charCodeAt(i)) >>> 0;
+  return PALETA[h % PALETA.length];
+}
+
+/* ── Projetos ───────────────────────────────────────────────────── */
+// PRA — Recuperação da Aprendizagem (Anos Iniciais)  [mesma regra da tela de Atribuição]
+function isPRADisc(disc) {
+  const f = colapsar(disc);
+  return f.includes('RECUP') && (f.includes('APREND') || f.includes('APREN')) && f.includes('ANOS') && f.includes('INIC');
+}
+// Nome canônico de um projeto, ou null se a linha não for de projeto.
+// Obs.: o PRA NÃO é projeto aqui — ele faz parte da grade do 1º ao 5º
+// (tratado como disciplina em nomeDisc).
+function nomeProjeto(disc) {
+  const f = colapsar(disc);
+  if (!f) return null;
+  if (isPRADisc(disc)) return null;                                   // PRA vai para a grade
+  if (f.includes('ALFABETIZADOR') || f === 'PPA') return 'PPA — Prof. Alfabetizador';
+  if (f.includes('PRATICA') && f.includes('PEDAGOG')) return 'PPP — Práticas Pedagógicas';
+  if (f.includes('PARALELA') && f.includes('RECUP')) return 'PRP — Recuperação Paralela';
+  return null;
+}
+
+/* ── Séries excluídas (mesma config da tela de Atribuição) ──────── */
+let _seriesExcl = new Set();
+function serieNormConf(v) { return normalizar(v).replace(/[^A-Z0-9]+/g, ' ').trim(); }
+function serieExcluida(ano) { return _seriesExcl.size > 0 && _seriesExcl.has(serieNormConf(ano)); }
+async function fetchSeriesExcluidas() {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/config_series_excluidas?select=serie,excluido`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+    if (r.ok) {
+      const linhas = await r.json();
+      const set = new Set();
+      (linhas || []).filter(x => x.excluido !== false).forEach(x => set.add(serieNormConf(x.serie)));
+      _seriesExcl = set;
+    }
+  } catch (_) {}
+}
+
+/* ── Busca de dados (mesmo cache da tela de Atribuição) ─────────── */
+const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,situacao_professor_sub,vinculo_funcao_prop,vinculo_funcao_sub,funcao_professor';
+async function _fetchTurmasRede() {
+  const PAGE = 1000;
+  const H = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+  const pageUrl = off => `${SUPABASE_URL}/rest/v1/turmas?select=${SELECT}&order=nome_unidade.asc&limit=${PAGE}&offset=${off}`;
+  const first = await fetch(pageUrl(0), { headers: { ...H, Prefer: 'count=exact' } });
+  if (!first.ok) throw new Error(`Erro ${first.status}`);
+  const firstBatch = await first.json();
+  if (firstBatch.length < PAGE) return firstBatch;
+  const total = parseInt((first.headers.get('content-range') || '').split('/')[1], 10);
+  if (Number.isFinite(total)) {
+    const offsets = [];
+    for (let off = PAGE; off < total && off <= 300000; off += PAGE) offsets.push(off);
+    const restantes = await Promise.all(offsets.map(async off => {
+      const r = await fetch(pageUrl(off), { headers: H });
+      if (!r.ok) throw new Error(`Erro ${r.status}`);
+      return r.json();
+    }));
+    return firstBatch.concat(...restantes);
+  }
+  let rows = firstBatch.slice(), offset = PAGE;
+  while (true) {
+    const r = await fetch(pageUrl(offset), { headers: H });
+    if (!r.ok) throw new Error(`Erro ${r.status}`);
+    const batch = await r.json();
+    rows = rows.concat(batch);
+    if (batch.length < PAGE) break;
+    offset += PAGE;
+    if (offset > 300000) break;
+  }
+  return rows;
+}
+async function fetchTurmas() {
+  const CACHE_KEY = 'mapa_atrib_turmas_v2';   // mesmo cache da tela de Atribuição
+  const TTL = 10 * 60 * 1000;
+  if (!window.__forcarRefetch) {
+    try {
+      const o = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      if (o && o.ts && (Date.now() - o.ts) < TTL && Array.isArray(o.rows)) return o.rows;
+    } catch (e) {}
+  }
+  window.__forcarRefetch = false;
+  const rows = await _fetchTurmasRede();
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), rows })); } catch (e) {}
+  return rows;
+}
+function aguardarAuth() {
+  return new Promise(resolve => {
+    if (window.MapaAuth && window.MapaAuth.perfil) return resolve();
+    document.addEventListener('mapa-auth-pronto', () => resolve(), { once: true });
+    setTimeout(resolve, 8000);
+  });
+}
+function filtrarTurmasPorEscola(rows) {
+  try {
+    if (window.MapaAuth && window.MapaAuth.restritoEscola)
+      return window.MapaAuth.filtrarEscolas(rows, r => r.nome_unidade);
+  } catch (e) {}
+  return rows;
+}
+
+/* ── Agregação ──────────────────────────────────────────────────── */
+// cube[ano] = {
+//   turmas: Set,                              // turmas distintas do ano/etapa (qualquer disciplina)
+//   disc: { [nomeDisc]: { cargaCriada, cargaAtribuida, tCriadas:Set, tAtrib:Set } }
+// }  -> agrega TODAS as disciplinas (a parte das Etapas usa só as 4; o Fundamental usa todas)
+function novaCell() { return { cargaCriada:0, cargaAtribuida:0, tCriadas:new Set(), tAtrib:new Set() }; }
+function agregar() {
+  const cube = {};
+  ANOS.forEach(a => { cube[a] = { turmas: new Set(), disc: {}, turmaInfo: {} }; });
+  const proj = {};   // projetos (PPA/PPP/PRP): { nome -> {cargaCriada,cargaAtribuida} } — não ligados a turmas
+
+  (ROWS || []).forEach(row => {
+    if (periodosSel && !periodosSel.has(periodoDesc(row.periodo))) return;
+    const carga = Number(row.carga_horaria || 0) || 0;
+    const atrib = isAtribuido(row);
+
+    // Projetos: agregados à parte (independem do ano/turma) — só somam aulas.
+    const projNome = nomeProjeto(row.descricao_disciplina);
+    if (projNome) {
+      const cell = (proj[projNome] ||= { cargaCriada:0, cargaAtribuida:0 });
+      cell.cargaCriada += carga; if (atrib) cell.cargaAtribuida += carga;
+      return;
+    }
+
+    const ano = categoriaAno(row);
+    if (!ano || !cube[ano]) return;
+    const tk = turmaKey(row);
+    // Só conta como turma/sala quem tem turno real (Manhã/Tarde/Noite). Linhas com
+    // período "integral"/vazio (ex.: vivência alimentação, relaxamento da turma integral)
+    // não criam uma sala nova — senão a turma integral seria contada 3x (manhã+tarde+integral).
+    const pc = periodoCanon(row.periodo);
+    if (pc === 'M' || pc === 'T' || pc === 'N') {
+      cube[ano].turmas.add(tk);               // turma distinta (independe da disciplina)
+      if (!cube[ano].turmaInfo[tk]) cube[ano].turmaInfo[tk] = {  // dados legíveis p/ o drill-down
+        unit: cleanUnit(row.nome_unidade), letra: String(row.letra_turma || '').trim(), per: periodoDesc(row.periodo)
+      };
+    }
+
+    const nome = nomeDisc(row.descricao_disciplina);
+    if (!nome) return;
+    const cell = (cube[ano].disc[nome] ||= novaCell());
+    cell.cargaCriada += carga; cell.tCriadas.add(tk);
+    if (atrib) { cell.cargaAtribuida += carga; cell.tAtrib.add(tk); }
+  });
+  return { cube, proj };
+}
+
+// Junta várias células numa só (soma cargas, une conjuntos de turmas).
+function mergeCells(cells) {
+  const out = novaCell();
+  cells.forEach(c => {
+    if (!c) return;
+    out.cargaCriada += c.cargaCriada; out.cargaAtribuida += c.cargaAtribuida;
+    c.tCriadas.forEach(t => out.tCriadas.add(t));
+    c.tAtrib.forEach(t => out.tAtrib.add(t));
+  });
+  return out;
+}
+// Célula de um dos 4 "baldes" (Etapas): junta todas as disciplinas que caem nele.
+function bucketCell(cube, ano, bucketKey) {
+  const cells = [];
+  Object.keys(cube[ano].disc).forEach(nome => {
+    if (classificarDisc(nome) === bucketKey) cells.push(cube[ano].disc[nome]);
+  });
+  return mergeCells(cells);
+}
+// Lista ordenada (por carga) das chaves de um mapa de células presentes nos anos.
+function chavesDe(cube, anos, campo) {
+  const tot = {};
+  anos.forEach(a => Object.keys(cube[a][campo]).forEach(n => {
+    tot[n] = (tot[n] || 0) + cube[a][campo][n].cargaCriada;
+  }));
+  return Object.keys(tot).sort((x, y) => tot[y] - tot[x] || x.localeCompare(y, 'pt-BR'));
+}
+function disciplinasDe(cube, anos) { return chavesDe(cube, anos, 'disc'); }
+
+/* ── Valores conforme métrica ativa ─────────────────────────────── */
+// Análise por TOTAL de aulas (independe de atribuída ou não):
+//   principal = total criado · secundária (referência) = atribuída
+// 'carga'  → aulas (soma da carga horária) · 'turmas' → turmas distintas (dedup)
+function valPrinc(cell) { if (!cell) return 0; return metrica === 'carga' ? cell.cargaCriada    : cell.tCriadas.size; }
+function valAtrib(cell) { if (!cell) return 0; return metrica === 'carga' ? cell.cargaAtribuida : cell.tAtrib.size; }
+function fmt(n)         { return metrica === 'carga' ? Number(n).toLocaleString('pt-BR') : String(n); }
+// turmas distintas de um conjunto de anos (uniões de Sets)
+function turmasDistintas(cube, anos) {
+  const s = new Set();
+  anos.forEach(a => cube[a].turmas.forEach(t => s.add(t)));
+  return s.size;
+}
+
+/* ── Render ─────────────────────────────────────────────────────── */
+function corPct(p) { return p >= 90 ? ['#047857','#d1fae5'] : p >= 60 ? ['#b45309','#fef3c7'] : ['#b91c1c','#fee2e2']; }
+
+function render() {
+  const { cube, proj } = agregar();
+  CUBE = cube; PROJ = proj;
+  const unidMetr = metrica === 'carga' ? 'total de aulas (carga horária)' : 'total de turmas distintas';
+  ['metricaLabel1', 'metricaLabel2', 'metricaLabel3'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = `valor = <b>${unidMetr}</b> (independe de atribuição) · menor = atribuídas`;
+  });
+
+  // KPIs: turmas por parte + total de aulas da rede (todas as disciplinas + projetos)
+  const tEtapas = turmasDistintas(cube, ETAPA_CATS);
+  const tFund   = turmasDistintas(cube, ANO_CATS);
+  const subEtapas = ETAPAS.map(e => `${e}: ${turmasDistintas(cube, TURNOS.map(t => e + SEP + t))}`).join(' · ');
+  const subFund   = ANO_CATS.map(a => `${a.replace(' Ano','º')}: ${cube[a].turmas.size}`).join(' · ');
+  let gA = 0, gT = 0;
+  ANOS.forEach(a => Object.values(cube[a].disc).forEach(c => { gA += c.cargaAtribuida; gT += c.cargaCriada; }));
+  Object.values(proj).forEach(c => { gA += c.cargaAtribuida; gT += c.cargaCriada; });
+  const pG = gT > 0 ? Math.round(gA / gT * 100) : 0;
+  const [cg, bgg] = corPct(pG);
+  document.getElementById('kpis').innerHTML = `
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#7c3aed;">
+      <div class="lbl"><i class="bi bi-flower1 me-1"></i>Turmas — Etapas</div>
+      <div class="val">${tEtapas}</div><div class="sub">${escapeHtml(subEtapas)}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#059669;">
+      <div class="lbl"><i class="bi bi-1-circle me-1"></i>Turmas — Fundamental</div>
+      <div class="val">${tFund}</div><div class="sub">${escapeHtml(subFund)}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#0f172a;">
+      <div class="lbl"><i class="bi bi-collection me-1"></i>Total de turmas</div>
+      <div class="val">${tEtapas + tFund}</div><div class="sub">Etapas + Fundamental (1º–5º)</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#1d4ed8;">
+      <div class="lbl"><i class="bi bi-journals me-1"></i>Total de aulas (rede)</div>
+      <div class="val">${gT.toLocaleString('pt-BR')}</div>
+      <div class="sub">${gA.toLocaleString('pt-BR')} atribuídas <span class="pct-pill" style="color:${cg};background:${bgg};">${pG}%</span></div></div></div>`;
+
+  // Etapa I, Etapa II e Fundamental = TODAS as disciplinas/práticas presentes em cada bloco
+  const cols = anos => disciplinasDe(cube, anos).map(n => ({ key:n, rgb:corDisc(n), destaque:(n === 'Magistério II'), cell:a => cube[a].disc[n] }));
+  renderSecao(SECOES[0], cube, cols(ETAPA_I_CATS),  a => cube[a].turmas);
+  renderSecao(SECOES[1], cube, cols(ETAPA_II_CATS), a => cube[a].turmas);
+  renderSecao(SECOES[2], cube, cols(ANO_CATS),      a => cube[a].turmas);
+
+  renderProjetos(proj);
+  recomputeSim();
+  renderGrafico(cube);
+  renderConferencia();
+  renderCobertura(cube);
+
+  const unidades = new Set((ROWS || []).map(r => r.nome_unidade)).size;
+  document.getElementById('rodape').textContent =
+    `Base: ${ (ROWS||[]).length.toLocaleString('pt-BR') } linhas de atribuição · ${unidades} unidades. `
+    + `Análise pelo TOTAL de aulas (criadas), independente de atribuição. `
+    + `Turmas contadas de forma distinta por escola+ano+letra+período.`;
+}
+
+// Monta a matriz de uma parte. colunas=[{key,rgb,destaque,cell(ano)}] · turmaSetOf(ano)→Set
+function renderSecao(secao, cube, colunas, turmaSetOf) {
+  const thead = `<thead><tr>
+      <th style="text-align:left;">${escapeHtml(secao.col1 || 'Etapa / Ano')}</th>
+      <th title="Turmas distintas (cada turma contada uma vez)">Turmas</th>
+      ${colunas.map(c => `<th style="color:${c.rgb};">${escapeHtml(c.key)}</th>`).join('')}
+      <th class="col-total">Total</th>
+    </tr></thead>`;
+
+  const totCol = colunas.map(() => ({ p:0, a:0 }));
+  let secP = 0, secA = 0;
+  const setUniao = new Set();
+
+  const linhas = secao.anos.map(ano => {
+    let linP = 0, linA = 0;
+    const tds = colunas.map((col, i) => {
+      const cell = col.cell(ano);
+      const vp = valPrinc(cell), va = valAtrib(cell);
+      totCol[i].p += vp; totCol[i].a += va;
+      linP += vp; linA += va;
+      const p = vp > 0 ? Math.round(va / vp * 100) : 0;
+      return `<td class="${col.destaque ? 'col-mag' : ''}">
+        <div class="big">${vp ? fmt(vp) : '<span class="text-muted">0</span>'}</div>
+        <div class="small">${vp ? fmt(va) + ' atrib. · ' + p + '%' : '—'}</div></td>`;
+    }).join('');
+    secP += linP; secA += linA;
+    const tset = turmaSetOf(ano); tset.forEach(t => setUniao.add(t));
+    const pL = linP > 0 ? Math.round(linA / linP * 100) : 0;
+    return `<tr>
+      <th>${escapeHtml((secao.rotulo || rotuloLinha)(ano))}</th>
+      <td><div class="big text-primary">${tset.size}</div><div class="small">turmas</div></td>
+      ${tds}
+      <td class="col-total"><div class="big">${fmt(linP)}</div><div class="small">${fmt(linA)} atrib. · ${pL}%</div></td>
+    </tr>`;
+  }).join('');
+
+  const totaisTd = colunas.map((col, i) => {
+    const o = totCol[i];
+    const p = o.p > 0 ? Math.round(o.a / o.p * 100) : 0;
+    return `<td><div class="big">${fmt(o.p)}</div><div class="small">${fmt(o.a)} atrib. · ${p}%</div></td>`;
+  }).join('');
+  const pS = secP > 0 ? Math.round(secA / secP * 100) : 0;
+  const linhaTotal = `<tr class="total-row">
+      <th>Subtotal</th>
+      <td><div class="big text-primary">${setUniao.size}</div><div class="small">turmas</div></td>
+      ${totaisTd}
+      <td class="col-total"><div class="big">${fmt(secP)}</div><div class="small">${fmt(secA)} atrib. · ${pS}%</div></td>
+    </tr>`;
+
+  document.getElementById(secao.tabela).innerHTML = thead + `<tbody>${linhas}${linhaTotal}</tbody>`;
+}
+
+// Parte 3 (Projetos): lista simples por projeto — total de aulas e atribuídas.
+// Projetos não são por turma, por isso sem coluna de turmas e sem quebra por ano.
+function renderProjetos(proj) {
+  const el = document.getElementById('matrizProj');
+  const nomes = Object.keys(proj).sort((x, y) => proj[y].cargaCriada - proj[x].cargaCriada || x.localeCompare(y, 'pt-BR'));
+  if (!nomes.length) {
+    el.innerHTML = `<tbody><tr><td class="text-muted p-3">Nenhuma linha de projeto encontrada neste filtro.</td></tr></tbody>`;
+    return;
+  }
+  const thead = `<thead><tr>
+      <th style="text-align:left;">Projeto</th>
+      <th class="text-center">Total de aulas</th>
+      <th class="text-center">Atribuídas</th>
+      <th class="text-center">%</th></tr></thead>`;
+  let tT = 0, tA = 0;
+  const linhas = nomes.map(n => {
+    const c = proj[n]; tT += c.cargaCriada; tA += c.cargaAtribuida;
+    const p = c.cargaCriada > 0 ? Math.round(c.cargaAtribuida / c.cargaCriada * 100) : 0;
+    const [cor, bg] = corPct(p);
+    return `<tr>
+      <th style="text-align:left;color:${corDisc(n)};">${escapeHtml(n)}</th>
+      <td class="text-center"><span class="big">${c.cargaCriada.toLocaleString('pt-BR')}</span></td>
+      <td class="text-center">${c.cargaAtribuida.toLocaleString('pt-BR')}</td>
+      <td class="text-center"><span class="pct-pill" style="color:${cor};background:${bg};">${p}%</span></td></tr>`;
+  }).join('');
+  const pT = tT > 0 ? Math.round(tA / tT * 100) : 0;
+  const total = `<tr class="total-row">
+      <th style="text-align:left;">Total</th>
+      <td class="text-center"><span class="big">${tT.toLocaleString('pt-BR')}</span></td>
+      <td class="text-center">${tA.toLocaleString('pt-BR')}</td>
+      <td class="text-center">${pT}%</td></tr>`;
+  el.innerHTML = thead + `<tbody>${linhas}${total}</tbody>`;
+}
+
+/* ── Simulador 2027 ─────────────────────────────────────────────── */
+const SIM_KEY = 'mapa_retrato_sim2027';
+let _simPronto = false;
+
+function simSetup() {
+  // Carrega parâmetros salvos e liga os eventos uma única vez.
+  let p = {}; try { p = JSON.parse(localStorage.getItem(SIM_KEY)) || {}; } catch (e) {}
+  const ap = document.getElementById('simApoio'); if (ap && p.apoio != null) ap.value = p.apoio;
+  ANO_CATS.forEach((a, i) => { const el = document.getElementById('simPPA' + (i + 1)); if (el && p.ppa && p.ppa[i + 1] != null) el.value = p.ppa[i + 1]; });
+  if (!_simPronto) {
+    ['simApoio', 'simPPA1', 'simPPA2', 'simPPA3', 'simPPA4', 'simPPA5'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', () => { simSalvar(); recomputeSim(); });
+    });
+    _simPronto = true;
+  }
+  recomputeSim();
+}
+function simSalvar() {
+  const p = { apoio: Number(document.getElementById('simApoio').value) || 0, ppa: {} };
+  ANO_CATS.forEach((a, i) => { p.ppa[i + 1] = Number(document.getElementById('simPPA' + (i + 1)).value) || 0; });
+  try { localStorage.setItem(SIM_KEY, JSON.stringify(p)); } catch (e) {}
+}
+function recomputeSim() {
+  const box = document.getElementById('simResultado');
+  if (!box || !CUBE) return;
+  const br = n => Number(n).toLocaleString('pt-BR');
+
+  // Apoio nas etapas (todas as turmas: parcial + integral)
+  const apoio = Number((document.getElementById('simApoio') || {}).value) || 0;
+  const etapaTurmas = turmasDistintas(CUBE, ETAPA_CATS);
+  const apoioTotal = etapaTurmas * apoio;
+  const info = document.getElementById('simApoioInfo');
+  if (info) info.textContent = `${etapaTurmas} turmas de etapa × ${apoio} = ${br(apoioTotal)} aulas`;
+
+  // PPA no fundamental (1 por turma; aulas por ano)
+  let ppaTotal = 0;
+  const ppaLin = ANO_CATS.map((a, i) => {
+    const param = Number((document.getElementById('simPPA' + (i + 1)) || {}).value) || 0;
+    const turmas = CUBE[a].turmas.size, sub = turmas * param; ppaTotal += sub;
+    return `<tr><td>${escapeHtml(a)}</td><td class="text-end">${turmas}</td><td class="text-end">${param}</td><td class="text-end">${br(sub)}</td></tr>`;
+  }).join('');
+
+  // Base = tudo que NÃO é projeto (todas as disciplinas/práticas das etapas e do
+  // fundamental). Continua igual em 2027; o que muda são os projetos.
+  let base = 0;
+  ANOS.forEach(a => Object.values(CUBE[a].disc).forEach(c => base += c.cargaCriada));
+  // Projetos atuais (2026)
+  let proj2026 = 0;
+  Object.values(PROJ || {}).forEach(c => proj2026 += c.cargaCriada);
+
+  const t2026 = base + proj2026;                        // base + projetos atuais
+  const t2027 = base + apoioTotal + ppaTotal;           // base + projetos novos (substituem os atuais)
+  const diff = t2027 - t2026;
+  const pct = t2026 > 0 ? Math.round(diff / t2026 * 1000) / 10 : 0;
+  const cor = diff > 0 ? '#b91c1c' : '#047857';
+
+  box.innerHTML = `
+    <div class="row g-3">
+      <div class="col-12 col-lg-6">
+        <table class="table table-sm align-middle mb-0">
+          <tbody>
+            <tr><td>Base — tudo que não é projeto (2026)</td><td class="text-end fw-bold">${br(base)}</td></tr>
+            <tr class="table-light"><td colspan="2" class="small text-muted fw-bold">2026</td></tr>
+            <tr><td>+ Projetos atuais (PPA/PPP/PRP)</td><td class="text-end">${br(proj2026)}</td></tr>
+            <tr><td><b>Total 2026</b></td><td class="text-end fw-bold">${br(t2026)}</td></tr>
+            <tr class="table-light"><td colspan="2" class="small text-muted fw-bold">2027 (projeção)</td></tr>
+            <tr><td>+ Apoio (Etapas)</td><td class="text-end">${br(apoioTotal)}</td></tr>
+            <tr><td>+ PPA (Fundamental)</td><td class="text-end">${br(ppaTotal)}</td></tr>
+            <tr style="background:#dbeafe;"><td><b>Total 2027</b></td><td class="text-end fw-bold">${br(t2027)}</td></tr>
+            <tr><td><b>Diferença (2027 − 2026)</b></td><td class="text-end fw-bold" style="color:${cor};">${diff >= 0 ? '+' : ''}${br(diff)} (${pct >= 0 ? '+' : ''}${pct}%)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="col-12 col-lg-6">
+        <div class="small fw-bold text-muted mb-1">PPA por ano</div>
+        <table class="table table-sm table-bordered align-middle mb-0">
+          <thead><tr><th>Ano</th><th class="text-end">Turmas</th><th class="text-end">Aulas/turma</th><th class="text-end">Total</th></tr></thead>
+          <tbody>${ppaLin}<tr class="fw-bold"><td>Total</td><td></td><td></td><td class="text-end">${br(ppaTotal)}</td></tr></tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function renderGrafico(cube) {
+  const ctx = document.getElementById('grafico');
+  const data = {
+    labels: ANOS.map(rotuloCurto),
+    datasets: DISCS.map(d => ({
+      label: d.key,
+      data: ANOS.map(a => valPrinc(bucketCell(cube, a, d.key))),
+      backgroundColor: d.rgb,
+      borderRadius: 4,
+    })),
+  };
+  if (grafico) { grafico.data = data; grafico.update(); return; }
+  grafico = new Chart(ctx, {
+    type: 'bar',
+    data,
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      scales: { x: { stacked: false }, y: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+}
+
+function renderConferencia() {
+  // Anos
+  const anosCount = {};
+  (ROWS || []).forEach(r => { const k = String(r.ano_escolar || '—'); anosCount[k] = (anosCount[k] || 0) + 1; });
+  const anosHtml = Object.keys(anosCount).sort().map(k => {
+    const cat = classificarAno(k);
+    return `<tr><td>${escapeHtml(k)}</td><td class="text-end">${anosCount[k]}</td>
+      <td>${cat ? '<span class="badge bg-success-subtle text-success border">' + escapeHtml(cat) + '</span>'
+                : '<span class="badge bg-light text-muted border">ignorado</span>'}</td></tr>`;
+  }).join('');
+  document.getElementById('confAnos').innerHTML =
+    `<thead><tr><th>ano_escolar</th><th class="text-end">Linhas</th><th>Categoria</th></tr></thead><tbody>${anosHtml}</tbody>`;
+
+  // Disciplinas
+  const discCount = {};
+  (ROWS || []).forEach(r => { const k = String(r.descricao_disciplina || '—'); discCount[k] = (discCount[k] || 0) + 1; });
+  const discHtml = Object.keys(discCount).sort().map(k => {
+    const proj = nomeProjeto(k);
+    const nome = proj || nomeDisc(k);
+    const tag = proj
+      ? '<span class="badge bg-warning-subtle text-warning border ms-1">Projeto</span>'
+      : (classificarDisc(k) ? '<span class="badge bg-primary-subtle text-primary border ms-1" title="Também aparece nas Etapas">Etapas</span>' : '');
+    return `<tr><td>${escapeHtml(k)}</td><td class="text-end">${discCount[k]}</td>
+      <td><span class="badge bg-success-subtle text-success border">${escapeHtml(nome || '—')}</span>${tag}</td></tr>`;
+  }).join('');
+  document.getElementById('confDiscs').innerHTML =
+    `<thead><tr><th>descricao_disciplina</th><th class="text-end">Linhas</th><th>Disciplina (Fundamental) / balde (Etapas)</th></tr></thead><tbody>${discHtml}</tbody>`;
+}
+
+// Cobertura: turmas com cada disciplina vs. total de turmas do ano (1º ao 5º)
+function renderCobertura(cube) {
+  const el = document.getElementById('confCobertura');
+  if (!el) return;
+  const anos = ANOS;                           // Etapa I, II + 1º ao 5º
+  const discs = disciplinasDe(cube, anos);
+  if (!discs.length) { el.innerHTML = '<tbody><tr><td class="text-muted p-2">Sem disciplinas.</td></tr></tbody>'; return; }
+
+  const header = `<thead><tr><th style="text-align:left;">Disciplina \\ Ano</th>` +
+    anos.map(a => `<th class="text-center">${escapeHtml(rotuloCurto(a))}<br><small class="text-muted">${cube[a].turmas.size} turmas</small></th>`).join('') +
+    `</tr></thead>`;
+
+  const corpo = discs.map(n => {
+    const tds = anos.map(a => {
+      const cell = cube[a].disc[n];
+      const cov = cell ? cell.tCriadas.size : 0;
+      const tot = cube[a].turmas.size;
+      if (!tot) return `<td class="text-center text-muted">—</td>`;
+      const cheia = cov === tot;
+      const cor = cov === 0 ? '#94a3b8' : cheia ? '#047857' : '#b45309';
+      const extra = (cov > 0 && !cheia) ? `<small class="text-muted">/${tot}</small>` : '';
+      const clic = cov > 0 ? ` cell-cob" style="cursor:pointer;color:${cor};font-weight:700;" data-ano="${escapeHtml(a)}" data-disc="${escapeHtml(n)}" title="Clique para ver as turmas` : `" style="color:${cor};font-weight:700;`;
+      return `<td class="text-center${clic}">${cov}${extra}</td>`;
+    }).join('');
+    return `<tr><td style="text-align:left;">${escapeHtml(n)}</td>${tds}</tr>`;
+  }).join('');
+
+  el.innerHTML = header + `<tbody>${corpo}</tbody>`;
+}
+
+// Drill-down: lista as turmas (escola · letra · turno) ao clicar numa célula da cobertura.
+function detalheCobertura(ano, disc) {
+  const box = document.getElementById('coberturaDetalhe');
+  if (!box || !CUBE || !CUBE[ano]) return;
+  const cell = CUBE[ano].disc[disc];
+  const cobertos = cell ? cell.tCriadas : new Set();
+  const todos = Object.keys(CUBE[ano].turmaInfo);
+  const tot = todos.length, cov = cobertos.size, falta = tot - cov;
+
+  // Mostra o conjunto MENOR (mais informativo): as que faltam, ou as que têm.
+  const mostrarFaltantes = falta <= cov;
+  const chaves = todos.filter(k => mostrarFaltantes ? !cobertos.has(k) : cobertos.has(k));
+  const titulo = mostrarFaltantes
+    ? `${falta} turma(s) do ${escapeHtml(ano)} que <b>NÃO têm</b> ${escapeHtml(disc)}`
+    : `${cov} turma(s) do ${escapeHtml(ano)} que <b>têm</b> ${escapeHtml(disc)}`;
+
+  // Agrupa por escola
+  const porEscola = {};
+  chaves.forEach(k => {
+    const info = CUBE[ano].turmaInfo[k];
+    (porEscola[info.unit] ||= []).push(`${info.letra || '—'} (${info.per})`);
+  });
+  const escolas = Object.keys(porEscola).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const linhas = escolas.map(e =>
+    `<tr><td>${escapeHtml(e)}</td><td class="text-center">${porEscola[e].length}</td>
+      <td>${porEscola[e].map(escapeHtml).join(', ')}</td></tr>`).join('');
+
+  box.innerHTML = `
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <div class="fw-bold">${titulo} <span class="text-muted">· ${escolas.length} escola(s)</span></div>
+      <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('coberturaDetalhe').innerHTML=''"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="table-responsive" style="max-height:300px;overflow:auto;">
+      <table class="table table-sm table-bordered align-middle mb-0">
+        <thead><tr><th>Escola</th><th class="text-center">Turmas</th><th>Letra (turno)</th></tr></thead>
+        <tbody>${linhas || '<tr><td colspan="3" class="text-muted">Nenhuma turma.</td></tr>'}</tbody>
+      </table>
+    </div>`;
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* ── Período chips ──────────────────────────────────────────────── */
+function montarPeriodos() {
+  const pers = Array.from(new Set((ROWS || []).map(r => periodoDesc(r.periodo)))).filter(Boolean).sort();
+  const box = document.getElementById('periodoChips');
+  box.innerHTML = pers.map(p => {
+    const on = !periodosSel || periodosSel.has(p);
+    return `<button class="chip-per ${on ? 'active' : ''}" onclick="togglePeriodo('${escapeHtml(p)}')">${escapeHtml(p)}</button>`;
+  }).join('') || '';
+}
+function togglePeriodo(p) {
+  const todos = Array.from(new Set((ROWS || []).map(r => periodoDesc(r.periodo))));
+  if (!periodosSel) periodosSel = new Set(todos);
+  if (periodosSel.has(p)) periodosSel.delete(p); else periodosSel.add(p);
+  if (periodosSel.size === 0 || periodosSel.size === todos.length) periodosSel = null;
+  montarPeriodos();
+  render();
+}
+
+/* ── Toolbar: métrica ───────────────────────────────────────────── */
+document.getElementById('segMetrica').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  metrica = b.dataset.m;
+  document.querySelectorAll('#segMetrica button').forEach(x => x.classList.toggle('active', x === b));
+  render();
+});
+
+/* ── Cobertura: clique numa célula abre o detalhe de turmas ─────── */
+document.getElementById('confCobertura').addEventListener('click', e => {
+  const td = e.target.closest('td.cell-cob'); if (!td) return;
+  detalheCobertura(td.dataset.ano, td.dataset.disc);
+});
+
+/* ── Excel ──────────────────────────────────────────────────────── */
+async function exportarExcel() {
+  if (!ROWS) return;
+  const { cube, proj } = agregar();
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Retrato Atribuições');
+  const unidMetr = metrica === 'carga' ? 'Total de aulas (carga horária)' : 'Total de turmas distintas';
+  ws.addRow([`Retrato Quantitativo — ${unidMetr} (independe de atribuição)`]);
+  ws.addRow([`Período: ${periodosSel ? Array.from(periodosSel).join(', ') : 'Todos'}`]);
+  ws.addRow([]);
+
+  const colsDe = anos => disciplinasDe(cube, anos).map(n => ({ key:n, cell:a => cube[a].disc[n] }));
+
+  const bloco = (titulo, anos, colunas, turmaSetOf) => {
+    ws.addRow([titulo]).font = { bold: true, italic: true };
+    const head = ['Etapa/Ano/Turno', 'Turmas (distintas)'];
+    colunas.forEach(c => head.push(c.key + ' (total)', c.key + ' (atrib.)'));
+    head.push('Total geral', 'Atribuídas');
+    ws.addRow(head).font = { bold: true };
+    const uniao = new Set();
+    anos.forEach(a => {
+      const tset = turmaSetOf(a); tset.forEach(t => uniao.add(t));
+      const r = [rotuloCurto(a), tset.size]; let lp = 0, la = 0;
+      colunas.forEach(col => { const c = col.cell(a); r.push(valPrinc(c), valAtrib(c)); lp += valPrinc(c); la += valAtrib(c); });
+      r.push(lp, la); ws.addRow(r);
+    });
+    const sr = ['Subtotal', uniao.size]; let sp = 0, sa = 0;
+    colunas.forEach(col => {
+      let p = 0, a = 0; anos.forEach(an => { const c = col.cell(an); p += valPrinc(c); a += valAtrib(c); });
+      sr.push(p, a); sp += p; sa += a;
+    });
+    sr.push(sp, sa); ws.addRow(sr).font = { bold: true };
+    ws.addRow([]);
+  };
+
+  bloco('PARTE 1 — Educação Infantil · Etapa I (por turno)',  ETAPA_I_CATS,  colsDe(ETAPA_I_CATS),  a => cube[a].turmas);
+  bloco('PARTE 1 — Educação Infantil · Etapa II (por turno)', ETAPA_II_CATS, colsDe(ETAPA_II_CATS), a => cube[a].turmas);
+  bloco('PARTE 2 — Ensino Fundamental (1º ao 5º Ano) · todas as disciplinas', ANO_CATS, colsDe(ANO_CATS), a => cube[a].turmas);
+
+  // PARTE 3 — Projetos (lista simples; não são por turma)
+  const projNomes = Object.keys(proj).sort((x, y) => proj[y].cargaCriada - proj[x].cargaCriada || x.localeCompare(y, 'pt-BR'));
+  if (projNomes.length) {
+    ws.addRow(['PARTE 3 — Projetos (total de aulas)']).font = { bold: true, italic: true };
+    ws.addRow(['Projeto', 'Total de aulas', 'Atribuídas']).font = { bold: true };
+    projNomes.forEach(n => ws.addRow([n, proj[n].cargaCriada, proj[n].cargaAtribuida]));
+    ws.addRow([]);
+  }
+
+  ws.columns.forEach(c => c.width = 16);
+  ws.getColumn(1).width = 22;
+  const buf = await wb.xlsx.writeBuffer();
+  const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = 'retrato-atribuicoes.xlsx'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ── Carregamento ───────────────────────────────────────────────── */
+async function carregar() {
+  document.getElementById('estado').style.display = 'block';
+  document.getElementById('conteudo').style.display = 'none';
+  try {
+    await aguardarAuth();
+    await fetchSeriesExcluidas();
+    const todas = await fetchTurmas();
+    const visiveis = filtrarTurmasPorEscola(todas);
+    ROWS = visiveis.filter(r => !serieExcluida(r.ano_escolar));
+    document.getElementById('estado').style.display = 'none';
+    document.getElementById('conteudo').style.display = 'block';
+    montarPeriodos();
+    render();   // depois de exibir o conteúdo, para o gráfico medir o canvas corretamente
+    simSetup(); // carrega parâmetros salvos do simulador e liga os eventos
+  } catch (e) {
+    document.getElementById('estado').innerHTML =
+      `<div class="alert alert-danger d-inline-block">Erro ao carregar os dados: ${escapeHtml(e.message || e)}</div>`;
+  }
+}
+function atualizar() { window.__forcarRefetch = true; periodosSel = null; carregar(); }
+
+carregar();
+</script>
+</body>
+</html>
