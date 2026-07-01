@@ -1,15 +1,18 @@
 -- ============================================================================
--- Gestores e Coordenadores (liberação de acesso, igual às escolas).
--- Gerado da planilha "MAPA - Usuarios.csv". 168 perfis.
--- Cada perfil é vinculado à sua unidade -> acessa todas as telas (exceto
+-- Gestores e Coordenadores (liberacao de acesso, igual as escolas). 168 perfis.
+-- Gerado da planilha "MAPA - Usuarios.csv".
+-- Cada perfil e vinculado a sua unidade -> acessa todas as telas (exceto
 -- relatorios/boletim) com dados isolados na unidade. Idempotente.
--- Pré-requisito: sql/07,08,12 (norm_escola), 20. Rode depois deles.
+-- Pre-requisito: sql/07,08,12 (norm_escola), 20.
+--
+-- TUDO num unico bloco DO (1 statement) -> a temp _imp sobrevive no SQL Editor
+-- do Supabase, que isola cada comando.
 -- ============================================================================
--- Temp de SESSÃO (sem "on commit drop" e sem begin/commit): o SQL Editor do
--- Supabase confirma cada statement, então a temp precisa sobreviver entre eles.
-drop table if exists _imp;
-create temp table _imp (email text, nome text, escola text, vinculo text);
-insert into _imp (email, nome, escola, vinculo) values
+do $$
+begin
+  drop table if exists _imp;
+  create temp table _imp (email text, nome text, escola text, vinculo text) on commit drop;
+  insert into _imp (email, nome, escola, vinculo) values
     ('jacquelineiossi@educacao.pmrp.sp.gov.br','JACQUELINE PISCHIOTTIN IOSSI','ADRIANA COUTINHO BRANDANI CAMILO, EMEI','gestor'),
     ('dianenilson@educacao.pmrp.sp.gov.br','DIANE RODRIGUES NILSON','ALAOR GALVAO CESAR CEI','gestor'),
     ('marinasantos@educacao.pmrp.sp.gov.br','MARINA APARECIDA CAMARA SAIANI DA MOTA E SANTOS','ALBERT EINSTEIN, EMEI','gestor'),
@@ -179,28 +182,26 @@ insert into _imp (email, nome, escola, vinculo) values
     ('dejanepaulino@educacao.pmrp.sp.gov.br','DEJANE DE ALMEIDA PAULINO','WILSON ROSELINO, EMEI','gestor'),
     ('josebincoleto@educacao.pmrp.sp.gov.br','JOSE EDUARDO LEITE BINCOLETO','ZILDA COSSA D AVILA, EMEI','gestor');
 
--- 1) Garante uma escola para cada unidade citada (casando por nome normalizado).
-insert into public.escolas (nome)
-select distinct i.escola from _imp i
-where not exists (select 1 from public.escolas e
-                  where public.norm_escola(e.nome) = public.norm_escola(i.escola));
+  -- 1) Garante uma escola para cada unidade citada (casando por nome normalizado).
+  insert into public.escolas (nome)
+  select distinct i.escola from _imp i
+  where not exists (select 1 from public.escolas e
+                    where public.norm_escola(e.nome) = public.norm_escola(i.escola));
 
--- 2) Cria os perfis (não sobrescreve quem já existe).
-insert into public.perfis (email, nome, tipo, ativo)
-select lower(i.email), max(i.nome), 'escola', true
-from _imp i
-group by lower(i.email)
-on conflict (email) do nothing;
+  -- 2) Cria os perfis (nao sobrescreve quem ja existe).
+  insert into public.perfis (email, nome, tipo, ativo)
+  select lower(i.email), max(i.nome), 'escola', true
+  from _imp i group by lower(i.email)
+  on conflict (email) do nothing;
 
--- 3) Vincula cada perfil à sua unidade.
-insert into public.perfil_escola (perfil_id, escola_id, vinculo)
-select distinct p.id, e.id, i.vinculo
-from _imp i
-join public.perfis  p on p.email = lower(i.email)
-join public.escolas e on public.norm_escola(e.nome) = public.norm_escola(i.escola)
-on conflict (perfil_id, escola_id) do nothing;
+  -- 3) Vincula cada perfil a sua unidade.
+  insert into public.perfil_escola (perfil_id, escola_id, vinculo)
+  select distinct p.id, e.id, i.vinculo
+  from _imp i
+  join public.perfis  p on p.email = lower(i.email)
+  join public.escolas e on public.norm_escola(e.nome) = public.norm_escola(i.escola)
+  on conflict (perfil_id, escola_id) do nothing;
+end $$;
 
-drop table _imp;
-
--- Conferência:
+-- Conferencia:
 -- select count(*) from public.perfis where tipo='escola';
