@@ -256,6 +256,7 @@
             Baseado na tabela <b>turmas</b>; EJA/Termos e liminares ficam fora; a turma integral conta uma vez.</p>
           <div id="escPerEstado" class="text-muted small mb-2"></div>
           <div id="escPerResumo" class="row g-2 mb-3"></div>
+          <div class="fbar mb-2" id="escPerTipoChips"></div>
           <div class="d-flex gap-2 mb-2 flex-wrap align-items-center">
             <div class="fbar" id="escPerFiltro"></div>
             <input id="escPerBusca" class="form-control form-control-sm" style="max-width:280px;" placeholder="filtrar por nome da escola…" oninput="renderEscPer()">
@@ -1131,7 +1132,7 @@ async function mostrarAba(a) {
 // Garante que as turmas estão carregadas para a aba Escolas (carrega sob demanda).
 async function garantirTurmasEscolas() {
   const st = document.getElementById('escPerEstado');
-  if (CAP && CAP.escPer) { montarEscPerFiltro(); renderEscPer(); return; }
+  if (CAP && CAP.escPer) { montarEscPerTipo(); montarEscPerFiltro(); renderEscPer(); return; }
   if (st) st.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Carregando turmas…';
   try { if (!TURMAS) TURMAS = await fetchTurmasRede(); computarCapacidade(); if (st) st.textContent = ''; }
   catch (e) { if (st) st.innerHTML = `<span class="text-danger">${escapeHtml(e.message || e)}</span>`; }
@@ -1300,7 +1301,7 @@ function computarCapacidade() {
     if (o.integral) e.integral++; else e.parcial++; });
   CAP = { turmasPorAno, totTurmas, gradeCell, gradeDisc, turmasComDisc, discs:Array.from(discSet), totGrade, anoSeg, anosOrd, segs, escPer };
   renderTurmasReg(); renderGrade(); renderSuficiencia(); renderCapKpis(); renderDupTurmas();
-  montarEscPerFiltro(); renderEscPer();
+  montarEscPerTipo(); montarEscPerFiltro(); renderEscPer();
 }
 // ── Escolas por período (integral / parcial / misto) ──────────────
 let escPerClasseSel = null;   // null = todas as classes
@@ -1310,10 +1311,38 @@ function classeEscola(e) {
   return 'Misto';
 }
 const CLASSE_COR = { 'Só integral':'#7c3aed', 'Só parcial':'#2563eb', 'Misto':'#d97706' };
+// Tipo da escola pelo token no nome (CEI / EMEI / EMEF / …), evitando falso-positivo
+// (ex.: "CEI" dentro de "CONCEIÇÃO") ao casar tokens inteiros.
+let escPerTipoSel = null;     // null = todos os tipos
+function tipoEscola(nome) {
+  const toks = new Set(normalizar(nome).split(/[^A-Z0-9]+/).filter(Boolean));
+  for (const t of ['CEMEI','EMEIEF','CEEEF','EMEF','EMEI','CEI']) if (toks.has(t)) return t;
+  return 'Outras';
+}
+function escPerTipos() {
+  const s = new Set(Object.keys(CAP.escPer || {}).map(tipoEscola));
+  const ordem = ['CEI','EMEI','EMEF','EMEIEF','CEMEI','CEEEF','Outras'];
+  return [...s].sort((a,b) => ((ordem.indexOf(a)+1||99) - (ordem.indexOf(b)+1||99)) || a.localeCompare(b));
+}
+function montarEscPerTipo() {
+  const bar = document.getElementById('escPerTipoChips'); if (!bar || !CAP) return;
+  const tipos = escPerTipos();
+  bar.innerHTML = `<span class="flbl">Tipo de escola</span>` + tipos.map(t => {
+    const on = !escPerTipoSel || escPerTipoSel.has(t);
+    return `<button class="fchip ${on?'active':''}" onclick="escPerTipoToggle('${t}')">${t}</button>`;
+  }).join('');
+}
+function escPerTipoToggle(t) {
+  const tipos = escPerTipos();
+  if (!escPerTipoSel) escPerTipoSel = new Set(tipos);
+  if (escPerTipoSel.has(t)) escPerTipoSel.delete(t); else escPerTipoSel.add(t);
+  if (escPerTipoSel.size === 0 || escPerTipoSel.size === tipos.length) escPerTipoSel = null;
+  montarEscPerTipo(); renderEscPer();
+}
 function montarEscPerFiltro() {
   const bar = document.getElementById('escPerFiltro'); if (!bar || !CAP) return;
   const classes = ['Só integral','Só parcial','Misto'];
-  bar.innerHTML = `<span class="flbl">Tipo</span>` + classes.map(c => {
+  bar.innerHTML = `<span class="flbl">Período</span>` + classes.map(c => {
     const on = !escPerClasseSel || escPerClasseSel.has(c);
     return `<button class="fchip ${on?'active':''}" onclick="escPerToggle('${c}')">${c}</button>`;
   }).join('');
@@ -1329,8 +1358,10 @@ function escPerLista() {
   if (!CAP || !CAP.escPer) return [];
   const busca = colapsar((document.getElementById('escPerBusca')||{}).value || '');
   return Object.entries(CAP.escPer)
-    .map(([escola, e]) => ({ escola, integral:e.integral, parcial:e.parcial, total:e.integral+e.parcial, classe:classeEscola(e) }))
-    .filter(o => (!escPerClasseSel || escPerClasseSel.has(o.classe)) && (!busca || colapsar(o.escola).includes(busca)))
+    .map(([escola, e]) => ({ escola, tipo:tipoEscola(escola), integral:e.integral, parcial:e.parcial, total:e.integral+e.parcial, classe:classeEscola(e) }))
+    .filter(o => (!escPerTipoSel || escPerTipoSel.has(o.tipo))
+              && (!escPerClasseSel || escPerClasseSel.has(o.classe))
+              && (!busca || colapsar(o.escola).includes(busca)))
     .sort((a,b) => a.escola.localeCompare(b.escola,'pt-BR'));
 }
 function renderEscPer() {
@@ -1348,24 +1379,25 @@ function renderEscPer() {
       <div class="lbl">${lbl}</div><div class="val" style="font-size:1.4rem;">${br(v)}</div></div></div>`).join('');
   const lista = escPerLista();
   const contEl = document.getElementById('escPerContagem');
-  if (contEl) { const filtrando = escPerClasseSel || ((document.getElementById('escPerBusca')||{}).value||'').trim();
+  if (contEl) { const filtrando = escPerTipoSel || escPerClasseSel || ((document.getElementById('escPerBusca')||{}).value||'').trim();
     contEl.textContent = `Mostrando ${br(lista.length)} de ${br(Object.keys(CAP.escPer).length)} escolas${filtrando ? ' (filtro aplicado)' : ''}.`; }
   const linhas = lista.map(o => `<tr>
     <td style="text-align:left;">${escapeHtml(o.escola)}</td>
+    <td class="text-center"><span class="badge" style="background:#ede9fe;color:#6d28d9;">${escapeHtml(o.tipo)}</span></td>
     <td class="text-end">${o.integral ? br(o.integral) : '·'}</td>
     <td class="text-end">${o.parcial ? br(o.parcial) : '·'}</td>
     <td class="text-end fw-bold">${br(o.total)}</td>
     <td class="text-center"><span style="color:${CLASSE_COR[o.classe]};font-weight:700;">${o.classe}</span></td></tr>`).join('');
-  box.innerHTML = `<thead><tr><th style="text-align:left;">Escola</th>
+  box.innerHTML = `<thead><tr><th style="text-align:left;">Escola</th><th class="text-center">Tipo</th>
     <th class="text-end">Turmas integrais</th><th class="text-end">Turmas parciais</th>
     <th class="text-end">Total</th><th class="text-center">Classificação</th></tr></thead>
-    <tbody>${linhas || '<tr><td colspan="5" class="text-center text-muted">Nenhuma escola neste filtro.</td></tr>'}</tbody>`;
+    <tbody>${linhas || '<tr><td colspan="6" class="text-center text-muted">Nenhuma escola neste filtro.</td></tr>'}</tbody>`;
 }
 function baixarEscolasPeriodo() {
   const lista = escPerLista(); if (!lista.length) return;
   const esc = s => `"${String(s==null?'':s).replace(/"/g,'""')}"`;
-  const linhas = [['Escola','Turmas integrais','Turmas parciais','Total','Classificacao'].join(';')]
-    .concat(lista.map(o => [esc(o.escola), o.integral, o.parcial, o.total, esc(o.classe)].join(';')));
+  const linhas = [['Escola','Tipo','Turmas integrais','Turmas parciais','Total','Classificacao'].join(';')]
+    .concat(lista.map(o => [esc(o.escola), esc(o.tipo), o.integral, o.parcial, o.total, esc(o.classe)].join(';')));
   const blob = new Blob(['﻿' + linhas.join('\r\n')], { type:'text/csv;charset=utf-8;' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = 'escolas-por-periodo.csv'; a.click(); URL.revokeObjectURL(a.href);
