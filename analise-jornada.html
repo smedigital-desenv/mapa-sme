@@ -136,6 +136,15 @@
         </div>
       </div>
 
+      <!-- Visão geral (rede toda) para conferir com o retrato -->
+      <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #059669;">
+        <div class="sec-tt mb-1"><i class="bi bi-clipboard-check me-2"></i>Visão geral das atribuições (rede) — conferência com o Retrato</div>
+        <p class="text-muted small mb-3"><b>Toda a base</b> (ignora os filtros acima). Categorias iguais às do retrato
+          (projetos pela disciplina AF; etapa/ano pela série AC) para comparar linha a linha com o
+          <a href="retrato-atribuicao.html" target="_blank">retrato-atribuicao</a>.</p>
+        <div class="table-responsive"><table class="mtx" id="tabVisao"></table></div>
+      </div>
+
       <div class="text-muted small px-1" id="rodape"></div>
     </div>
   </main>
@@ -181,6 +190,31 @@ function catSerie(serie) {
   return 'Outros (oficinas etc.)';
 }
 const CAT_ALVO = 'Substituição/Complemento';
+
+// Normaliza mantendo espaços (p/ ler o token da etapa: "ETAPA I - INTEGRAL" → I).
+function normEsp(s){ return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[º°]/g,'').replace(/\s+/g,' ').trim(); }
+// Projeto pela disciplina atribuída (AF), como no retrato.
+function projAF(af) {
+  const f = colapsar(af);
+  if (f.includes('ALFABETIZADOR')) return 'PPA';
+  if (f.includes('PRATICASPEDAGOGICAS')) return 'PPP';
+  if (f.includes('PARALELA') && f.includes('RECUP')) return 'PRP';
+  return null;
+}
+// Categoria da linha p/ a visão geral (mesma estrutura do retrato).
+function catGeral(r) {
+  const p = projAF(r[COL.disc]); if (p) return 'Projeto: ' + p;
+  const me = normEsp(r[COL.serie]).match(/ETAPA\s*-?\s*(II|2|I|1)\b/);
+  if (me) return (me[1] === 'II' || me[1] === '2') ? 'Etapa II' : 'Etapa I';
+  const f = colapsar(r[COL.serie]);
+  const ma = f.match(/^(\d+)ANO/);
+  if (ma) { const v = +ma[1]; if (v >= 1 && v <= 5) return v + 'º Ano'; if (v >= 6 && v <= 9) return '6º–9º Ano'; }
+  if (f.startsWith('CICLO')) return 'Ciclos';
+  if (f.includes('TERMO')) return 'EJA (Termos)';
+  if (f.includes('SUBS') || f.includes('COMPLEMENTO')) return 'Substituição/Complemento';
+  if (f.includes('SALAREC') || f.includes('INTERPRETE') || f.includes('AEE') || f.includes('SURDO')) return 'Educação Especial';
+  return 'Outros (oficinas etc.)';
+}
 
 /* ── Busca de dados ─────────────────────────────────────────────── */
 async function fetchTudo() {
@@ -286,6 +320,7 @@ function render() {
 
   renderUnidades(rows);
   renderSubstituicao(rows);
+  renderVisaoGeral();
   renderGrafico(A);
   renderProfs(rows);
 
@@ -389,6 +424,45 @@ function renderSubstituicao(rows) {
     `<thead><tr><th>Série (AC)</th><th class="text-end">Aulas</th><th class="text-end">Linhas</th></tr></thead>`
     + `<tbody>${det.length ? det.map(([s,o]) => `<tr><td>${escapeHtml(s)}</td><td class="text-end fw-bold">${br(o.aulas)}</td><td class="text-end">${br(o.linhas)}</td></tr>`).join('')
         : '<tr><td colspan="3" class="text-muted">Nenhuma neste filtro.</td></tr>'}</tbody>`;
+}
+
+// Visão geral da rede (todas as linhas), nas categorias do retrato, para conferência.
+function renderVisaoGeral() {
+  const box = document.getElementById('tabVisao'); if (!box || !ROWS) return;
+  const agg = {};
+  ROWS.forEach(r => { const k = catGeral(r);
+    const o = (agg[k] ||= { aulas:0, linhas:0, profs:new Set() });
+    o.aulas += num(r[COL.carga]); o.linhas++; o.profs.add(r[COL.prof]); });
+  const V = k => agg[k] || { aulas:0, linhas:0, profs:new Set() };
+  const linha = (rot, k, cls='') => { const o = V(k);
+    return `<tr class="${cls}"><th style="text-align:left;padding-left:1.4rem;">${escapeHtml(rot)}</th>
+      <td class="text-end fw-bold">${br(o.aulas)}</td><td class="text-end">${br(o.linhas)}</td><td class="text-end">${br(o.profs.size)}</td></tr>`; };
+  const grupo = tit => `<tr class="total-row"><th colspan="4" style="text-align:left;">${escapeHtml(tit)}</th></tr>`;
+
+  const infKeys = ['Etapa I','Etapa II'];
+  const fundKeys = ['1º Ano','2º Ano','3º Ano','4º Ano','5º Ano'];
+  const projKeys = ['Projeto: PPA','Projeto: PPP','Projeto: PRP'];
+  const foraKeys = ['6º–9º Ano','Ciclos','EJA (Termos)','Educação Especial','Substituição/Complemento','Outros (oficinas etc.)'];
+  const somaK = ks => ks.reduce((s,k)=>s+V(k).aulas,0);
+  const comp = somaK(infKeys) + somaK(fundKeys) + somaK(projKeys);
+  const totalGeral = Object.values(agg).reduce((s,o)=>s+o.aulas,0);
+  const subLinha = (rot,val,st) => `<tr style="${st||''}"><th style="text-align:left;">${rot}</th><td class="text-end fw-bold">${br(val)}</td><td colspan="2"></td></tr>`;
+
+  box.innerHTML = `
+    <thead><tr><th style="text-align:left;">Categoria</th><th class="text-end">Aulas</th><th class="text-end">Linhas</th><th class="text-end">Profs</th></tr></thead>
+    <tbody>
+      ${grupo('Educação Infantil — Etapas')}
+      ${infKeys.map(k=>linha(k,k)).join('')}
+      ${grupo('Ensino Fundamental — 1º ao 5º')}
+      ${fundKeys.map(k=>linha(k,k)).join('')}
+      ${subLinha('Subtotal 1º–5º', somaK(fundKeys), 'background:#f8fafc;')}
+      ${grupo('Projetos')}
+      ${projKeys.map(k=>linha(k.replace('Projeto: ',''),k)).join('')}
+      ${subLinha('▶ Subtotal comparável ao Retrato (Etapas + 1º–5º + Projetos)', comp, 'background:#dbeafe;')}
+      ${grupo('Fora do escopo do retrato')}
+      ${foraKeys.map(k=>linha(k,k)).join('')}
+      ${subLinha('TOTAL GERAL DA BASE', totalGeral, 'background:#f1f5f9;border-top:2px solid #cbd5e1;')}
+    </tbody>`;
 }
 
 function renderGrafico(A) {
