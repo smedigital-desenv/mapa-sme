@@ -205,6 +205,7 @@
           </div>
         </div>
         <div id="simResultado" class="mt-3"></div>
+        <div id="simCapacidade" class="mt-3 pt-3" style="border-top:1px dashed #cbd5e1;"></div>
       </div>
 
       <!-- PARTE 1 — Educação Infantil (Etapas), separadas por turno: Manhã / Tarde / Integral -->
@@ -304,6 +305,35 @@
    ══════════════════════════════════════════════════════════════════ */
 const SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk';
+
+/* ── Professores PEB II efetivos (na ativa) por jornada — p/ o simulador ── */
+const TABELA_PROF = 'atribuicao_professores';
+let PROF2 = null;   // { 19:n, 28:n, 32:n } — professores distintos por jornada
+async function fetchProf2() {
+  const CK = 'mapa_retrato_prof2_v1', TTL = 10*60*1000;
+  if (!window.__forcarRefetch) {
+    try { const o = JSON.parse(localStorage.getItem(CK) || 'null');
+      if (o && o.ts && (Date.now()-o.ts) < TTL && o.c) return o.c; } catch (e) {}
+  }
+  const PAGE = 1000, H = { apikey:SUPABASE_KEY, Authorization:`Bearer ${SUPABASE_KEY}` };
+  const sel = 'cod_professor,cargo,vinculo,jornada,situacao';
+  const url = off => `${SUPABASE_URL}/rest/v1/${TABELA_PROF}?select=${sel}&limit=${PAGE}&offset=${off}`;
+  const first = await fetch(url(0), { headers:{ ...H, Prefer:'count=exact' } });
+  if (!first.ok) throw new Error(`Erro ${first.status} ao ler ${TABELA_PROF}`);
+  let rows = await first.json();
+  if (rows.length === PAGE) {
+    const total = parseInt((first.headers.get('content-range')||'').split('/')[1], 10);
+    if (Number.isFinite(total)) { const offs = []; for (let o=PAGE;o<total;o+=PAGE) offs.push(o);
+      const rest = await Promise.all(offs.map(async o => { const r = await fetch(url(o), {headers:H}); return r.ok ? r.json() : []; }));
+      rows = rows.concat(...rest); }
+  }
+  const prof = {};   // professor distinto (só PEB II efetivo NA ATIVA) → jornada
+  rows.forEach(r => { if (String(r.cargo) !== 'PEB II' || String(r.vinculo) !== 'E' || String(r.situacao) !== 'NA ATIVA') return;
+    prof[r.cod_professor] = Number(r.jornada) || 0; });
+  const c = {}; Object.values(prof).forEach(j => { if (j > 0) c[j] = (c[j]||0) + 1; });
+  try { localStorage.setItem(CK, JSON.stringify({ ts:Date.now(), c })); } catch (e) {}
+  return c;
+}
 
 /* ── Categorias pedidas ─────────────────────────────────────────── */
 const SEP = ' — ';
@@ -954,6 +984,47 @@ function recomputeSim() {
         </table>
       </div>
     </div>`;
+
+  renderSimCapacidade(t2027);
+}
+
+// Tabela: professores PEB II efetivos (na ativa) por jornada e as aulas que assumem.
+function renderSimCapacidade(t2027) {
+  const box = document.getElementById('simCapacidade'); if (!box) return;
+  const brn = n => Number(n).toLocaleString('pt-BR');
+  if (!PROF2) { box.innerHTML = `<div class="text-muted small"><i class="bi bi-people me-1"></i>Capacidade dos professores PEB II — dados de professores indisponíveis (sem acesso à tabela de atribuição).</div>`; return; }
+  const JORS = [19, 28, 32];
+  const outras = Object.keys(PROF2).map(Number).filter(j => j > 0 && !JORS.includes(j) && PROF2[j]);
+  const todas = JORS.concat(outras);
+  let totProf = 0, totCap = 0;
+  const linhas = todas.map(j => { const n = PROF2[j] || 0, cap = n * j; totProf += n; totCap += cap;
+    return `<tr><td>${j}h</td><td class="text-end">${brn(n)}</td><td class="text-center text-muted">× ${j}</td><td class="text-end fw-bold">${brn(cap)}</td></tr>`; }).join('');
+  const ok = t2027 >= totCap;
+  box.innerHTML = `
+    <div class="sec-tt mb-1" style="font-size:.92rem;"><i class="bi bi-people-fill me-2"></i>Capacidade dos professores PEB II efetivos (na ativa)</div>
+    <p class="text-muted small mb-2">Aulas que esses professores assumem = <b>professores × jornada</b>. Serve para conferir se o total projetado
+      para 2027 é maior que as aulas do quadro efetivo atual de PEB II. Só efetivos <b>na ativa</b> (afastados/readaptados fora).</p>
+    <div class="row g-3">
+      <div class="col-12 col-lg-6">
+        <table class="table table-sm align-middle mb-0" style="max-width:460px;">
+          <thead><tr><th>Jornada</th><th class="text-end">Professores</th><th></th><th class="text-end">Aulas</th></tr></thead>
+          <tbody>${linhas}
+            <tr class="table-light fw-bold"><td>Total PEB II efetivos</td><td class="text-end">${brn(totProf)}</td><td></td><td class="text-end">${brn(totCap)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="col-12 col-lg-6 d-flex align-items-center">
+        <div class="p-3 rounded w-100" style="background:${ok?'#dcfce7':'#fee2e2'};border:1px solid ${ok?'#86efac':'#fca5a5'};">
+          <div class="small text-muted">Total 2027 projetado</div>
+          <div class="fw-bold" style="font-size:1.15rem;">${brn(t2027)} aulas</div>
+          <div class="small text-muted mt-1">Capacidade PEB II efetivos (na ativa)</div>
+          <div class="fw-bold" style="font-size:1.15rem;">${brn(totCap)} aulas</div>
+          <div class="mt-2 fw-bold" style="color:${ok?'#166534':'#991b1b'};">
+            ${ok ? '<i class="bi bi-check-circle-fill me-1"></i>2027 ≥ capacidade — há aulas para o quadro efetivo' : '<i class="bi bi-exclamation-triangle-fill me-1"></i>2027 &lt; capacidade — faltam aulas para o quadro efetivo'}
+          </div>
+        </div>
+      </div>
+    </div>`;
 }
 
 function renderGrafico(cube) {
@@ -1181,6 +1252,7 @@ async function carregar() {
     await aguardarAuth();
     await fetchSeriesExcluidas();
     const todas = await fetchTurmas();
+    try { PROF2 = await fetchProf2(); } catch (e) { PROF2 = null; }
     const visiveis = filtrarTurmasPorEscola(todas);
     ROWS = visiveis.filter(r => !serieExcluida(r.ano_escolar));
     document.getElementById('estado').style.display = 'none';
