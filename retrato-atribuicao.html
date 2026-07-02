@@ -619,12 +619,17 @@ function agregar() {
     if (pc === 'M' || pc === 'T' || pc === 'N') {
       cube[ano].turmas.add(tk);               // turma distinta (independe da disciplina)
       if (!cube[ano].turmaInfo[tk]) cube[ano].turmaInfo[tk] = {  // dados legíveis p/ o drill-down
-        unit: cleanUnit(row.nome_unidade), letra: String(row.letra_turma || '').trim(), per: periodoDesc(row.periodo)
+        unit: cleanUnit(row.nome_unidade), letra: String(row.letra_turma || '').trim(), per: periodoDesc(row.periodo), discs: {}
       };
     }
 
     const nome = nomeDisc(row.descricao_disciplina);
     if (!nome) return;
+    // Guarda o que essa turma tem lançado (p/ o drill-down): disciplina canônica +
+    // o texto bruto de descricao_disciplina (revela regente com nome fora do padrão).
+    const info = cube[ano].turmaInfo[tk];
+    if (info) { const raw = String(row.descricao_disciplina || '').trim();
+      (info.discs[nome] ||= new Set()).add(raw || nome); }
     const cell = (cube[ano].disc[nome] ||= novaCell());
     cell.cargaCriada += carga; cell.tCriadas.add(tk);
     if (atrib) { cell.cargaAtribuida += carga; cell.tAtrib.add(tk); }
@@ -999,25 +1004,30 @@ function detalheCobertura(ano, disc) {
     ? `${falta} turma(s) do ${escapeHtml(ano)} que <b>NÃO têm</b> ${escapeHtml(disc)}`
     : `${cov} turma(s) do ${escapeHtml(ano)} que <b>têm</b> ${escapeHtml(disc)}`;
 
-  // Agrupa por escola
-  const porEscola = {};
-  chaves.forEach(k => {
-    const info = CUBE[ano].turmaInfo[k];
-    (porEscola[info.unit] ||= []).push(`${info.letra || '—'} (${info.per})`);
-  });
-  const escolas = Object.keys(porEscola).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  const linhas = escolas.map(e =>
-    `<tr><td>${escapeHtml(e)}</td><td class="text-center">${porEscola[e].length}</td>
-      <td>${porEscola[e].map(escapeHtml).join(', ')}</td></tr>`).join('');
+  // Uma linha por turma, mostrando o que ela TEM lançado (disciplina canônica → texto bruto).
+  const escolasSet = new Set();
+  const ordenadas = chaves.map(k => CUBE[ano].turmaInfo[k]).filter(Boolean)
+    .sort((a, b) => a.unit.localeCompare(b.unit, 'pt-BR') || String(a.letra).localeCompare(String(b.letra), 'pt-BR') || a.per.localeCompare(b.per, 'pt-BR'));
+  const linhas = ordenadas.map(info => {
+    escolasSet.add(info.unit);
+    const nomes = Object.keys(info.discs).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    const lancado = nomes.length
+      ? nomes.map(n => { const raws = [...info.discs[n]]; const rawTxt = raws.filter(r => normalizar(r) !== normalizar(n)).join(' / ');
+          return `<span class="badge bg-light text-dark border">${escapeHtml(n)}${rawTxt ? ` <span class="text-muted">(${escapeHtml(rawTxt)})</span>` : ''}</span>`; }).join(' ')
+      : '<span class="text-muted">nenhuma disciplina lançada</span>';
+    return `<tr><td>${escapeHtml(info.unit)}</td><td class="text-center">${escapeHtml(info.letra || '—')} (${escapeHtml(info.per)})</td>
+      <td style="font-size:.8rem;">${lancado}</td></tr>`;
+  }).join('');
 
   box.innerHTML = `
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <div class="fw-bold">${titulo} <span class="text-muted">· ${escolas.length} escola(s)</span></div>
+      <div class="fw-bold">${titulo} <span class="text-muted">· ${escolasSet.size} escola(s)</span></div>
       <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('coberturaDetalhe').innerHTML=''"><i class="bi bi-x-lg"></i></button>
     </div>
-    <div class="table-responsive" style="max-height:300px;overflow:auto;">
+    <div class="text-muted small mb-1">Coluna "Disciplinas da turma" mostra o que está lançado naquele turno (entre parênteses, o texto original quando difere do nome padrão — útil p/ achar regente com nome fora do padrão).</div>
+    <div class="table-responsive" style="max-height:340px;overflow:auto;">
       <table class="table table-sm table-bordered align-middle mb-0">
-        <thead><tr><th>Escola</th><th class="text-center">Turmas</th><th>Letra (turno)</th></tr></thead>
+        <thead><tr><th>Escola</th><th class="text-center">Turma (turno)</th><th>Disciplinas da turma</th></tr></thead>
         <tbody>${linhas || '<tr><td colspan="3" class="text-muted">Nenhuma turma.</td></tr>'}</tbody>
       </table>
     </div>`;
