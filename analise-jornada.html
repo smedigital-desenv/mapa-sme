@@ -1,0 +1,1714 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <script src="auth-guard.js"></script>
+  <script>window.MAPA_SISTEMA = 'mapa';</script>
+  <script>window.MAPA_TELA = 'atribuicao';</script>
+  <script src="auth.js" defer></script>
+  <script src="config-central.js" defer></script>
+  <script src="demo-mode.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Composição da Jornada dos Professores | SME Ribeirão Preto</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧮</text></svg>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  <style>
+    :root { --primary:#002b5e; --neon-blue:#00e5ff; }
+    body { background:#f0f4f8; font-family:'Segoe UI',sans-serif; padding-bottom:60px; }
+    .nav-header { background:var(--primary); color:#fff; border-bottom:4px solid var(--neon-blue);
+      padding:.9rem 1.6rem; box-shadow:0 6px 18px rgba(0,43,94,.18); }
+    .nav-header h1 { font-size:1.25rem; font-weight:800; margin:0; }
+    .nav-header .sub { font-size:.7rem; color:rgba(255,255,255,.7); font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+    .nav-back { color:rgba(255,255,255,.85); text-decoration:none; font-size:.82rem; font-weight:700; }
+    .nav-back:hover { color:#fff; }
+    .toolbar { background:rgba(0,43,94,.95); border-bottom:1px solid rgba(0,229,255,.2);
+      padding:.5rem 1.6rem; display:flex; align-items:center; gap:.7rem; flex-wrap:wrap; position:sticky; top:0; z-index:1010; }
+    .toolbar label { color:rgba(255,255,255,.72); font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin:0; }
+    .chip { background:transparent; border:1px solid rgba(0,229,255,.4); color:rgba(255,255,255,.82);
+      border-radius:999px; padding:.2rem .7rem; font-size:.74rem; font-weight:700; cursor:pointer; }
+    .chip.active { background:#fff; color:var(--primary); border-color:#fff; }
+    .btn-tool { background:transparent; border:1px solid rgba(0,229,255,.4); color:#fff; border-radius:7px;
+      padding:.28rem .7rem; font-size:.76rem; font-weight:700; cursor:pointer; }
+    .btn-tool:hover { background:rgba(0,229,255,.14); }
+    .selCargo { background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(0,229,255,.4); border-radius:7px;
+      font-size:.78rem; font-weight:700; padding:.25rem .5rem; }
+    .selCargo option { color:#0f172a; }
+    .kpi { background:#fff; border-radius:14px; padding:.9rem 1.1rem; box-shadow:0 4px 14px rgba(0,0,0,.05); border-left:5px solid #1d4ed8; height:100%; }
+    .kpi .lbl { font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
+    .kpi .val { font-size:1.7rem; font-weight:900; color:#0f172a; line-height:1.1; }
+    .kpi .sub { font-size:.72rem; color:#94a3b8; font-weight:700; }
+    .card-box { background:#fff; border-radius:16px; box-shadow:0 4px 15px rgba(0,0,0,.05); }
+    .sec-tt { font-weight:900; color:var(--primary); font-size:1rem; }
+    table.mtx { width:100%; border-collapse:separate; border-spacing:0; }
+    table.mtx th, table.mtx td { padding:.5rem .6rem; text-align:center; border-bottom:1px solid #eef2f7; font-size:.82rem; }
+    table.mtx thead th { position:sticky; top:0; background:#f8fafc; font-size:.7rem; text-transform:uppercase; color:#475569; z-index:1; }
+    table.mtx tbody th { text-align:left; font-weight:800; color:var(--primary); white-space:nowrap; background:#fff; }
+    table.mtx td .big { font-weight:800; color:#0f172a; }
+    table.mtx tr.total-row th, table.mtx tr.total-row td { background:#f1f5f9; border-top:2px solid #cbd5e1; font-weight:800; }
+    table.mtx td.zero { color:#cbd5e1; }
+    .loader { text-align:center; padding:3rem 1rem; color:#64748b; }
+    .spin { width:38px; height:38px; border:4px solid #e2e8f0; border-top-color:var(--neon-blue); border-radius:50%; animation:sp 1s linear infinite; margin:0 auto .8rem; }
+    @keyframes sp { to { transform:rotate(360deg); } }
+    .fbar { display:flex; flex-wrap:wrap; gap:.3rem .45rem; align-items:center; }
+    .fbar .flbl { font-size:.66rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:#64748b; margin:0 .1rem 0 .4rem; }
+    .fbar .flbl:first-child { margin-left:0; }
+    .fchip { background:#f1f5f9; border:1px solid #cbd5e1; color:#334155; border-radius:999px;
+      padding:.14rem .58rem; font-size:.71rem; font-weight:700; cursor:pointer; white-space:nowrap; }
+    .fchip:hover { border-color:#94a3b8; }
+    .fchip.active { background:#059669; border-color:#059669; color:#fff; }
+    .fchip.clear { background:#fff; border-style:dashed; color:#64748b; }
+    /* ── Menu padrão do sistema (MAPA) ── */
+    .mg-header { background:var(--primary); color:#fff; border-bottom:5px solid var(--neon-blue); padding:.9rem 1.6rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; position:relative; z-index:1060; box-shadow:0 6px 18px rgba(0,43,94,.18); }
+    .mg-brand { display:flex; align-items:center; gap:.6rem; min-width:180px; cursor:pointer; }
+    .mg-brand-icon { width:34px; height:34px; display:grid; place-items:center; color:var(--neon-blue); font-size:1.4rem; }
+    .mg-brand h4 { margin:0; font-weight:900; font-size:1.4rem; line-height:1; }
+    .mg-brand-sub { font-size:.63rem; color:rgba(255,255,255,.68); font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-top:2px; }
+    .mg-nav { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; flex:1; min-width:280px; }
+    .mg-nav-btn { display:inline-flex; align-items:center; gap:.4rem; justify-content:center; min-width:140px; font-size:.78rem; font-weight:900; padding:6px 14px; border-radius:8px; border:2px solid transparent; color:#fff; text-decoration:none; transition:.2s; white-space:nowrap; cursor:pointer; }
+    .mg-nav-btn:hover { border-color:rgba(255,255,255,.4); } .mg-nav-btn.active { background:#fff; color:var(--primary); }
+    .mg-nav-icon { min-width:auto; padding:6px 10px; }
+    .mg-action-btn { background:#fff; color:var(--primary); border:0; border-radius:8px; padding:6px 12px; font-weight:900; font-size:.78rem; display:inline-flex; align-items:center; gap:.4rem; cursor:pointer; }
+    @media (max-width:992px){ .mg-nav-btn{ min-width:auto; } }
+    @media print { .toolbar,.nav-back,.btn-tool,#graficoWrap,.fbar,.mg-header { display:none !important; } body { background:#fff; } }
+  </style>
+</head>
+<body>
+  <!-- ═══ MENU PADRÃO DO SISTEMA (MAPA) ═══ -->
+  <header class="mg-header">
+    <div class="mg-brand" onclick="location.href='index.html'" title="Página inicial do MAPA">
+      <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div><div><h4>MAPA</h4><div class="mg-brand-sub">SME Ribeirão Preto</div></div>
+    </div>
+    <nav class="mg-nav">
+      <a class="mg-nav-btn" href="avaliacao.html"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+      <a class="mg-nav-btn active" href="atribuicao.html"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+      <a class="mg-nav-btn" href="elefante.html"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+      <a class="mg-nav-btn" href="fluencia.html"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+      <a class="mg-nav-btn" href="educacao_especial.html"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+      <a class="mg-nav-btn" href="relatorios.html"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+      <a class="mg-nav-btn" href="boletim.html"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+      <a class="mg-nav-btn mg-nav-icon" href="#" id="btnConfig" style="display:none" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
+    </nav>
+    <div><button class="mg-action-btn" onclick="location.reload()" title="Atualizar"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button></div>
+  </header>
+
+  <header class="nav-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-3">
+      <i class="bi bi-easel2-fill" style="font-size:1.6rem;color:var(--neon-blue);"></i>
+      <div>
+        <h1>Composição da Jornada dos Professores</h1>
+        <div class="sub">Tipo de aula (AF) × tipo de atribuição (AH), por cargo e jornada</div>
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+      <a class="nav-back" href="atribuicao.html"><i class="bi bi-diagram-3-fill me-1"></i>Atribuição</a>
+      <a class="nav-back" href="index.html"><i class="bi bi-house-fill me-1"></i>Início</a>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <label><i class="bi bi-person-badge me-1"></i>Cargo</label>
+    <select class="selCargo" id="selCargo"></select>
+    <label class="ms-2"><i class="bi bi-clock me-1"></i>Jornada</label>
+    <div id="jornadaChips" class="d-flex gap-1 flex-wrap"></div>
+    <label class="ms-2">Vínculo</label>
+    <div id="vinculoChips" class="d-flex gap-1 flex-wrap"></div>
+    <label class="ms-2">Status</label>
+    <div id="statusChips" class="d-flex gap-1 flex-wrap"></div>
+    <div class="ms-auto d-flex gap-2">
+      <button class="btn-tool" onclick="atualizar()"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+      <button class="btn-tool" onclick="exportarExcel()"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+      <button class="btn-tool" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    </div>
+  </div>
+
+  <main class="container-fluid px-3 px-lg-4 py-3" style="max-width:1280px;">
+    <div id="estado" class="loader"><div class="spin"></div><div>Carregando dados da atribuição…</div></div>
+
+    <div id="conteudo" style="display:none;">
+      <ul class="nav nav-tabs mb-3">
+        <li class="nav-item"><button class="nav-link active" id="aba-analise" type="button" onclick="mostrarAba('analise')"><i class="bi bi-grid-3x3-gap-fill me-1"></i>Composição &amp; Conferência</button></li>
+        <li class="nav-item"><button class="nav-link" id="aba-capacidade" type="button" onclick="mostrarAba('capacidade')"><i class="bi bi-calculator me-1"></i>Professores × Grade (capacidade)</button></li>
+        <li class="nav-item"><button class="nav-link" id="aba-escolas" type="button" onclick="mostrarAba('escolas')"><i class="bi bi-buildings me-1"></i>Escolas por período</button></li>
+      </ul>
+
+      <div id="tab-analise">
+      <div class="row g-2 g-lg-3 mb-3" id="kpis"></div>
+
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div class="sec-tt"><i class="bi bi-grid-3x3-gap-fill me-2"></i>Composição da jornada — tipo de aula × tipo de atribuição</div>
+          <div class="text-muted small">valores em <b>aulas</b> (soma da carga horária)</div>
+        </div>
+        <div class="table-responsive"><table class="mtx" id="matriz"></table></div>
+      </div>
+
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <div class="sec-tt mb-1"><i class="bi bi-building me-2"></i>Em quantas unidades compuseram a jornada</div>
+        <p class="text-muted small mb-3">Quantas <b>unidades distintas</b> (coluna W — unidade atribuída) cada professor usou para fechar a jornada.</p>
+        <div id="blocoUnidades"></div>
+      </div>
+
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <div class="sec-tt mb-1"><i class="bi bi-arrow-left-right me-2"></i>Aulas criadas para completar jornada</div>
+        <p class="text-muted small mb-3">Pela série (coluna AC): aulas <b>fora dos anos regulares e projetos</b> — substituição,
+          complemento de pagamento, etc. — criadas para completar a jornada.</p>
+        <div id="blocoSubst"></div>
+        <button class="btn btn-sm btn-outline-secondary mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#substDet">
+          <i class="bi bi-list-ul me-1"></i>Detalhar as séries de substituição/complemento
+        </button>
+        <div class="collapse mt-2" id="substDet">
+          <div class="table-responsive" style="max-height:320px;overflow:auto;">
+            <table class="table table-sm table-bordered align-middle mb-0" id="substDetTab"></table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-box p-3 p-lg-4 mb-3" id="graficoWrap">
+        <div class="sec-tt mb-2"><i class="bi bi-bar-chart-fill me-2"></i>Aulas por tipo (disciplina AF)</div>
+        <canvas id="grafico" height="120"></canvas>
+      </div>
+
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#profBox">
+          <i class="bi bi-people me-1"></i>Detalhe por professor
+        </button>
+        <div class="collapse mt-3" id="profBox">
+          <div class="table-responsive" style="max-height:460px;overflow:auto;">
+            <table class="table table-sm table-hover align-middle mb-0" id="tabProf"></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visão geral (rede toda) para conferir com o retrato -->
+      <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #059669;">
+        <div class="sec-tt mb-1"><i class="bi bi-clipboard-check me-2"></i>Visão geral das atribuições (rede) — conferência com o Retrato</div>
+        <p class="text-muted small mb-2">Categorias iguais às do retrato
+          (projetos pela disciplina AF; etapa/ano pela série AC) para comparar linha a linha com o
+          <a href="retrato-atribuicao.html" target="_blank">retrato-atribuicao</a>.
+          Por padrão usa <b>toda a base</b>; use os filtros abaixo para recortar por disciplina, cargo, vínculo, jornada ou status.<br>
+          <b>Aulas necessárias</b> = cada turma × disciplina contada <b>uma única vez</b> (é o que se compara ao retrato):
+          quando um slot foi trocado de professor (ATRIBUIDA → TROCA) ou aparece duplicado, a <b>troca não é contada duas vezes</b>.
+          A coluna <b>Atribuídas (c/ trocas)</b> mostra a carga bruta de todas as linhas; o valor <span style="color:#b45309;">(+n)</span> é quanto as trocas/duplicidades inflam o total.</p>
+        <div class="fbar mb-3 pb-2" id="vgFiltros" style="border-bottom:1px dashed #e2e8f0;"></div>
+        <div class="table-responsive"><table class="mtx" id="tabVisao"></table></div>
+      </div>
+
+      <!-- Conciliação ao vivo: turmas (currículo) × atribuição -->
+      <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #2563eb;">
+        <div class="sec-tt mb-1"><i class="bi bi-diagram-3 me-2"></i>Conciliação com o Retrato — turmas (currículo) × atribuição <span class="text-muted fw-normal" style="font-size:.8rem;">(ao vivo)</span></div>
+        <p class="text-muted small mb-2">Cruza a tabela <b>turmas</b> (o que cada turma precisa — base do retrato) com a
+          <b>atribuição</b> (o que já foi atribuído, cada slot turma×disciplina contado 1×).
+          <b>Falta</b> = necessário − atribuído. Categorias e disciplinas pela mesma regra do retrato.</p>
+        <button class="chip active" id="btnConc" onclick="carregarTurmas()"><i class="bi bi-arrow-repeat me-1"></i>Carregar turmas e comparar</button>
+        <div id="concDiag" class="text-muted small mt-2 mb-2"></div>
+        <div class="table-responsive"><table class="mtx" id="tabConc"></table></div>
+        <div id="concDetalhe" class="mt-3"></div>
+      </div>
+
+      <div class="text-muted small px-1" id="rodape"></div>
+      </div><!-- /tab-analise -->
+
+      <!-- ══════════ ABA CAPACIDADE ══════════ -->
+      <div id="tab-capacidade" style="display:none;">
+        <div class="mb-3 pb-2" style="border-bottom:1px dashed #e2e8f0;">
+          <div class="fbar mb-1" id="capVincChips"></div>
+          <div class="fbar" id="capSitChips"></div>
+        </div>
+        <div class="row g-2 g-lg-3 mb-3" id="capKpis"></div>
+
+        <!-- A. Professores por tipo, jornada e disciplina -->
+        <div class="card-box p-3 p-lg-4 mb-3">
+          <div class="sec-tt mb-1"><i class="bi bi-person-badge me-2"></i>Professores por tipo, jornada e disciplina</div>
+          <p class="text-muted small mb-2">Professores <b>distintos</b> — PEB I, PEB II e PEB III (<b>monitores fora</b>) — classificados pela
+            <b>disciplina principal</b> (aquela em que têm mais aulas). Cada professor conta uma vez. Colunas = jornada (horas).
+            A jornada da planilha é a <b>parte com aluno</b> (aulas) — não inclui horas-atividade —, então equivale
+            diretamente às aulas que o professor assume e pode ser comparada com as aulas da grade.
+            Os filtros de <b>Vínculo</b> (Efetivo/Contratado) e <b>Situação</b> (coluna H — NA ATIVA, afastado, readaptado, etc.)
+            no topo recortam todos os quadros de professores desta aba. Por padrão vem marcado só <b>NA ATIVA</b>
+            (clique em "todas" para incluir afastados/readaptados). Obs.: os PEB II de 28h e 32h são <b>todos efetivos</b>
+            (os contratados são de 19h), então em <i>Contratado</i> só aparece a coluna 19h.</p>
+          <div class="fbar mb-2" id="capCargoChips"></div>
+          <div class="table-responsive"><table class="mtx" id="tabProfCap"></table></div>
+          <p class="text-muted small mt-2 mb-0"><i class="bi bi-info-circle me-1"></i>Clique num número da matriz para listar os professores daquela célula (código, nome, sede, situação).</p>
+          <div id="profCapDetalhe" class="mt-2"></div>
+        </div>
+
+        <!-- A2. Professores efetivos por sede -->
+        <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #0d9488;">
+          <div class="sec-tt mb-1"><i class="bi bi-geo-alt me-2"></i>Professores efetivos por sede (coluna N)</div>
+          <p class="text-muted small mb-2">Contagem de professores <b>efetivos</b> (vínculo E) <b>distintos</b> por
+            <b>sede</b> (unidade N — a escola-base do professor), separados por cargo. Só efetivos; respeita o filtro de
+            <b>Situação</b> do topo (por padrão só NA ATIVA). Use a busca para localizar uma unidade.</p>
+          <div class="d-flex gap-2 mb-2 flex-wrap">
+            <input id="sedeBusca" class="form-control form-control-sm" style="max-width:280px;" placeholder="filtrar por sede…" oninput="renderSedeEfetivos()">
+            <button class="btn btn-sm btn-outline-success" onclick="baixarSedeEfetivos()"><i class="bi bi-download me-1"></i>Baixar CSV</button>
+          </div>
+          <div class="table-responsive"><table class="mtx" id="tabSede"></table></div>
+        </div>
+
+        <!-- B. Turmas regulares -->
+        <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #2563eb;">
+          <div class="sec-tt mb-1"><i class="bi bi-easel me-2"></i>Turmas regulares e grade curricular</div>
+          <p class="text-muted small mb-2">Da tabela <b>turmas</b>: turmas <b>distintas</b> (escola + ano + letra + turno) e a grade curricular,
+            separadas por <b>segmento</b> — <b>Etapas</b> (Ed. Infantil), <b>Fund I</b> (1º–5º), <b>Fund II</b> (6º–9º) e <b>Ciclos</b>
+            (EJA/Termos e projetos ficam fora).</p>
+          <button class="chip active" id="btnCap" onclick="carregarCapacidade()"><i class="bi bi-arrow-repeat me-1"></i>Carregar turmas (grade)</button>
+          <div id="capDiag" class="text-muted small mt-2 mb-2"></div>
+          <h6 class="fw-bold mt-2 mb-2" style="color:var(--primary);">Turmas regulares por segmento / ano</h6>
+          <div class="table-responsive" style="max-width:460px;"><table class="mtx" id="tabTurmasReg"></table></div>
+          <button class="btn btn-sm btn-outline-secondary mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#capDupBox">
+            <i class="bi bi-search me-1"></i>Diagnóstico: turmas contadas mais de uma vez
+          </button>
+          <div class="collapse mt-2" id="capDupBox"><div id="capDupWrap"></div></div>
+        </div>
+
+        <!-- C. Grade curricular por ano -->
+        <div class="card-box p-3 p-lg-4 mb-3">
+          <div class="sec-tt mb-1"><i class="bi bi-journal-text me-2"></i>Grade curricular por segmento e ano</div>
+          <p class="text-muted small mb-2">Aulas de cada disciplina por ano, agrupadas por segmento (Etapas, Fund I, Fund II, Ciclos).
+            Em cada célula: <b>aulas por turma</b> (grande) e o <b>total</b> (pequeno = carga somada de todas as turmas).
+            A linha de cada segmento traz o subtotal; o rodapé, o total de aulas por disciplina.</p>
+          <div class="table-responsive"><table class="mtx" id="tabGrade"></table></div>
+        </div>
+
+        <!-- D. Suficiência: capacidade × grade -->
+        <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #059669;">
+          <div class="sec-tt mb-1"><i class="bi bi-check2-square me-2"></i>Suficiência — capacidade dos professores × aulas da grade</div>
+          <p class="text-muted small mb-2">Por disciplina: <b>Capacidade</b> = soma da jornada (parte com aluno) dos professores cuja
+            disciplina principal é essa · <b>Aulas atribuídas</b> = o que esses professores efetivamente dão hoje ·
+            <b>Aulas na grade</b> = necessidade curricular regular (carregue as turmas acima) · <b>Saldo</b> = capacidade − grade.
+            <b>Saldo negativo</b> indica que faltam professores dessa disciplina para a grade.</p>
+          <div class="alert alert-light border small py-2 mb-2">
+            <b>Como ler:</b> os especialistas (PEB III — Ed. Física, Arte, Inglês, Matemática, Português…) têm mapeamento direto.
+            <b>Magistério I</b> (PEB I) é da <b>creche/pré</b> — fica fora da grade regular (Etapas + 1º ao 9º), por isso aparece sem grade.
+            <b>Magistério II</b> (PEB II) é a regência de Etapas e 1º–5º, mas os mesmos professores também dão PRA, projetos e substituições —
+            por isso a capacidade supera a grade (o saldo é usado nessas outras frentes, não é ociosidade).
+          </div>
+          <div class="table-responsive"><table class="mtx" id="tabSufic"></table></div>
+        </div>
+      </div><!-- /tab-capacidade -->
+
+      <!-- ══════════ ABA ESCOLAS POR PERÍODO ══════════ -->
+      <div id="tab-escolas" style="display:none;">
+        <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #7c3aed;">
+          <div class="sec-tt mb-1"><i class="bi bi-buildings me-2"></i>Escolas por período — por segmento</div>
+          <p class="text-muted small mb-2">Cada escola é classificada <b>em cada segmento</b> — <b>Ciclos</b>, <b>Etapas</b> e
+            <b>Ensino Fundamental</b> (1º–9º) — como <b style="color:#7c3aed;">Integral</b>, <b style="color:#2563eb;">Parcial</b> ou
+            <b style="color:#d97706;">Misto</b> (tem os dois); "—" = a escola não tem esse segmento. Assim uma escola com
+            etapas parciais e ciclos integrais aparece corretamente em cada coluna. Turma <b>integral</b> = tem "INTEGRAL" no ano.
+            Clique na escola para ver as turmas. EJA/Termos e liminares ficam fora; a turma integral conta uma vez.</p>
+          <div id="escPerEstado" class="text-muted small mb-2"></div>
+          <div id="escPerResumo" class="row g-2 mb-3"></div>
+          <div class="fbar mb-2" id="escPerTipoChips"></div>
+          <div class="d-flex gap-2 mb-2 flex-wrap align-items-center">
+            <div class="fbar" id="escPerFiltro"></div>
+            <input id="escPerBusca" class="form-control form-control-sm" style="max-width:280px;" placeholder="filtrar por nome da escola…" oninput="renderEscPer()">
+            <button class="btn btn-sm btn-outline-success" onclick="baixarEscolasPeriodo()"><i class="bi bi-download me-1"></i>Baixar CSV</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="recarregarEscolas()"><i class="bi bi-arrow-repeat me-1"></i>Recarregar</button>
+          </div>
+          <div id="escPerContagem" class="text-muted small mb-2"></div>
+          <div class="table-responsive"><table class="mtx" id="tabEscPer"></table></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   Composição da jornada — analisa a tabela `atribuicao_professores`
+   (relatório original de atribuição importado para o Supabase).
+   Se você usou outro nome de tabela/coluna, ajuste as constantes abaixo.
+   ══════════════════════════════════════════════════════════════════ */
+const SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk';
+const TABELA = 'atribuicao_professores';
+// Colunas (nomes amigáveis do CSV importado)
+const COL = {
+  prof:'cod_professor', nome:'nome_professor', cargo:'cargo', vinculo:'vinculo',
+  situacao:'situacao', jornada:'jornada', disc:'disciplina_atribuida', tipo:'tipo_atribuicao',
+  carga:'carga_horaria', unidade:'unidade_atribuida', unidCod:'cod_unidade_atribuida',
+  sede:'unidade_sede', serie:'serie', letra:'letra_turma', status:'status_atribuicao'
+};
+const SELECT = Object.values(COL).join(',');
+
+/* ── Estado ─────────────────────────────────────────────────────── */
+let ROWS = null;
+let cargoSel = 'PEB II';
+let jornadasSel = new Set([28, 32]);   // padrão pedido
+let vinculosSel = null;                // null = todos
+let statusSel = null;                  // null = todos (ATRIBUIDA + TROCA)
+// Filtros próprios da "Visão geral" (recorte independente da toolbar principal).
+let vgDisc = null, vgCargo = null, vgVinc = null, vgJor = null, vgStatus = null;  // null = todos
+let grafico = null;
+
+function escapeHtml(s){ return String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+function br(n){ return Number(n||0).toLocaleString('pt-BR'); }
+function num(v){ const n = Number(v); return isNaN(n) ? 0 : n; }
+function colapsar(s){ return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+
+// Categoria da série (coluna AC): distingue anos regulares, projetos e as aulas
+// criadas para completar jornada (substituição/complemento), entre outras.
+function catSerie(serie) {
+  const f = colapsar(serie);
+  if (f.includes('SUBS') || f.includes('COMPLEMENTO')) return 'Substituição/Complemento';
+  if (f.includes('TERMO')) return 'EJA (Termos)';
+  if (f.includes('SALAREC') || f.includes('INTERPRETE') || f.includes('AEE') || f.includes('SURDO')) return 'Educação Especial';
+  if (f.includes('PROJ') || f.includes('PRATICASPEDAGOGICAS') || f.includes('ALFABETIZADOR')) return 'Projeto';
+  if (/^\d+ANO/.test(f) || f.startsWith('ETAPA') || f.startsWith('CICLO')) return 'Anos regulares';
+  return 'Outros (oficinas etc.)';
+}
+const CAT_ALVO = 'Substituição/Complemento';
+
+// Normaliza mantendo espaços (p/ ler o token da etapa: "ETAPA I - INTEGRAL" → I).
+function normEsp(s){ return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[º°]/g,'').replace(/\s+/g,' ').trim(); }
+// Projeto pela disciplina atribuída (AF), como no retrato.
+function projAF(af) {
+  const f = colapsar(af);
+  if (f.includes('ALFABETIZADOR')) return 'PPA';
+  if (f.includes('PRATICASPEDAGOGICAS')) return 'PPP';
+  if (f.includes('PARALELA') && f.includes('RECUP')) return 'PRP';
+  return null;
+}
+// Chave do "slot" (turma × disciplina). Duas linhas com a mesma chave são a
+// MESMA necessidade da turma: troca de professor (ATRIBUIDA → TROCA) ou
+// duplicidade. Para "aulas necessárias" cada slot conta uma única vez.
+function slotKey(r) {
+  return [r[COL.unidCod], r[COL.serie], r[COL.letra], r[COL.disc]].join('|');
+}
+// Categoria da linha p/ a visão geral (mesma estrutura do retrato).
+function catGeral(r) {
+  const p = projAF(r[COL.disc]); if (p) return 'Projeto: ' + p;
+  const me = normEsp(r[COL.serie]).match(/ETAPA\s*-?\s*(II|2|I|1)\b/);
+  if (me) return (me[1] === 'II' || me[1] === '2') ? 'Etapa II' : 'Etapa I';
+  const f = colapsar(r[COL.serie]);
+  const ma = f.match(/^(\d+)ANO/);
+  if (ma) { const v = +ma[1]; if (v >= 1 && v <= 5) return v + 'º Ano'; if (v >= 6 && v <= 9) return '6º–9º Ano'; }
+  if (f.startsWith('CICLO')) return 'Ciclos';
+  if (f.includes('TERMO')) return 'EJA (Termos)';
+  if (f.includes('SUBS') || f.includes('COMPLEMENTO')) return 'Substituição/Complemento';
+  if (f.includes('SALAREC') || f.includes('INTERPRETE') || f.includes('AEE') || f.includes('SURDO')) return 'Educação Especial';
+  return 'Outros (oficinas etc.)';
+}
+
+/* ── Busca de dados ─────────────────────────────────────────────── */
+async function fetchTudo() {
+  const CACHE = 'mapa_atrib_prof_v5', TTL = 10*60*1000;
+  if (!window.__forcar) {
+    try { const o = JSON.parse(localStorage.getItem(CACHE)||'null');
+      if (o && o.ts && (Date.now()-o.ts) < TTL && Array.isArray(o.rows)) return o.rows; } catch(e){}
+  }
+  window.__forcar = false;
+  const PAGE = 1000, H = { apikey:SUPABASE_KEY, Authorization:`Bearer ${SUPABASE_KEY}` };
+  const url = off => `${SUPABASE_URL}/rest/v1/${TABELA}?select=${SELECT}&limit=${PAGE}&offset=${off}`;
+  const first = await fetch(url(0), { headers:{ ...H, Prefer:'count=exact' } });
+  if (!first.ok) throw new Error(`Erro ${first.status} ao ler a tabela "${TABELA}". Verifique o nome da tabela e se há permissão de leitura (RLS).`);
+  let rows = await first.json();
+  if (rows.length === PAGE) {
+    const total = parseInt((first.headers.get('content-range')||'').split('/')[1], 10);
+    if (Number.isFinite(total)) {
+      const offs = []; for (let o=PAGE;o<total;o+=PAGE) offs.push(o);
+      const rest = await Promise.all(offs.map(async o => { const r = await fetch(url(o), {headers:H}); return r.ok ? r.json() : []; }));
+      rows = rows.concat(...rest);
+    }
+  }
+  try { localStorage.setItem(CACHE, JSON.stringify({ ts:Date.now(), rows })); } catch(e){}
+  return rows;
+}
+function aguardarAuth() {
+  return new Promise(res => {
+    if (window.MapaAuth && window.MapaAuth.perfil) return res();
+    document.addEventListener('mapa-auth-pronto', () => res(), { once:true });
+    setTimeout(res, 8000);
+  });
+}
+
+/* ── Filtro + agregação ─────────────────────────────────────────── */
+function filtradas() {
+  return (ROWS||[]).filter(r =>
+    (cargoSel === 'TODOS' || String(r[COL.cargo]) === cargoSel) &&
+    jornadasSel.has(num(r[COL.jornada])) &&
+    (!vinculosSel || vinculosSel.has(String(r[COL.vinculo]))) &&
+    (!statusSel || statusSel.has(String(r[COL.status]))));
+}
+function agregar(rows) {
+  const discs = {};                 // disc -> { aulas, profs:Set, porTipo:{} }
+  const tipos = {};                 // tipo -> aulas (total coluna)
+  const profs = new Set();
+  let total = 0;
+  rows.forEach(r => {
+    // Aulas de substituição/complemento (pela série AC) viram linha própria por disciplina.
+    const sub = catSerie(r[COL.serie]) === CAT_ALVO;
+    const d = (r[COL.disc] || '—') + (sub ? ' — substituição/complemento' : ''), t = r[COL.tipo] || '—', c = num(r[COL.carga]);
+    profs.add(r[COL.prof]); total += c;
+    tipos[t] = (tipos[t]||0) + c;
+    const o = (discs[d] ||= { aulas:0, profs:new Set(), porTipo:{} });
+    o.aulas += c; o.profs.add(r[COL.prof]); o.porTipo[t] = (o.porTipo[t]||0) + c;
+  });
+  const tiposOrd = Object.keys(tipos).sort((a,b) => tipos[b]-tipos[a] || a.localeCompare(b,'pt-BR'));
+  const discsOrd = Object.keys(discs).sort((a,b) => discs[b].aulas-discs[a].aulas || a.localeCompare(b,'pt-BR'));
+  return { discs, tipos, tiposOrd, discsOrd, profs:profs.size, total, linhas:rows.length };
+}
+
+/* ── Render ─────────────────────────────────────────────────────── */
+function render() {
+  const rows = filtradas();
+  const A = agregar(rows);
+
+  // KPIs (incluindo quebra por jornada selecionada)
+  const porJor = {};
+  [...jornadasSel].sort((a,b)=>a-b).forEach(j => {
+    const rj = rows.filter(r => num(r[COL.jornada]) === j);
+    porJor[j] = { profs:new Set(rj.map(r=>r[COL.prof])).size, aulas:rj.reduce((s,r)=>s+num(r[COL.carga]),0) };
+  });
+  const jorSub = Object.entries(porJor).map(([j,o]) => `${j}h: ${o.profs} prof · ${br(o.aulas)} aulas`).join(' · ');
+  const mediaAulas = A.profs ? Math.round(A.total / A.profs) : 0;
+  document.getElementById('kpis').innerHTML = `
+    <div class="col-6 col-lg-3"><div class="kpi"><div class="lbl"><i class="bi bi-person-badge me-1"></i>Professores</div>
+      <div class="val">${br(A.profs)}</div><div class="sub">${escapeHtml(cargoSel)}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#059669;"><div class="lbl"><i class="bi bi-journals me-1"></i>Aulas (carga)</div>
+      <div class="val">${br(A.total)}</div><div class="sub">${br(A.linhas)} linhas de atribuição</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#7c3aed;"><div class="lbl"><i class="bi bi-clock me-1"></i>Jornada(s)</div>
+      <div class="val">${[...jornadasSel].sort((a,b)=>a-b).join(' · ')||'—'}</div><div class="sub">${escapeHtml(jorSub)}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#d97706;"><div class="lbl"><i class="bi bi-calculator me-1"></i>Média aulas/prof</div>
+      <div class="val">${mediaAulas}</div><div class="sub">tipos de aula: ${A.discsOrd.length}</div></div></div>`;
+
+  // Matriz disciplina (AF) × tipo de atribuição (AH)
+  const thead = `<thead><tr>
+      <th style="text-align:left;">Tipo de aula (AF)</th>
+      <th>Profs</th>
+      ${A.tiposOrd.map(t => `<th>${escapeHtml(t)}</th>`).join('')}
+      <th style="background:#eef2ff;">Total</th></tr></thead>`;
+  const colTot = {}; A.tiposOrd.forEach(t => colTot[t] = 0); let geral = 0;
+  const linhas = A.discsOrd.map(d => {
+    const o = A.discs[d];
+    const sub = d.includes('substituição/complemento');
+    const tds = A.tiposOrd.map(t => {
+      const v = o.porTipo[t] || 0; colTot[t] += v;
+      return `<td class="${v?'':'zero'}">${v ? br(v) : '·'}</td>`;
+    }).join('');
+    geral += o.aulas;
+    return `<tr${sub ? ' style="background:#fff7ed;"' : ''}>
+      <th${sub ? ' style="color:#c2410c;font-weight:700;"' : ''}>${sub ? '<i class="bi bi-arrow-left-right me-1"></i>' : ''}${escapeHtml(d)}</th>
+      <td>${o.profs.size}</td>${tds}
+      <td style="background:#f5f7ff;"><span class="big">${br(o.aulas)}</span></td></tr>`;
+  }).join('');
+  const totRow = `<tr class="total-row"><th>Total</th><td>${A.profs}</td>
+    ${A.tiposOrd.map(t => `<td>${br(colTot[t])}</td>`).join('')}
+    <td>${br(geral)}</td></tr>`;
+  document.getElementById('matriz').innerHTML = thead + `<tbody>${linhas}${totRow}</tbody>`;
+
+  renderUnidades(rows);
+  renderSubstituicao(rows);
+  renderVisaoGeral();
+  renderGrafico(A);
+  renderProfs(rows);
+
+  const escolas = new Set(rows.map(r => r[COL.unidade])).size;
+  document.getElementById('rodape').textContent =
+    `${br(A.linhas)} linhas · ${br(A.profs)} professores · ${escolas} unidades atribuídas. `
+    + `AF = disciplina/atividade atribuída · AH = tipo de atribuição.`;
+}
+
+// Em quantas unidades distintas (unidade_atribuida) cada professor compôs a jornada.
+function renderUnidades(rows) {
+  const box = document.getElementById('blocoUnidades');
+  const byp = {};
+  rows.forEach(r => { (byp[r[COL.prof]] ||= new Set()).add(r[COL.unidade]); });
+  const sets = Object.values(byp), tot = sets.length;
+  if (!tot) { box.innerHTML = '<div class="text-muted">Sem professores no filtro.</div>'; return; }
+  const hist = {}; let somaUn = 0;
+  sets.forEach(s => { const n = s.size; hist[n] = (hist[n]||0) + 1; somaUn += n; });
+  const media = somaUn / tot;
+  const multi = sets.filter(s => s.size > 1).length;
+  const maxCount = Math.max(...Object.values(hist));
+  const niveis = Object.keys(hist).map(Number).sort((a,b)=>a-b);
+
+  const linhas = niveis.map(n => {
+    const q = hist[n], pc = q/tot*100, larg = q/maxCount*100;
+    return `<tr>
+      <th class="text-center">${n} unidade${n>1?'s':''}</th>
+      <td class="text-end fw-bold">${br(q)}</td>
+      <td class="text-end">${pc.toFixed(1)}%</td>
+      <td style="width:45%;">
+        <div style="background:#e0e7ff;border-radius:6px;overflow:hidden;">
+          <div style="width:${larg.toFixed(1)}%;background:${n>1?'#d97706':'#2563eb'};height:16px;"></div>
+        </div>
+      </td></tr>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div class="row g-2 g-lg-3 mb-3">
+      <div class="col-6 col-lg-4"><div class="kpi" style="border-left-color:#2563eb;">
+        <div class="lbl">Média de unidades / prof</div><div class="val">${media.toFixed(2)}</div></div></div>
+      <div class="col-6 col-lg-4"><div class="kpi" style="border-left-color:#059669;">
+        <div class="lbl">Em 1 unidade só</div><div class="val">${br(hist[1]||0)}</div>
+        <div class="sub">${(((hist[1]||0)/tot)*100).toFixed(1)}% dos professores</div></div></div>
+      <div class="col-12 col-lg-4"><div class="kpi" style="border-left-color:#d97706;">
+        <div class="lbl">Em mais de 1 unidade</div><div class="val">${br(multi)}</div>
+        <div class="sub">${(multi/tot*100).toFixed(1)}% — compõem a jornada em escolas diferentes</div></div></div>
+    </div>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+      <thead><tr><th class="text-center">Unidades</th><th class="text-end">Professores</th><th class="text-end">%</th><th></th></tr></thead>
+      <tbody>${linhas}</tbody>
+      <tfoot><tr class="fw-bold"><th class="text-center">Total</th><td class="text-end">${br(tot)}</td><td class="text-end">100%</td><td></td></tr></tfoot>
+    </table></div>`;
+}
+
+// Mede as aulas criadas para completar jornada (substituição/complemento) pela série (AC).
+function renderSubstituicao(rows) {
+  const box = document.getElementById('blocoSubst');
+  const cats = {}; const detalhe = {}; let totAulas = 0;
+  rows.forEach(r => {
+    const cat = catSerie(r[COL.serie]), carga = num(r[COL.carga]);
+    totAulas += carga;
+    const o = (cats[cat] ||= { aulas:0, linhas:0, profs:new Set() });
+    o.aulas += carga; o.linhas++; o.profs.add(r[COL.prof]);
+    if (cat === CAT_ALVO) { const d = (detalhe[r[COL.serie]] ||= { aulas:0, linhas:0 }); d.aulas += carga; d.linhas++; }
+  });
+  const alvo = cats[CAT_ALVO] || { aulas:0, linhas:0, profs:new Set() };
+  const pc = totAulas ? (alvo.aulas/totAulas*100) : 0;
+  const ordem = Object.keys(cats).sort((a,b) => cats[b].aulas - cats[a].aulas);
+
+  const linhasCat = ordem.map(k => {
+    const o = cats[k], destaque = k === CAT_ALVO;
+    return `<tr${destaque ? ' style="background:#fff7ed;"' : ''}>
+      <th${destaque ? ' style="color:#c2410c;"' : ''}>${escapeHtml(k)}${destaque ? ' <i class="bi bi-arrow-left-right"></i>' : ''}</th>
+      <td class="text-end fw-bold">${br(o.aulas)}</td>
+      <td class="text-end">${totAulas ? (o.aulas/totAulas*100).toFixed(1) : 0}%</td>
+      <td class="text-end">${br(o.linhas)}</td>
+      <td class="text-end">${br(o.profs.size)}</td></tr>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div class="row g-2 g-lg-3 mb-3">
+      <div class="col-6 col-lg-4"><div class="kpi" style="border-left-color:#d97706;">
+        <div class="lbl"><i class="bi bi-arrow-left-right me-1"></i>Aulas p/ completar jornada</div>
+        <div class="val">${br(alvo.aulas)}</div><div class="sub">substituição / complemento</div></div></div>
+      <div class="col-6 col-lg-4"><div class="kpi" style="border-left-color:#b91c1c;">
+        <div class="lbl">% das aulas do filtro</div><div class="val">${pc.toFixed(1)}%</div>
+        <div class="sub">de ${br(totAulas)} aulas</div></div></div>
+      <div class="col-12 col-lg-4"><div class="kpi" style="border-left-color:#2563eb;">
+        <div class="lbl">Professores com essas aulas</div><div class="val">${br(alvo.profs.size)}</div>
+        <div class="sub">${br(alvo.linhas)} linhas</div></div></div>
+    </div>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Categoria da série (AC)</th><th class="text-end">Aulas</th><th class="text-end">%</th><th class="text-end">Linhas</th><th class="text-end">Profs</th></tr></thead>
+      <tbody>${linhasCat}</tbody>
+      <tfoot><tr class="fw-bold"><th>Total</th><td class="text-end">${br(totAulas)}</td><td class="text-end">100%</td><td></td><td></td></tr></tfoot>
+    </table></div>`;
+
+  // detalhe por série do bucket alvo
+  const det = Object.entries(detalhe).sort((a,b) => b[1].aulas - a[1].aulas);
+  document.getElementById('substDetTab').innerHTML =
+    `<thead><tr><th>Série (AC)</th><th class="text-end">Aulas</th><th class="text-end">Linhas</th></tr></thead>`
+    + `<tbody>${det.length ? det.map(([s,o]) => `<tr><td>${escapeHtml(s)}</td><td class="text-end fw-bold">${br(o.aulas)}</td><td class="text-end">${br(o.linhas)}</td></tr>`).join('')
+        : '<tr><td colspan="3" class="text-muted">Nenhuma neste filtro.</td></tr>'}</tbody>`;
+}
+
+// Linhas da base após os filtros próprios da visão geral (disciplina/cargo/vínculo/jornada/status).
+function baseVisao() {
+  return (ROWS||[]).filter(r =>
+    (!vgStatus || vgStatus.has(String(r[COL.status]))) &&
+    (!vgCargo  || vgCargo.has(String(r[COL.cargo]))) &&
+    (!vgVinc   || vgVinc.has(String(r[COL.vinculo]))) &&
+    (!vgJor    || vgJor.has(num(r[COL.jornada]))) &&
+    (!vgDisc   || vgDisc.has(nomeDisc(r[COL.disc]))));
+}
+// Visão geral da rede (nas categorias do retrato), com filtros próprios, para conferência.
+function renderVisaoGeral() {
+  const box = document.getElementById('tabVisao'); if (!box || !ROWS) return;
+  const base = baseVisao();
+  // Para cada categoria acumulamos:
+  //   nec   = aulas necessárias (cada slot turma×disciplina 1×; troca não conta 2×)
+  //   aulas = carga bruta de todas as linhas (com trocas/duplicidades)
+  //   linhas, profs
+  const agg = {}, vistos = new Set();
+  base.forEach(r => { const k = catGeral(r);
+    const o = (agg[k] ||= { nec:0, aulas:0, linhas:0, profs:new Set() });
+    const c = num(r[COL.carga]);
+    o.aulas += c; o.linhas++; o.profs.add(r[COL.prof]);
+    const sk = k + '¦' + slotKey(r);                    // slot dentro da categoria
+    if (!vistos.has(sk)) { vistos.add(sk); o.nec += c; } // conta a necessidade 1×
+  });
+  const V = k => agg[k] || { nec:0, aulas:0, linhas:0, profs:new Set() };
+  const linha = (rot, k, cls='') => { const o = V(k); const dup = o.aulas - o.nec;
+    return `<tr class="${cls}"><th style="text-align:left;padding-left:1.4rem;">${escapeHtml(rot)}</th>
+      <td class="text-end fw-bold">${br(o.nec)}</td>
+      <td class="text-end text-muted">${br(o.aulas)}${dup?` <span style="color:#b45309;font-size:.78rem;">(+${br(dup)})</span>`:''}</td>
+      <td class="text-end">${br(o.linhas)}</td><td class="text-end">${br(o.profs.size)}</td></tr>`; };
+  const grupo = tit => `<tr class="total-row"><th colspan="5" style="text-align:left;">${escapeHtml(tit)}</th></tr>`;
+
+  const infKeys = ['Etapa I','Etapa II'];
+  const fundKeys = ['1º Ano','2º Ano','3º Ano','4º Ano','5º Ano'];
+  const projKeys = ['Projeto: PPA','Projeto: PPP','Projeto: PRP'];
+  const foraKeys = ['6º–9º Ano','Ciclos','EJA (Termos)','Educação Especial','Substituição/Complemento','Outros (oficinas etc.)'];
+  const somaNec = ks => ks.reduce((s,k)=>s+V(k).nec,0);
+  const somaAul = ks => ks.reduce((s,k)=>s+V(k).aulas,0);
+  const compNec = somaNec(infKeys) + somaNec(fundKeys) + somaNec(projKeys);
+  const compAul = somaAul(infKeys) + somaAul(fundKeys) + somaAul(projKeys);
+  const totNec = Object.values(agg).reduce((s,o)=>s+o.nec,0);
+  const totAul = Object.values(agg).reduce((s,o)=>s+o.aulas,0);
+  const subLinha = (rot,nec,aul,st) => { const dup = aul-nec;
+    return `<tr style="${st||''}"><th style="text-align:left;">${rot}</th>
+      <td class="text-end fw-bold">${br(nec)}</td>
+      <td class="text-end text-muted">${br(aul)}${dup?` <span style="color:#b45309;font-size:.78rem;">(+${br(dup)})</span>`:''}</td>
+      <td colspan="2"></td></tr>`; };
+
+  box.innerHTML = `
+    <thead><tr><th style="text-align:left;">Categoria</th>
+      <th class="text-end">Aulas necessárias</th><th class="text-end">Atribuídas (c/ trocas)</th>
+      <th class="text-end">Linhas</th><th class="text-end">Profs</th></tr></thead>
+    <tbody>
+      ${grupo('Educação Infantil — Etapas')}
+      ${infKeys.map(k=>linha(k,k)).join('')}
+      ${grupo('Ensino Fundamental — 1º ao 5º')}
+      ${fundKeys.map(k=>linha(k,k)).join('')}
+      ${subLinha('Subtotal 1º–5º', somaNec(fundKeys), somaAul(fundKeys), 'background:#f8fafc;')}
+      ${grupo('Projetos')}
+      ${projKeys.map(k=>linha(k.replace('Projeto: ',''),k)).join('')}
+      ${subLinha('▶ Subtotal comparável ao Retrato (Etapas + 1º–5º + Projetos)', compNec, compAul, 'background:#dbeafe;')}
+      ${grupo('Fora do escopo do retrato')}
+      ${foraKeys.map(k=>linha(k,k)).join('')}
+      ${subLinha('TOTAL GERAL DA BASE', totNec, totAul, 'background:#f1f5f9;border-top:2px solid #cbd5e1;')}
+    </tbody>`;
+}
+
+/* ── Filtros próprios da Visão geral (disciplina/cargo/vínculo/jornada/status) ── */
+function vgOpts() {
+  const R = ROWS || [];
+  const uniq = arr => Array.from(new Set(arr)).filter(v => v !== '' && v != null);
+  const discTot = {};
+  R.forEach(r => { const d = nomeDisc(r[COL.disc]); discTot[d] = (discTot[d]||0) + num(r[COL.carga]); });
+  return {
+    disc:   Object.keys(discTot).sort((a,b) => discTot[b]-discTot[a] || a.localeCompare(b,'pt-BR')),
+    cargo:  uniq(R.map(r => String(r[COL.cargo]))).sort((a,b)=>a.localeCompare(b,'pt-BR')),
+    vinc:   uniq(R.map(r => String(r[COL.vinculo]))).sort((a,b)=>a.localeCompare(b,'pt-BR')),
+    jor:    uniq(R.map(r => num(r[COL.jornada]))).filter(j => j>0).sort((a,b)=>a-b),
+    status: uniq(R.map(r => String(r[COL.status]))).sort((a,b)=>a.localeCompare(b,'pt-BR')),
+  };
+}
+const VG_LBL = { disc:'Disciplina', cargo:'Cargo', vinc:'Vínculo', jor:'Jornada', status:'Status' };
+function vgSel(g){ return { disc:vgDisc, cargo:vgCargo, vinc:vgVinc, jor:vgJor, status:vgStatus }[g]; }
+function vgSetSel(g,v){ if(g==='disc')vgDisc=v; else if(g==='cargo')vgCargo=v; else if(g==='vinc')vgVinc=v; else if(g==='jor')vgJor=v; else vgStatus=v; }
+function vgChipTxt(g,v){ if(g==='vinc')return v==='E'?'Efetivo':v==='C'?'Contratado':v; if(g==='jor')return v+'h'; return v; }
+function montarFiltrosVisao() {
+  const bar = document.getElementById('vgFiltros'); if(!bar) return;
+  const O = vgOpts();
+  let html = '';
+  ['disc','cargo','vinc','jor','status'].forEach(g => {
+    const vals = O[g], sel = vgSel(g); if (!vals.length) return;
+    html += `<span class="flbl">${VG_LBL[g]}</span>`;
+    vals.forEach((v,i) => { const on = !sel || sel.has(v);
+      html += `<button class="fchip ${on?'active':''}" onclick="vgToggle('${g}',${i})">${escapeHtml(String(vgChipTxt(g,v)))}</button>`;
+    });
+  });
+  const algum = vgDisc||vgCargo||vgVinc||vgJor||vgStatus;
+  html += `<button class="fchip clear ms-2"${algum?'':' style="display:none;"'} onclick="vgLimpar()"><i class="bi bi-x-circle me-1"></i>limpar</button>`;
+  bar.innerHTML = html;
+}
+function vgToggle(g,i) {
+  const vals = vgOpts()[g], v = vals[i];
+  let sel = vgSel(g); if (!sel) sel = new Set(vals);
+  if (sel.has(v)) sel.delete(v); else sel.add(v);
+  if (sel.size === 0 || sel.size === vals.length) sel = null;
+  vgSetSel(g, sel);
+  montarFiltrosVisao(); renderVisaoGeral();
+}
+function vgLimpar() {
+  vgDisc = vgCargo = vgVinc = vgJor = vgStatus = null;
+  montarFiltrosVisao(); renderVisaoGeral();
+}
+
+function renderGrafico(A) {
+  const ctx = document.getElementById('grafico');
+  const labels = A.discsOrd, data = labels.map(d => A.discs[d].aulas);
+  const cfg = { labels, datasets:[{ label:'Aulas', data, backgroundColor:'#2563eb', borderRadius:4 }] };
+  if (grafico) { grafico.data = cfg; grafico.update(); return; }
+  grafico = new Chart(ctx, { type:'bar', data:cfg, options:{
+    indexAxis:'y', responsive:true, plugins:{ legend:{ display:false } },
+    scales:{ x:{ beginAtZero:true, ticks:{ precision:0 } } } } });
+}
+
+function renderProfs(rows) {
+  // por professor: jornada, e composição (disciplina: aulas)
+  const byP = {};
+  rows.forEach(r => {
+    const p = r[COL.prof];
+    const o = (byP[p] ||= { nome:r[COL.nome], jor:num(r[COL.jornada]), vinc:r[COL.vinculo], unid:r[COL.unidade], total:0, comp:{} });
+    const c = num(r[COL.carga]); o.total += c;
+    o.comp[r[COL.disc]] = (o.comp[r[COL.disc]]||0) + c;
+  });
+  const lista = Object.entries(byP).sort((a,b) => String(a[1].nome).localeCompare(String(b[1].nome),'pt-BR'));
+  const linhas = lista.map(([p,o]) => {
+    const comp = Object.entries(o.comp).sort((a,b)=>b[1]-a[1])
+      .map(([d,v]) => `${escapeHtml(d)} <b>${br(v)}</b>`).join(' · ');
+    return `<tr><td>${escapeHtml(o.nome)}</td><td class="text-center">${o.jor}</td>
+      <td class="text-center">${escapeHtml(o.vinc)}</td><td class="text-center">${br(o.total)}</td>
+      <td style="font-size:.8rem;">${comp}</td></tr>`;
+  }).join('');
+  document.getElementById('tabProf').innerHTML =
+    `<thead><tr><th>Professor</th><th class="text-center">Jornada</th><th class="text-center">Vínculo</th>
+      <th class="text-center">Aulas</th><th>Composição (disciplina: aulas)</th></tr></thead><tbody>${linhas}</tbody>`;
+}
+
+/* ── Toolbar ────────────────────────────────────────────────────── */
+function montarToolbar() {
+  // Cargo
+  const cargos = Array.from(new Set((ROWS||[]).map(r => String(r[COL.cargo])))).filter(Boolean).sort();
+  const sc = document.getElementById('selCargo');
+  sc.innerHTML = `<option value="TODOS">Todos</option>` + cargos.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  if (!cargos.includes(cargoSel)) cargoSel = cargos.includes('PEB II') ? 'PEB II' : 'TODOS';
+  sc.value = cargoSel;
+  sc.onchange = () => { cargoSel = sc.value; montarJornadas(); render(); };
+  montarJornadas();
+  montarVinculos();
+  montarStatus();
+  montarFiltrosVisao();
+}
+function montarJornadas() {
+  const base = (ROWS||[]).filter(r => cargoSel === 'TODOS' || String(r[COL.cargo]) === cargoSel);
+  const jors = Array.from(new Set(base.map(r => num(r[COL.jornada])))).filter(j => j>0).sort((a,b)=>a-b);
+  // mantém seleção válida
+  const validas = new Set([...jornadasSel].filter(j => jors.includes(j)));
+  jornadasSel = validas.size ? validas : new Set(jors.filter(j => j===28||j===32));
+  if (!jornadasSel.size) jornadasSel = new Set(jors);
+  document.getElementById('jornadaChips').innerHTML = jors.map(j =>
+    `<button class="chip ${jornadasSel.has(j)?'active':''}" onclick="toggleJornada(${j})">${j}h</button>`).join('');
+}
+function toggleJornada(j) {
+  if (jornadasSel.has(j)) jornadasSel.delete(j); else jornadasSel.add(j);
+  if (!jornadasSel.size) jornadasSel.add(j);
+  montarJornadas(); render();
+}
+function montarVinculos() {
+  const vs = Array.from(new Set((ROWS||[]).map(r => String(r[COL.vinculo])))).filter(Boolean).sort();
+  const lbl = v => v === 'E' ? 'Efetivo' : v === 'C' ? 'Contratado' : v;
+  document.getElementById('vinculoChips').innerHTML = vs.map(v => {
+    const on = !vinculosSel || vinculosSel.has(v);
+    return `<button class="chip ${on?'active':''}" onclick="toggleVinculo('${escapeHtml(v)}')">${escapeHtml(lbl(v))}</button>`;
+  }).join('');
+}
+function toggleVinculo(v) {
+  const todos = Array.from(new Set((ROWS||[]).map(r => String(r[COL.vinculo]))));
+  if (!vinculosSel) vinculosSel = new Set(todos);
+  if (vinculosSel.has(v)) vinculosSel.delete(v); else vinculosSel.add(v);
+  if (vinculosSel.size === 0 || vinculosSel.size === todos.length) vinculosSel = null;
+  montarVinculos(); render();
+}
+function montarStatus() {
+  const ss = Array.from(new Set((ROWS||[]).map(r => String(r[COL.status])))).filter(Boolean).sort();
+  document.getElementById('statusChips').innerHTML = ss.map(s => {
+    const on = !statusSel || statusSel.has(s);
+    return `<button class="chip ${on?'active':''}" onclick="toggleStatus('${escapeHtml(s)}')">${escapeHtml(s)}</button>`;
+  }).join('');
+}
+function toggleStatus(s) {
+  const todos = Array.from(new Set((ROWS||[]).map(r => String(r[COL.status]))));
+  if (!statusSel) statusSel = new Set(todos);
+  if (statusSel.has(s)) statusSel.delete(s); else statusSel.add(s);
+  if (statusSel.size === 0 || statusSel.size === todos.length) statusSel = null;
+  montarStatus(); render();
+}
+
+/* ── Excel ──────────────────────────────────────────────────────── */
+async function exportarExcel() {
+  if (!ROWS) return;
+  const rows = filtradas(), A = agregar(rows);
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Composição jornada');
+  ws.addRow([`Cargo: ${cargoSel} · Jornada(s): ${[...jornadasSel].sort((a,b)=>a-b).join(', ')}h · Vínculo: ${vinculosSel?[...vinculosSel].join(', '):'Todos'}`]);
+  ws.addRow([]);
+  ws.addRow(['Tipo de aula (AF)', 'Profs', ...A.tiposOrd, 'Total']).font = { bold:true };
+  A.discsOrd.forEach(d => {
+    const o = A.discs[d];
+    ws.addRow([d, o.profs.size, ...A.tiposOrd.map(t => o.porTipo[t]||0), o.aulas]);
+  });
+  const colTot = A.tiposOrd.map(t => A.discsOrd.reduce((s,d) => s + (A.discs[d].porTipo[t]||0), 0));
+  ws.addRow(['Total', A.profs, ...colTot, A.total]).font = { bold:true };
+  ws.columns.forEach(c => c.width = 16); ws.getColumn(1).width = 32;
+
+  // resumo: em quantas unidades compuseram a jornada
+  const byU = {}; rows.forEach(r => { (byU[r[COL.prof]] ||= new Set()).add(r[COL.unidade]); });
+  const setsU = Object.values(byU), totU = setsU.length, histU = {};
+  setsU.forEach(s => { histU[s.size] = (histU[s.size]||0) + 1; });
+  ws.addRow([]); ws.addRow(['Em quantas unidades compuseram a jornada']).font = { bold:true };
+  ws.addRow(['Unidades', 'Professores', '%']).font = { bold:true };
+  Object.keys(histU).map(Number).sort((a,b)=>a-b).forEach(n =>
+    ws.addRow([n, histU[n], totU ? +(histU[n]/totU*100).toFixed(1) : 0]));
+
+  // resumo: aulas para completar jornada (categoria da série AC)
+  const catsE = {}; let totE = 0;
+  rows.forEach(r => { const cat = catSerie(r[COL.serie]), carga = num(r[COL.carga]); totE += carga;
+    const o = (catsE[cat] ||= { aulas:0, linhas:0, profs:new Set() }); o.aulas += carga; o.linhas++; o.profs.add(r[COL.prof]); });
+  ws.addRow([]); ws.addRow(['Aulas por categoria da série (completar jornada)']).font = { bold:true };
+  ws.addRow(['Categoria', 'Aulas', '%', 'Linhas', 'Profs']).font = { bold:true };
+  Object.keys(catsE).sort((a,b)=>catsE[b].aulas-catsE[a].aulas).forEach(k => {
+    const o = catsE[k]; ws.addRow([k, o.aulas, totE ? +(o.aulas/totE*100).toFixed(1) : 0, o.linhas, o.profs.size]);
+  });
+
+  // aba por professor
+  const ws2 = wb.addWorksheet('Por professor');
+  ws2.addRow(['Professor','Jornada','Vínculo','Unidade','Aulas','Composição']).font = { bold:true };
+  const byP = {};
+  rows.forEach(r => { const p=r[COL.prof]; const o=(byP[p]||={nome:r[COL.nome],jor:num(r[COL.jornada]),vinc:r[COL.vinculo],unid:r[COL.unidade],total:0,comp:{}});
+    const c=num(r[COL.carga]); o.total+=c; o.comp[r[COL.disc]]=(o.comp[r[COL.disc]]||0)+c; });
+  Object.values(byP).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR')).forEach(o => {
+    const comp = Object.entries(o.comp).sort((a,b)=>b[1]-a[1]).map(([d,v])=>`${d}: ${v}`).join(' | ');
+    ws2.addRow([o.nome, o.jor, o.vinc, o.unid, o.total, comp]);
+  });
+  ws2.columns.forEach(c => c.width = 22); ws2.getColumn(6).width = 60;
+
+  const buf = await wb.xlsx.writeBuffer();
+  const url = URL.createObjectURL(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  const a = document.createElement('a'); a.href = url; a.download = 'composicao-jornada.xlsx'; a.click(); URL.revokeObjectURL(url);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Conciliação: tabela `turmas` (currículo — base do retrato) × atribuição
+   Compara o que cada turma precisa com o que já foi atribuído.
+   ══════════════════════════════════════════════════════════════════ */
+let TURMAS = null;
+const SELECT_TURMAS = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria';
+
+// Helpers portados do retrato (a tabela turmas usa colunas/grafias próprias).
+function normalizar(txt) {
+  return String(txt || '').trim().toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[º°]/g, '').replace(/[–—]/g, '-')
+    .replace(/\s*-\s*/g, ' - ').replace(/\s+/g, ' ');
+}
+// ano_escolar → 'Etapa I' | 'Etapa II' | '1º Ano'…'5º Ano' | null (fora do escopo).
+function classificarAno(anoRaw) {
+  const n = normalizar(anoRaw), f = colapsar(anoRaw);
+  if (f.includes('TERMO') || f.includes('EJA') || f.includes('CICLO')) return null;
+  if (f.includes('LIMINAR')) return null;   // aulas p/ completar jornada, não turma
+
+  if (f.includes('ETAPA')) {
+    const m = n.match(/ETAPA\s*-?\s*(II|2|DOIS|I|1|UM)\b/);
+    if (m) { const t = m[1];
+      if (t === 'II' || t === '2' || t === 'DOIS') return 'Etapa II';
+      if (t === 'I'  || t === '1' || t === 'UM')   return 'Etapa I'; }
+    return null;
+  }
+  const md = f.match(/^(\d+)/);
+  if (md) { const v = parseInt(md[1], 10); if (v >= 1 && v <= 5) return v + 'º Ano'; }
+  return null;
+}
+function isPRADisc(disc) { const f = colapsar(disc);
+  return f.includes('RECUP') && (f.includes('APREND') || f.includes('APREN')) && f.includes('ANOS') && f.includes('INIC'); }
+// Projeto pela disciplina (PPA/PPP/PRP). PRA NÃO é projeto (faz parte da grade).
+function nomeProjeto(disc) { const f = colapsar(disc); if (!f) return null;
+  if (isPRADisc(disc)) return null;
+  if (f.includes('ALFABETIZADOR') || f === 'PPA') return 'PPA';
+  if (f.includes('PRATICA') && f.includes('PEDAGOG')) return 'PPP';
+  if (f.includes('PARALELA') && f.includes('RECUP')) return 'PRP';
+  return null;
+}
+// Nome canônico de disciplina — MESMA regra para turmas e atribuição, para casarem.
+function nomeDisc(raw) { const f = colapsar(raw); if (!f) return '';
+  if (isPRADisc(raw)) return 'PRA — Recuperação';
+  if (f.includes('MAGISTERIO')) return (f.includes('MAGISTERIOII') || f.includes('MAGISTERIO2')) ? 'Magistério II' : 'Magistério I';
+  if ((f.includes('EDUCACAO') || f.includes('EDUC')) && (f.includes('FISICA') || f.includes('FIS'))) return 'Educação Física';
+  if (f.includes('INGLES') || f.includes('INGLESA')) return 'Inglês';
+  if (f.includes('ARTESVISUAIS')) return 'Artes Visuais';
+  if (f.includes('ARTE')) return 'Arte';
+  if (f.includes('PORTUGUES')) return 'Língua Portuguesa';
+  if (f.includes('MATEMATICA')) return 'Matemática';
+  if (f.includes('CIENCIAS')) return 'Ciências';
+  if (f.includes('HISTORIA')) return 'História';
+  if (f.includes('GEOGRAFIA')) return 'Geografia';
+  if (f.includes('MUSICA') || f.includes('MSICA')) return 'Música';
+  return String(raw || '').trim().replace(/\s+/g, ' ');
+}
+// Chave turma×disciplina turno-agnóstica (a atribuição não traz turno).
+function turmaDiscKey(unidade, anoRaw, letra, discRaw) {
+  const cg = classificarAno(anoRaw);
+  return cg ? [colapsar(unidade), cg, colapsar(letra), nomeDisc(discRaw)].join('|') : null;
+}
+
+async function fetchTurmasRede() {
+  const CACHE = 'mapa_atrib_turmas_v2', TTL = 10*60*1000;   // compartilha o cache do retrato
+  try { const o = JSON.parse(localStorage.getItem(CACHE) || 'null');
+    if (o && o.ts && (Date.now()-o.ts) < TTL && Array.isArray(o.rows) && o.rows.length) return o.rows; } catch(e){}
+  const PAGE = 1000, H = { apikey:SUPABASE_KEY, Authorization:`Bearer ${SUPABASE_KEY}` };
+  const url = off => `${SUPABASE_URL}/rest/v1/turmas?select=${SELECT_TURMAS}&order=nome_unidade.asc&limit=${PAGE}&offset=${off}`;
+  const first = await fetch(url(0), { headers:{ ...H, Prefer:'count=exact' } });
+  if (!first.ok) throw new Error(`Erro ${first.status} ao ler a tabela "turmas" (permissão/RLS?).`);
+  let rows = await first.json();
+  if (rows.length === PAGE) {
+    const total = parseInt((first.headers.get('content-range')||'').split('/')[1], 10);
+    if (Number.isFinite(total)) {
+      const offs = []; for (let o=PAGE;o<total;o+=PAGE) offs.push(o);
+      const rest = await Promise.all(offs.map(async o => { const r = await fetch(url(o), {headers:H}); return r.ok ? r.json() : []; }));
+      rows = rows.concat(...rest);
+    }
+  }
+  // Não sobrescreve o cache do retrato (que guarda mais colunas).
+  return rows;
+}
+
+const CONC_GRADE = ['Etapa I','Etapa II','1º Ano','2º Ano','3º Ano','4º Ano','5º Ano'];
+const CONC_PROJ  = ['PPA','PPP','PRP'];
+
+// Necessário (turmas) por categoria+disciplina e por projeto.
+function necessarioTurmas() {
+  const nec = {}, proj = {};
+  (TURMAS||[]).forEach(t => {
+    const c = num(t.carga_horaria);
+    const pj = nomeProjeto(t.descricao_disciplina);
+    if (pj) { proj[pj] = (proj[pj]||0) + c; return; }
+    const cg = classificarAno(t.ano_escolar); if (!cg) return;
+    const o = (nec[cg] ||= { tot:0, disc:{} }); o.tot += c;
+    const d = nomeDisc(t.descricao_disciplina); o.disc[d] = (o.disc[d]||0) + c;
+  });
+  return { nec, proj };
+}
+// Atribuído (atribuição, cada slot 1×) por categoria+disciplina e por projeto.
+function atribuidoRede() {
+  const atr = {}, proj = {}, seen = new Set();
+  (ROWS||[]).forEach(r => {
+    const k = slotKey(r); if (seen.has(k)) return; seen.add(k);
+    const c = num(r[COL.carga]);
+    const cg = catGeral(r);
+    if (cg.startsWith('Projeto: ')) { const p = cg.slice(9); proj[p] = (proj[p]||0) + c; return; }
+    const o = (atr[cg] ||= { tot:0, disc:{} }); o.tot += c;
+    const d = nomeDisc(r[COL.disc]); o.disc[d] = (o.disc[d]||0) + c;
+  });
+  return { atr, proj };
+}
+
+function renderConciliacao() {
+  const box = document.getElementById('tabConc'); if (!box) return;
+  const { nec, proj:necP } = necessarioTurmas();
+  const { atr, proj:atrP } = atribuidoRede();
+
+  const cel = (n, a) => { const falta = n - a, pct = n ? Math.round(a/n*100) : (a?100:0);
+    const fCor = falta > 0 ? '#b91c1c' : falta < 0 ? '#047857' : '#334155';
+    const fTxt = falta > 0 ? br(falta) : falta < 0 ? '−'+br(-falta) : '0';
+    return `<td class="text-end fw-bold">${br(n)}</td><td class="text-end">${br(a)}</td>
+      <td class="text-end fw-bold" style="color:${fCor};">${fTxt}</td>
+      <td class="text-end" style="color:${pct>=100?'#047857':pct>=90?'#b45309':'#b91c1c'};">${pct}%</td>`; };
+
+  const linhaGrade = k => { const n = (nec[k]||{}).tot||0, a = (atr[k]||{}).tot||0;
+    return `<tr><th style="text-align:left;padding-left:1.4rem;cursor:pointer;" onclick="toggleConcDisc('${k}')">
+      <i class="bi bi-caret-right-fill" style="font-size:.7rem;"></i> ${escapeHtml(k)}</th>${cel(n,a)}</tr>
+      <tr id="cd-${k.replace(/\W/g,'')}" style="display:none;"><td colspan="5" style="padding:0;">
+      <div style="padding:.3rem 2.2rem .6rem;">${discTabela(nec[k], atr[k])}</div></td></tr>`; };
+
+  const somaN = ks => ks.reduce((s,k)=>s+((nec[k]||{}).tot||0), 0);
+  const somaA = ks => ks.reduce((s,k)=>s+((atr[k]||{}).tot||0), 0);
+  const inf = ['Etapa I','Etapa II'], fund = ['1º Ano','2º Ano','3º Ano','4º Ano','5º Ano'];
+  const subLinha = (rot, ks, st) => `<tr style="${st}"><th style="text-align:left;">${rot}</th>${cel(somaN(ks), somaA(ks))}</tr>`;
+
+  const projLinha = k => { const n = necP[k]||0, a = atrP[k]||0;
+    return `<tr><th style="text-align:left;padding-left:1.4rem;">${k}</th>${cel(n,a)}</tr>`; };
+  const grupo = tit => `<tr class="total-row"><th colspan="5" style="text-align:left;">${escapeHtml(tit)}</th></tr>`;
+
+  box.innerHTML = `
+    <thead><tr><th style="text-align:left;">Categoria</th>
+      <th class="text-end">Necessário<br><small class="text-muted">(turmas)</small></th>
+      <th class="text-end">Atribuído<br><small class="text-muted">(slot 1×)</small></th>
+      <th class="text-end">Falta</th><th class="text-end">% atrib.</th></tr></thead>
+    <tbody>
+      ${grupo('Educação Infantil — Etapas')}
+      ${inf.map(linhaGrade).join('')}
+      ${grupo('Ensino Fundamental — 1º ao 5º')}
+      ${fund.map(linhaGrade).join('')}
+      ${subLinha('Subtotal 1º–5º', fund, 'background:#f8fafc;')}
+      ${subLinha('▶ Subtotal grade (Etapas + 1º–5º)', CONC_GRADE, 'background:#dbeafe;')}
+      ${grupo('Projetos (PPA / PPP / PRP)')}
+      ${CONC_PROJ.map(projLinha).join('')}
+      <tr style="background:#f8fafc;"><th style="text-align:left;">Subtotal projetos</th>${cel(CONC_PROJ.reduce((s,k)=>s+(necP[k]||0),0), CONC_PROJ.reduce((s,k)=>s+(atrP[k]||0),0))}</tr>
+    </tbody>`;
+
+  renderConcFalta();
+}
+// Tabela de disciplinas dentro de uma categoria (drill).
+function discTabela(necO, atrO) {
+  const nd = (necO||{}).disc||{}, ad = (atrO||{}).disc||{};
+  const keys = Array.from(new Set([...Object.keys(nd), ...Object.keys(ad)]))
+    .sort((a,b) => ((nd[b]||0)-(ad[b]||0)) - ((nd[a]||0)-(ad[a]||0)) || a.localeCompare(b,'pt-BR'));
+  const linhas = keys.map(d => { const n = nd[d]||0, a = ad[d]||0, falta = n-a;
+    const cor = falta>0?'#b91c1c':falta<0?'#047857':'#334155';
+    return `<tr><td style="text-align:left;">${escapeHtml(d)}</td>
+      <td class="text-end">${br(n)}</td><td class="text-end">${br(a)}</td>
+      <td class="text-end fw-bold" style="color:${cor};">${falta>0?br(falta):falta<0?'−'+br(-falta):'0'}</td></tr>`; }).join('');
+  return `<table class="mtx" style="width:auto;min-width:60%;font-size:.82rem;">
+    <thead><tr><th style="text-align:left;">Disciplina</th><th class="text-end">Nec.</th><th class="text-end">Atrib.</th><th class="text-end">Falta</th></tr></thead>
+    <tbody>${linhas}</tbody></table>`;
+}
+function toggleConcDisc(k) {
+  const el = document.getElementById('cd-' + k.replace(/\W/g,''));
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+// Turma a turma (1º–5º): onde o currículo precisa e a atribuição não cobre.
+function renderConcFalta() {
+  const box = document.getElementById('concDetalhe'); if (!box) return;
+  // Necessário por turma×disciplina (só 1º–5º; etapas têm turno que a atribuição não traz).
+  const need = new Map();
+  (TURMAS||[]).forEach(t => {
+    const cg = classificarAno(t.ano_escolar); if (!cg || cg.includes('Etapa')) return;
+    if (nomeProjeto(t.descricao_disciplina)) return;
+    const k = turmaDiscKey(t.nome_unidade, t.ano_escolar, t.letra_turma, t.descricao_disciplina); if (!k) return;
+    const o = need.get(k) || { un:t.nome_unidade, ano:cg, letra:t.letra_turma, disc:nomeDisc(t.descricao_disciplina), nec:0 };
+    o.nec += num(t.carga_horaria); need.set(k, o);
+  });
+  // Atribuído por turma×disciplina (slot 1×).
+  const atrMap = new Map(), seen = new Set();
+  (ROWS||[]).forEach(r => {
+    const sk = slotKey(r); if (seen.has(sk)) return; seen.add(sk);
+    const cg = catGeral(r); if (cg.startsWith('Projeto:') || cg.includes('Etapa')) return;
+    const k = turmaDiscKey(r[COL.unidade], r[COL.serie], r[COL.letra], r[COL.disc]); if (!k) return;
+    atrMap.set(k, (atrMap.get(k)||0) + num(r[COL.carga]));
+  });
+  // Diagnóstico de casamento + lista de faltas.
+  let casadas = 0; const gaps = [];
+  need.forEach((o, k) => { const a = atrMap.get(k) || 0; if (atrMap.has(k)) casadas++;
+    if (o.nec - a > 0) gaps.push({ ...o, atr:a, falta:o.nec - a }); });
+  gaps.sort((x,y) => y.falta - x.falta || String(x.un).localeCompare(String(y.un),'pt-BR'));
+  const totNeed = need.size, pct = totNeed ? Math.round(casadas/totNeed*100) : 0;
+  const LIM = 300, mostradas = gaps.slice(0, LIM);
+  const linhas = mostradas.map(g => `<tr><td style="text-align:left;">${escapeHtml(g.un)}</td>
+    <td class="text-center">${escapeHtml(g.ano)}</td><td class="text-center">${escapeHtml(g.letra)}</td>
+    <td style="text-align:left;">${escapeHtml(g.disc)}</td>
+    <td class="text-end">${br(g.nec)}</td><td class="text-end">${br(g.atr)}</td>
+    <td class="text-end fw-bold" style="color:#b91c1c;">${br(g.falta)}</td></tr>`).join('');
+  box.innerHTML = `
+    <div class="alert ${pct>=80?'alert-success':pct>=50?'alert-warning':'alert-danger'} py-2 small mb-2">
+      <b>Diagnóstico do cruzamento (1º–5º):</b> ${br(casadas)} de ${br(totNeed)} pares turma×disciplina do currículo
+      casaram com a atribuição (<b>${pct}%</b>) — casamento por escola + ano + letra + disciplina.
+      ${pct < 80 ? 'Casamento baixo pode indicar diferença de grafia entre as tabelas (escola/letra); me avise para ajustar as chaves.' : ''}
+    </div>
+    <div class="sec-tt mb-1" style="font-size:.95rem;"><i class="bi bi-exclamation-triangle me-2"></i>Turmas do 1º–5º onde falta atribuir <span class="text-muted fw-normal" style="font-size:.8rem;">(${br(gaps.length)} pares com falta${gaps.length>LIM?`; mostrando os ${LIM} maiores`:''})</span></div>
+    <div class="table-responsive"><table class="mtx" style="font-size:.82rem;">
+      <thead><tr><th style="text-align:left;">Escola</th><th class="text-center">Ano</th><th class="text-center">Letra</th>
+        <th style="text-align:left;">Disciplina</th><th class="text-end">Nec.</th><th class="text-end">Atrib.</th><th class="text-end">Falta</th></tr></thead>
+      <tbody>${linhas || '<tr><td colspan="7" class="text-center text-muted">Nenhuma falta encontrada no 1º–5º.</td></tr>'}</tbody>
+    </table></div>`;
+}
+
+async function carregarTurmas() {
+  const btn = document.getElementById('btnConc'), diag = document.getElementById('concDiag');
+  btn.disabled = true; const txt0 = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Carregando turmas…';
+  try {
+    TURMAS = await fetchTurmasRede();
+    diag.textContent = `${br((TURMAS||[]).length)} linhas de turmas carregadas.`;
+    renderConciliacao();
+    btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Recarregar turmas';
+  } catch (e) {
+    diag.innerHTML = `<span class="text-danger">${escapeHtml(e.message || e)}</span>`;
+    btn.innerHTML = txt0;
+  } finally { btn.disabled = false; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   ABA CAPACIDADE — professores (por cargo/jornada/disciplina),
+   turmas regulares e grade curricular por ano escolar.
+   ══════════════════════════════════════════════════════════════════ */
+const PEB_ORDEM = ['PEB I','PEB II','PEB III'];
+const SEG_ORDEM = ['Etapas','Fund I','Fund II','Ciclos'];   // segmentos da grade
+let _capProfInit = false;
+let capCargoSel = null;    // null = todos os PEB
+let capVincSel = null;     // null = todos (E + C)
+let capSitSel = null;      // null = todas as situações (coluna H)
+let CAP = null;            // resultados da grade (após carregar turmas)
+
+// ano_escolar → { seg, ano } | null (EJA/Termos/especial/liminar fora).
+function anoRegular(anoRaw) {
+  const n = normalizar(anoRaw), f = colapsar(anoRaw);
+  if (f.includes('TERMO') || f.includes('EJA')) return null;
+  // "LIMINAR" (ex.: "ETAPA II - PARCIAL - LIMINAR 12H/A") não é turma: são aulas
+  // criadas para completar jornada (por decisão judicial). Fica fora da grade.
+  if (f.includes('LIMINAR')) return null;
+  if (f.includes('CICLO')) {
+    const m = n.match(/CICLO\s*-?\s*([IVX]+|\d+)/);
+    return { seg:'Ciclos', ano: m ? ('Ciclo ' + m[1]) : 'Ciclos' };
+  }
+  if (f.includes('ETAPA')) {
+    const m = n.match(/ETAPA\s*-?\s*(II|2|DOIS|I|1|UM)\b/);
+    if (m) { const t = m[1];
+      return { seg:'Etapas', ano: (t === 'II' || t === '2' || t === 'DOIS') ? 'Etapa II' : 'Etapa I' }; }
+    return null;
+  }
+  const md = f.match(/^(\d+)/);
+  if (md) { const v = parseInt(md[1], 10);
+    if (v >= 1 && v <= 5) return { seg:'Fund I', ano: v + 'º Ano' };
+    if (v >= 6 && v <= 9) return { seg:'Fund II', ano: v + 'º Ano' }; }
+  return null;
+}
+// Ordem de um ano dentro do segmento (Etapa I/II, 1º…9º, Ciclo I/II…).
+function rankAno(a) {
+  if (/ETAPA II/.test(normalizar(a))) return 2;
+  if (/ETAPA I\b/.test(normalizar(a))) return 1;
+  const md = a.match(/(\d+)/); if (md) return parseInt(md[1], 10);
+  const rom = { I:1, II:2, III:3, IV:4, V:5, VI:6 };
+  const rm = normalizar(a).match(/\b(I{1,3}|IV|VI?)\b/); if (rm && rom[rm[1]]) return rom[rm[1]];
+  return 99;
+}
+function anoTurma(ano) { return normalizar(ano).replace(/\s*-\s*(MANHA|TARDE|NOITE|M|T|N)$/, ''); }
+function periodoCanon(v) { const p = colapsar(v);
+  if (p === 'M' || p.startsWith('MANHA')) return 'M';
+  if (p === 'T' || p.startsWith('TARDE')) return 'T';
+  if (p === 'N' || p.startsWith('NOITE')) return 'N';
+  if (p === 'I' || p.startsWith('INTEG')) return 'I';
+  return p; }
+// Identidade da turma. A turma integral aparece em linhas de manhã E de tarde
+// (mesma turma física); para não contar em dobro, o período dela vira 'INT'.
+function turmaKeyT(t) {
+  const integral = colapsar(t.ano_escolar).includes('INTEGRAL');
+  const per = integral ? 'INT' : periodoCanon(t.periodo);
+  return [colapsar(t.nome_unidade), anoTurma(t.ano_escolar), colapsar(t.letra_turma), per].join('¦');
+}
+
+async function mostrarAba(a) {
+  ['analise','capacidade','escolas'].forEach(x => {
+    const t = document.getElementById('tab-'+x); if (t) t.style.display = x === a ? '' : 'none';
+    const b = document.getElementById('aba-'+x); if (b) b.classList.toggle('active', x === a);
+  });
+  if (a === 'capacidade' && !_capProfInit && ROWS) { _capProfInit = true;
+    if (capSitOpts().includes('NA ATIVA')) capSitSel = new Set(['NA ATIVA']);   // padrão: só quem está na ativa
+    montarCapCargo(); montarCapVinc(); montarCapSit(); renderProfCap(); }
+  if (a === 'escolas') await garantirTurmasEscolas();
+}
+// Garante que as turmas estão carregadas para a aba Escolas (carrega sob demanda).
+async function garantirTurmasEscolas() {
+  const st = document.getElementById('escPerEstado');
+  if (CAP && CAP.escPer) { montarEscPerTipo(); montarEscPerFiltro(); renderEscPer(); return; }
+  if (st) st.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Carregando turmas…';
+  try { if (!TURMAS) TURMAS = await fetchTurmasRede(); computarCapacidade(); if (st) st.textContent = ''; }
+  catch (e) { if (st) st.innerHTML = `<span class="text-danger">${escapeHtml(e.message || e)}</span>`; }
+}
+function recarregarEscolas() {
+  try { localStorage.removeItem('mapa_atrib_turmas_v2'); } catch (e) {}
+  TURMAS = null; CAP = null;
+  garantirTurmasEscolas();
+}
+
+// Professor distinto → { cargo, jornada, disciplina principal }. Respeita o filtro de vínculo.
+function profResumo() {
+  const m = {};
+  (ROWS||[]).forEach(r => {
+    const c = String(r[COL.cargo]); if (!/^PEB (I|II|III)$/.test(c)) return;   // exclui monitores/outros
+    if (capVincSel && !capVincSel.has(String(r[COL.vinculo]))) return;
+    if (capSitSel && !capSitSel.has(String(r[COL.situacao]))) return;
+    const p = r[COL.prof];
+    const o = (m[p] ||= { cod:p, cargo:c, jor:num(r[COL.jornada]), nome:r[COL.nome], sede:r[COL.sede], sit:r[COL.situacao], vinc:r[COL.vinculo], disc:{} });
+    const d = nomeDisc(r[COL.disc]); o.disc[d] = (o.disc[d]||0) + num(r[COL.carga]);
+  });
+  Object.values(m).forEach(o => { let best='—', bv=-1; for (const d in o.disc) if (o.disc[d] > bv) { bv = o.disc[d]; best = d; } o.principal = best; });
+  return m;
+}
+// Drill-down: lista os professores de uma célula (cargo × disciplina principal × jornada).
+let _profCapM = {};
+function detalheProfCap(cargo, disc, jor) {
+  const box = document.getElementById('profCapDetalhe'); if (!box) return;
+  const lista = Object.values(_profCapM)
+    .filter(o => o.cargo === cargo && o.principal === disc && o.jor === jor)
+    .sort((a,b) => String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+  const linhas = lista.map(o => `<tr><td>${escapeHtml(o.cod)}</td><td>${escapeHtml(o.nome)}</td>
+    <td>${escapeHtml(o.sede||'—')}</td><td class="text-center">${escapeHtml(o.vinc)}</td><td>${escapeHtml(o.sit||'—')}</td></tr>`).join('');
+  box.innerHTML = `
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <div class="fw-bold">${br(lista.length)} professor(es) · ${escapeHtml(cargo)} · ${escapeHtml(disc)} · ${jor}h</div>
+      <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('profCapDetalhe').innerHTML=''"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="table-responsive" style="max-height:360px;overflow:auto;">
+      <table class="table table-sm table-bordered align-middle mb-0">
+        <thead><tr><th>Código</th><th>Nome</th><th>Sede (N)</th><th class="text-center">Vínc.</th><th>Situação (H)</th></tr></thead>
+        <tbody>${linhas || '<tr><td colspan="5" class="text-muted">Nenhum.</td></tr>'}</tbody>
+      </table></div>`;
+  box.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+function montarCapCargo() {
+  const bar = document.getElementById('capCargoChips'); if (!bar) return;
+  bar.innerHTML = `<span class="flbl">Cargo</span>` + PEB_ORDEM.map(c => {
+    const on = !capCargoSel || capCargoSel.has(c);
+    return `<button class="fchip ${on?'active':''}" onclick="capToggleCargo('${c}')">${c}</button>`;
+  }).join('');
+}
+function capToggleCargo(c) {
+  if (!capCargoSel) capCargoSel = new Set(PEB_ORDEM);
+  if (capCargoSel.has(c)) capCargoSel.delete(c); else capCargoSel.add(c);
+  if (capCargoSel.size === 0 || capCargoSel.size === PEB_ORDEM.length) capCargoSel = null;
+  montarCapCargo(); renderProfCap();
+}
+function montarCapVinc() {
+  const bar = document.getElementById('capVincChips'); if (!bar) return;
+  const vs = [['E','Efetivo'], ['C','Contratado']];
+  bar.innerHTML = `<span class="flbl">Vínculo</span>` + vs.map(([v,l]) => {
+    const on = !capVincSel || capVincSel.has(v);
+    return `<button class="fchip ${on?'active':''}" onclick="capToggleVinc('${v}')">${l}</button>`;
+  }).join('');
+}
+function capToggleVinc(v) {
+  if (!capVincSel) capVincSel = new Set(['E','C']);
+  if (capVincSel.has(v)) capVincSel.delete(v); else capVincSel.add(v);
+  if (capVincSel.size === 0 || capVincSel.size === 2) capVincSel = null;
+  montarCapVinc(); renderProfCap();   // renderProfCap encadeia suficiência + KPIs
+}
+// Situação do professor (coluna H): NA ATIVA, AFASTADO, READAPTADO, EXONERADO, etc.
+function capSitOpts() {
+  return Array.from(new Set((ROWS||[]).filter(r => /^PEB (I|II|III)$/.test(String(r[COL.cargo])))
+    .map(r => String(r[COL.situacao])))).filter(Boolean).sort((a,b) => a.localeCompare(b,'pt-BR'));
+}
+function montarCapSit() {
+  const bar = document.getElementById('capSitChips'); if (!bar) return;
+  const sits = capSitOpts();
+  bar.innerHTML = `<span class="flbl">Situação (col. H)</span>` + sits.map((s,i) => {
+    const on = !capSitSel || capSitSel.has(s);
+    return `<button class="fchip ${on?'active':''}" onclick="capToggleSit(${i})">${escapeHtml(s)}</button>`;
+  }).join('') + (capSitSel ? `<button class="fchip clear ms-1" onclick="capSitLimpar()"><i class="bi bi-x-circle me-1"></i>todas</button>` : '');
+}
+function capToggleSit(i) {
+  const sits = capSitOpts(), s = sits[i];
+  if (!capSitSel) capSitSel = new Set(sits);
+  if (capSitSel.has(s)) capSitSel.delete(s); else capSitSel.add(s);
+  if (capSitSel.size === 0 || capSitSel.size === sits.length) capSitSel = null;
+  montarCapSit(); renderProfCap();
+}
+function capSitLimpar() { capSitSel = null; montarCapSit(); renderProfCap(); }
+function renderProfCap() {
+  const box = document.getElementById('tabProfCap'); if (!box) return;
+  const M = profResumo(); _profCapM = M;
+  const cargos = PEB_ORDEM.filter(c => !capCargoSel || capCargoSel.has(c));
+  const profs = Object.values(M).filter(o => cargos.includes(o.cargo));
+  const jors = Array.from(new Set(profs.map(o => o.jor))).filter(j => j > 0).sort((a,b) => a-b);
+  const grid = {};   // cargo → disc → { jor:count, tot }
+  profs.forEach(o => { const g = (grid[o.cargo] ||= {}); const d = (g[o.principal] ||= { tot:0 }); d[o.jor] = (d[o.jor]||0) + 1; d.tot++; });
+
+  const thead = `<thead><tr><th style="text-align:left;">Cargo / Disciplina principal</th>
+    ${jors.map(j => `<th class="text-end">${j}h</th>`).join('')}<th class="text-end" style="background:#eef2ff;">Total</th></tr></thead>`;
+  let body = '', gTot = {}, gAll = 0; jors.forEach(j => gTot[j] = 0);
+  cargos.forEach(c => {
+    const g = grid[c]; if (!g) return;
+    body += `<tr class="total-row"><th colspan="${jors.length+2}" style="text-align:left;">${c}</th></tr>`;
+    const discsOrd = Object.keys(g).sort((a,b) => g[b].tot-g[a].tot || a.localeCompare(b,'pt-BR'));
+    let cTot = {}, cAll = 0; jors.forEach(j => cTot[j] = 0);
+    discsOrd.forEach(d => { const row = g[d];
+      body += `<tr><th style="text-align:left;padding-left:1.4rem;">${escapeHtml(d)}</th>
+        ${jors.map(j => { const v = row[j]||0; cTot[j]+=v; gTot[j]+=v;
+          return v ? `<td class="text-end" style="cursor:pointer;color:#2563eb;font-weight:600;" onclick="detalheProfCap('${escapeHtml(c)}','${escapeHtml(d).replace(/'/g,"\\'")}',${j})" title="Clique para listar os professores">${br(v)}</td>`
+                   : `<td class="text-end zero">·</td>`; }).join('')}
+        <td class="text-end fw-bold" style="background:#f5f7ff;">${br(row.tot)}</td></tr>`;
+      cAll += row.tot;
+    });
+    body += `<tr style="background:#f8fafc;"><th style="text-align:left;">Subtotal ${c}</th>
+      ${jors.map(j => `<td class="text-end fw-bold">${br(cTot[j])}</td>`).join('')}<td class="text-end fw-bold">${br(cAll)}</td></tr>`;
+    gAll += cAll;
+  });
+  body += `<tr class="total-row"><th style="text-align:left;">TOTAL professores</th>
+    ${jors.map(j => `<td class="text-end">${br(gTot[j])}</td>`).join('')}<td class="text-end">${br(gAll)}</td></tr>`;
+  box.innerHTML = thead + `<tbody>${body}</tbody>`;
+  renderSuficiencia();
+  renderSedeEfetivos();
+  renderCapKpis();
+}
+// Professores EFETIVOS distintos por sede (coluna N) × cargo. Respeita a situação.
+function sedeEfetivosLista() {
+  const prof = {};
+  (ROWS||[]).forEach(r => {
+    const c = String(r[COL.cargo]); if (!/^PEB (I|II|III)$/.test(c)) return;
+    if (String(r[COL.vinculo]) !== 'E') return;                 // só efetivos
+    if (capSitSel && !capSitSel.has(String(r[COL.situacao]))) return;
+    prof[r[COL.prof]] = { cargo:c, sede:(r[COL.sede] || '—') };
+  });
+  const bySede = {};
+  Object.values(prof).forEach(o => { const s = (bySede[o.sede] ||= { 'PEB I':0, 'PEB II':0, 'PEB III':0, tot:0 }); s[o.cargo]++; s.tot++; });
+  const busca = colapsar((document.getElementById('sedeBusca')||{}).value || '');
+  return Object.entries(bySede)
+    .map(([sede, o]) => ({ sede, ...o }))
+    .filter(o => !busca || colapsar(o.sede).includes(busca))
+    .sort((a,b) => a.sede.localeCompare(b.sede,'pt-BR'));
+}
+function renderSedeEfetivos() {
+  const box = document.getElementById('tabSede'); if (!box) return;
+  const lista = sedeEfetivosLista();
+  const tot = { 'PEB I':0, 'PEB II':0, 'PEB III':0, tot:0 };
+  lista.forEach(o => { PEB_ORDEM.forEach(c => tot[c] += o[c]); tot.tot += o.tot; });
+  const linhas = lista.map(o => `<tr>
+    <td style="text-align:left;">${escapeHtml(o.sede)}</td>
+    ${PEB_ORDEM.map(c => `<td class="text-end ${o[c]?'':'zero'}">${o[c] ? br(o[c]) : '·'}</td>`).join('')}
+    <td class="text-end fw-bold" style="background:#f5f7ff;">${br(o.tot)}</td></tr>`).join('');
+  box.innerHTML = `<thead><tr><th style="text-align:left;">Sede (unidade N)</th>
+    ${PEB_ORDEM.map(c => `<th class="text-end">${c}</th>`).join('')}<th class="text-end" style="background:#eef2ff;">Total</th></tr></thead>
+    <tbody>${linhas || '<tr><td colspan="5" class="text-center text-muted">Nenhuma sede neste filtro.</td></tr>'}
+    <tr class="total-row"><th style="text-align:left;">TOTAL (${br(lista.length)} sedes)</th>
+      ${PEB_ORDEM.map(c => `<td class="text-end">${br(tot[c])}</td>`).join('')}<td class="text-end">${br(tot.tot)}</td></tr></tbody>`;
+}
+function baixarSedeEfetivos() {
+  const lista = sedeEfetivosLista(); if (!lista.length) return;
+  const esc = s => `"${String(s==null?'':s).replace(/"/g,'""')}"`;
+  const linhas = [['Sede','PEB I','PEB II','PEB III','Total'].join(';')]
+    .concat(lista.map(o => [esc(o.sede), o['PEB I'], o['PEB II'], o['PEB III'], o.tot].join(';')));
+  const blob = new Blob(['﻿' + linhas.join('\r\n')], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'efetivos-por-sede.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+function renderCapKpis() {
+  const box = document.getElementById('capKpis'); if (!box) return;
+  const all = Object.values(profResumo());
+  const porCargo = {}; PEB_ORDEM.forEach(c => porCargo[c] = { n:0 });
+  all.forEach(o => { if (porCargo[o.cargo]) porCargo[o.cargo].n++; });
+  const totN = all.length, totH = all.reduce((s,o) => s + o.jor, 0);
+  const turmas = CAP ? CAP.totTurmas : null, aulas = CAP ? CAP.totGrade : null;
+  box.innerHTML = `
+    <div class="col-6 col-lg-3"><div class="kpi"><div class="lbl"><i class="bi bi-person-badge me-1"></i>Professores PEB</div>
+      <div class="val">${br(totN)}</div><div class="sub">${PEB_ORDEM.map(c => `${c}: ${br(porCargo[c].n)}`).join(' · ')}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#7c3aed;"><div class="lbl"><i class="bi bi-clock me-1"></i>Capacidade (Σ jornada)</div>
+      <div class="val">${br(totH)}</div><div class="sub">aulas/semana (jornada = parte c/ aluno)</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#2563eb;"><div class="lbl"><i class="bi bi-easel me-1"></i>Turmas regulares</div>
+      <div class="val">${turmas!=null?br(turmas):'—'}</div><div class="sub">${turmas!=null?'Etapas + Fund I/II + Ciclos':'clique em carregar turmas'}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#059669;"><div class="lbl"><i class="bi bi-journals me-1"></i>Aulas da grade</div>
+      <div class="val">${aulas!=null?br(aulas):'—'}</div><div class="sub">${aulas!=null?'total curricular (regular)':'clique em carregar turmas'}</div></div></div>`;
+}
+
+async function carregarCapacidade() {
+  const btn = document.getElementById('btnCap'), diag = document.getElementById('capDiag');
+  btn.disabled = true; const t0 = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Carregando turmas…';
+  try {
+    if (!TURMAS) TURMAS = await fetchTurmasRede();
+    computarCapacidade();
+    diag.textContent = `${br((TURMAS||[]).length)} linhas de turmas carregadas.`;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Recarregar turmas';
+  } catch (e) { diag.innerHTML = `<span class="text-danger">${escapeHtml(e.message || e)}</span>`; btn.innerHTML = t0; }
+  finally { btn.disabled = false; }
+}
+function computarCapacidade() {
+  const gradeCell = {}, turmasComDisc = {}, turmaSeen = {}, discSet = new Set(), anoSeg = {};
+  (TURMAS||[]).forEach(t => {
+    const r = anoRegular(t.ano_escolar); if (!r) return;
+    if (nomeProjeto(t.descricao_disciplina)) return;         // projetos não são grade
+    const ano = r.ano; anoSeg[ano] = r.seg;
+    const c = num(t.carga_horaria), tk = turmaKeyT(t);
+    (turmaSeen[ano] ||= new Set()).add(tk);
+    const d = nomeDisc(t.descricao_disciplina); discSet.add(d);
+    const ck = ano + '¦' + d;
+    gradeCell[ck] = (gradeCell[ck]||0) + c;
+    (turmasComDisc[ck] ||= new Set()).add(tk);
+  });
+  // anos ordenados por segmento e depois pela ordem interna
+  const anosOrd = Object.keys(anoSeg).sort((x,y) =>
+    (SEG_ORDEM.indexOf(anoSeg[x]) - SEG_ORDEM.indexOf(anoSeg[y])) || (rankAno(x) - rankAno(y)) || x.localeCompare(y,'pt-BR'));
+  const turmasPorAno = {}; let totTurmas = 0;
+  anosOrd.forEach(a => { const n = turmaSeen[a] ? turmaSeen[a].size : 0; turmasPorAno[a] = n; totTurmas += n; });
+  let totGrade = 0; Object.values(gradeCell).forEach(v => totGrade += v);
+  const gradeDisc = {}; for (const ck in gradeCell) { const d = ck.split('¦')[1]; gradeDisc[d] = (gradeDisc[d]||0) + gradeCell[ck]; }
+  const segs = SEG_ORDEM.filter(s => anosOrd.some(a => anoSeg[a] === s));
+  // Escolas por período: por turma distinta, se é integral (tem "INTEGRAL" no ano) ou parcial.
+  const turmasP = {};
+  (TURMAS||[]).forEach(t => { const r = anoRegular(t.ano_escolar); if (!r) return;
+    const key = turmaKeyT(t);
+    const o = (turmasP[key] ||= { escola:t.nome_unidade, letra:t.letra_turma, seg:r.seg, ano:r.ano, integral:false, raws:new Set() });
+    o.raws.add((t.ano_escolar || '—') + '  ·  período=' + (t.periodo || '—'));
+    if (colapsar(t.ano_escolar).includes('INTEGRAL')) o.integral = true;
+  });
+  const escPer = {}, escPerDet = {};
+  Object.values(turmasP).forEach(o => { const e = (escPer[o.escola] ||= { integral:0, parcial:0 });
+    if (o.integral) e.integral++; else e.parcial++;
+    (escPerDet[o.escola] ||= []).push(o); });
+  CAP = { turmasPorAno, totTurmas, gradeCell, gradeDisc, turmasComDisc, discs:Array.from(discSet), totGrade, anoSeg, anosOrd, segs, escPer, escPerDet };
+  renderTurmasReg(); renderGrade(); renderSuficiencia(); renderCapKpis(); renderDupTurmas();
+  montarEscPerTipo(); montarEscPerFiltro(); renderEscPer();
+}
+// ── Escolas por período — classificação POR SEGMENTO ──────────────
+// Cada escola é classificada em cada segmento (Ciclos, Etapas, Ensino
+// Fundamental) como Integral, Parcial ou Misto — ou vazio se não tem o segmento.
+const SEG_GRUPOS = [
+  { key:'ciclos', label:'Ciclos', segs:['Ciclos'] },
+  { key:'etapas', label:'Etapas', segs:['Etapas'] },
+  { key:'fund',   label:'Ensino Fundamental', segs:['Fund I','Fund II'] },
+];
+const CLASSE_COR = { 'Integral':'#7c3aed', 'Parcial':'#2563eb', 'Misto':'#d97706' };
+let escPerClasseSel = null;   // null = todas as classes (Integral/Parcial/Misto)
+let escPerSegSel = 'etapas';  // segmento em que o filtro de classe atua
+let escPerTipoSel = null;     // null = todos os tipos
+
+// Classe de um segmento a partir das turmas (detalhe) da escola.
+function classeSeg(det, segs) {
+  let integ = 0, parc = 0;
+  det.forEach(d => { if (segs.includes(d.seg)) { if (d.integral) integ++; else parc++; } });
+  if (integ === 0 && parc === 0) return null;             // escola não tem esse segmento
+  if (integ > 0 && parc === 0) return 'Integral';
+  if (parc > 0 && integ === 0) return 'Parcial';
+  return 'Misto';
+}
+// Tipo da escola pelo token no nome (CEI / EMEI / EMEF / …), casando tokens
+// inteiros (evita "CEI" dentro de "CONCEIÇÃO").
+function tipoEscola(nome) {
+  const toks = new Set(normalizar(nome).split(/[^A-Z0-9]+/).filter(Boolean));
+  for (const t of ['CEMEI','EMEIEF','CEEEF','EMEF','EMEI','CEI']) if (toks.has(t)) return t;
+  return 'Outras';
+}
+function escPerTipos() {
+  const s = new Set(Object.keys(CAP.escPer || {}).map(tipoEscola));
+  const ordem = ['CEI','EMEI','EMEF','EMEIEF','CEMEI','CEEEF','Outras'];
+  return [...s].sort((a,b) => ((ordem.indexOf(a)+1||99) - (ordem.indexOf(b)+1||99)) || a.localeCompare(b));
+}
+function montarEscPerTipo() {
+  const bar = document.getElementById('escPerTipoChips'); if (!bar || !CAP) return;
+  const tipos = escPerTipos();
+  bar.innerHTML = `<span class="flbl">Tipo de escola</span>` + tipos.map(t => {
+    const on = !escPerTipoSel || escPerTipoSel.has(t);
+    return `<button class="fchip ${on?'active':''}" onclick="escPerTipoToggle('${t}')">${t}</button>`;
+  }).join('');
+}
+function escPerTipoToggle(t) {
+  const tipos = escPerTipos();
+  if (!escPerTipoSel) escPerTipoSel = new Set(tipos);
+  if (escPerTipoSel.has(t)) escPerTipoSel.delete(t); else escPerTipoSel.add(t);
+  if (escPerTipoSel.size === 0 || escPerTipoSel.size === tipos.length) escPerTipoSel = null;
+  montarEscPerTipo(); renderEscPer();
+}
+function montarEscPerFiltro() {
+  const bar = document.getElementById('escPerFiltro'); if (!bar || !CAP) return;
+  const opts = SEG_GRUPOS.map(g => `<option value="${g.key}" ${escPerSegSel===g.key?'selected':''}>${g.label}</option>`).join('')
+    + `<option value="any" ${escPerSegSel==='any'?'selected':''}>Qualquer segmento</option>`;
+  const classes = ['Integral','Parcial','Misto'];
+  bar.innerHTML = `<span class="flbl">Filtrar período em</span>`
+    + `<select class="form-select form-select-sm" style="width:auto;display:inline-block;" onchange="escPerSegChange(this.value)">${opts}</select>`
+    + classes.map(c => { const on = !escPerClasseSel || escPerClasseSel.has(c);
+        return `<button class="fchip ${on?'active':''}" onclick="escPerToggle('${c}')">${c}</button>`; }).join('');
+}
+function escPerSegChange(v) { escPerSegSel = v; renderEscPer(); }
+function escPerToggle(c) {
+  const classes = ['Integral','Parcial','Misto'];
+  if (!escPerClasseSel) escPerClasseSel = new Set(classes);
+  if (escPerClasseSel.has(c)) escPerClasseSel.delete(c); else escPerClasseSel.add(c);
+  if (escPerClasseSel.size === 0 || escPerClasseSel.size === classes.length) escPerClasseSel = null;
+  montarEscPerFiltro(); renderEscPer();
+}
+function escPerLista() {
+  if (!CAP || !CAP.escPer) return [];
+  const busca = colapsar((document.getElementById('escPerBusca')||{}).value || '');
+  return Object.entries(CAP.escPer).map(([escola, e]) => {
+    const det = CAP.escPerDet[escola] || [];
+    const cls = {}; SEG_GRUPOS.forEach(g => cls[g.key] = classeSeg(det, g.segs));
+    return { escola, tipo:tipoEscola(escola), total:e.integral+e.parcial, cls };
+  }).filter(o => {
+    if (escPerTipoSel && !escPerTipoSel.has(o.tipo)) return false;
+    if (busca && !colapsar(o.escola).includes(busca)) return false;
+    if (escPerClasseSel) {
+      if (escPerSegSel === 'any') { if (!SEG_GRUPOS.some(g => o.cls[g.key] && escPerClasseSel.has(o.cls[g.key]))) return false; }
+      else if (!escPerClasseSel.has(o.cls[escPerSegSel])) return false;
+    }
+    return true;
+  }).sort((a,b) => a.escola.localeCompare(b.escola,'pt-BR'));
+}
+function celClasse(c) {
+  if (!c) return `<td class="text-center" style="color:#cbd5e1;">—</td>`;
+  return `<td class="text-center"><span style="color:${CLASSE_COR[c]};font-weight:700;">${c}</span></td>`;
+}
+function renderEscPer() {
+  const box = document.getElementById('tabEscPer'), res = document.getElementById('escPerResumo');
+  if (!box || !CAP || !CAP.escPer) return;
+  // resumo: por segmento, quantas escolas são Integral / Parcial / Misto (rede toda).
+  const cont = {}; SEG_GRUPOS.forEach(g => cont[g.key] = { Integral:0, Parcial:0, Misto:0, tem:0 });
+  Object.entries(CAP.escPer).forEach(([escola]) => { const det = CAP.escPerDet[escola] || [];
+    SEG_GRUPOS.forEach(g => { const c = classeSeg(det, g.segs); if (c) { cont[g.key][c]++; cont[g.key].tem++; } }); });
+  if (res) res.innerHTML = `<div class="col-12"><div class="table-responsive"><table class="mtx" style="max-width:640px;">
+      <thead><tr><th style="text-align:left;">Segmento</th>
+        <th class="text-end" style="color:${CLASSE_COR.Integral};">Integral</th>
+        <th class="text-end" style="color:${CLASSE_COR.Parcial};">Parcial</th>
+        <th class="text-end" style="color:${CLASSE_COR.Misto};">Misto</th>
+        <th class="text-end">Escolas c/ o segmento</th></tr></thead>
+      <tbody>${SEG_GRUPOS.map(g => `<tr><th style="text-align:left;">${g.label}</th>
+        <td class="text-end">${br(cont[g.key].Integral)}</td><td class="text-end">${br(cont[g.key].Parcial)}</td>
+        <td class="text-end">${br(cont[g.key].Misto)}</td><td class="text-end fw-bold">${br(cont[g.key].tem)}</td></tr>`).join('')}</tbody>
+      </table></div></div>`;
+  const lista = escPerLista();
+  const contEl = document.getElementById('escPerContagem');
+  if (contEl) { const filtrando = escPerTipoSel || escPerClasseSel || ((document.getElementById('escPerBusca')||{}).value||'').trim();
+    contEl.textContent = `Mostrando ${br(lista.length)} de ${br(Object.keys(CAP.escPer).length)} escolas${filtrando ? ' (filtro aplicado)' : ''}.`; }
+  const linhas = lista.map((o,i) => {
+    const det = (CAP.escPerDet[o.escola] || []).slice()
+      .sort((a,b) => (SEG_ORDEM.indexOf(a.seg) - SEG_ORDEM.indexOf(b.seg)) || (rankAno(a.ano) - rankAno(b.ano)) || String(a.letra||'').localeCompare(String(b.letra||''),'pt-BR'));
+    const detRows = det.map(d => `<tr>
+      <td style="text-align:left;padding-left:2.4rem;">${escapeHtml(d.ano)} ${escapeHtml(d.letra||'')}</td>
+      <td class="text-center">${d.integral ? '<span style="color:#7c3aed;font-weight:700;">integral</span>' : '<span style="color:#2563eb;font-weight:700;">parcial</span>'}</td>
+      <td colspan="4" style="text-align:left;font-size:.76rem;color:#64748b;">${[...d.raws].map(escapeHtml).join('<br>')}</td></tr>`).join('');
+    return `<tr style="cursor:pointer;" onclick="escPerToggleDet(${i})">
+      <td style="text-align:left;"><i class="bi bi-caret-right-fill" style="font-size:.68rem;color:#94a3b8;"></i> ${escapeHtml(o.escola)}</td>
+      <td class="text-center"><span class="badge" style="background:#ede9fe;color:#6d28d9;">${escapeHtml(o.tipo)}</span></td>
+      ${celClasse(o.cls.ciclos)}${celClasse(o.cls.etapas)}${celClasse(o.cls.fund)}
+      <td class="text-end fw-bold">${br(o.total)}</td></tr>
+      <tr id="escdet-${i}" style="display:none;background:#faf5ff;"><td colspan="6" style="padding:.2rem .4rem;">
+        <table class="mtx" style="width:100%;margin:0;"><tbody>${detRows}</tbody></table></td></tr>`;
+  }).join('');
+  box.innerHTML = `<thead><tr><th style="text-align:left;">Escola <span class="text-muted fw-normal" style="font-size:.72rem;">(clique p/ ver turmas)</span></th>
+    <th class="text-center">Tipo</th><th class="text-center">Ciclos</th><th class="text-center">Etapas</th>
+    <th class="text-center">Ens. Fundamental</th><th class="text-end">Total turmas</th></tr></thead>
+    <tbody>${linhas || '<tr><td colspan="6" class="text-center text-muted">Nenhuma escola neste filtro.</td></tr>'}</tbody>`;
+}
+function escPerToggleDet(i) {
+  const el = document.getElementById('escdet-' + i);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+function baixarEscolasPeriodo() {
+  const lista = escPerLista(); if (!lista.length) return;
+  const esc = s => `"${String(s==null?'':s).replace(/"/g,'""')}"`;
+  const linhas = [['Escola','Tipo','Ciclos','Etapas','Ensino Fundamental','Total turmas'].join(';')]
+    .concat(lista.map(o => [esc(o.escola), esc(o.tipo), esc(o.cls.ciclos||''), esc(o.cls.etapas||''), esc(o.cls.fund||''), o.total].join(';')));
+  const blob = new Blob(['﻿' + linhas.join('\r\n')], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'escolas-por-periodo.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+// Diagnóstico: mesma escola+ano+letra que ainda gera mais de uma turma (turnos
+// diferentes que não colapsaram) — normalmente integrais mal rotuladas.
+function renderDupTurmas() {
+  const box = document.getElementById('capDupWrap'); if (!box) return;
+  const grp = {};
+  (TURMAS||[]).forEach(t => {
+    const r = anoRegular(t.ano_escolar); if (!r) return;
+    if (nomeProjeto(t.descricao_disciplina)) return;
+    const base = [colapsar(t.nome_unidade), r.ano, colapsar(t.letra_turma)].join('¦');
+    const o = (grp[base] ||= { ano:r.ano, seg:r.seg, un:t.nome_unidade, letra:t.letra_turma, keys:new Set(), raw:{} });
+    o.keys.add(turmaKeyT(t));
+    const rk = (t.ano_escolar || '—') + '  ·  período=' + (t.periodo || '—');
+    o.raw[rk] = (o.raw[rk]||0) + 1;
+  });
+  const dups = Object.values(grp).filter(g => g.keys.size > 1)
+    .sort((a,b) => (SEG_ORDEM.indexOf(a.seg) - SEG_ORDEM.indexOf(b.seg)) || String(a.un).localeCompare(String(b.un),'pt-BR'));
+  if (!dups.length) { box.innerHTML = `<div class="text-muted small">Nenhuma turma contada mais de uma vez. ✔</div>`; return; }
+  const porSeg = {}; dups.forEach(g => porSeg[g.seg] = (porSeg[g.seg]||0) + (g.keys.size - 1));
+  const extra = dups.reduce((s,g) => s + (g.keys.size - 1), 0);
+  const linhas = dups.map(g => `<tr><td class="text-start">${escapeHtml(g.un)}</td><td class="text-center">${escapeHtml(g.ano)}</td>
+    <td class="text-center">${escapeHtml(g.letra || '—')}</td><td class="text-end">${g.keys.size}×</td>
+    <td class="text-start" style="font-size:.78rem;">${Object.keys(g.raw).map(escapeHtml).join('<br>')}</td></tr>`).join('');
+  box.innerHTML = `
+    <div class="alert alert-warning py-2 small mb-2"><b>${br(extra)}</b> turma(s) contada(s) a mais
+      (${Object.entries(porSeg).map(([s,n]) => `${s}: +${n}`).join(' · ')}). Mesma escola + ano + letra aparecendo com turnos diferentes:</div>
+    <div class="table-responsive"><table class="mtx" style="font-size:.82rem;">
+      <thead><tr><th class="text-start">Escola</th><th>Ano</th><th>Letra</th><th class="text-end">Contagem</th><th class="text-start">Linhas na tabela (ano_escolar · período)</th></tr></thead>
+      <tbody>${linhas}</tbody></table></div>`;
+}
+function renderTurmasReg() {
+  const box = document.getElementById('tabTurmasReg'); if (!box || !CAP) return;
+  let body = '';
+  CAP.segs.forEach(seg => {
+    const anos = CAP.anosOrd.filter(a => CAP.anoSeg[a] === seg && CAP.turmasPorAno[a] > 0); if (!anos.length) return;
+    const sub = anos.reduce((s,a) => s + CAP.turmasPorAno[a], 0);
+    body += `<tr class="total-row"><th style="text-align:left;">${seg}</th><td class="text-end">${br(sub)}</td></tr>`;
+    body += anos.map(a => `<tr><th style="text-align:left;padding-left:1.4rem;">${a}</th><td class="text-end fw-bold">${br(CAP.turmasPorAno[a])}</td></tr>`).join('');
+  });
+  box.innerHTML = `<thead><tr><th style="text-align:left;">Segmento / Ano</th><th class="text-end">Turmas distintas</th></tr></thead>
+    <tbody>${body}<tr class="total-row" style="border-top:2px solid #cbd5e1;"><th style="text-align:left;">TOTAL</th><td class="text-end">${br(CAP.totTurmas)}</td></tr></tbody>`;
+}
+function renderGrade() {
+  const box = document.getElementById('tabGrade'); if (!box || !CAP) return;
+  const discTot = {}; CAP.discs.forEach(d => discTot[d] = 0);
+  CAP.anosOrd.forEach(a => CAP.discs.forEach(d => { discTot[d] += CAP.gradeCell[a+'¦'+d] || 0; }));
+  const discs = CAP.discs.filter(d => discTot[d] > 0).sort((a,b) => discTot[b]-discTot[a] || a.localeCompare(b,'pt-BR'));
+  const fmt = v => v % 1 ? v.toFixed(1) : String(v);
+  const ncol = discs.length + 3;
+  const cellAno = a => {
+    const nt = CAP.turmasPorAno[a] || 0; let somaTurma = 0;
+    const tds = discs.map(d => {
+      const tot = CAP.gradeCell[a+'¦'+d] || 0;
+      const nd = CAP.turmasComDisc[a+'¦'+d] ? CAP.turmasComDisc[a+'¦'+d].size : 0;
+      const porTurma = nd ? tot/nd : 0; somaTurma += porTurma;
+      return tot ? `<td class="text-end"><span class="big">${fmt(porTurma)}</span><br><small class="text-muted">${br(tot)}</small></td>` : `<td class="text-end zero">·</td>`;
+    }).join('');
+    return `<tr><th style="text-align:left;padding-left:1.4rem;">${a}</th><td class="text-end">${br(nt)}</td>${tds}
+      <td class="text-end fw-bold" style="background:#f5f7ff;">${fmt(somaTurma)}</td></tr>`;
+  };
+  let body = '';
+  CAP.segs.forEach(seg => {
+    const anos = CAP.anosOrd.filter(a => CAP.anoSeg[a] === seg && CAP.turmasPorAno[a] > 0); if (!anos.length) return;
+    const segTurmas = anos.reduce((s,a) => s + CAP.turmasPorAno[a], 0);
+    const segTot = discs.map(d => anos.reduce((s,a) => s + (CAP.gradeCell[a+'¦'+d]||0), 0));
+    body += `<tr class="total-row"><th style="text-align:left;">${seg}</th><td class="text-end">${br(segTurmas)}</td>
+      ${segTot.map(v => `<td class="text-end">${v?br(v):'·'}</td>`).join('')}<td class="text-end">${br(segTot.reduce((s,v)=>s+v,0))}</td></tr>`;
+    body += anos.map(cellAno).join('');
+  });
+  const thead = `<thead><tr><th style="text-align:left;">Segmento / Ano</th><th class="text-end">Turmas</th>
+    ${discs.map(d => `<th class="text-end">${escapeHtml(d)}</th>`).join('')}<th class="text-end" style="background:#eef2ff;">Aulas/turma</th></tr></thead>`;
+  box.innerHTML = thead + `<tbody>${body}</tbody>
+    <tfoot><tr class="total-row" style="border-top:2px solid #cbd5e1;"><th style="text-align:left;">Total de aulas (todas as turmas)</th><td></td>
+      ${discs.map(d => `<td class="text-end">${br(discTot[d])}</td>`).join('')}<td class="text-end">${br(CAP.totGrade)}</td></tr></tfoot>`;
+}
+
+// Agrupa disciplinas por "frente" de professor (a regência de Etapas/1º–5º —
+// Magistério II — inclui PRA, Educação Financeira e as práticas das etapas,
+// todas dadas pelos mesmos PEB II regentes). Magistério I é a creche/pré.
+const REGENCIA_NOMES = new Set(['Magistério II', 'PRA — Recuperação']);
+function grupoCap(d) {
+  if (d === 'Magistério I') return 'Magistério I (creche/pré-escola)';
+  if (REGENCIA_NOMES.has(d)) return 'Magistério II (regência Etapas/1º–5º)';
+  const f = colapsar(d);
+  if (f.includes('FINANCEIRA') || f.includes('RELAXAMENTO') || f.includes('VIVENCIA')) return 'Magistério II (regência Etapas/1º–5º)';
+  return d;   // especialistas (PEB III) mantêm o próprio nome
+}
+// D. Suficiência: capacidade (Σ jornada) dos professores × aulas da grade, por frente.
+function renderSuficiencia() {
+  const box = document.getElementById('tabSufic'); if (!box) return;
+  const M = profResumo();
+  const cap = {};   // grupo → { n, h }
+  Object.values(M).forEach(o => { const d = grupoCap(o.principal); const c = (cap[d] ||= { n:0, h:0 }); c.n++; c.h += o.jor; });
+  const atr = {};   // aulas atribuídas (PEB) por grupo
+  (ROWS||[]).forEach(r => { const c = String(r[COL.cargo]); if (!/^PEB (I|II|III)$/.test(c)) return;
+    if (capVincSel && !capVincSel.has(String(r[COL.vinculo]))) return;
+    if (capSitSel && !capSitSel.has(String(r[COL.situacao]))) return;
+    const d = grupoCap(nomeDisc(r[COL.disc])); atr[d] = (atr[d]||0) + num(r[COL.carga]); });
+  const grade = {};   // aulas da grade por grupo
+  if (CAP && CAP.gradeDisc) for (const gd in CAP.gradeDisc) { const d = grupoCap(gd); grade[d] = (grade[d]||0) + CAP.gradeDisc[gd]; }
+  const temGrade = Object.keys(grade).length > 0;
+  // só as frentes que têm professores (evita linhas fantasma de projetos/oficinas)
+  const grupos = Object.keys(cap).sort((a,b) => cap[b].h - cap[a].h || a.localeCompare(b,'pt-BR'));
+
+  const thead = `<thead><tr><th style="text-align:left;">Frente / Disciplina</th>
+    <th class="text-end">Profs</th><th class="text-end">Capacidade<br><small class="text-muted">Σ jornada</small></th>
+    <th class="text-end">Aulas atribuídas<br><small class="text-muted">(PEB, rede)</small></th>
+    ${temGrade ? `<th class="text-end">Aulas na grade<br><small class="text-muted">(regular)</small></th><th class="text-end">Saldo<br><small class="text-muted">cap − grade</small></th>` : ''}
+    </tr></thead>`;
+  let sN = 0, sC = 0, sA = 0, sG = 0;
+  const linhas = grupos.map(d => {
+    const cp = cap[d], at = atr[d] || 0, gd = grade[d] || 0, saldo = cp.h - gd;
+    const creche = d.startsWith('Magistério I ');
+    sN += cp.n; sC += cp.h; sA += at; sG += gd;
+    const gradeTds = temGrade
+      ? (creche
+          ? `<td class="text-end text-muted">fora da grade</td><td class="text-end text-muted">—</td>`
+          : `<td class="text-end">${gd ? br(gd) : '·'}</td>
+             <td class="text-end fw-bold" style="color:${saldo < 0 ? '#b91c1c' : '#047857'};">${(saldo>=0?'+':'−')+br(Math.abs(saldo))}</td>`)
+      : '';
+    return `<tr><th style="text-align:left;">${escapeHtml(d)}</th>
+      <td class="text-end">${br(cp.n)}</td><td class="text-end fw-bold">${br(cp.h)}</td>
+      <td class="text-end text-muted">${br(at)}</td>${gradeTds}</tr>`;
+  }).join('');
+  const totSaldo = sC - sG;
+  const totTds = temGrade
+    ? `<td class="text-end">${br(sG)}</td><td class="text-end" style="color:${totSaldo<0?'#b91c1c':'#047857'};">${(totSaldo>=0?'+':'−')+br(Math.abs(totSaldo))}</td>`
+    : '';
+  box.innerHTML = thead + `<tbody>${linhas}
+    <tr class="total-row"><th style="text-align:left;">TOTAL PEB</th><td class="text-end">${br(sN)}</td>
+      <td class="text-end">${br(sC)}</td><td class="text-end">${br(sA)}</td>${totTds}</tr></tbody>`;
+}
+
+/* ── Carregamento ───────────────────────────────────────────────── */
+async function carregar() {
+  document.getElementById('estado').style.display = 'block';
+  document.getElementById('conteudo').style.display = 'none';
+  try {
+    await aguardarAuth();
+    ROWS = await fetchTudo();
+    document.getElementById('estado').style.display = 'none';
+    document.getElementById('conteudo').style.display = 'block';
+    montarToolbar();
+    render();
+  } catch (e) {
+    document.getElementById('estado').innerHTML =
+      `<div class="alert alert-danger d-inline-block text-start">${escapeHtml(e.message || e)}</div>`;
+  }
+}
+function atualizar() { window.__forcar = true; carregar(); }
+carregar();
+</script>
+</body>
+</html>
