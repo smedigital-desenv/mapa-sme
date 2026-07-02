@@ -61,10 +61,46 @@
     .fchip:hover { border-color:#94a3b8; }
     .fchip.active { background:#059669; border-color:#059669; color:#fff; }
     .fchip.clear { background:#fff; border-style:dashed; color:#64748b; }
-    @media print { .toolbar,.nav-back,.btn-tool,#graficoWrap,.fbar { display:none !important; } body { background:#fff; } }
+    /* ── Menu padrão do sistema (MAPA) ── */
+    .mg-header { background:var(--primary); color:#fff; border-bottom:5px solid var(--neon-blue); padding:.9rem 1.6rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; position:relative; z-index:1060; box-shadow:0 6px 18px rgba(0,43,94,.18); }
+    .mg-brand { display:flex; align-items:center; gap:.6rem; min-width:180px; cursor:pointer; }
+    .mg-brand-icon { width:34px; height:34px; display:grid; place-items:center; color:var(--neon-blue); font-size:1.4rem; }
+    .mg-brand h4 { margin:0; font-weight:900; font-size:1.4rem; line-height:1; }
+    .mg-brand-sub { font-size:.63rem; color:rgba(255,255,255,.68); font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-top:2px; }
+    .mg-nav { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; flex:1; min-width:280px; }
+    .mg-nav-btn { display:inline-flex; align-items:center; gap:.4rem; justify-content:center; min-width:140px; font-size:.78rem; font-weight:900; padding:6px 14px; border-radius:8px; border:2px solid transparent; color:#fff; text-decoration:none; transition:.2s; white-space:nowrap; cursor:pointer; }
+    .mg-nav-btn:hover { border-color:rgba(255,255,255,.4); } .mg-nav-btn.active { background:#fff; color:var(--primary); }
+    .mg-nav-icon { min-width:auto; padding:6px 10px; }
+    .mg-action-btn { background:#fff; color:var(--primary); border:0; border-radius:8px; padding:6px 12px; font-weight:900; font-size:.78rem; display:inline-flex; align-items:center; gap:.4rem; cursor:pointer; }
+    @media (max-width:992px){ .mg-nav-btn{ min-width:auto; } }
+    @media print { .toolbar,.nav-back,.btn-tool,#graficoWrap,.fbar,.mg-header { display:none !important; } body { background:#fff; } }
   </style>
 </head>
 <body>
+  <!-- ═══ MENU PADRÃO DO SISTEMA (MAPA) ═══ -->
+  <header class="mg-header">
+    <div class="mg-brand" onclick="location.href='index.html'" title="Página inicial do MAPA">
+      <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div><div><h4>MAPA</h4><div class="mg-brand-sub">SME Ribeirão Preto</div></div>
+    </div>
+    <nav class="mg-nav">
+      <div class="mg-dd" data-tela-any="avaliacao,elefante,fluencia">
+        <a class="mg-nav-btn mg-dd-toggle" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+        <div class="mg-dd-menu">
+          <a class="mg-dd-item" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+          <a class="mg-dd-item" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+          <a class="mg-dd-item" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+        </div>
+      </div>
+      <a class="mg-nav-btn active" href="atribuicao.html"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+      <a class="mg-nav-btn" href="educacao_especial.html"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+      <a class="mg-nav-btn" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+      <a class="mg-nav-btn" href="relatorios.html"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+      <a class="mg-nav-btn" href="boletim.html"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+      <a class="mg-nav-btn mg-nav-icon" href="#" id="btnConfig" style="display:none" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
+    </nav>
+    <div><button class="mg-action-btn" onclick="location.reload()" title="Atualizar"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button></div>
+  </header>
+
   <header class="nav-header d-flex align-items-center justify-content-between flex-wrap gap-2">
     <div class="d-flex align-items-center gap-3">
       <i class="bi bi-easel2-fill" style="font-size:1.6rem;color:var(--neon-blue);"></i>
