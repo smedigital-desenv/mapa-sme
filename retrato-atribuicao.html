@@ -146,7 +146,8 @@
         <div class="sec-tt mb-1"><i class="bi bi-calculator me-2"></i>Simulador 2027 — projeção do total de aulas</div>
         <p class="text-muted small mb-3">Defina as aulas dos novos projetos de 2027. A <b>base</b> (tudo que não é projeto —
           etapas + disciplinas do fundamental) usa os números de <b>2026</b> e não muda; os projetos novos (Apoio + PPA)
-          substituem os atuais (PPA/PPP/PRP). Os parâmetros ficam salvos no seu navegador.</p>
+          substituem os atuais (PPA/PPP/PRP). A base inclui a <b>regência (Magistério II) de toda sala — 19 aulas/semana</b> —
+          mesmo nas salas onde o regente ainda não foi lançado (a turma existe). Os parâmetros ficam salvos no seu navegador.</p>
         <div class="row g-3">
           <div class="col-12 col-lg-4">
             <label class="form-label fw-bold small mb-1">Etapas — Projeto Professor de Apoio</label>
@@ -869,6 +870,18 @@ function recomputeSim() {
   // fundamental). Continua igual em 2027; o que muda são os projetos.
   let base = 0;
   ANOS.forEach(a => Object.values(CUBE[a].disc).forEach(c => base += c.cargaCriada));
+  // Toda sala precisa de uma regência (Magistério II) de 19 aulas/semana. Quando a
+  // turma existe mas o regente não está lançado, essas 19 aulas não entram no somatório
+  // acima — então somamos 19 por sala sem regência (a turma existe, só falta professor).
+  const REG_MAG2 = 19;
+  let salasSemReg = 0;
+  ANOS.forEach(a => {
+    const mag = CUBE[a].disc['Magistério II'];
+    const comReg = mag ? [...CUBE[a].turmas].filter(tk => mag.tCriadas.has(tk)).length : 0;
+    salasSemReg += CUBE[a].turmas.size - comReg;
+  });
+  const addReg = REG_MAG2 * salasSemReg;
+  base += addReg;
   // Projetos atuais (2026)
   let proj2026 = 0;
   Object.values(PROJ || {}).forEach(c => proj2026 += c.cargaCriada);
@@ -885,6 +898,7 @@ function recomputeSim() {
         <table class="table table-sm align-middle mb-0">
           <tbody>
             <tr><td>Base — tudo que não é projeto (2026)</td><td class="text-end fw-bold">${br(base)}</td></tr>
+            ${addReg ? `<tr><td class="small text-muted" style="padding-left:1rem;">↳ inclui ${salasSemReg} sala(s) sem regente × ${REG_MAG2}h = ${br(addReg)} (turma existe, falta lançar regência)</td><td></td></tr>` : ''}
             <tr class="table-light"><td colspan="2" class="small text-muted fw-bold">2026</td></tr>
             <tr><td>+ Projetos atuais (PPA/PPP/PRP)</td><td class="text-end">${br(proj2026)}</td></tr>
             <tr><td><b>Total 2026</b></td><td class="text-end fw-bold">${br(t2026)}</td></tr>
