@@ -203,6 +203,8 @@
             (os contratados são de 19h), então em <i>Contratado</i> só aparece a coluna 19h.</p>
           <div class="fbar mb-2" id="capCargoChips"></div>
           <div class="table-responsive"><table class="mtx" id="tabProfCap"></table></div>
+          <p class="text-muted small mt-2 mb-0"><i class="bi bi-info-circle me-1"></i>Clique num número da matriz para listar os professores daquela célula (código, nome, sede, situação).</p>
+          <div id="profCapDetalhe" class="mt-2"></div>
         </div>
 
         <!-- A2. Professores efetivos por sede -->
@@ -1166,11 +1168,32 @@ function profResumo() {
     if (capVincSel && !capVincSel.has(String(r[COL.vinculo]))) return;
     if (capSitSel && !capSitSel.has(String(r[COL.situacao]))) return;
     const p = r[COL.prof];
-    const o = (m[p] ||= { cargo:c, jor:num(r[COL.jornada]), disc:{} });
+    const o = (m[p] ||= { cod:p, cargo:c, jor:num(r[COL.jornada]), nome:r[COL.nome], sede:r[COL.sede], sit:r[COL.situacao], vinc:r[COL.vinculo], disc:{} });
     const d = nomeDisc(r[COL.disc]); o.disc[d] = (o.disc[d]||0) + num(r[COL.carga]);
   });
   Object.values(m).forEach(o => { let best='—', bv=-1; for (const d in o.disc) if (o.disc[d] > bv) { bv = o.disc[d]; best = d; } o.principal = best; });
   return m;
+}
+// Drill-down: lista os professores de uma célula (cargo × disciplina principal × jornada).
+let _profCapM = {};
+function detalheProfCap(cargo, disc, jor) {
+  const box = document.getElementById('profCapDetalhe'); if (!box) return;
+  const lista = Object.values(_profCapM)
+    .filter(o => o.cargo === cargo && o.principal === disc && o.jor === jor)
+    .sort((a,b) => String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+  const linhas = lista.map(o => `<tr><td>${escapeHtml(o.cod)}</td><td>${escapeHtml(o.nome)}</td>
+    <td>${escapeHtml(o.sede||'—')}</td><td class="text-center">${escapeHtml(o.vinc)}</td><td>${escapeHtml(o.sit||'—')}</td></tr>`).join('');
+  box.innerHTML = `
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <div class="fw-bold">${br(lista.length)} professor(es) · ${escapeHtml(cargo)} · ${escapeHtml(disc)} · ${jor}h</div>
+      <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('profCapDetalhe').innerHTML=''"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="table-responsive" style="max-height:360px;overflow:auto;">
+      <table class="table table-sm table-bordered align-middle mb-0">
+        <thead><tr><th>Código</th><th>Nome</th><th>Sede (N)</th><th class="text-center">Vínc.</th><th>Situação (H)</th></tr></thead>
+        <tbody>${linhas || '<tr><td colspan="5" class="text-muted">Nenhum.</td></tr>'}</tbody>
+      </table></div>`;
+  box.scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 function montarCapCargo() {
   const bar = document.getElementById('capCargoChips'); if (!bar) return;
@@ -1222,7 +1245,7 @@ function capToggleSit(i) {
 function capSitLimpar() { capSitSel = null; montarCapSit(); renderProfCap(); }
 function renderProfCap() {
   const box = document.getElementById('tabProfCap'); if (!box) return;
-  const M = profResumo();
+  const M = profResumo(); _profCapM = M;
   const cargos = PEB_ORDEM.filter(c => !capCargoSel || capCargoSel.has(c));
   const profs = Object.values(M).filter(o => cargos.includes(o.cargo));
   const jors = Array.from(new Set(profs.map(o => o.jor))).filter(j => j > 0).sort((a,b) => a-b);
@@ -1239,7 +1262,9 @@ function renderProfCap() {
     let cTot = {}, cAll = 0; jors.forEach(j => cTot[j] = 0);
     discsOrd.forEach(d => { const row = g[d];
       body += `<tr><th style="text-align:left;padding-left:1.4rem;">${escapeHtml(d)}</th>
-        ${jors.map(j => { const v = row[j]||0; cTot[j]+=v; gTot[j]+=v; return `<td class="text-end ${v?'':'zero'}">${v?br(v):'·'}</td>`; }).join('')}
+        ${jors.map(j => { const v = row[j]||0; cTot[j]+=v; gTot[j]+=v;
+          return v ? `<td class="text-end" style="cursor:pointer;color:#2563eb;font-weight:600;" onclick="detalheProfCap('${escapeHtml(c)}','${escapeHtml(d).replace(/'/g,"\\'")}',${j})" title="Clique para listar os professores">${br(v)}</td>`
+                   : `<td class="text-end zero">·</td>`; }).join('')}
         <td class="text-end fw-bold" style="background:#f5f7ff;">${br(row.tot)}</td></tr>`;
       cAll += row.tot;
     });
