@@ -205,6 +205,19 @@
           <div class="table-responsive"><table class="mtx" id="tabProfCap"></table></div>
         </div>
 
+        <!-- A2. Professores efetivos por sede -->
+        <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #0d9488;">
+          <div class="sec-tt mb-1"><i class="bi bi-geo-alt me-2"></i>Professores efetivos por sede (coluna N)</div>
+          <p class="text-muted small mb-2">Contagem de professores <b>efetivos</b> (vínculo E) <b>distintos</b> por
+            <b>sede</b> (unidade N — a escola-base do professor), separados por cargo. Só efetivos; respeita o filtro de
+            <b>Situação</b> do topo (por padrão só NA ATIVA). Use a busca para localizar uma unidade.</p>
+          <div class="d-flex gap-2 mb-2 flex-wrap">
+            <input id="sedeBusca" class="form-control form-control-sm" style="max-width:280px;" placeholder="filtrar por sede…" oninput="renderSedeEfetivos()">
+            <button class="btn btn-sm btn-outline-success" onclick="baixarSedeEfetivos()"><i class="bi bi-download me-1"></i>Baixar CSV</button>
+          </div>
+          <div class="table-responsive"><table class="mtx" id="tabSede"></table></div>
+        </div>
+
         <!-- B. Turmas regulares -->
         <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #2563eb;">
           <div class="sec-tt mb-1"><i class="bi bi-easel me-2"></i>Turmas regulares e grade curricular</div>
@@ -286,7 +299,7 @@ const COL = {
   prof:'cod_professor', nome:'nome_professor', cargo:'cargo', vinculo:'vinculo',
   situacao:'situacao', jornada:'jornada', disc:'disciplina_atribuida', tipo:'tipo_atribuicao',
   carga:'carga_horaria', unidade:'unidade_atribuida', unidCod:'cod_unidade_atribuida',
-  serie:'serie', letra:'letra_turma', status:'status_atribuicao'
+  sede:'unidade_sede', serie:'serie', letra:'letra_turma', status:'status_atribuicao'
 };
 const SELECT = Object.values(COL).join(',');
 
@@ -351,7 +364,7 @@ function catGeral(r) {
 
 /* ── Busca de dados ─────────────────────────────────────────────── */
 async function fetchTudo() {
-  const CACHE = 'mapa_atrib_prof_v4', TTL = 10*60*1000;
+  const CACHE = 'mapa_atrib_prof_v5', TTL = 10*60*1000;
   if (!window.__forcar) {
     try { const o = JSON.parse(localStorage.getItem(CACHE)||'null');
       if (o && o.ts && (Date.now()-o.ts) < TTL && Array.isArray(o.rows)) return o.rows; } catch(e){}
@@ -1238,7 +1251,49 @@ function renderProfCap() {
     ${jors.map(j => `<td class="text-end">${br(gTot[j])}</td>`).join('')}<td class="text-end">${br(gAll)}</td></tr>`;
   box.innerHTML = thead + `<tbody>${body}</tbody>`;
   renderSuficiencia();
+  renderSedeEfetivos();
   renderCapKpis();
+}
+// Professores EFETIVOS distintos por sede (coluna N) × cargo. Respeita a situação.
+function sedeEfetivosLista() {
+  const prof = {};
+  (ROWS||[]).forEach(r => {
+    const c = String(r[COL.cargo]); if (!/^PEB (I|II|III)$/.test(c)) return;
+    if (String(r[COL.vinculo]) !== 'E') return;                 // só efetivos
+    if (capSitSel && !capSitSel.has(String(r[COL.situacao]))) return;
+    prof[r[COL.prof]] = { cargo:c, sede:(r[COL.sede] || '—') };
+  });
+  const bySede = {};
+  Object.values(prof).forEach(o => { const s = (bySede[o.sede] ||= { 'PEB I':0, 'PEB II':0, 'PEB III':0, tot:0 }); s[o.cargo]++; s.tot++; });
+  const busca = colapsar((document.getElementById('sedeBusca')||{}).value || '');
+  return Object.entries(bySede)
+    .map(([sede, o]) => ({ sede, ...o }))
+    .filter(o => !busca || colapsar(o.sede).includes(busca))
+    .sort((a,b) => a.sede.localeCompare(b.sede,'pt-BR'));
+}
+function renderSedeEfetivos() {
+  const box = document.getElementById('tabSede'); if (!box) return;
+  const lista = sedeEfetivosLista();
+  const tot = { 'PEB I':0, 'PEB II':0, 'PEB III':0, tot:0 };
+  lista.forEach(o => { PEB_ORDEM.forEach(c => tot[c] += o[c]); tot.tot += o.tot; });
+  const linhas = lista.map(o => `<tr>
+    <td style="text-align:left;">${escapeHtml(o.sede)}</td>
+    ${PEB_ORDEM.map(c => `<td class="text-end ${o[c]?'':'zero'}">${o[c] ? br(o[c]) : '·'}</td>`).join('')}
+    <td class="text-end fw-bold" style="background:#f5f7ff;">${br(o.tot)}</td></tr>`).join('');
+  box.innerHTML = `<thead><tr><th style="text-align:left;">Sede (unidade N)</th>
+    ${PEB_ORDEM.map(c => `<th class="text-end">${c}</th>`).join('')}<th class="text-end" style="background:#eef2ff;">Total</th></tr></thead>
+    <tbody>${linhas || '<tr><td colspan="5" class="text-center text-muted">Nenhuma sede neste filtro.</td></tr>'}
+    <tr class="total-row"><th style="text-align:left;">TOTAL (${br(lista.length)} sedes)</th>
+      ${PEB_ORDEM.map(c => `<td class="text-end">${br(tot[c])}</td>`).join('')}<td class="text-end">${br(tot.tot)}</td></tr></tbody>`;
+}
+function baixarSedeEfetivos() {
+  const lista = sedeEfetivosLista(); if (!lista.length) return;
+  const esc = s => `"${String(s==null?'':s).replace(/"/g,'""')}"`;
+  const linhas = [['Sede','PEB I','PEB II','PEB III','Total'].join(';')]
+    .concat(lista.map(o => [esc(o.sede), o['PEB I'], o['PEB II'], o['PEB III'], o.tot].join(';')));
+  const blob = new Blob(['﻿' + linhas.join('\r\n')], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'efetivos-por-sede.csv'; a.click(); URL.revokeObjectURL(a.href);
 }
 function renderCapKpis() {
   const box = document.getElementById('capKpis'); if (!box) return;
