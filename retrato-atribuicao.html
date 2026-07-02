@@ -985,44 +985,54 @@ function recomputeSim() {
       </div>
     </div>`;
 
-  renderSimCapacidade(t2027);
+  renderSimCapacidade(apoioTotal, ppaTotal);
 }
 
-// Tabela: professores PEB II efetivos (na ativa) por jornada e as aulas que assumem.
-function renderSimCapacidade(t2027) {
+// Capacidade dos PEB II efetivos: cada um assume 1 turma (regência = 19 aulas);
+// 28h e 32h completam a jornada com projetos (9 e 13 aulas). Duas comparações:
+// (1) regência × salas da rede; (2) projetos necessários × projetos projetados 2027.
+const REG_AULAS = 19;
+function renderSimCapacidade(apoioTotal, ppaTotal) {
   const box = document.getElementById('simCapacidade'); if (!box) return;
   const brn = n => Number(n).toLocaleString('pt-BR');
   if (!PROF2) { box.innerHTML = `<div class="text-muted small"><i class="bi bi-people me-1"></i>Capacidade dos professores PEB II — dados de professores indisponíveis (sem acesso à tabela de atribuição).</div>`; return; }
-  const JORS = [19, 28, 32];
-  const outras = Object.keys(PROF2).map(Number).filter(j => j > 0 && !JORS.includes(j) && PROF2[j]);
-  const todas = JORS.concat(outras);
-  let totProf = 0, totCap = 0;
-  const linhas = todas.map(j => { const n = PROF2[j] || 0, cap = n * j; totProf += n; totCap += cap;
-    return `<tr><td>${j}h</td><td class="text-end">${brn(n)}</td><td class="text-center text-muted">× ${j}</td><td class="text-end fw-bold">${brn(cap)}</td></tr>`; }).join('');
-  const ok = t2027 >= totCap;
+  const jornadas = Object.keys(PROF2).map(Number).filter(j => j > 0 && PROF2[j]).sort((a,b) => a-b);
+  let totProf = 0, totReg = 0, totProj = 0;
+  const linhas = jornadas.map(j => { const n = PROF2[j], reg = n * REG_AULAS, proj = n * Math.max(0, j - REG_AULAS);
+    totProf += n; totReg += reg; totProj += proj;
+    return `<tr><td>${j}h</td><td class="text-end">${brn(n)}</td><td class="text-end">${brn(reg)}</td>
+      <td class="text-end">${proj ? brn(proj) : '—'}</td><td class="text-end fw-bold">${brn(reg+proj)}</td></tr>`; }).join('');
+  const totalSalasReg = ANOS.reduce((s,a) => s + (CUBE[a] ? CUBE[a].turmas.size : 0), 0);
+  const regOk = totalSalasReg >= totProf;
+  const projDisp = (apoioTotal||0) + (ppaTotal||0);
+  const projOk = projDisp >= totProj;
+  const card = (ok, titulo, linhas2) => `<div class="p-3 rounded h-100" style="background:${ok?'#dcfce7':'#fee2e2'};border:1px solid ${ok?'#86efac':'#fca5a5'};">
+    <div class="fw-bold mb-1">${titulo}</div>${linhas2}
+    <div class="mt-2 fw-bold" style="color:${ok?'#166534':'#991b1b'};">${ok?'<i class="bi bi-check-circle-fill me-1"></i>':'<i class="bi bi-exclamation-triangle-fill me-1"></i>'}${ok?'suficiente':'insuficiente'}</div></div>`;
   box.innerHTML = `
     <div class="sec-tt mb-1" style="font-size:.92rem;"><i class="bi bi-people-fill me-2"></i>Capacidade dos professores PEB II efetivos (na ativa)</div>
-    <p class="text-muted small mb-2">Aulas que esses professores assumem = <b>professores × jornada</b>. Serve para conferir se o total projetado
-      para 2027 é maior que as aulas do quadro efetivo atual de PEB II. Só efetivos <b>na ativa</b> (afastados/readaptados fora).</p>
+    <p class="text-muted small mb-2">Cada professor assume <b>1 turma</b> (regência = <b>19 aulas</b>). Os de <b>28h e 32h</b> completam a jornada com
+      <b>projetos</b> (9 e 13 aulas, respectivamente). Só efetivos <b>na ativa</b> (afastados/readaptados fora).</p>
+    <div class="table-responsive mb-3">
+      <table class="table table-sm align-middle mb-0" style="max-width:560px;">
+        <thead><tr><th>Jornada</th><th class="text-end">Professores</th><th class="text-end">Regência</th><th class="text-end">Projetos</th><th class="text-end">Total aulas</th></tr></thead>
+        <tbody>${linhas}
+          <tr class="table-light fw-bold"><td>Total PEB II efetivos</td><td class="text-end">${brn(totProf)}</td><td class="text-end">${brn(totReg)}</td><td class="text-end">${brn(totProj)}</td><td class="text-end">${brn(totReg+totProj)}</td></tr>
+        </tbody>
+      </table>
+    </div>
     <div class="row g-3">
       <div class="col-12 col-lg-6">
-        <table class="table table-sm align-middle mb-0" style="max-width:460px;">
-          <thead><tr><th>Jornada</th><th class="text-end">Professores</th><th></th><th class="text-end">Aulas</th></tr></thead>
-          <tbody>${linhas}
-            <tr class="table-light fw-bold"><td>Total PEB II efetivos</td><td class="text-end">${brn(totProf)}</td><td></td><td class="text-end">${brn(totCap)}</td></tr>
-          </tbody>
-        </table>
+        ${card(regOk, '1 · Regência das salas',
+          `<div class="small">Regentes efetivos (1 turma cada): <b>${brn(totProf)}</b> turmas · <b>${brn(totReg)}</b> aulas</div>
+           <div class="small">Turmas de regência na rede (etapas + 1º–5º): <b>${brn(totalSalasReg)}</b></div>
+           <div class="small text-muted">${regOk ? `sobram ${brn(totalSalasReg-totProf)} turmas p/ contratados` : `faltam ${brn(totProf-totalSalasReg)} turmas para os efetivos`}</div>`)}
       </div>
-      <div class="col-12 col-lg-6 d-flex align-items-center">
-        <div class="p-3 rounded w-100" style="background:${ok?'#dcfce7':'#fee2e2'};border:1px solid ${ok?'#86efac':'#fca5a5'};">
-          <div class="small text-muted">Total 2027 projetado</div>
-          <div class="fw-bold" style="font-size:1.15rem;">${brn(t2027)} aulas</div>
-          <div class="small text-muted mt-1">Capacidade PEB II efetivos (na ativa)</div>
-          <div class="fw-bold" style="font-size:1.15rem;">${brn(totCap)} aulas</div>
-          <div class="mt-2 fw-bold" style="color:${ok?'#166534':'#991b1b'};">
-            ${ok ? '<i class="bi bi-check-circle-fill me-1"></i>2027 ≥ capacidade — há aulas para o quadro efetivo' : '<i class="bi bi-exclamation-triangle-fill me-1"></i>2027 &lt; capacidade — faltam aulas para o quadro efetivo'}
-          </div>
-        </div>
+      <div class="col-12 col-lg-6">
+        ${card(projOk, '2 · Projetos (completar 28h e 32h)',
+          `<div class="small">Aulas de projeto necessárias (28h+32h efetivos): <b>${brn(totProj)}</b></div>
+           <div class="small">Projetos projetados 2027 (Apoio + PPA): <b>${brn(projDisp)}</b></div>
+           <div class="small text-muted">${projOk ? `sobram ${brn(projDisp-totProj)} aulas de projeto` : `faltam ${brn(totProj-projDisp)} aulas de projeto`}</div>`)}
       </div>
     </div>`;
 }
