@@ -1017,20 +1017,15 @@ function abrirModalFaixa(idx) {
 // ── Evolução mês a mês ─────────────────────────────────────
 async function carregarEvolucao() {
   try {
-    const [escolas, turmas] = await Promise.all([
-      apiFetch('elefante_escolas?select=mes_referencia,nome_escola,leituras_concluidas,estudantes_leitura,tempo_total_leitura_seg&order=mes_referencia.asc'),
-      apiFetch('elefante_turmas?select=mes_referencia,escola,estudantes,leitores,livros_lidos&order=mes_referencia.asc'),
-    ]);
-    const esc = filtrarPorEscola(escolas || [], e => e.nome_escola);
-    const tur = filtrarPorEscola(turmas  || [], t => t.escola);
+    const meses = await getMeses();
+    if (!meses || meses.length < 2) { renderEvolucao(); return; }
 
-    const porMesEsc = {}, porMesTur = {};
-    esc.forEach(e => (porMesEsc[e.mes_referencia] = porMesEsc[e.mes_referencia] || []).push(e));
-    tur.forEach(t => (porMesTur[t.mes_referencia] = porMesTur[t.mes_referencia] || []).push(t));
-
-    const meses = [...new Set(esc.map(e => e.mes_referencia))].sort();
-    S.evolucao = meses.map(m => {
-      const E = porMesEsc[m] || [], T = porMesTur[m] || [];
+    // Um mês por vez (evita o teto de ~1000 linhas do PostgREST e reaproveita o cache).
+    const ordenados = [...meses].sort();
+    S.evolucao = await Promise.all(ordenados.map(async m => {
+      const [escolas, turmas] = await Promise.all([getEscolas(m), getTurmas(m)]);
+      const E = filtrarPorEscola(escolas || [], e => e.nome_escola);
+      const T = filtrarPorEscola(turmas  || [], t => t.escola);
       const totEst = T.reduce((s,t) => s+(t.estudantes||0), 0);
       const totLei = T.reduce((s,t) => s+(t.leitores||0),   0);
       return {
@@ -1041,7 +1036,7 @@ async function carregarEvolucao() {
         livros:   T.reduce((s,t) => s+(t.livros_lidos||0), 0),
         engaj:    totEst > 0 ? Math.round((totLei/totEst)*100) : 0,
       };
-    });
+    }));
     renderEvolucao();
   } catch (e) {
     console.error('[evolução]', e);
