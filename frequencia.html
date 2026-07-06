@@ -52,6 +52,9 @@
     .bar { height:9px; border-radius:999px; background:#e5e7eb; overflow:hidden; min-width:60px; } .bar > span { display:block; height:100%; }
     .pill { font-weight:800; font-size:.72rem; padding:2px 9px; border-radius:999px; }
     .row-clic { cursor:pointer; }
+    .subtabs { background:#fff; border-bottom:1px solid #dbe5ef; padding:.5rem 1.2rem; display:flex; gap:8px; flex-wrap:wrap; }
+    .tab-btn { border:2px solid #cbd5e1; background:#fff; color:#334155; font-weight:800; font-size:.85rem; padding:7px 18px; border-radius:999px; cursor:pointer; transition:.15s; display:inline-flex; align-items:center; gap:.4rem; }
+    .tab-btn:hover { border-color:var(--primary); } .tab-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
   </style>
 </head>
 <body>
@@ -86,6 +89,13 @@
     <select id="seletorUnidade" class="form-select form-select-sm fw-bold" style="min-width:260px" onchange="trocarUnidade()"></select>
   </div>
   <div class="ms-auto fw-bold" id="lockUnidade" style="display:none;font-size:.85rem"></div>
+</div>
+
+<!-- Abas (Ativos e Evasão = visão de rede, escondidas p/ usuário de escola) -->
+<div class="subtabs">
+  <button class="tab-btn active" data-aba="dist" onclick="trocarAba('dist')"><i class="bi bi-geo-alt-fill"></i>Frequência × Distância</button>
+  <button class="tab-btn" data-aba="ativos" id="btnAbaAtivos" onclick="trocarAba('ativos')"><i class="bi bi-person-check-fill"></i>Ativos × Distância</button>
+  <button class="tab-btn" data-aba="evasao" id="btnAbaEvasao" onclick="trocarAba('evasao')"><i class="bi bi-person-dash-fill"></i>Evasão &amp; Faltas</button>
 </div>
 
 <main class="container-fluid px-3 px-lg-4 py-3">
@@ -167,6 +177,111 @@
       </div>
     </div>
   </div>
+
+  <!-- ══════ ABA: ATIVOS × DISTÂNCIA (visão de rede) ══════ -->
+  <section id="viewAtivos" style="display:none">
+    <div id="estadoAtv" class="text-center text-muted py-5">
+      <div class="spinner-border text-primary mb-2"></div><div>Carregando matrículas ativas…</div>
+    </div>
+    <div id="contAtv" style="display:none">
+      <div class="row g-2 g-lg-3 mb-3" id="kpisAtv"></div>
+      <div class="row g-3 mb-3">
+        <div class="col-lg-8">
+          <div class="card-box p-3 h-100">
+            <div class="sec-tt"><i class="bi bi-people-fill me-1"></i>Alunos ativos por faixa de distância</div>
+            <div class="sec-sub mb-2">Barras = quantos alunos com matrícula ativa moram em cada faixa de 500&nbsp;m · Linha = taxa de presença desses alunos.</div>
+            <div style="position:relative;height:330px;"><canvas id="chAtvCombo"></canvas></div>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="card-box p-3 h-100">
+            <div class="sec-tt"><i class="bi bi-pie-chart-fill me-1"></i>Chamadas dos ativos</div>
+            <div class="sec-sub mb-2">Composição das chamadas só dos alunos ativos.</div>
+            <div style="position:relative;height:250px;"><canvas id="chAtvDonut"></canvas></div>
+            <div id="atvLegenda" class="mt-2 small"></div>
+          </div>
+        </div>
+      </div>
+      <div class="card-box p-3">
+        <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+          <div class="sec-tt"><i class="bi bi-building me-1"></i>Unidades — alunos ativos (menor presença primeiro)</div>
+          <input id="buscaUnAtv" class="form-control form-control-sm" style="max-width:260px" placeholder="Buscar unidade…" oninput="renderUnAtv()">
+        </div>
+        <div class="table-responsive" style="max-height:420px;overflow:auto">
+          <table class="mapa">
+            <thead><tr><th>Unidade</th><th class="text-center">Ativos c/ dist.</th><th>Presença</th><th class="text-center">Dist. média</th></tr></thead>
+            <tbody id="tbUnAtv"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════ ABA: EVASÃO & FALTAS (inativos + <75%) ══════ -->
+  <section id="viewEvasao" style="display:none">
+    <div id="estadoEv" class="text-center text-muted py-5">
+      <div class="spinner-border text-primary mb-2"></div><div>Carregando evasão e faltas…</div>
+    </div>
+    <div id="contEv" style="display:none">
+      <div id="insightEv" class="insight mb-3"></div>
+      <div class="row g-2 g-lg-3 mb-3" id="kpisEv"></div>
+      <div class="row g-3 mb-3">
+        <div class="col-lg-7">
+          <div class="card-box p-3 h-100">
+            <div class="sec-tt"><i class="bi bi-bar-chart-fill me-1"></i>Saídas da rede e baixa frequência por distância</div>
+            <div class="sec-sub mb-2">Cinza = alunos que saíram da rede (matrícula inativa) · Vermelho = alunos ativos com frequência abaixo de 75%.</div>
+            <div style="position:relative;height:320px;"><canvas id="chEvFaixas"></canvas></div>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="card-box p-3 h-100">
+            <div class="sec-tt"><i class="bi bi-pie-chart-fill me-1"></i>Motivo da saída (inativos)</div>
+            <div class="sec-sub mb-2">Justificativa registrada na matrícula.</div>
+            <div style="position:relative;height:250px;"><canvas id="chEvMotivos"></canvas></div>
+            <div id="evLegenda" class="mt-2 small"></div>
+          </div>
+        </div>
+      </div>
+      <div class="card-box p-3 mb-3">
+        <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+          <div class="sec-tt"><i class="bi bi-building me-1"></i>Unidades — mais perdas primeiro <span class="sec-sub">(clique para ver os alunos)</span></div>
+          <input id="buscaUnEv" class="form-control form-control-sm" style="max-width:260px" placeholder="Buscar unidade…" oninput="renderUnEv()">
+        </div>
+        <div class="table-responsive" style="max-height:380px;overflow:auto">
+          <table class="mapa">
+            <thead><tr><th>Unidade</th><th class="text-center">Saíram da rede</th><th class="text-center">Freq. &lt; 75%</th><th class="text-center">Total</th></tr></thead>
+            <tbody id="tbUnEv"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card-box p-3" id="boxEvDetalhe" style="display:none">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="sec-tt"><i class="bi bi-person-lines-fill me-1"></i>Alunos — <span id="evDetTitulo"></span></div>
+          <button class="btn btn-sm btn-outline-secondary" onclick="fecharEvDetalhe()"><i class="bi bi-x-lg"></i> Fechar</button>
+        </div>
+        <div class="row g-3">
+          <div class="col-lg-7">
+            <div class="sec-sub fw-bold mb-1">Frequência abaixo de 75% <span id="evDetPfN" class="pill" style="background:#fee2e2;color:#991b1b"></span></div>
+            <div class="table-responsive" style="max-height:320px;overflow:auto">
+              <table class="mapa">
+                <thead><tr><th>Aluno</th><th>Turma</th><th>Ano</th><th class="text-center">Freq.</th><th class="text-center">Faltas</th><th class="text-center">Dist.</th></tr></thead>
+                <tbody id="tbEvPf"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="col-lg-5">
+            <div class="sec-sub fw-bold mb-1">Saíram da rede <span id="evDetInaN" class="pill" style="background:#e2e8f0;color:#475569"></span></div>
+            <div class="table-responsive" style="max-height:320px;overflow:auto">
+              <table class="mapa">
+                <thead><tr><th>REMA</th><th>Motivo</th><th class="text-center">Dist.</th></tr></thead>
+                <tbody id="tbEvIna"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <script>
@@ -191,6 +306,9 @@
       UNIDADE = window.MapaAuth.escolas[0].nome; isRede = false;
       document.getElementById('lockUnidade').style.display = '';
       document.getElementById('lockUnidade').innerHTML = '<i class="bi bi-lock-fill me-1"></i>' + esc(UNIDADE);
+      // Abas "Ativos" e "Evasão" são visão de REDE (SME/super admin): escola não vê.
+      document.getElementById('btnAbaAtivos').style.display = 'none';
+      document.getElementById('btnAbaEvasao').style.display = 'none';
     } else {
       UNIDADE = null; isRede = true;
     }
@@ -313,6 +431,169 @@
     buscar(nome);
     window.scrollTo({top:0,behavior:'smooth'});
   };
+
+  /* ══════ ABAS ══════ */
+  let ABA = 'dist', ATV = null, EV = null;
+  function faixaLabelEv(min){ return min < 0 ? 'Sem distância' : faixaLabel(min); }
+  window.trocarAba = function(v){
+    ABA = v;
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.aba===v));
+    const distCarregado = document.getElementById('conteudo').style.display !== 'none' || !!DADOS;
+    document.getElementById('estado').style.display   = (v==='dist' && !DADOS) ? '' : 'none';
+    document.getElementById('conteudo').style.display = (v==='dist' && DADOS) ? 'block' : 'none';
+    document.getElementById('viewAtivos').style.display = v==='ativos' ? '' : 'none';
+    document.getElementById('viewEvasao').style.display = v==='evasao' ? '' : 'none';
+    document.getElementById('seletorUnidadeBox').style.display = (v==='dist' && isRede) ? '' : 'none';
+    if (v==='ativos') carregarAtivos();
+    if (v==='evasao') carregarEvasao();
+  };
+
+  /* ══════ ABA ATIVOS ══════ */
+  async function carregarAtivos(){
+    if (ATV) return;
+    const { data, error } = await SB.rpc('freq_ativos_resumo');
+    if (error){ document.getElementById('estadoAtv').innerHTML = '<div class="alert alert-danger">Erro: '+esc(error.message)+'</div>'; return; }
+    ATV = data || {};
+    renderAtivos();
+    document.getElementById('estadoAtv').style.display = 'none';
+    document.getElementById('contAtv').style.display = 'block';
+  }
+
+  function renderAtivos(){
+    const g = ATV.geral || {}, fx = ATV.faixas || [];
+    const kpi = (lb,v,sub,cor)=>'<div class="col-6 col-md-4 col-lg"><div class="kpi" style="border-left-color:'+cor+'"><div class="label">'+lb+'</div><div class="val" style="color:'+cor+'">'+v+'</div><div class="sub2">'+(sub||'')+'</div></div></div>';
+    document.getElementById('kpisAtv').innerHTML =
+      kpi('Matrículas ativas', fmt(g.ativos), 'na rede (2026)', 'var(--primary)') +
+      kpi('Com distância', fmt(g.com_dist), (g.ativos?Math.round(100*g.com_dist/g.ativos):0)+'% dos ativos', '#6366f1') +
+      kpi('Taxa de presença', (g.freq_pct||0)+'%', 'chamadas dos ativos', COR.pre) +
+      kpi('Falta não justificada', (g.aus_pct||0)+'%', 'chamadas dos ativos', COR.aus) +
+      kpi('Distância média', fmt(g.dist_media)+' m', 'da unidade', '#0ea5e9');
+
+    const labels = fx.map(f=>faixaLabel(f[0]));
+    chart('chAtvCombo', { data:{ labels, datasets:[
+        { type:'bar', label:'Alunos ativos', data:fx.map(f=>f[1]), backgroundColor:'#6366f1', borderRadius:4, yAxisID:'y' },
+        { type:'line', label:'Presença %', data:fx.map(f=>f[2]), borderColor:COR.pre, backgroundColor:COR.pre,
+          tension:.35, pointRadius:3, yAxisID:'y2' } ]},
+      options:{ maintainAspectRatio:false,
+        plugins:{ legend:{position:'top',labels:{font:{size:11},boxWidth:12}},
+          tooltip:{ callbacks:{ label:c=>c.dataset.type==='line' ? ('Presença: '+c.raw+'%') : (fmt(c.raw)+' aluno(s)') } } },
+        scales:{ x:{ ticks:{font:{size:9},maxRotation:60,minRotation:45} },
+                 y:{ position:'left', ticks:{precision:0} },
+                 y2:{ position:'right', min:50, max:100, grid:{drawOnChartArea:false}, ticks:{callback:v=>v+'%'} } } } });
+
+    chart('chAtvDonut', { type:'doughnut',
+      data:{ labels:['Presença','Falta justificada','Falta não justificada'],
+        datasets:[{ data:[g.freq_pct||0, g.jus_pct||0, g.aus_pct||0],
+          backgroundColor:[COR.pre,COR.amber,COR.aus], borderColor:'#fff', borderWidth:3, hoverOffset:10 }]},
+      options:{ maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{display:false},
+        tooltip:{callbacks:{label:c=>c.label+': '+c.raw+'%'}} } } });
+    document.getElementById('atvLegenda').innerHTML =
+      '<span class="pill" style="background:#d1fae5;color:#065f46">Presença '+(g.freq_pct||0)+'%</span> '+
+      '<span class="pill" style="background:#fef3c7;color:#92400e">Justificada '+(g.jus_pct||0)+'%</span> '+
+      '<span class="pill" style="background:#fee2e2;color:#991b1b">Não justificada '+(g.aus_pct||0)+'%</span>';
+    renderUnAtv();
+  }
+
+  window.renderUnAtv = function(){
+    const t = (document.getElementById('buscaUnAtv').value||'').toLowerCase();
+    const uns = (ATV.por_unidade||[]).filter(u=>!t||String(u[0]).toLowerCase().includes(t));
+    document.getElementById('tbUnAtv').innerHTML = uns.map(u=>
+      '<tr><td title="'+esc(u[0])+'">'+esc(u[0])+'</td><td class="text-center fw-bold">'+fmt(u[1])+'</td>'
+      +'<td>'+barra(u[2],corFreq(u[2]))+'</td><td class="text-center">'+fmt(u[3])+' m</td></tr>').join('')
+      || '<tr><td colspan="4" class="text-muted text-center p-3">Sem dados. Importe matriculas_import.csv.</td></tr>';
+  };
+
+  /* ══════ ABA EVASÃO & FALTAS ══════ */
+  async function carregarEvasao(){
+    if (EV) return;
+    const { data, error } = await SB.rpc('freq_evasao_resumo');
+    if (error){ document.getElementById('estadoEv').innerHTML = '<div class="alert alert-danger">Erro: '+esc(error.message)+'</div>'; return; }
+    EV = data || {};
+    renderEvasao();
+    document.getElementById('estadoEv').style.display = 'none';
+    document.getElementById('contEv').style.display = 'block';
+  }
+
+  function renderEvasao(){
+    const g = EV.geral || {}, fx = EV.faixas || [], mot = EV.motivos || [];
+    // Insight: distância média de quem sai/falta vs. rede
+    const box = document.getElementById('insightEv');
+    const distRede = (DADOS && DADOS.geral) ? DADOS.geral.dist_media : null;
+    if (distRede && g.dist_media_ina){
+      const dif = g.dist_media_ina - distRede;
+      const pior = dif > 100;
+      box.style.background = pior ? '#fef2f2' : '#eff6ff';
+      box.style.color = pior ? '#991b1b' : '#1e40af';
+      box.style.border = '1px solid ' + (pior ? '#fecaca' : '#bfdbfe');
+      box.innerHTML = '<i class="bi bi-'+(pior?'exclamation-triangle-fill':'info-circle-fill')+'" style="font-size:1.5rem"></i>'
+        + '<div>Quem <b>saiu da rede</b> morava em média a <b>'+fmt(g.dist_media_ina)+' m</b> da unidade'
+        + (pior ? ' — <b>'+fmt(dif)+' m a mais</b> que a média da rede ('+fmt(distRede)+' m). A distância pesa na evasão.'
+                : ' (média da rede: '+fmt(distRede)+' m).')
+        + ' Alunos com frequência &lt; 75% moram em média a <b>'+fmt(g.dist_media_pf)+' m</b>.</div>';
+    } else { box.style.display = 'none'; }
+
+    const kpi = (lb,v,sub,cor)=>'<div class="col-6 col-md-4 col-lg"><div class="kpi" style="border-left-color:'+cor+'"><div class="label">'+lb+'</div><div class="val" style="color:'+cor+'">'+v+'</div><div class="sub2">'+(sub||'')+'</div></div></div>';
+    document.getElementById('kpisEv').innerHTML =
+      kpi('Saíram da rede', fmt(g.inativos), 'matrículas inativas', '#475569') +
+      kpi('Freq. abaixo de 75%', fmt(g.pf), 'freq. média '+(g.freq_media_pf||0)+'%', COR.aus) +
+      kpi('Nos dois grupos', fmt(g.overlap), 'saíram e já faltavam', '#7c3aed') +
+      kpi('Dist. média (saíram)', fmt(g.dist_media_ina)+' m', 'com distância: '+fmt(g.inativos_com_dist), '#0ea5e9') +
+      kpi('Dist. média (< 75%)', fmt(g.dist_media_pf)+' m', 'com distância: '+fmt(g.pf_com_dist), COR.amber);
+
+    const labels = fx.map(f=>faixaLabelEv(f[0]));
+    chart('chEvFaixas', { type:'bar',
+      data:{ labels, datasets:[
+        { label:'Saíram da rede', data:fx.map(f=>f[1]), backgroundColor:'#64748b', borderRadius:4 },
+        { label:'Freq. < 75%', data:fx.map(f=>f[2]), backgroundColor:COR.aus, borderRadius:4 } ]},
+      options:{ maintainAspectRatio:false,
+        plugins:{ legend:{position:'top',labels:{font:{size:11},boxWidth:12}},
+          tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.raw)+' aluno(s)'}} },
+        scales:{ x:{ ticks:{font:{size:9},maxRotation:60,minRotation:45} }, y:{ ticks:{precision:0} } } } });
+
+    const CORES_MOT = ['#0ea5e9','#f59e0b','#8b5cf6','#ef4444','#10b981','#64748b','#ec4899','#84cc16','#f97316','#14b8a6'];
+    chart('chEvMotivos', { type:'doughnut',
+      data:{ labels:mot.map(m=>m[0]), datasets:[{ data:mot.map(m=>m[1]),
+        backgroundColor:mot.map((m,i)=>CORES_MOT[i%CORES_MOT.length]), borderColor:'#fff', borderWidth:3, hoverOffset:10 }]},
+      options:{ maintainAspectRatio:false, cutout:'58%', plugins:{ legend:{display:false},
+        tooltip:{callbacks:{label:c=>c.label+': '+fmt(c.raw)+' ('+(g.inativos?Math.round(100*c.raw/g.inativos):0)+'%)'}} } } });
+    document.getElementById('evLegenda').innerHTML = mot.slice(0,6).map((m,i)=>
+      '<span class="pill me-1" style="background:'+CORES_MOT[i%CORES_MOT.length]+'22;color:'+CORES_MOT[i%CORES_MOT.length]+'">'
+      + esc(m[0])+' '+fmt(m[1])+'</span>').join(' ');
+    renderUnEv();
+  }
+
+  window.renderUnEv = function(){
+    const t = (document.getElementById('buscaUnEv').value||'').toLowerCase();
+    const uns = (EV.por_unidade||[]).filter(u=>!t||String(u[0]).toLowerCase().includes(t));
+    document.getElementById('tbUnEv').innerHTML = uns.map(u=>
+      '<tr class="row-clic" onclick="abrirEvDetalhe(\''+esc(String(u[0]).replace(/\x27/g,"\\x27"))+'\')">'
+      +'<td title="'+esc(u[0])+'">'+esc(u[0])+'</td><td class="text-center" style="color:#475569;font-weight:800">'+fmt(u[1])+'</td>'
+      +'<td class="text-center" style="color:#ef4444;font-weight:800">'+fmt(u[2])+'</td>'
+      +'<td class="text-center fw-bold">'+fmt(u[1]+u[2])+'</td></tr>').join('')
+      || '<tr><td colspan="4" class="text-muted text-center p-3">Sem dados. Importe matriculas_import.csv e pfaltas_import.csv.</td></tr>';
+  };
+
+  window.abrirEvDetalhe = async function(unidade){
+    document.getElementById('boxEvDetalhe').style.display = '';
+    document.getElementById('evDetTitulo').textContent = unidade;
+    document.getElementById('tbEvPf').innerHTML = '<tr><td colspan="6" class="text-muted p-2">Carregando…</td></tr>';
+    document.getElementById('tbEvIna').innerHTML = '<tr><td colspan="3" class="text-muted p-2">Carregando…</td></tr>';
+    const { data, error } = await SB.rpc('freq_evasao_alunos', { p_unidade: unidade });
+    if (error){ document.getElementById('tbEvPf').innerHTML = '<tr><td colspan="6" class="text-danger p-2">'+esc(error.message)+'</td></tr>'; return; }
+    const pf = (data && data.pf) || [], ina = (data && data.inativos) || [];
+    document.getElementById('evDetPfN').textContent = pf.length;
+    document.getElementById('evDetInaN').textContent = ina.length;
+    document.getElementById('tbEvPf').innerHTML = pf.map(a=>
+      '<tr><td>'+esc(a[0])+'</td><td>'+esc(a[1]||'')+'</td><td>'+esc(a[2]||'')+'</td>'
+      +'<td class="text-center fw-bold" style="color:'+corFreq(a[3]||0)+'">'+(a[3]==null?'—':a[3]+'%')+'</td>'
+      +'<td class="text-center">'+(a[4]??'—')+'</td><td class="text-center">'+(a[5]==null?'—':fmt(a[5])+' m')+'</td></tr>').join('')
+      || '<tr><td colspan="6" class="text-muted p-2 text-center">Nenhum aluno &lt; 75% nesta unidade.</td></tr>';
+    document.getElementById('tbEvIna').innerHTML = ina.map(a=>
+      '<tr><td>'+esc(a[0])+'</td><td>'+esc(a[1])+'</td><td class="text-center">'+(a[2]==null?'—':fmt(a[2])+' m')+'</td></tr>').join('')
+      || '<tr><td colspan="3" class="text-muted p-2 text-center">Nenhuma saída registrada nesta unidade.</td></tr>';
+    document.getElementById('boxEvDetalhe').scrollIntoView({behavior:'smooth', block:'start'});
+  };
+  window.fecharEvDetalhe = function(){ document.getElementById('boxEvDetalhe').style.display = 'none'; };
 
   carregar();
 </script>
