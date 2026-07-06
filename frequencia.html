@@ -288,6 +288,14 @@
   const SB = window.MAPA_SB || window.supabase.createClient(window.MAPA_SUPABASE.url, window.MAPA_SUPABASE.anonKey);
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const fmt = n => Number(n||0).toLocaleString('pt-BR');
+  // Distância legível: >= 1000 m mostra em km (ex.: 2315 -> "2,3 km"), senão em metros.
+  function fmtDist(m){
+    if (m == null || isNaN(Number(m))) return '—';
+    m = Number(m);
+    return m >= 1000
+      ? (m/1000).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' km'
+      : fmt(Math.round(m))+' m';
+  }
   const COR = { pre:'#10b981', jus:'#f59e0b', aus:'#ef4444' };
   const charts = {};
   function chart(id, cfg){ if(charts[id]) charts[id].destroy(); charts[id] = new Chart(document.getElementById(id), cfg); }
@@ -362,7 +370,7 @@
       kpi('Taxa de presença', (g.freq_pct||0)+'%', 'do total de chamadas', COR.pre) +
       kpi('Falta não justificada', (g.aus_pct||0)+'%', fmt(g.ausencia)+' faltas', COR.aus) +
       kpi('Falta justificada', (g.jus_pct||0)+'%', fmt(g.justificada)+' faltas', COR.amber) +
-      kpi('Distância média', fmt(g.dist_media)+' m', 'da unidade', '#0ea5e9');
+      kpi('Distância média', fmtDist(g.dist_media), 'da unidade', '#0ea5e9');
 
     // ── Gráfico principal: 100% empilhado por faixa ──
     const labels = fx.map(f=>faixaLabel(f[0]));
@@ -422,7 +430,7 @@
     document.getElementById('tbUnidades').innerHTML = uns.map(u=>
       '<tr class="row-clic" onclick="irUnidade(\''+esc(String(u[0]).replace(/\x27/g,"\\x27"))+'\')">'
       +'<td title="'+esc(u[0])+'">'+esc(u[0])+'</td><td class="text-center fw-bold">'+fmt(u[1])+'</td>'
-      +'<td>'+barra(u[2],corFreq(u[2]))+'</td><td class="text-center">'+fmt(u[3])+' m</td></tr>').join('')
+      +'<td>'+barra(u[2],corFreq(u[2]))+'</td><td class="text-center">'+fmtDist(u[3])+'</td></tr>').join('')
       || '<tr><td colspan="4" class="text-muted text-center p-3">Sem dados.</td></tr>';
   };
   window.irUnidade = function(nome){
@@ -467,7 +475,7 @@
       kpi('Com distância', fmt(g.com_dist), (g.ativos?Math.round(100*g.com_dist/g.ativos):0)+'% dos ativos', '#6366f1') +
       kpi('Taxa de presença', (g.freq_pct||0)+'%', 'chamadas dos ativos', COR.pre) +
       kpi('Falta não justificada', (g.aus_pct||0)+'%', 'chamadas dos ativos', COR.aus) +
-      kpi('Distância média', fmt(g.dist_media)+' m', 'da unidade', '#0ea5e9');
+      kpi('Distância média', fmtDist(g.dist_media), 'da unidade', '#0ea5e9');
 
     const labels = fx.map(f=>faixaLabel(f[0]));
     chart('chAtvCombo', { data:{ labels, datasets:[
@@ -499,7 +507,7 @@
     const uns = (ATV.por_unidade||[]).filter(u=>!t||String(u[0]).toLowerCase().includes(t));
     document.getElementById('tbUnAtv').innerHTML = uns.map(u=>
       '<tr><td title="'+esc(u[0])+'">'+esc(u[0])+'</td><td class="text-center fw-bold">'+fmt(u[1])+'</td>'
-      +'<td>'+barra(u[2],corFreq(u[2]))+'</td><td class="text-center">'+fmt(u[3])+' m</td></tr>').join('')
+      +'<td>'+barra(u[2],corFreq(u[2]))+'</td><td class="text-center">'+fmtDist(u[3])+'</td></tr>').join('')
       || '<tr><td colspan="4" class="text-muted text-center p-3">Sem dados. Importe matriculas_import.csv.</td></tr>';
   };
 
@@ -526,10 +534,10 @@
       box.style.color = pior ? '#991b1b' : '#1e40af';
       box.style.border = '1px solid ' + (pior ? '#fecaca' : '#bfdbfe');
       box.innerHTML = '<i class="bi bi-'+(pior?'exclamation-triangle-fill':'info-circle-fill')+'" style="font-size:1.5rem"></i>'
-        + '<div>Quem <b>saiu da rede</b> morava em média a <b>'+fmt(g.dist_media_ina)+' m</b> da unidade'
-        + (pior ? ' — <b>'+fmt(dif)+' m a mais</b> que a média da rede ('+fmt(distRede)+' m). A distância pesa na evasão.'
-                : ' (média da rede: '+fmt(distRede)+' m).')
-        + ' Alunos com frequência &lt; 75% moram em média a <b>'+fmt(g.dist_media_pf)+' m</b>.</div>';
+        + '<div>Quem <b>saiu da rede</b> morava em média a <b>'+fmtDist(g.dist_media_ina)+'</b> da unidade'
+        + (pior ? ' — <b>'+fmtDist(dif)+' a mais</b> que a média da rede ('+fmtDist(distRede)+'). A distância pesa na evasão.'
+                : ' (média da rede: '+fmtDist(distRede)+').')
+        + ' Alunos com frequência &lt; 75% moram em média a <b>'+fmtDist(g.dist_media_pf)+'</b>.</div>';
     } else { box.style.display = 'none'; }
 
     const kpi = (lb,v,sub,cor)=>'<div class="col-6 col-md-4 col-lg"><div class="kpi" style="border-left-color:'+cor+'"><div class="label">'+lb+'</div><div class="val" style="color:'+cor+'">'+v+'</div><div class="sub2">'+(sub||'')+'</div></div></div>';
@@ -537,8 +545,8 @@
       kpi('Saíram da rede', fmt(g.inativos), 'matrículas inativas', '#475569') +
       kpi('Freq. abaixo de 75%', fmt(g.pf), 'freq. média '+(g.freq_media_pf||0)+'%', COR.aus) +
       kpi('Nos dois grupos', fmt(g.overlap), 'saíram e já faltavam', '#7c3aed') +
-      kpi('Dist. média (saíram)', fmt(g.dist_media_ina)+' m', 'com distância: '+fmt(g.inativos_com_dist), '#0ea5e9') +
-      kpi('Dist. média (< 75%)', fmt(g.dist_media_pf)+' m', 'com distância: '+fmt(g.pf_com_dist), COR.amber);
+      kpi('Dist. média (saíram)', fmtDist(g.dist_media_ina), 'com distância: '+fmt(g.inativos_com_dist), '#0ea5e9') +
+      kpi('Dist. média (< 75%)', fmtDist(g.dist_media_pf), 'com distância: '+fmt(g.pf_com_dist), COR.amber);
 
     const labels = fx.map(f=>faixaLabelEv(f[0]));
     chart('chEvFaixas', { type:'bar',
@@ -586,10 +594,10 @@
     document.getElementById('tbEvPf').innerHTML = pf.map(a=>
       '<tr><td>'+esc(a[0])+'</td><td>'+esc(a[1]||'')+'</td><td>'+esc(a[2]||'')+'</td>'
       +'<td class="text-center fw-bold" style="color:'+corFreq(a[3]||0)+'">'+(a[3]==null?'—':a[3]+'%')+'</td>'
-      +'<td class="text-center">'+(a[4]??'—')+'</td><td class="text-center">'+(a[5]==null?'—':fmt(a[5])+' m')+'</td></tr>').join('')
+      +'<td class="text-center">'+(a[4]??'—')+'</td><td class="text-center">'+fmtDist(a[5])+'</td></tr>').join('')
       || '<tr><td colspan="6" class="text-muted p-2 text-center">Nenhum aluno &lt; 75% nesta unidade.</td></tr>';
     document.getElementById('tbEvIna').innerHTML = ina.map(a=>
-      '<tr><td>'+esc(a[0])+'</td><td>'+esc(a[1])+'</td><td class="text-center">'+(a[2]==null?'—':fmt(a[2])+' m')+'</td></tr>').join('')
+      '<tr><td>'+esc(a[0])+'</td><td>'+esc(a[1])+'</td><td class="text-center">'+fmtDist(a[2])+'</td></tr>').join('')
       || '<tr><td colspan="3" class="text-muted p-2 text-center">Nenhuma saída registrada nesta unidade.</td></tr>';
     document.getElementById('boxEvDetalhe').scrollIntoView({behavior:'smooth', block:'start'});
   };
