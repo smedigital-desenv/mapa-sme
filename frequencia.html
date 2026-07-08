@@ -228,15 +228,15 @@
       <div class="row g-3 mb-3">
         <div class="col-lg-7">
           <div class="card-box p-3 h-100">
-            <div class="sec-tt"><i class="bi bi-bar-chart-fill me-1"></i>Não comparecimento e baixa frequência por distância</div>
-            <div class="sec-sub mb-2">Cinza = alunos com NÃO COMPARECIMENTO (deixaram de frequentar) · Vermelho = alunos com frequência abaixo de 75%.</div>
+            <div class="sec-tt"><i class="bi bi-bar-chart-fill me-1"></i>Evasão e baixa frequência por distância</div>
+            <div class="sec-sub mb-2">Cinza = evasão (NÃO COMPARECIMENTO + ABANDONO) · Vermelho = alunos com frequência abaixo de 75%.</div>
             <div style="position:relative;height:320px;"><canvas id="chEvFaixas"></canvas></div>
           </div>
         </div>
         <div class="col-lg-5">
           <div class="card-box p-3 h-100">
-            <div class="sec-tt"><i class="bi bi-pie-chart-fill me-1"></i>Não comparecimento por tipo de unidade</div>
-            <div class="sec-sub mb-2">Onde o não comparecimento se concentra (EMEF · EMEI · CEI).</div>
+            <div class="sec-tt"><i class="bi bi-pie-chart-fill me-1"></i>Evasão por tipo de unidade</div>
+            <div class="sec-sub mb-2">Onde a evasão (NCOM + abandono) se concentra (EMEF · EMEI · CEI).</div>
             <div style="position:relative;height:250px;"><canvas id="chEvMotivos"></canvas></div>
             <div id="evLegenda" class="mt-2 small"></div>
           </div>
@@ -249,7 +249,7 @@
         </div>
         <div class="table-responsive" style="max-height:380px;overflow:auto">
           <table class="mapa">
-            <thead><tr><th>Unidade</th><th class="text-center">Não compareceram</th><th class="text-center">Freq. &lt; 75%</th><th class="text-center">Total</th></tr></thead>
+            <thead><tr><th>Unidade</th><th class="text-center">Evasão (NCOM+aband.)</th><th class="text-center">Freq. &lt; 75%</th><th class="text-center">Total</th></tr></thead>
             <tbody id="tbUnEv"></tbody>
           </table>
         </div>
@@ -270,10 +270,10 @@
             </div>
           </div>
           <div class="col-lg-5">
-            <div class="sec-sub fw-bold mb-1">Não compareceram <span id="evDetInaN" class="pill" style="background:#e2e8f0;color:#475569"></span></div>
+            <div class="sec-sub fw-bold mb-1">Evasão (NCOM + abandono) <span id="evDetInaN" class="pill" style="background:#e2e8f0;color:#475569"></span></div>
             <div class="table-responsive" style="max-height:320px;overflow:auto">
               <table class="mapa">
-                <thead><tr><th>REMA</th><th>Ano</th><th class="text-center">Saída</th><th class="text-center">Dist.</th></tr></thead>
+                <thead><tr><th>REMA</th><th>Situação</th><th>Ano</th><th class="text-center">Saída</th><th class="text-center">Dist.</th></tr></thead>
                 <tbody id="tbEvIna"></tbody>
               </table>
             </div>
@@ -534,15 +534,15 @@
       box.style.color = pior ? '#991b1b' : '#1e40af';
       box.style.border = '1px solid ' + (pior ? '#fecaca' : '#bfdbfe');
       box.innerHTML = '<i class="bi bi-'+(pior?'exclamation-triangle-fill':'info-circle-fill')+'" style="font-size:1.5rem"></i>'
-        + '<div>Alunos com <b>não comparecimento</b> moravam em média a <b>'+fmtDist(g.dist_media_ina)+'</b> da unidade'
-        + (pior ? ' — <b>'+fmtDist(dif)+' a mais</b> que a média da rede ('+fmtDist(distRede)+'). A distância pesa no não comparecimento.'
+        + '<div>Alunos que <b>evadiram</b> (não comparecimento ou abandono) moravam em média a <b>'+fmtDist(g.dist_media_ina)+'</b> da unidade'
+        + (pior ? ' — <b>'+fmtDist(dif)+' a mais</b> que a média da rede ('+fmtDist(distRede)+'). A distância pesa na evasão.'
                 : ' (média da rede: '+fmtDist(distRede)+').')
         + ' Alunos com frequência &lt; 75% moram em média a <b>'+fmtDist(g.dist_media_pf)+'</b>.</div>';
     } else { box.style.display = 'none'; }
 
     const kpi = (lb,v,sub,cor)=>'<div class="col-6 col-md-4 col-lg"><div class="kpi" style="border-left-color:'+cor+'"><div class="label">'+lb+'</div><div class="val" style="color:'+cor+'">'+v+'</div><div class="sub2">'+(sub||'')+'</div></div></div>';
     document.getElementById('kpisEv').innerHTML =
-      kpi('Não comparecimento', fmt(g.inativos), 'deixaram de frequentar', '#475569') +
+      kpi('Evasão', fmt(g.inativos), fmt(g.ncom_n||0)+' não compar. · '+fmt(g.aband_n||0)+' abandono', '#475569') +
       kpi('Freq. abaixo de 75%', fmt(g.pf), 'freq. média '+(g.freq_media_pf||0)+'%', COR.aus) +
       kpi('Nos dois grupos', fmt(g.overlap), 'não compareceram e já faltavam', '#7c3aed') +
       kpi('Dist. média (NCOM)', fmtDist(g.dist_media_ina), 'com distância: '+fmt(g.inativos_com_dist), '#0ea5e9') +
@@ -551,7 +551,7 @@
     const labels = fx.map(f=>faixaLabelEv(f[0]));
     chart('chEvFaixas', { type:'bar',
       data:{ labels, datasets:[
-        { label:'Não comparecimento', data:fx.map(f=>f[1]), backgroundColor:'#64748b', borderRadius:4 },
+        { label:'Evasão (NCOM + abandono)', data:fx.map(f=>f[1]), backgroundColor:'#64748b', borderRadius:4 },
         { label:'Freq. < 75%', data:fx.map(f=>f[2]), backgroundColor:COR.aus, borderRadius:4 } ]},
       options:{ maintainAspectRatio:false,
         plugins:{ legend:{position:'top',labels:{font:{size:11},boxWidth:12}},
@@ -585,7 +585,7 @@
     document.getElementById('boxEvDetalhe').style.display = '';
     document.getElementById('evDetTitulo').textContent = unidade;
     document.getElementById('tbEvPf').innerHTML = '<tr><td colspan="6" class="text-muted p-2">Carregando…</td></tr>';
-    document.getElementById('tbEvIna').innerHTML = '<tr><td colspan="4" class="text-muted p-2">Carregando…</td></tr>';
+    document.getElementById('tbEvIna').innerHTML = '<tr><td colspan="5" class="text-muted p-2">Carregando…</td></tr>';
     const { data, error } = await SB.rpc('freq_evasao_alunos', { p_unidade: unidade });
     if (error){ document.getElementById('tbEvPf').innerHTML = '<tr><td colspan="6" class="text-danger p-2">'+esc(error.message)+'</td></tr>'; return; }
     const pf = (data && data.pf) || [], ina = (data && data.inativos) || [];
@@ -597,9 +597,11 @@
       +'<td class="text-center">'+(a[4]??'—')+'</td><td class="text-center">'+fmtDist(a[5])+'</td></tr>').join('')
       || '<tr><td colspan="6" class="text-muted p-2 text-center">Nenhum aluno &lt; 75% nesta unidade.</td></tr>';
     document.getElementById('tbEvIna').innerHTML = ina.map(a=>
-      '<tr><td>'+esc(a[0])+'</td><td>'+esc(a[1])+'</td><td class="text-center">'+esc(a[2])+'</td>'
-      +'<td class="text-center">'+fmtDist(a[3])+'</td></tr>').join('')
-      || '<tr><td colspan="4" class="text-muted p-2 text-center">Nenhum não comparecimento nesta unidade.</td></tr>';
+      '<tr><td>'+esc(a[0])+'</td>'
+      +'<td><span class="pill" style="background:'+(a[1]==='ABANDONO'?'#fde68a':'#e2e8f0')+';color:'+(a[1]==='ABANDONO'?'#92400e':'#475569')+'">'+esc(a[1])+'</span></td>'
+      +'<td>'+esc(a[2])+'</td><td class="text-center">'+esc(a[3])+'</td>'
+      +'<td class="text-center">'+fmtDist(a[4])+'</td></tr>').join('')
+      || '<tr><td colspan="5" class="text-muted p-2 text-center">Nenhuma evasão registrada nesta unidade.</td></tr>';
     document.getElementById('boxEvDetalhe').scrollIntoView({behavior:'smooth', block:'start'});
   };
   window.fecharEvDetalhe = function(){ document.getElementById('boxEvDetalhe').style.display = 'none'; };
