@@ -21,3 +21,9 @@ node_modules/
 # Arquivos temporários
 *.tmp
 *.bak
+
+# Dados/dumps NÃO vão ao repositório (evita vazamento de dados pessoais).
+# Rode seeds/migrações direto no Supabase. Para versionar schema anonimizado: git add -f arquivo.sql
+*.sql
+*.csv
+*.dump
