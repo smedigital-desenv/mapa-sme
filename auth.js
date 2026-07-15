@@ -250,6 +250,19 @@
       var p = (el.getAttribute('data-perm') || '').split(':');
       if (!api.can(p[0], p[1] || 'ver')) el.style.display = 'none';
     });
+    // data-tela-any="a,b,c": some se NENHUMA das telas listadas for visível
+    // (usado no botão "Aprendizagem" que agrupa avaliacao/elefante/fluencia).
+    document.querySelectorAll('[data-tela-any]').forEach(function (el) {
+      var ok = (el.getAttribute('data-tela-any') || '').split(',').some(function (s) {
+        return api.can(s.trim(), 'ver');
+      });
+      if (!ok) el.style.display = 'none';
+    });
+    // data-superadmin: elemento visível SÓ para super admin (ex.: Retrato Quantitativo).
+    var ehAdm = !!(api.perfil && api.perfil.is_super_admin);
+    document.querySelectorAll('[data-superadmin]').forEach(function (el) {
+      if (!ehAdm) el.style.display = 'none';
+    });
 
     // chip do usuário + sair, fixado no canto (não depende do layout da página)
     if (!document.getElementById('mapa-user-chip')) {

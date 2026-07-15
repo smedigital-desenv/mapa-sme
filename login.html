@@ -4,62 +4,150 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Entrar — SME Ribeirão Preto</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    :root { --primary:#002b5e; --neon-blue:#00e5ff; }
-    body { font-family:'Inter',sans-serif; min-height:100vh; margin:0; display:grid; place-items:center;
-      background:linear-gradient(135deg,#002b5e,#0146a6); padding:20px; }
-    .card-login { background:#fff; border-radius:18px; box-shadow:0 20px 60px rgba(0,0,0,.35); width:100%; max-width:400px; overflow:hidden; }
-    .topo { background:var(--primary); color:#fff; padding:1.6rem; text-align:center; border-bottom:5px solid var(--neon-blue); }
-    .topo .ic { font-size:2.2rem; color:var(--neon-blue); }
-    .topo h3 { margin:.4rem 0 0; font-weight:900; letter-spacing:.04em; }
-    .topo .sub { font-size:.66rem; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.7); }
-    .corpo { padding:1.8rem 1.4rem; text-align:center; }
-    .btn-google { display:inline-flex; align-items:center; justify-content:center; gap:.6rem; width:100%;
-      padding:.7rem 1rem; border:1.5px solid #dadce0; border-radius:10px; background:#fff;
-      font-weight:800; color:#3c4043; cursor:pointer; transition:.15s; font-size:.95rem; }
-    .btn-google:hover { box-shadow:0 2px 10px rgba(0,0,0,.12); background:#f8fafc; }
-    .btn-google:disabled { opacity:.6; cursor:default; }
-    .btn-google img { width:20px; height:20px; }
-    .msg { margin-top:1rem; font-size:.84rem; border-radius:10px; padding:.7rem .9rem; display:none; text-align:left; }
-    .msg.erro { display:block; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
-    .msg.info { display:block; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; }
-    .foot { margin-top:1.4rem; font-size:.72rem; color:#94a3b8; }
-    .btn-sair { background:none; border:0; color:#64748b; font-size:.78rem; font-weight:700; text-decoration:underline; cursor:pointer; margin-top:.8rem; }
+    :root{ --cor:#002b5e; }
+    *{ box-sizing:border-box; }
+    body{ margin:0; font-family:'Inter',system-ui,Segoe UI,sans-serif; min-height:100vh; color:#0f172a; }
+    .lg-bg{ position:fixed; inset:0; z-index:-1; background:var(--cor); }
+    .lg-bg::after{ content:''; position:absolute; inset:0;
+      background:radial-gradient(900px 500px at 12% 6%, rgba(255,255,255,.10), transparent 60%),
+                 linear-gradient(135deg, rgba(0,0,0,.10), rgba(10,8,30,.80)); }
+    .lg-wrap{ display:flex; gap:48px; max-width:1080px; margin:0 auto; min-height:100vh;
+      align-items:center; padding:44px 24px; }
+    .lg-left{ flex:1.1; color:#fff; min-width:0; }
+    .lg-brand{ display:flex; align-items:center; gap:12px; margin-bottom:26px; }
+    .lg-avatar{ width:44px; height:44px; border-radius:12px; background:rgba(255,255,255,.16);
+      display:grid; place-items:center; font-weight:900; font-size:1rem; overflow:hidden; }
+    .lg-avatar img{ width:100%; height:100%; object-fit:cover; }
+    .lg-marca{ font-weight:800; letter-spacing:.02em; font-size:.82rem; text-transform:uppercase; color:#e9e7ff; }
+    .lg-sub{ font-size:.82rem; color:rgba(255,255,255,.72); }
+    .lg-titulo{ font-weight:900; font-size:2.5rem; line-height:1.08; margin:0 0 14px; letter-spacing:-.02em; }
+    .lg-tagline{ font-size:1.02rem; color:rgba(255,255,255,.82); line-height:1.5; margin:0 0 26px; max-width:520px; }
+    .lg-features{ list-style:none; padding:0; margin:0 0 24px; display:flex; flex-direction:column; gap:16px; }
+    .lg-features li{ display:flex; gap:14px; align-items:flex-start; }
+    .fi{ flex:none; width:38px; height:38px; border-radius:10px; background:rgba(255,255,255,.12);
+      display:grid; place-items:center; color:#fff; font-size:1.05rem; }
+    .lg-features b{ display:block; font-weight:700; font-size:.96rem; }
+    .lg-features span{ color:rgba(255,255,255,.72); font-size:.88rem; line-height:1.4; }
+    .lg-foot{ font-weight:700; font-size:.9rem; color:#c7f9e5; display:flex; align-items:center; gap:8px; }
+
+    .lg-card{ width:392px; background:#fff; border-radius:20px; padding:34px 32px;
+      box-shadow:0 30px 70px rgba(0,0,0,.35); }
+    .lg-card-t{ font-weight:900; font-size:1.5rem; margin:0 0 4px; color:#0f172a; }
+    .lg-card-s{ color:#64748b; font-size:.92rem; margin:0 0 20px; }
+    .lg-google{ width:100%; display:flex; align-items:center; justify-content:center; gap:10px;
+      background:#fff; border:1px solid #cbd5e1; border-radius:12px; padding:13px; font-weight:700;
+      font-size:1rem; cursor:pointer; transition:border-color .15s, box-shadow .15s; color:#0f172a; }
+    .lg-google:hover{ border-color:var(--cor); box-shadow:0 6px 18px rgba(0,0,0,.08); }
+    .lg-google:disabled{ opacity:.6; cursor:default; }
+    .lg-google img{ width:20px; }
+    .lg-hint{ text-align:center; color:#94a3b8; font-size:.82rem; margin:14px 0 0; }
+    .msg{ display:none; margin:0 0 12px; border-radius:10px; padding:10px 12px; font-size:.86rem; text-align:left; }
+    .msg.erro{ display:block; background:#fef2f2; color:#dc2626; border:1px solid #fca5a5; }
+    .msg.info{ display:block; background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd; }
+    .lg-sair{ width:100%; background:none; border:0; color:#64748b; font-size:.8rem; font-weight:700;
+      text-decoration:underline; cursor:pointer; margin-top:14px; display:none; }
+
+    @media (max-width:840px){
+      .lg-wrap{ flex-direction:column; gap:26px; padding:32px 18px; }
+      .lg-left{ width:100%; }
+      .lg-titulo{ font-size:2rem; }
+      .lg-card{ width:100%; }
+    }
   </style>
 </head>
 <body>
-  <div class="card-login">
-    <div class="topo">
-      <i class="bi bi-shield-lock-fill ic"></i>
-      <h3>Acesso aos Sistemas</h3>
-      <div class="sub">SME Ribeirão Preto</div>
-    </div>
-    <div class="corpo">
-      <button class="btn-google" id="btnGoogle">
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="">
-        Entrar com Google
-      </button>
-      <div class="msg" id="msg"></div>
-      <div class="foot">
-        Use o e-mail institucional autorizado pela secretaria.<br>
-        Problemas de acesso? Contate a SME.
+  <div class="lg-bg"></div>
+  <main class="lg-wrap">
+    <section class="lg-left">
+      <div class="lg-brand">
+        <div class="lg-avatar" id="lg-avatar"></div>
+        <div><div class="lg-marca" id="lg-marca"></div><div class="lg-sub" id="lg-sub"></div></div>
       </div>
-      <button class="btn-sair" id="btnSair" style="display:none">Sair desta conta Google</button>
-    </div>
-  </div>
+      <h1 class="lg-titulo" id="lg-titulo"></h1>
+      <p class="lg-tagline" id="lg-tagline"></p>
+      <ul class="lg-features" id="lg-features"></ul>
+      <div class="lg-foot"><i class="bi bi-check2-circle"></i> Acesso institucional pela rede SME.</div>
+    </section>
+
+    <aside class="lg-card">
+      <h2 class="lg-card-t" id="lg-cta">Entrar</h2>
+      <p class="lg-card-s">Use sua conta institucional para entrar.</p>
+      <div class="msg" id="msg"></div>
+      <button class="lg-google" id="btnGoogle">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt=""> Entrar com Google
+      </button>
+      <p class="lg-hint">Acesso institucional <b>@educacao.pmrp.sp.gov.br</b></p>
+      <button class="lg-sair" id="btnSair">Sair desta conta Google</button>
+    </aside>
+  </main>
 
   <script>
+    // ── SLUG deste sistema (para buscar o conteúdo no central) ────────────────
+    const SLUG = 'mapa';
+
+    // ── Conteúdo padrão (funciona sem o central) ──────────────────────────────
+    const DEFAULT = { marca:'MAPA', sub:'Acompanhamento pedagógico · SME',
+      titulo:'O acompanhamento pedagógico da rede.',
+      tagline:'Indicadores de aprendizagem e o acompanhamento das unidades escolares.',
+      cta:'Entrar no MAPA', cor:'#002b5e', imagem_url:null, features:[
+        {icon:'bi-bar-chart',titulo:'Aprendizagem',desc:'Indicadores por escola e turma.'},
+        {icon:'bi-easel',titulo:'Atribuição',desc:'Acompanhamento das aulas.'},
+        {icon:'bi-clipboard-data',titulo:'Visitas',desc:'Relatórios de acompanhamento.'}] };
+
+    function $(id){ return document.getElementById(id); }
+    function aplicarLanding(d){
+      var L = Object.assign({}, DEFAULT);
+      if (d) ['marca','sub','titulo','tagline','cta','cor','imagem_url'].forEach(function(k){
+        if (d[k] !== undefined && d[k] !== null && d[k] !== '') L[k] = d[k];
+      });
+      if (d && Array.isArray(d.features) && d.features.length) L.features = d.features;
+      document.documentElement.style.setProperty('--cor', L.cor || '#002b5e');
+      $('lg-marca').textContent = L.marca || '';
+      $('lg-sub').textContent = L.sub || '';
+      $('lg-titulo').textContent = L.titulo || '';
+      $('lg-tagline').textContent = L.tagline || '';
+      $('lg-cta').textContent = L.cta || 'Entrar';
+      var av = $('lg-avatar');
+      if (L.imagem_url) av.innerHTML = '<img src="' + String(L.imagem_url).replace(/"/g,'') + '" alt="">';
+      else av.textContent = (L.marca || 'SME').replace(/[^A-Za-zÀ-ÿ0-9]/g,' ').trim().split(/\s+/).slice(0,2).map(function(w){return w[0]||'';}).join('').toUpperCase() || 'SME';
+      var ul = $('lg-features'); ul.innerHTML = '';
+      (L.features || []).slice(0,5).forEach(function(f){
+        var li=document.createElement('li');
+        var sp=document.createElement('span'); sp.className='fi'; sp.innerHTML='<i class="bi ' + String(f.icon||'bi-dot').replace(/"/g,'') + '"></i>';
+        var dv=document.createElement('div');
+        var b=document.createElement('b'); b.textContent=f.titulo||'';
+        var s=document.createElement('span'); s.textContent=f.desc||'';
+        dv.appendChild(b); dv.appendChild(s); li.appendChild(sp); li.appendChild(dv); ul.appendChild(li);
+      });
+    }
+    aplicarLanding(null);
+
+    // Enriquece com o conteúdo editável no painel central (leitura anônima).
+    // Cliente só-leitura, sem sessão, para não colidir com a auth do MAPA.
+    try {
+      var CENTRAL = window.supabase.createClient(
+        'https://pvdhepvtoavkyoschkod.supabase.co',
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2ZGhlcHZ0b2F2a3lvc2Noa29kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0MTUzNDQsImV4cCI6MjA5Nzk5MTM0NH0.BY6jPR9iDvh2xRlGtaU8vdKWp0NKyC7Amlzx-tytmrk',
+        { auth:{ persistSession:false, autoRefreshToken:false } }
+      );
+      CENTRAL.from('sistema_landing').select('marca,sub,titulo,tagline,cta,cor,imagem_url,features')
+        .eq('slug', SLUG).maybeSingle()
+        .then(function(r){ if (r && !r.error && r.data) aplicarLanding(r.data); })
+        .catch(function(){});
+    } catch(e){}
+
+    // ── AUTENTICAÇÃO DO MAPA (projeto próprio, inalterada) ────────────────────
     const SB = window.supabase.createClient(
       "https://gmwotfulohkmuqrezeef.supabase.co",
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk"
     );
-    const $msg = document.getElementById('msg');
-    const $btn = document.getElementById('btnGoogle');
-    const $sair = document.getElementById('btnSair');
+    const $msg = $('msg');
+    const $btn = $('btnGoogle');
+    const $sair = $('btnSair');
     function show(t, cls){ $msg.innerHTML = t; $msg.className = 'msg ' + cls; }
 
     // destino após login (?next=avaliacao.html). Só páginas internas (anti open-redirect).
@@ -81,16 +169,14 @@
       } else {
         var conta = '<b>' + (session.user.email || '') + '</b>';
         if (data && data.motivo === 'dominio') {
-          // E-mail fora do domínio institucional.
           show('A conta ' + conta + ' não é um e-mail institucional '
              + '<b>@educacao.pmrp.sp.gov.br</b>. Entre com seu e-mail da prefeitura.', 'erro');
         } else {
-          // Logado no Google, mas e-mail não autorizado pela secretaria.
           show('A conta ' + conta + ' não está autorizada. '
              + 'Solicite o cadastro à secretaria.', 'erro');
         }
         $btn.style.display = 'none';
-        $sair.style.display = 'inline-block';
+        $sair.style.display = 'block';
       }
     })();
 

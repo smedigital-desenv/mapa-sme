@@ -196,11 +196,17 @@
     </div>
   </div>
   <nav class="mg-nav">
-    <a class="mg-nav-btn" href="avaliacao.html"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+    <div class="mg-dd" data-tela-any="avaliacao,elefante,fluencia">
+      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item active" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+        <a class="mg-dd-item" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+      </div>
+    </div>
     <a class="mg-nav-btn" href="atribuicao.html"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
-    <a class="mg-nav-btn active" href="elefante.html"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
-    <a class="mg-nav-btn" href="fluencia.html"><i class="bi bi-book-half"></i>Fluência Leitora</a>
     <a class="mg-nav-btn" href="educacao_especial.html"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <a class="mg-nav-btn" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
     <a class="mg-nav-btn" href="relatorios.html"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
     <a class="mg-nav-btn" href="boletim.html"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
     <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none;min-width:auto;padding:6px 10px;" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
@@ -264,6 +270,17 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- ── Evolução mês a mês ─────────────────────────────── -->
+  <div class="chart-container mb-4" id="evoContainer" style="display:none;">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+      <h6 class="fw-bold m-0 text-primary">
+        <i class="bi bi-graph-up-arrow me-2"></i>Evolução mês a mês
+      </h6>
+      <div class="d-flex flex-wrap gap-1" id="evoBotoes"></div>
+    </div>
+    <div style="position:relative;height:300px;"><canvas id="evoChart"></canvas></div>
   </div>
 
   <!-- ── Visão principal ────────────────────────────────── -->
@@ -567,9 +584,21 @@ const S = {
   barChart: null,
   pieChart: null,
   arquivoImport: null,
+  evoChart: null,
+  evolucao: [],
+  evoMetrica: 'engaj',
 };
 
 const MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+// Métricas do gráfico de evolução (campo calculado por mês em carregarEvolucao)
+const EVO_METRICAS = {
+  engaj:    { label: 'Engajamento',  cor: '#10B981', campo: 'engaj',    suf: '%' },
+  livros:   { label: 'Livros Lidos', cor: '#6366F1', campo: 'livros',   suf: ''  },
+  leituras: { label: 'Leituras',     cor: '#002b5e', campo: 'leituras', suf: ''  },
+  horas:    { label: 'Horas',        cor: '#7c3aed', campo: 'horas',    suf: 'h' },
+  alunos:   { label: 'Estudantes',   cor: '#0062ff', campo: 'alunos',   suf: ''  },
+};
 
 // ── Inicialização ──────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
@@ -580,6 +609,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (meses.length) {
       S.mesAtual = meses[0];
       await carregarMes(S.mesAtual);
+      carregarEvolucao();   // gráfico de tendência (não bloqueia a visão principal)
     } else {
       semDados();
     }
@@ -981,6 +1011,117 @@ function abrirModalFaixa(idx) {
     : '<li class="list-group-item text-center text-muted py-4">Nenhuma escola nesta faixa.</li>';
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFaixa')).show();
+}
+
+
+// ── Evolução mês a mês ─────────────────────────────────────
+async function carregarEvolucao() {
+  try {
+    const meses = await getMeses();
+    if (!meses || meses.length < 2) { renderEvolucao(); return; }
+
+    // Um mês por vez (evita o teto de ~1000 linhas do PostgREST e reaproveita o cache).
+    const ordenados = [...meses].sort();
+    S.evolucao = await Promise.all(ordenados.map(async m => {
+      const [escolas, turmas] = await Promise.all([getEscolas(m), getTurmas(m)]);
+      const E = filtrarPorEscola(escolas || [], e => e.nome_escola);
+      const T = filtrarPorEscola(turmas  || [], t => t.escola);
+      const totEst = T.reduce((s,t) => s+(t.estudantes||0), 0);
+      const totLei = T.reduce((s,t) => s+(t.leitores||0),   0);
+      return {
+        mes:      m,
+        leituras: E.reduce((s,e) => s+(e.leituras_concluidas||0), 0),
+        alunos:   E.reduce((s,e) => s+(e.estudantes_leitura||0),  0),
+        horas:    Math.round(E.reduce((s,e) => s+(e.tempo_total_leitura_seg||0), 0)/3600),
+        livros:   T.reduce((s,t) => s+(t.livros_lidos||0), 0),
+        engaj:    totEst > 0 ? Math.round((totLei/totEst)*100) : 0,
+      };
+    }));
+    renderEvolucao();
+  } catch (e) {
+    console.error('[evolução]', e);
+    const c = document.getElementById('evoContainer');
+    if (c) c.style.display = 'none';
+  }
+}
+
+function renderEvolucao() {
+  const cont = document.getElementById('evoContainer');
+  if (!cont) return;
+  if (!S.evolucao || S.evolucao.length < 2) { cont.style.display = 'none'; return; }
+  cont.style.display = '';
+
+  document.getElementById('evoBotoes').innerHTML =
+    Object.keys(EVO_METRICAS).map(k => {
+      const on = k === S.evoMetrica;
+      return `<button class="btn btn-sm ${on ? 'btn-primary' : 'btn-outline-secondary'}"
+                      style="font-size:.72rem;font-weight:700;"
+                      onclick="trocarMetricaEvo('${k}')">${EVO_METRICAS[k].label}</button>`;
+    }).join('');
+
+  desenharEvo();
+}
+
+function trocarMetricaEvo(k) {
+  if (!EVO_METRICAS[k]) return;
+  S.evoMetrica = k;
+  renderEvolucao();
+}
+
+function desenharEvo() {
+  const m = EVO_METRICAS[S.evoMetrica];
+  const serie = S.evolucao;
+  const labels = serie.map(s => fmtMes(s.mes));
+  const dados  = serie.map(s => s[m.campo]);
+
+  if (S.evoChart) { S.evoChart.destroy(); S.evoChart = null; }
+  const ctx = document.getElementById('evoChart')?.getContext('2d');
+  if (!ctx) return;
+
+  const opcoesY = S.evoMetrica === 'engaj' ? { beginAtZero: true, max: 100 } : { beginAtZero: true };
+
+  S.evoChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: m.label,
+        data: dados,
+        borderColor: m.cor,
+        backgroundColor: m.cor + '22',
+        fill: true,
+        tension: .3,
+        borderWidth: 3,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        pointBackgroundColor: m.cor,
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: ctx => ctx[0].label,
+            label: ctx => ' ' + m.label + ': ' + ctx.parsed.y.toLocaleString('pt-BR') + m.suf,
+          },
+        },
+      },
+      scales: {
+        y: Object.assign({ ticks: { callback: v => v.toLocaleString('pt-BR') + m.suf, font: { size: 10 } },
+                           grid: { color: '#f1f5f9' } }, opcoesY),
+        x: { ticks: { font: { size: 11, weight: '700' } }, grid: { display: false } },
+      },
+    },
+  });
+}
+
+function fmtMes(m) {
+  const [ano, mes] = (m || '').split('-');
+  return mes ? `${MESES_PT[+mes-1]}/${ano}` : m;
 }
 
 
