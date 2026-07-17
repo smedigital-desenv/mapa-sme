@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relatório Executivo — Atribuição e Educação Especial | SME Ribeirão Preto</title>
+<style>
+  :root{
+    --bg:#eef1f6; --card:#ffffff; --ink:#1e2a3a; --muted:#5b6b7f; --line:#e2e8f0;
+    --blue:#1e5eb8; --blue-d:#16407e; --teal:#0f8a8a; --green:#15914b; --amber:#c77700;
+    --red:#d23b3b; --purple:#6d3bd2; --soft:#f6f8fb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.5;font-size:15px}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px 20px 80px}
+  /* Toolbar */
+  .toolbar{position:sticky;top:0;z-index:20;display:flex;gap:10px;justify-content:flex-end;
+    padding:10px 0;margin-bottom:8px}
+  .btn{border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:13.5px;
+    font-weight:600;padding:9px 16px;border-radius:9px;cursor:pointer;display:inline-flex;
+    gap:7px;align-items:center;box-shadow:0 1px 3px rgba(20,40,80,.06);transition:.15s}
+  .btn:hover{border-color:var(--blue);color:var(--blue)}
+  .btn.pri{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .btn.pri:hover{background:var(--blue-d);color:#fff}
+  /* Header */
+  header.report{background:linear-gradient(135deg,var(--blue-d),var(--blue));color:#fff;
+    border-radius:16px;padding:30px 32px;box-shadow:0 8px 24px rgba(22,64,126,.18)}
+  header.report .eyebrow{font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;
+    opacity:.82;font-weight:700}
+  header.report h1{margin:8px 0 6px;font-size:27px;line-height:1.2;font-weight:800}
+  header.report p{margin:0;opacity:.9;font-size:14.5px}
+  header.report .meta{margin-top:16px;display:flex;flex-wrap:wrap;gap:20px;font-size:13px;
+    border-top:1px solid rgba(255,255,255,.22);padding-top:14px}
+  header.report .meta b{display:block;font-size:16px;font-weight:800}
+  header.report .meta span{opacity:.8}
+  /* Sections */
+  section{margin-top:34px}
+  .sec-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .sec-head .tag{width:6px;height:30px;border-radius:4px;background:var(--blue)}
+  .sec-head.esp .tag{background:var(--purple)}
+  .sec-head h2{margin:0;font-size:20px;font-weight:800}
+  .sec-head .sub{color:var(--muted);font-size:13px;margin-left:auto}
+  /* KPI grid */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:16px 18px;
+    box-shadow:0 1px 3px rgba(20,40,80,.05)}
+  .kpi .lbl{font-size:12.5px;color:var(--muted);font-weight:600;text-transform:uppercase;
+    letter-spacing:.03em}
+  .kpi .val{font-size:29px;font-weight:800;margin:4px 0 2px;letter-spacing:-.5px}
+  .kpi .hint{font-size:12.5px;color:var(--muted)}
+  .kpi.b{border-top:3px solid var(--blue)} .kpi.g{border-top:3px solid var(--green)}
+  .kpi.a{border-top:3px solid var(--amber)} .kpi.r{border-top:3px solid var(--red)}
+  .kpi.p{border-top:3px solid var(--purple)} .kpi.t{border-top:3px solid var(--teal)}
+  .val.green{color:var(--green)} .val.red{color:var(--red)} .val.amber{color:var(--amber)}
+  .val.blue{color:var(--blue)} .val.purple{color:var(--purple)} .val.teal{color:var(--teal)}
+  /* Card + table */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;
+    margin-top:16px;box-shadow:0 1px 3px rgba(20,40,80,.05)}
+  .card h3{margin:0 0 4px;font-size:15.5px;font-weight:800}
+  .card .cap{color:var(--muted);font-size:13px;margin:0 0 14px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+  th{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
+    font-weight:700;background:var(--soft)}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  tbody tr:hover{background:var(--soft)}
+  tr.tot{font-weight:800;background:#eef4ff}
+  tr.tot td{border-top:2px solid var(--blue)}
+  .bar{height:8px;border-radius:5px;background:var(--line);overflow:hidden;min-width:70px;display:inline-block;width:100%;vertical-align:middle}
+  .bar>i{display:block;height:100%;border-radius:5px}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:700}
+  .pill.ok{background:#e4f5ea;color:var(--green)} .pill.warn{background:#fbeed3;color:var(--amber)}
+  .pill.bad{background:#fbe2e2;color:var(--red)}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .note{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.55}
+  .legend{display:flex;gap:16px;font-size:12.5px;color:var(--muted);margin:2px 0 12px}
+  .legend b{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  .stack{display:flex;height:26px;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+  .stack>span{display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700}
+  footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+  @media (max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}.split{grid-template-columns:1fr}
+    header.report h1{font-size:22px}}
+  @media print{
+    body{background:#fff} .toolbar{display:none} .wrap{max-width:100%;padding:0}
+    header.report{box-shadow:none;border:1px solid var(--line);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .kpi,.card,.stack,.bar>i,.pill,header.report{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    section{break-inside:avoid} .card{break-inside:avoid;box-shadow:none}
+    .kpis{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="toolbar">
+    <button class="btn" onclick="exportWord()">⬇ Exportar Word</button>
+    <button class="btn pri" onclick="window.print()">🖨 Gerar PDF / Imprimir</button>
+  </div>
+
+  <div id="doc">
+  <header class="report">
+    <div class="eyebrow">Secretaria Municipal de Educação · Ribeirão Preto</div>
+    <h1>Relatório Executivo — Atribuição de Aulas e Educação Especial</h1>
+    <p>Panorama da rede municipal · Exercício 2026</p>
+    <div class="meta">
+      <div><b>12.190</b><span>aulas / turmas</span></div>
+      <div><b>112</b><span>unidades escolares</span></div>
+      <div><b>3.620</b><span>professores titulares</span></div>
+      <div><b id="dt"></b><span>data do panorama</span></div>
+    </div>
+  </header>
+
+  <!-- ============ SEÇÃO 1: ATRIBUIÇÃO ============ -->
+  <section>
+    <div class="sec-head">
+      <div class="tag"></div>
+      <h2>1 · Situação da Atribuição de Aulas</h2>
+      <div class="sub">Fonte: base <code>turmas</code> · exercício 2026</div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi b"><div class="lbl">Total de aulas</div><div class="val blue">12.190</div><div class="hint">em 112 unidades · 32 disciplinas</div></div>
+      <div class="kpi g"><div class="lbl">Atribuídas</div><div class="val green">10.960</div><div class="hint">89,9% com professor ativo</div></div>
+      <div class="kpi r"><div class="lbl">Sem cobertura</div><div class="val red">1.230</div><div class="hint">10,1% sem professor ativo</div></div>
+      <div class="kpi a"><div class="lbl">Em contratação</div><div class="val amber">21</div><div class="hint">vagas em processo (cód. ≥ 99000)</div></div>
+    </div>
+
+    <div class="card">
+      <h3>Composição da situação de atribuição</h3>
+      <p class="cap">Detalhamento exato dos 12.190 registros por status (soma = total).</p>
+      <table>
+        <thead><tr>
+          <th>Status da aula</th><th class="num">Aulas</th><th class="num">%</th>
+          <th style="width:34%">Participação</th><th>Cobertura</th>
+        </tr></thead>
+        <tbody id="tbStatus"></tbody>
+      </table>
+      <p class="note"><b>Cobertura efetiva</b> = titular na ativa <i>ou</i> substituto na ativa. Aulas com titular afastado <b>sem</b> substituto e as “sem atribuição” compõem o déficit de 1.230 aulas descobertas. Vagas “em contratação” (código ≥ 99000) são contadas como descobertas.</p>
+    </div>
+
+    <div class="card">
+      <h3>Atribuição por disciplina</h3>
+      <p class="cap">Aulas totais, cobertura e quadro de professores (efetivos × contratados) por disciplina. Ordenado por volume de aulas.</p>
+      <div class="legend">
+        <span><b style="background:var(--blue)"></b>Efetivos</span>
+        <span><b style="background:var(--teal)"></b>Contratados</span>
+        <span style="margin-left:auto">Professores contados de forma distinta (um professor pode aparecer em mais de uma disciplina).</span>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Disciplina</th>
+          <th class="num">Aulas</th>
+          <th class="num">Atrib.</th>
+          <th class="num">Sem cob.</th>
+          <th style="width:16%">% cobertura</th>
+          <th class="num">Efetivos</th>
+          <th class="num">Contrat.</th>
+        </tr></thead>
+        <tbody id="tbDisc"></tbody>
+        <tfoot id="tfDisc"></tfoot>
+      </table>
+    </div>
+
+    <div class="split">
+      <div class="card">
+        <h3>Quadro docente por vínculo</h3>
+        <p class="cap">Professores titulares distintos na rede.</p>
+        <div class="stack" id="stackVinc"></div>
+        <div class="legend" style="margin-top:10px">
+          <span><b style="background:var(--blue)"></b>Efetivos — <b style="all:unset;font-weight:800">2.794</b>&nbsp;(77,2%)</span>
+          <span><b style="background:var(--teal)"></b>Contratados — <b style="all:unset;font-weight:800">826</b>&nbsp;(22,8%)</span>
+        </div>
+        <p class="note">Total de 3.620 professores titulares distintos. A soma por disciplina excede este total porque um mesmo professor pode atuar em mais de uma disciplina.</p>
+      </div>
+      <div class="card">
+        <h3>Disciplinas com maior déficit de cobertura</h3>
+        <p class="cap">Aulas sem professor ativo — pontos de atenção prioritários.</p>
+        <table><thead><tr><th>Disciplina</th><th class="num">Sem cobertura</th><th class="num">% da disc.</th></tr></thead>
+        <tbody id="tbDeficit"></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SEÇÃO 2: EDUCAÇÃO ESPECIAL ============ -->
+  <section>
+    <div class="sec-head esp">
+      <div class="tag"></div>
+      <h2>2 · Situação da Educação Especial</h2>
+      <div class="sub">Fonte: módulo <code>ee_*</code> (AEE · Liminares · Apoio)</div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi p"><div class="lbl">Alunos AEE</div><div class="val purple">1.987</div><div class="hint">em 119 unidades</div></div>
+      <div class="kpi r"><div class="lbl">Alunos com liminar</div><div class="val red">565</div><div class="hint">em 121 unidades</div></div>
+      <div class="kpi b"><div class="lbl">Professores de apoio</div><div class="val blue">450</div><div class="hint">240 manhã · 210 tarde</div></div>
+      <div class="kpi t"><div class="lbl">Profissionais de apoio (ASSEJ)</div><div class="val teal">420</div><div class="hint">em 111 escolas</div></div>
+    </div>
+    <div class="kpis" style="margin-top:14px">
+      <div class="kpi p"><div class="lbl">Salas com aluno da Ed. Especial</div><div class="val purple">1.105</div><div class="hint">turmas regulares com aluno AEE</div></div>
+      <div class="kpi r"><div class="lbl">Salas de liminar</div><div class="val red">463</div><div class="hint">turmas geradas por liminar</div></div>
+      <div class="kpi g"><div class="lbl">AEE avaliados</div><div class="val green">1.372</div><div class="hint">69% dos alunos AEE</div></div>
+      <div class="kpi a"><div class="lbl">AEE pendentes</div><div class="val amber">615</div><div class="hint">31% aguardando avaliação</div></div>
+    </div>
+
+    <div class="split">
+      <div class="card">
+        <h3>Atendimento Educacional Especializado (AEE)</h3>
+        <p class="cap">1.987 alunos · 1.105 salas · 119 unidades.</p>
+        <table><tbody>
+          <tr><td>Alunos com avaliação registrada</td><td class="num">1.372</td><td class="num" style="width:34%"><div class="bar"><i style="width:69%;background:var(--green)"></i></div></td><td class="num">69,0%</td></tr>
+          <tr><td>Alunos pendentes de avaliação</td><td class="num">615</td><td class="num"><div class="bar"><i style="width:31%;background:var(--amber)"></i></div></td><td class="num">31,0%</td></tr>
+          <tr><td>Cobertura de Estudo de Caso (rede)</td><td class="num" colspan="2"><div class="bar"><i style="width:68.5%;background:var(--purple)"></i></div></td><td class="num">68,5%</td></tr>
+          <tr><td>Cobertura de PEI (rede)</td><td class="num" colspan="2"><div class="bar"><i style="width:31.6%;background:var(--teal)"></i></div></td><td class="num">31,6%</td></tr>
+        </tbody></table>
+        <p class="note">PEI = Plano Educacional Individualizado. Percentuais de Estudo de Caso e PEI conforme consolidação da rede.</p>
+      </div>
+      <div class="card">
+        <h3>Liminares judiciais</h3>
+        <p class="cap">565 alunos · 463 salas de liminar · 121 unidades. Situação por unidade:</p>
+        <table><thead><tr><th>Situação da unidade</th><th class="num">Unidades</th><th style="width:34%">Participação</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill ok">Atendida</span></td><td class="num">21</td><td><div class="bar"><i style="width:17.4%;background:var(--green)"></i></div></td></tr>
+          <tr><td><span class="pill warn">Pendência</span></td><td class="num">24</td><td><div class="bar"><i style="width:19.8%;background:var(--amber)"></i></div></td></tr>
+          <tr><td><span class="pill bad">Fora / sem vínculo</span></td><td class="num">76</td><td><div class="bar"><i style="width:62.8%;background:var(--red)"></i></div></td></tr>
+        </tbody></table>
+        <p class="note">“Atendida” = há professor de apoio vinculado à turma da liminar. “Fora” = turmas/alunos ainda sem vínculo de apoio conciliado.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Rede de apoio pedagógico</h3>
+      <p class="cap">Distribuição de professores de apoio e profissionais de apoio (ASSEJ) — 111 escolas.</p>
+      <div class="kpis" style="grid-template-columns:repeat(4,1fr)">
+        <div class="kpi b"><div class="lbl">Prof. apoio — manhã</div><div class="val blue">240</div></div>
+        <div class="kpi b"><div class="lbl">Prof. apoio — tarde</div><div class="val blue">210</div></div>
+        <div class="kpi g"><div class="lbl">Total prof. de apoio</div><div class="val green">450</div></div>
+        <div class="kpi t"><div class="lbl">Apoios ASSEJ</div><div class="val teal">420</div></div>
+      </div>
+      <p class="note">Professores de apoio atuam em jornada por período (manhã/tarde). ASSEJ = profissionais de apoio (cuidado/acompanhamento), contados à parte do quadro docente.</p>
+    </div>
+  </section>
+
+  <footer>
+    <p><b>Metodologia.</b> Dados extraídos ao vivo do sistema MAPA (Supabase). <b>Atribuição:</b> uma aula é considerada coberta quando o titular está “na ativa” ou há substituto na ativa; vagas com código ≥ 99000 são tratadas como “em contratação”. Contagens de professores são distintas por código funcional. <b>Educação Especial:</b> AEE, liminares e apoio provenientes do módulo Educação Especial; “salas com aluno da Ed. Especial” = turmas regulares que possuem ao menos um aluno AEE; “salas de liminar” = turmas geradas para cumprimento de decisão judicial.</p>
+    <p style="margin-top:6px">Relatório gerado automaticamente · SME Ribeirão Preto — MAPA · <span id="dt2"></span></p>
+  </footer>
+  </div><!-- /doc -->
+</div>
+
+<script>
+  const fmt = n => n.toLocaleString('pt-BR');
+  const pct = (a,b) => b? (a/b*100):0;
+
+  // ---- data ----
+  const TOTAL = 12190;
+  const STATUS = [
+    {t:'Com atribuição — titular na ativa', n:9588, cob:'ok'},
+    {t:'Com atribuição — titular afastado, com substituto', n:1371, cob:'ok'},
+    {t:'Com atribuição — titular afastado, SEM substituto', n:619, cob:'bad'},
+    {t:'Sem atribuição', n:612, cob:'bad'},
+  ];
+  const DISC = [
+    {nome:"Magistério I (Anos Iniciais)",total:2210,atrib:2044,sem:166,ef:1526,ct:17},
+    {nome:"Magistério II",total:1547,atrib:1284,sem:263,ef:687,ct:414},
+    {nome:"Educação Física",total:1447,atrib:1401,sem:46,ef:124,ct:36},
+    {nome:"Língua Inglesa",total:1387,atrib:1247,sem:140,ef:117,ct:18},
+    {nome:"Arte",total:1360,atrib:1207,sem:153,ef:110,ct:30},
+    {nome:"Proj. Recup. Aprend. Anos Iniciais",total:556,atrib:513,sem:43,ef:201,ct:28},
+    {nome:"Educação Financeira",total:556,atrib:505,sem:51,ef:270,ct:83},
+    {nome:"Geografia",total:440,atrib:392,sem:48,ef:39,ct:21},
+    {nome:"Língua Portuguesa",total:395,atrib:370,sem:25,ef:59,ct:36},
+    {nome:"Matemática",total:395,atrib:371,sem:24,ef:62,ct:30},
+    {nome:"História",total:379,atrib:369,sem:10,ef:32,ct:20},
+    {nome:"Ciências Naturais",total:379,atrib:362,sem:17,ef:30,ct:23},
+    {nome:"Práticas Pedagógicas",total:253,atrib:164,sem:89,ef:86,ct:0},
+    {nome:"Proj. Professor Alfabetizador",total:214,atrib:172,sem:42,ef:106,ct:37},
+    {nome:"Atend. Educ. Especial (AEE)",total:197,atrib:155,sem:42,ef:0,ct:147},
+    {nome:"Proj. Recuperação Paralela",total:128,atrib:120,sem:8,ef:59,ct:11},
+    {nome:"Vivência - Ser e Conviver",total:81,atrib:73,sem:8,ef:28,ct:2},
+    {nome:"Prática de Relaxamento",total:81,atrib:68,sem:13,ef:64,ct:9},
+    {nome:"Vivência - Alimentação",total:81,atrib:68,sem:13,ef:64,ct:9},
+    {nome:"AEE - Surdo",total:42,atrib:22,sem:20,ef:0,ct:3},
+    {nome:"LIBRAS",total:35,atrib:29,sem:6,ef:0,ct:15},
+    {nome:"Oficinas Profissionalizantes (EJA)",total:27,atrib:24,sem:3,ef:27,ct:0},
+  ];
+
+  // ---- render status ----
+  const cobMap={ok:'<span class="pill ok">Coberta</span>',bad:'<span class="pill bad">Descoberta</span>'};
+  document.getElementById('tbStatus').innerHTML = STATUS.map(s=>{
+    const p=pct(s.n,TOTAL);
+    const col = s.cob==='ok'?'var(--green)':'var(--red)';
+    return `<tr><td>${s.t}</td><td class="num">${fmt(s.n)}</td><td class="num">${p.toFixed(1)}%</td>
+      <td><div class="bar"><i style="width:${p}%;background:${col}"></i></div></td>
+      <td>${cobMap[s.cob]}</td></tr>`;
+  }).join('') + `<tr class="tot"><td>Total</td><td class="num">${fmt(TOTAL)}</td><td class="num">100%</td><td></td><td></td></tr>`;
+
+  // ---- render disciplina ----
+  document.getElementById('tbDisc').innerHTML = DISC.map(d=>{
+    const c=pct(d.atrib,d.total);
+    const col = c>=90?'var(--green)':c>=75?'var(--amber)':'var(--red)';
+    return `<tr>
+      <td>${d.nome}</td>
+      <td class="num">${fmt(d.total)}</td>
+      <td class="num">${fmt(d.atrib)}</td>
+      <td class="num" style="color:${d.sem>0?'var(--red)':'var(--muted)'};font-weight:${d.sem>0?700:400}">${d.sem?fmt(d.sem):'—'}</td>
+      <td><div class="bar"><i style="width:${c}%;background:${col}"></i></div><small style="color:var(--muted)">${c.toFixed(0)}%</small></td>
+      <td class="num">${fmt(d.ef)}</td>
+      <td class="num">${fmt(d.ct)}</td>
+    </tr>`;
+  }).join('');
+  const T={total:0,atrib:0,sem:0};
+  DISC.forEach(d=>{T.total+=d.total;T.atrib+=d.atrib;T.sem+=d.sem;});
+  document.getElementById('tfDisc').innerHTML =
+    `<tr class="tot"><td>Total da rede</td><td class="num">${fmt(T.total)}</td><td class="num">${fmt(T.atrib)}</td>
+     <td class="num">${fmt(T.sem)}</td><td>${pct(T.atrib,T.total).toFixed(1)}%</td>
+     <td class="num">2.794</td><td class="num">826</td></tr>`;
+
+  // ---- vínculo stack ----
+  const ef=2794, ct=826, tv=ef+ct;
+  document.getElementById('stackVinc').innerHTML =
+    `<span style="width:${pct(ef,tv)}%;background:var(--blue)">${fmt(ef)}</span>
+     <span style="width:${pct(ct,tv)}%;background:var(--teal)">${fmt(ct)}</span>`;
+
+  // ---- déficit top ----
+  const def=[...DISC].filter(d=>d.sem>0).sort((a,b)=>b.sem-a.sem).slice(0,8);
+  document.getElementById('tbDeficit').innerHTML = def.map(d=>
+    `<tr><td>${d.nome}</td><td class="num" style="color:var(--red);font-weight:700">${fmt(d.sem)}</td>
+     <td class="num">${pct(d.sem,d.total).toFixed(0)}%</td></tr>`).join('');
+
+  // ---- date ----
+  const dt = new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+  document.getElementById('dt').textContent = new Date().toLocaleDateString('pt-BR');
+  document.getElementById('dt2').textContent = dt;
+
+  // ---- Word export ----
+  function exportWord(){
+    const html = document.getElementById('doc').innerHTML;
+    const head = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'>
+      <style>
+        body{font-family:'Segoe UI',Arial,sans-serif;color:#1e2a3a;font-size:11pt}
+        header{background:#16407e;color:#fff;padding:16px;border-radius:8px}
+        header h1{font-size:18pt;margin:6px 0}
+        h2{color:#16407e;border-bottom:2px solid #1e5eb8;padding-bottom:4px;margin-top:22px}
+        h3{color:#16407e;margin-bottom:2px}
+        table{border-collapse:collapse;width:100%;font-size:9.5pt;margin-top:6px}
+        th{background:#eef4ff;text-align:left;padding:5px 7px;border:1px solid #cdd8ea}
+        td{padding:4px 7px;border:1px solid #dde5f0}
+        .num{text-align:right} .bar,.stack,.toolbar,.legend .b{display:none}
+        .kpi{border:1px solid #cdd8ea;padding:8px;display:inline-block;width:22%;margin:2px;vertical-align:top}
+        .val{font-size:16pt;font-weight:bold} .lbl{font-size:8pt;color:#5b6b7f}
+        .pill{font-weight:bold} .cap,.note{color:#5b6b7f;font-size:9pt}
+        .kpis{margin:6px 0}
+      </style></head><body>`;
+    const blob = new Blob(['﻿', head, html, '</body></html>'],
+      {type:'application/msword'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='Relatorio_Executivo_SME_'+new Date().toISOString().slice(0,10)+'.doc';
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+</script>
+</body>
+</html>
