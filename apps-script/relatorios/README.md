@@ -45,8 +45,19 @@ A planilha do Google Sheets deve ter as seguintes abas:
 | **EMEI** | Nome da Escola | Regional | Cadastro de escolas Infantil |
 | **Fundamental** | (dados de visita) | - | Visitas pedagógicas EMEF |
 | **Infantil** | (dados de visita) | - | Visitas pedagógicas EMEI |
+| **Fundamental2** | (dados de visita) | - | Visitas EMEF de diálogo/PPA/boas práticas (2º formulário) |
+| **Infantil2** | (dados de visita) | - | Visitas EMEI de diálogo/boas práticas (2º formulário) |
 | **Admin** | (vazio) | E-mail | Administradores (coluna B = emails) |
 | **Devolutivas_Individual** | (automático) | - | Gerado automaticamente |
+| **Devolutivas_Rede** | (automático) | - | Análises de rede (seleção manual), geradas automaticamente |
+| **Devolutivas_Regional** | (automático) | - | Análises por regional, geradas automaticamente |
+| **Sintese_Rede_Global** | (automático) | - | Síntese de rede a partir das análises regionais |
+
+Em `Fundamental2`/`Infantil2` a escola visitada também fica na coluna F (índice 5, igual
+às abas originais) — apenas as perguntas seguintes mudam. Como esses formulários não
+perguntam a regional da escola, ela é resolvida em tempo de leitura a partir do cadastro
+oficial (`EMEF`/`EMEI`, coluna B), usando o mesmo mapa escola → regional das visitas
+pedagógicas originais.
 
 ## 🎯 Funções Principais
 
@@ -60,12 +71,19 @@ A planilha do Google Sheets deve ter as seguintes abas:
 ### Backend (`Code.gs`)
 
 ```javascript
-getDadosCompletos()          // Retorna visitas + escolas + regionais
-autenticarUsuario()          // Verifica e-mail + admin
-analisarVisitaComGemini()    // Análise individual com IA (TODO)
-salvarDevolutiva()           // Persiste resultado da análise
-lerDevolutivas()             // Retorna análises salvas
-excluirDevolutiva(id)        // Remove análise
+getDadosCompletos()                     // Retorna visitas (4 segmentos) + escolas + regionais
+autenticarUsuario()                     // Verifica e-mail + admin
+analisarVisitaComGemini(dados)          // Análise individual com IA — escolhe o roteiro de prompt
+                                         // (pedagógico ou diálogo/PPA/boas práticas) pelo segmento
+analisarRedeComGemini(payload)          // Análise de um conjunto de escolas (seleção manual)
+analisarRegionalComGemini(payload)      // Análise de uma regional (resolve regional via cadastro oficial)
+analisarRedeAPartirDeRegionaisComGemini(payload) // Síntese de rede a partir de análises regionais salvas
+salvarDevolutiva(payload)               // Persiste devolutiva individual
+salvarDevolutivaRede(payload)           // Persiste devolutiva de rede
+salvarDevolutivaRegional(payload)       // Persiste devolutiva regional
+salvarSinteseRedeGlobal(payload)        // Persiste síntese de rede global
+lerDevolutivas()                        // Retorna todas as devolutivas salvas
+excluirDevolutiva(id)                   // Remove devolutiva (qualquer tipo)
 ```
 
 ## 🔐 Autenticação
@@ -83,37 +101,15 @@ Coluna A    Coluna B
 (vazio)     admin2@educacao.gov.br
 ```
 
-## 🤖 Integração Gemini (TODO)
+## 🤖 Integração Gemini
 
-Atualmente, `analisarVisitaComGemini()` retorna dados de exemplo. Para ativar:
+`analisarVisitaComGemini()` chama a API Gemini de fato via `_chamarGemini()`, com pool
+de chaves, rotação por cota (429) e retry com backoff para erros 5xx.
 
-1. Obter API key do [Google AI Studio](https://aistudio.google.com)
-2. Adicionar função `_chamarGemini()` em `Code.gs`:
-
-```javascript
-function _chamarGemini(prompt) {
-  const apiKey = PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
-  
-  const response = UrlFetchApp.fetch(url, {
-    method: "post",
-    contentType: "application/json",
-    payload: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 3000 }
-    }),
-    muteHttpExceptions: true
-  });
-
-  const result = JSON.parse(response.getContentText());
-  return JSON.parse(result.candidates[0].content.parts[0].text);
-}
-```
-
-3. Adicionar a chave no Apps Script:
-```bash
-clasp run setGeminiKey -- "sk_xxx..."
-```
+1. Obtenha uma ou mais API keys no [Google AI Studio](https://aistudio.google.com).
+2. Configure a propriedade de script `GEMINI_KEYS` (lista separada por vírgula, uma ou
+   mais chaves) em **Configurações do projeto → Propriedades do script** no editor do
+   Apps Script.
 
 ## 📋 Usar o Módulo
 

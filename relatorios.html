@@ -337,13 +337,29 @@ const COLS_FICHA = [
   "Endereço de e-mail",
   COL_REGIONAL
 ];
+// Pergunta usada só para extrair a escola (coluna F) nos formulários "2" — já exibida
+// como nome da escola no card/relatório, então nunca deve aparecer como campo solto.
+const COL_ESCOLA_PERGUNTA = "Assinale a unidade escolar visitada.";
 const ROTULOS = {
   "Carimbo de data/hora":"Enviado em",
   "Data da Visita:":"Data da visita",
   "Data da visita:":"Data da visita",
   "Assinale o período da visita.":"Período",
   "Nome(s) do(s) responsável(is) pelo acompanhamento pedagógico.":"Responsável(is)",
-  "Endereço de e-mail":"E-mail"
+  "Endereço de e-mail":"E-mail",
+  // ── Fundamental2 / Infantil2 (visita de diálogo/PPA/boas práticas) ──
+  "Foi possível dialogar com os(as) gestores(as) da unidade escolar?\nSe sim, relate brevemente este diálogo. \nE caso não tenha sido possível, descreva o motivo.":"Diálogo com gestores(as)",
+  "Foi possível dialogar com o(a) coordenador(a) pedagógico(a) da unidade escolar?\nSe sim, relate brevemente este diálogo. \nE caso não tenha sido possível, descreva o motivo.":"Diálogo com coordenação pedagógica",
+  "Foi possível dialogar com o(a) gestor(a) da unidade escolar?\nSe sim, relate brevemente este diálogo. \nE caso não tenha sido possível, descreva o motivo.":"Diálogo com gestor(a)",
+  "Foi possível analisar a organização de horários do PPA (Projeto Professor Alfabetizador)?":"Organização de horários do PPA",
+  "Escreva brevemente como está sendo desenvolvido este projeto no 2º ano.":"Desenvolvimento do PPA no 2º ano",
+  "Relate as boas práticas identificadas.":"Boas práticas identificadas",
+  "Sendo possível, anexe fotos de Boas Práticas da unidade escolar.":"Fotos de boas práticas",
+  "Relate pontos de atenção nas turmas de 1ºs e 2ºs anos.":"Pontos de atenção (1ºs e 2ºs anos)",
+  "Aponte as devolutivas necessárias para a próxima visita a ser agendada.":"Devolutivas para a próxima visita",
+  "Identificação e descrição de práticas pedagógicas observadas com intencionalidade educativa.\nAnálise das boas práticas docentes evidenciadas no contexto observado.":"Práticas pedagógicas observadas / boas práticas docentes",
+  "Identificação das devolutivas pedagógicas necessárias para acompanhamento na próxima visita.\nPlanejamento de orientações e encaminhamentos para continuidade do processo formativo.":"Devolutivas e encaminhamentos para a próxima visita",
+  "Explique quais os pontos de atenção.":"Pontos de atenção"
 };
 
 // ── Estado global ──
@@ -373,7 +389,7 @@ function _construirMapaDevolutivas() {
 }
 function _devDoItem(item) {
   const data = item["Data da Visita:"]||item["Data da visita:"]||'';
-  return mapaDevolutivas.get(_chaveDev(segmentoAtual, item['_ESCOLA_'], data));
+  return mapaDevolutivas.get(_chaveDev(item['_SEGMENTO_']||segmentoAtual, item['_ESCOLA_'], data));
 }
 
 // ── Toast ──
@@ -473,6 +489,12 @@ function _dadosMock() {
     infantil: [
       { "_ESCOLA_": "EMEI Teste 1", "Data da Visita:": "23/06/2026", "Assinale o período da visita.": "Integral", "Marque a Regional a qual pertente a unidade escolar.": "Regional Sul", "Nome(s) do(s) responsável(is) pelo acompanhamento pedagógico.": "Profa. Maria Costa", "Endereço de e-mail": "maria@educacao.gov.br", "Carimbo de data/hora": "23/06/2026 09:00", "Observações": "Verificação de infraestrutura" }
     ],
+    fundamental2: [
+      { "_ESCOLA_": "EMEF Teste 1", "Data da Visita:": "10/07/2026", "Assinale o período da visita.": "Manhã", "Nome(s) do(s) responsável(is) pelo acompanhamento pedagógico.": "Prof. Ana Silva", "Endereço de e-mail": "ana@educacao.gov.br", "Carimbo de data/hora": "10/07/2026 10:00", "Foi possível analisar a organização de horários do PPA (Projeto Professor Alfabetizador)?": "Sim", "Relate as boas práticas identificadas.": "Rodas de leitura diárias no 2º ano." }
+    ],
+    infantil2: [
+      { "_ESCOLA_": "EMEI Teste 1", "Data da visita:": "09/07/2026", "Assinale o período da visita.": "Integral", "Nome(s) do(s) responsável(is) pelo acompanhamento pedagógico.": "Profa. Maria Costa", "Endereço de e-mail": "maria@educacao.gov.br", "Carimbo de data/hora": "09/07/2026 09:30", "Explique quais os pontos de atenção.": "Nenhum ponto crítico identificado." }
+    ],
     escolasEMEF: ["EMEF Teste 1", "EMEF Teste 2"],
     escolasEMEI: ["EMEI Teste 1"],
     regionalMapEMEF: { "EMEF Teste 1": "Regional Centro", "EMEF Teste 2": "Regional Leste" },
@@ -488,14 +510,15 @@ function onDados(res) {
   try {
     if (res && window.MapaAuth && window.MapaAuth.restritoEscola) {
       const ok = n => window.MapaAuth.podeVerEscola(n);
-      if (Array.isArray(res.fundamental)) res.fundamental = res.fundamental.filter(d => ok(d['_ESCOLA_']));
-      if (Array.isArray(res.infantil))    res.infantil    = res.infantil.filter(d => ok(d['_ESCOLA_']));
-      if (Array.isArray(res.escolasEMEF)) res.escolasEMEF = res.escolasEMEF.filter(ok);
-      if (Array.isArray(res.escolasEMEI)) res.escolasEMEI = res.escolasEMEI.filter(ok);
+      if (Array.isArray(res.fundamental))  res.fundamental  = res.fundamental.filter(d => ok(d['_ESCOLA_']));
+      if (Array.isArray(res.infantil))     res.infantil     = res.infantil.filter(d => ok(d['_ESCOLA_']));
+      if (Array.isArray(res.fundamental2)) res.fundamental2 = res.fundamental2.filter(d => ok(d['_ESCOLA_']));
+      if (Array.isArray(res.infantil2))    res.infantil2    = res.infantil2.filter(d => ok(d['_ESCOLA_']));
+      if (Array.isArray(res.escolasEMEF))  res.escolasEMEF  = res.escolasEMEF.filter(ok);
+      if (Array.isArray(res.escolasEMEI))  res.escolasEMEI  = res.escolasEMEI.filter(ok);
     }
   } catch (e) {}
-  if (res && (res.fundamental||res.infantil)) {
-    dadosPorSegmento = res;
+  if (res && (res.fundamental||res.infantil||res.fundamental2||res.infantil2)) {
     escolasOficiais.fundamental = res.escolasEMEF||[];
     escolasOficiais.infantil = res.escolasEMEI||[];
     mapaRegionalOficial.fundamental = res.regionalMapEMEF||{};
@@ -503,6 +526,28 @@ function onDados(res) {
     isAdmin = !!res.isAdmin;
     estaLogado = !!res.estaLogado;
     emailUsuario = res.emailUsuario || '';
+
+    // Fundamental2/Infantil2 são um 2º formulário de visita (diálogo/PPA/boas práticas)
+    // para as mesmas escolas. Aparecem junto com as visitas originais na mesma listagem
+    // (mesmas abas Fundamental/Infantil), marcadas com _SEGMENTO_ para diferenciar a
+    // origem (matching de devolutiva, prompt de IA, etc). Como esse formulário não
+    // pergunta a regional, ela é preenchida aqui a partir do mapa oficial escola→regional.
+    const tag = (arr, segOrigem, segBase) => (arr||[]).forEach(d => {
+      d['_SEGMENTO_'] = segOrigem;
+      if (!(d[COL_REGIONAL]||'').toString().trim()) {
+        const r = (mapaRegionalOficial[segBase]||{})[d['_ESCOLA_']];
+        if (r) d[COL_REGIONAL] = r;
+      }
+    });
+    tag(res.fundamental,  'fundamental',  'fundamental');
+    tag(res.infantil,     'infantil',     'infantil');
+    tag(res.fundamental2, 'fundamental2', 'fundamental');
+    tag(res.infantil2,    'infantil2',    'infantil');
+
+    dadosPorSegmento = {
+      fundamental: [...(res.fundamental||[]), ...(res.fundamental2||[])],
+      infantil:    [...(res.infantil||[]),    ...(res.infantil2||[])]
+    };
   } else {
     dadosPorSegmento.fundamental = Array.isArray(res) ? res : [];
     dadosPorSegmento.infantil = [];
@@ -656,6 +701,7 @@ function _renderCard(item, idx) {
   const temDev = !!dev;
   const dd = (dev && dev._dados) || {};
   const badgesIA = temDev ? `${_badgeMini('bi-flag-fill', dd.prioridade)}${_badgeMini('bi-shield-exclamation', (dd.risco_pedagogico||{}).nivel)}` : '';
+  const ehBoasPraticas = (item['_SEGMENTO_']||'').endsWith('2');
 
   return `
     <div class="card-kpi rel-card ${isSel?'selecionado':''}" id="card-${idx}" onclick="abrirRelatorio(${idx})">
@@ -669,6 +715,7 @@ function _renderCard(item, idx) {
       <div class="card-meta-info mb-2 d-flex align-items-center gap-2 flex-wrap">
         <span><i class="bi bi-calendar3 me-1"></i> ${escapar(dataVisita)}</span>
         ${periodo?`<span class="badge bg-light text-dark border" style="font-size:0.6rem;font-weight:700;">${escapar(periodo)}</span>`:''}
+        ${ehBoasPraticas?`<span class="badge" style="background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;font-size:0.6rem;font-weight:700;"><i class="bi bi-chat-square-text me-1"></i>Diálogo/Boas Práticas</span>`:''}
         ${temDev?`<span class="badge" style="background:var(--neon-pink);color:#fff;font-size:0.6rem;font-weight:800;"><i class="bi bi-robot me-1"></i>Devolutiva IA</span>`:''}
       </div>
       <div style="font-size:0.8rem;color:#495057;line-height:1.4;flex-grow:1;"><b>Resp:</b> ${escapar(responsavel)}</div>
@@ -685,11 +732,16 @@ function abrirDevolutivaDoCard(idx) {
   abrirModal(item, _devDoItem(item), 'dev');
 }
 
-// Localiza a visita correspondente a uma devolutiva (p/ abrir as duas abas)
+// Localiza a visita correspondente a uma devolutiva (p/ abrir as duas abas).
+// dadosPorSegmento só tem as chaves 'fundamental'/'infantil' (fundamental2/infantil2 são
+// mescladas ali, marcadas via _SEGMENTO_), então resolve a lista pelo segmento base e
+// casa pelo _SEGMENTO_ real de cada item, não pela chave da lista.
 function _visitaDaDev(dev) {
-  const lista = dadosPorSegmento[dev["Segmento"]] || [];
+  const segDev = (dev["Segmento"] || '').toLowerCase();
+  const listaKey = segDev.indexOf('infantil') === 0 ? 'infantil' : 'fundamental';
+  const lista = dadosPorSegmento[listaKey] || [];
   const alvo = _chaveDev(dev["Segmento"], dev["Escola"], dev["Data da Visita"]);
-  return lista.find(it => _chaveDev(dev["Segmento"], it['_ESCOLA_'], it["Data da Visita:"]||it["Data da visita:"]||'') === alvo);
+  return lista.find(it => _chaveDev(it['_SEGMENTO_'], it['_ESCOLA_'], it["Data da Visita:"]||it["Data da visita:"]||'') === alvo);
 }
 
 // ── Seleção ──
@@ -731,7 +783,7 @@ function _htmlRelatorioVisita(item) {
   const dataHoje = new Date().toLocaleDateString('pt-BR');
   const anoAtual = new Date().getFullYear();
   const seg = (item['_SEGMENTO_'] || segmentoAtual);
-  const camposSecao = Object.keys(item).filter(k => k!=='_ESCOLA_' && k!=='_SEGMENTO_' && !COLS_FICHA.includes(k));
+  const camposSecao = Object.keys(item).filter(k => k!=='_ESCOLA_' && k!=='_SEGMENTO_' && k!==COL_ESCOLA_PERGUNTA && !COLS_FICHA.includes(k));
 
   const fichaItens = COLS_FICHA.filter(col => item[col]!==undefined).map(col => {
     const val = item[col]||'—';
@@ -740,13 +792,16 @@ function _htmlRelatorioVisita(item) {
 
   const secoes = camposSecao.map(col => {
     const val = item[col]||'';
-    return `<div style="border-left:4px solid #00e5ff;padding-left:12px;margin-bottom:12px;"><div style="font-size:0.75rem;font-weight:800;color:var(--primary);margin-bottom:4px;">${escapar(col)}</div><div>${val?escapar(val):'<span style="color:#adb5bd;font-style:italic;">Não informado</span>'}</div></div>`;
+    return `<div style="border-left:4px solid #00e5ff;padding-left:12px;margin-bottom:12px;"><div style="font-size:0.75rem;font-weight:800;color:var(--primary);margin-bottom:4px;">${escapar(ROTULOS[col]||col)}</div><div>${val?escapar(val):'<span style="color:#adb5bd;font-style:italic;">Não informado</span>'}</div></div>`;
   }).join('');
+
+  const labelSegmento = seg.startsWith('infantil') ? 'Educação Infantil' : 'Ensino Fundamental';
+  const labelTipoVisita = seg.endsWith('2') ? ' · Diálogo / PPA / Boas Práticas' : '';
 
   return `
     <div style="border-bottom:3px solid var(--primary);padding-bottom:14px;margin-bottom:16px;">
       <div style="font-size:1.1rem;font-weight:800;color:var(--primary);">Acompanhamento Pedagógico</div>
-      <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:#6c757d;margin-top:4px;">${seg==='fundamental'?'Ensino Fundamental':'Educação Infantil'} ${anoAtual}</div>
+      <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:#6c757d;margin-top:4px;">${labelSegmento}${labelTipoVisita} ${anoAtual}</div>
       <div style="font-size:1rem;font-weight:800;margin-top:6px;color:#002b5e;">${escapar(escola)}</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;background:#f8faff;border-radius:8px;padding:14px;margin-bottom:16px;">${fichaItens}</div>
@@ -1192,7 +1247,7 @@ function _construirCobertura(segs) {
       const datas = vs.map(v => _parseData(v['Data da Visita:']||v['Data da visita:']||v['Carimbo de data/hora'])).filter(Boolean);
       const ultima = datas.length ? new Date(Math.max(...datas.map(d=>d.getTime()))) : null;
       const reg = mapaReg[escola] || (vs[0] && (vs[0][COL_REGIONAL]||'').toString().trim()) || '—';
-      const temDev = vs.some(v => mapaDevolutivas.has(_chaveDev(seg, escola, v['Data da Visita:']||v['Data da visita:']||'')));
+      const temDev = vs.some(v => mapaDevolutivas.has(_chaveDev(v['_SEGMENTO_']||seg, escola, v['Data da Visita:']||v['Data da visita:']||'')));
       linhas.push({
         escola, regional: reg, segmento: seg==='fundamental'?'Fundamental':'Infantil',
         nVisitas: vs.length, ultima, temDev
