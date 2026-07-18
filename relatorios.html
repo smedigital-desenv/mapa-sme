@@ -1277,6 +1277,7 @@ function imprimir() {
 //  Disparo de Análises por IA (Gemini via Apps Script)
 // ════════════════════════════════════════════════
 let _analisando = false;
+let _falhasLote = []; // itens que falharam no último lote (p/ "repetir falhas")
 
 function _setBtnLoading(btn, loading, textoLoading) {
   if (!btn) return;
@@ -1288,6 +1289,37 @@ function _setBtnLoading(btn, loading, textoLoading) {
     btn.disabled = false;
     if (btn.dataset._idle !== undefined) { btn.innerHTML = btn.dataset._idle; delete btn.dataset._idle; }
   }
+}
+
+// ── Banner de progresso da IA (feedback global: a IA leva ~10–40s) ──
+// opts: { texto, spinner:bool, acoes:[{id,label,onclick}] }
+function _iaBanner(opts) {
+  let el = document.getElementById('ia-progress');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'ia-progress';
+    el.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:4000;'
+      + 'background:#002b5e;color:#fff;font:700 13px/1.35 Inter,system-ui,sans-serif;padding:11px 16px;'
+      + 'border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.28);display:flex;align-items:center;gap:12px;max-width:92vw;';
+    document.body.appendChild(el);
+  }
+  const spin = opts.spinner ? '<span class="spinner-border spinner-border-sm" style="flex-shrink:0"></span>' : '';
+  const acoes = (opts.acoes || []).map(a =>
+    `<button type="button" data-act="${a.id}" style="border:0;background:#fff;color:#002b5e;font-weight:800;border-radius:999px;padding:4px 12px;cursor:pointer;flex-shrink:0;">${a.label}</button>`
+  ).join('');
+  el.innerHTML = `${spin}<span style="min-width:0;">${opts.texto}</span>${acoes}`;
+  (opts.acoes || []).forEach(a => { const b = el.querySelector(`[data-act="${a.id}"]`); if (b) b.onclick = a.onclick; });
+  el.style.display = 'flex';
+}
+function _iaBannerHide() { const el = document.getElementById('ia-progress'); if (el) el.style.display = 'none'; }
+
+// Leva o usuário até a devolutiva recém-gerada: vai para a aba Devolutivas e a abre.
+function _abrirDevolutivaPorId(id) {
+  if (!id) return;
+  const dev = (todasDevolutivas || []).find(d => (d["ID"] || '') === id);
+  if (!dev) { if (secaoAtual !== 'devolutivas') mudarSecao('devolutivas'); return; }
+  if (secaoAtual !== 'devolutivas') mudarSecao('devolutivas');
+  abrirModal(_visitaDaDev(dev), dev, 'dev');
 }
 
 // Gera (ou regenera) a devolutiva individual de UMA visita → Promise.
@@ -1314,40 +1346,85 @@ function analisarVisitaAtual(btn) {
   const item = _modalItem;
   _analisando = true;
   _setBtnLoading(btn, true);
+  _iaBanner({ texto: 'Gerando devolutiva com IA… pode levar até ~30s.', spinner: true });
   _gerarDevolutivaVisita(item)
     .then(() => {
-      mostrarToast('Devolutiva gerada!');
       devolutivasCarregadas = false;
-      carregarDevolutivas(() => abrirModal(item, _devDoItem(item), 'dev'), true);
+      carregarDevolutivas(() => {
+        _iaBannerHide();
+        mostrarToast('Devolutiva gerada!');
+        abrirModal(item, _devDoItem(item), 'dev'); // reabre já mostrando o resultado
+      }, true);
     })
-    .catch(err => { mostrarToast('Erro: ' + (err.message || err)); _setBtnLoading(btn, false); })
+    .catch(err => { _iaBannerHide(); mostrarToast('Erro: ' + (err.message || err)); _setBtnLoading(btn, false); })
     .finally(() => { _analisando = false; });
 }
 
 // Botão da barra lateral: gera devolutivas individuais para as visitas selecionadas
-// (uma a uma, em sequência — usa apenas a análise individual).
+// (uma a uma, em sequência). "Lote inteligente": pula as que já têm devolutiva.
 function analisarLote() {
   if (_analisando) return;
   const alvos = [...selecionados].map(i => filtrados[i]).filter(Boolean);
   if (alvos.length === 0) return;
-  if (!confirm(`Gerar devolutiva por IA para ${alvos.length} visita(s) selecionada(s)?`)) return;
+  const semDev = alvos.filter(it => !_devDoItem(it));
+  const comDev = alvos.length - semDev.length;
+
+  let fila;
+  if (semDev.length === 0) {
+    // Todas já têm devolutiva → só faz sentido regerar (com confirmação explícita).
+    if (!confirm(`Todas as ${alvos.length} visita(s) selecionada(s) já têm devolutiva.\nRegerar todas?`)) return;
+    fila = alvos;
+  } else {
+    const msg = comDev > 0
+      ? `Gerar devolutiva por IA para ${semDev.length} visita(s).\n(${comDev} já têm devolutiva e serão puladas.)`
+      : `Gerar devolutiva por IA para ${semDev.length} visita(s) selecionada(s)?`;
+    if (!confirm(msg)) return;
+    fila = semDev;
+  }
+  _processarLote(fila);
+}
+
+// Processa uma fila de visitas em sequência, com progresso e relatório de falhas.
+function _processarLote(fila) {
   _analisando = true;
+  _falhasLote = [];
   const btn = document.getElementById('btnAnalisarLote');
-  _setBtnLoading(btn, true, '0/' + alvos.length + '…');
-  let ok = 0, falhas = 0, i = 0;
+  _setBtnLoading(btn, true, '0/' + fila.length + '…');
+  let ok = 0, i = 0;
+  const falhas = [];
   const proximo = () => {
-    if (i >= alvos.length) {
-      mostrarToast(`Concluído: ${ok} gerada(s)${falhas ? `, ${falhas} falha(s)` : ''}.`);
+    if (i >= fila.length) {
       devolutivasCarregadas = false;
       carregarDevolutivas(null, true);
       _analisando = false; _setBtnLoading(btn, false);
+      _falhasLote = falhas.map(f => f.item);
+      if (falhas.length) {
+        const nomes = falhas.slice(0, 3).map(f => f.item['_ESCOLA_'] || '?').join(', ');
+        _iaBanner({
+          texto: `<b>${ok}</b> gerada(s), <b>${falhas.length}</b> falha(s)${nomes ? ` (${escapar(nomes)}${falhas.length > 3 ? '…' : ''})` : ''}.`,
+          acoes: [
+            { id: 'retry', label: `Repetir ${falhas.length}`, onclick: repetirFalhasLote },
+            { id: 'close', label: 'Fechar', onclick: _iaBannerHide }
+          ]
+        });
+      } else {
+        _iaBannerHide();
+        mostrarToast(`${ok} devolutiva(s) gerada(s).`);
+      }
       return;
     }
-    const item = alvos[i++];
-    if (btn) btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> ${i}/${alvos.length}…`;
-    _gerarDevolutivaVisita(item).then(() => ok++).catch(() => falhas++).finally(proximo);
+    const item = fila[i++];
+    _iaBanner({ texto: `Gerando devolutivas com IA… <b>${i}/${fila.length}</b>`, spinner: true });
+    if (btn) btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> ${i}/${fila.length}…`;
+    _gerarDevolutivaVisita(item).then(() => ok++).catch(err => falhas.push({ item, erro: (err && err.message) || String(err) })).finally(proximo);
   };
   proximo();
+}
+
+// Reexecuta apenas as visitas que falharam no último lote.
+function repetirFalhasLote() {
+  if (_analisando || !_falhasLote.length) return;
+  _processarLote(_falhasLote.slice());
 }
 
 // Botão da barra lateral: análise consolidada de uma Regional (junta os 2 formulários).
@@ -1362,6 +1439,7 @@ function analisarRegionalAtual(btn) {
   if (!confirm(`Gerar análise regional de "${regional}"?\n${escolas.length} escola(s), ${visitasReg.length} visita(s) — juntando os 2 formulários.`)) return;
   _analisando = true;
   _setBtnLoading(btn, true);
+  _iaBanner({ texto: `Gerando análise da regional "${escapar(regional)}"… juntando ${visitasReg.length} visita(s), pode levar mais de 30s.`, spinner: true });
   const reqPayload = { segmento: seg, regional: regional };
   _chamarBackend('analisarRegionalComGemini', reqPayload, 'analisarRegional', { payload: JSON.stringify(reqPayload) })
     .then(res => {
@@ -1371,11 +1449,15 @@ function analisarRegionalAtual(btn) {
     })
     .then(res => {
       if (!res || !res.ok) throw new Error((res && res.erro) || 'Falha ao salvar');
-      mostrarToast('Análise regional gerada!');
+      const novoId = res.id;
       devolutivasCarregadas = false;
-      carregarDevolutivas(null, true);
+      carregarDevolutivas(() => {
+        _iaBannerHide();
+        mostrarToast('Análise regional gerada!');
+        _abrirDevolutivaPorId(novoId); // leva o usuário direto ao resultado
+      }, true);
     })
-    .catch(err => mostrarToast('Erro: ' + (err.message || err)))
+    .catch(err => { _iaBannerHide(); mostrarToast('Erro: ' + (err.message || err)); })
     .finally(() => { _analisando = false; _setBtnLoading(btn, false); });
 }
 
@@ -1387,6 +1469,7 @@ function sintetizarRedeGlobal(btn) {
   if (!confirm(`Sintetizar a rede de "${seg === 'infantil' ? 'Educação Infantil' : 'Ensino Fundamental'}" a partir das análises regionais já salvas?`)) return;
   _analisando = true;
   _setBtnLoading(btn, true);
+  _iaBanner({ texto: 'Gerando síntese de rede com IA… pode levar mais de 30s.', spinner: true });
   const reqP = { segmento: seg };
   _chamarBackend('analisarRedeAPartirDeRegionaisComGemini', reqP, 'analisarRedeAPartirDeRegionais', { payload: JSON.stringify(reqP) })
     .then(res => {
@@ -1396,11 +1479,15 @@ function sintetizarRedeGlobal(btn) {
     })
     .then(res => {
       if (!res || !res.ok) throw new Error((res && res.erro) || 'Falha ao salvar');
-      mostrarToast('Síntese de rede gerada!');
+      const novoId = res.id;
       devolutivasCarregadas = false;
-      carregarDevolutivas(null, true);
+      carregarDevolutivas(() => {
+        _iaBannerHide();
+        mostrarToast('Síntese de rede gerada!');
+        _abrirDevolutivaPorId(novoId);
+      }, true);
     })
-    .catch(err => mostrarToast('Erro: ' + (err.message || err)))
+    .catch(err => { _iaBannerHide(); mostrarToast('Erro: ' + (err.message || err)); })
     .finally(() => { _analisando = false; _setBtnLoading(btn, false); });
 }
 
