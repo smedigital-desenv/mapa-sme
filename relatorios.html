@@ -391,11 +391,40 @@ function _chaveDev(seg, escola, data) {
   return (String(seg||'') + '|' + String(escola||'') + '|' + String(data||''))
     .toLowerCase().replace(/\s+/g, ' ').trim();
 }
+// Agrupa as devolutivas por visita (segmento|escola|data). Quando há mais de uma
+// versão (ex.: Gemini e Claude), a MAIS RECENTE vira a principal e as demais ficam
+// em ._versoes para o seletor de comparação no modal.
 function _construirMapaDevolutivas() {
   mapaDevolutivas = new Map();
+  const grupos = new Map();
   todasDevolutivas.forEach(d => {
-    mapaDevolutivas.set(_chaveDev(d["Segmento"], d["Escola"], d["Data da Visita"]), d);
+    const k = _chaveDev(d["Segmento"], d["Escola"], d["Data da Visita"]);
+    if (!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k).push(d);
   });
+  grupos.forEach((versoes, k) => {
+    versoes.sort((a, b) => _tsDev(b) - _tsDev(a));   // mais recente primeiro
+    const principal = versoes[0];
+    principal._versoes = versoes;
+    mapaDevolutivas.set(k, principal);
+  });
+}
+
+// timestamp de uma devolutiva (aceita ISO em _salvoEmRaw ou "dd/MM/yyyy HH:mm" em "Salvo em")
+function _tsDev(d) {
+  const raw = d._salvoEmRaw || '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) { const t = Date.parse(raw); if (!isNaN(t)) return t; }
+  const m = String(d["Salvo em"] || '').match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+  return m ? new Date(+m[3], +m[2]-1, +m[1], +(m[4]||0), +(m[5]||0)).getTime() : 0;
+}
+
+// Rótulo amigável do modelo que gerou a devolutiva (para o seletor de versões).
+function _rotuloModelo(m) {
+  const s = String(m || '').toLowerCase();
+  if (!s) return '';
+  if (s === 'gemini' || s.startsWith('gemini')) return 'Gemini';
+  if (s.startsWith('claude')) return 'Claude' + (s.length > 6 ? ' ' + m.slice(6).replace(/^[-\s]+/, '') : '');
+  return m;
 }
 function _devDoItem(item) {
   const data = item["Data da Visita:"]||item["Data da visita:"]||'';
@@ -444,11 +473,13 @@ function mudarSecao(sec) {
 const API_URL = 'https://script.google.com/macros/s/AKfycbydArqsFE8fCijWuc_st3Kd3jbQaUWRyEnQja-Nh2dOaKueuV_jX0iaDyToMKRXjKHO/exec';
 
 // ── Origem dos dados ──
-// 'appsscript' (padrão): lê do Google Apps Script/Planilhas, como sempre.
+// 'appsscript': lê do Google Apps Script/Planilhas, como sempre.
 // 'supabase': lê do Supabase (RPCs relat_visitas/relat_devolutivas + relatorios_escolas),
-//   com isolamento por escola no servidor (RLS). Trocar só após aplicar o SQL e rodar o
-//   sync (ver apps-script/relatorios/supabase-migracao.md).
-const FONTE_DADOS = 'appsscript';
+//   com isolamento por escola no servidor (RLS). Ver apps-script/relatorios/supabase-migracao.md.
+// Padrão seguro: enquanto validamos, a origem pode ser forçada pela URL (?fonte=supabase
+// ou ?fonte=appsscript). Para virar de vez, troque _FONTE_PADRAO para 'supabase'.
+const _FONTE_PADRAO = 'appsscript';
+const FONTE_DADOS = (new URLSearchParams(location.search).get('fonte') || _FONTE_PADRAO).toLowerCase();
 
 // ── Carregamento ──
 function carregarDados() {
@@ -946,6 +977,30 @@ function _htmlRelatorioVisita(item) {
 // ── Modal unificado: Relatório da Visita + Devolutiva (IA) ──
 let _pdfHtmlRel = '', _pdfHtmlDev = '';
 let _modalItem = null; // visita atualmente aberta (p/ o botão de gerar devolutiva)
+let _modalDev = null, _modalDevAtiva = null; // devolutiva do modal + versão em exibição
+
+// Seletor de versões (Gemini × Claude) — só aparece quando há mais de uma versão.
+function _htmlSeletorVersoes(dev) {
+  const vs = (dev && dev._versoes) || [];
+  if (vs.length < 2) return '';
+  const botoes = vs.map((v, i) => {
+    const ativo = v === _modalDevAtiva;
+    const rot = _rotuloModelo(v._modelo) || ('v' + (i + 1));
+    const data = v["Salvo em"] ? ` · ${escapar(v["Salvo em"])}` : '';
+    return `<button type="button" onclick="_verVersaoDev(${i})" style="border:1px solid ${ativo?'#002b5e':'#cbd5e1'};background:${ativo?'#002b5e':'#fff'};color:${ativo?'#fff':'#334155'};font-weight:800;font-size:.72rem;border-radius:999px;padding:5px 12px;cursor:pointer;">${escapar(rot)}${data}</button>`;
+  }).join('');
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;padding:10px 12px;background:#f1f5f9;border-radius:10px;">
+    <span style="font-size:.7rem;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.04em;"><i class="bi bi-layers-half me-1"></i>Comparar versões:</span>${botoes}</div>`;
+}
+
+// Troca a versão exibida no modal (e a que vai para o PDF).
+function _verVersaoDev(i) {
+  if (!_modalDev || !_modalDev._versoes || !_modalDev._versoes[i]) return;
+  _modalDevAtiva = _modalDev._versoes[i];
+  _pdfHtmlDev = _htmlDevolutiva(_modalDevAtiva);
+  const pane = document.getElementById('pane-dev');
+  if (pane) pane.innerHTML = _htmlSeletorVersoes(_modalDev) + _pdfHtmlDev;
+}
 
 function abrirModal(item, dev, aba) {
   const temRel = !!item, temDev = !!dev;
@@ -955,6 +1010,8 @@ function abrirModal(item, dev, aba) {
   if (!aba) aba = temRel ? 'rel' : 'dev';
 
   _modalItem = item || null;
+  _modalDev = dev || null;
+  _modalDevAtiva = dev || null;   // começa na versão principal (mais recente)
   const escola = (item && item['_ESCOLA_']) || (dev && dev['Escola']) || '';
   _pdfHtmlRel = temRel ? _htmlRelatorioVisita(item) : '';
   _pdfHtmlDev = temDev ? _htmlDevolutiva(dev) : '';
@@ -970,7 +1027,7 @@ function abrirModal(item, dev, aba) {
   document.getElementById('relatorio-container').innerHTML = `
     ${tabs}
     <div id="pane-rel" style="display:${aba==='rel'?'block':'none'};">${_pdfHtmlRel}</div>
-    <div id="pane-dev" style="display:${aba==='dev'?'block':'none'};">${temDev ? _pdfHtmlDev : paneDevVazio}</div>`;
+    <div id="pane-dev" style="display:${aba==='dev'?'block':'none'};">${temDev ? (_htmlSeletorVersoes(dev) + _pdfHtmlDev) : paneDevVazio}</div>`;
 
   document.getElementById('modalTitulo').textContent = escola;
 
