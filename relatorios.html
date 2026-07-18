@@ -185,17 +185,8 @@
   </div>
   <div class="d-flex align-items-center gap-3">
     <span id="badgeCount" class="badge bg-light text-dark fw-bold px-3 py-2" style="display:none; font-size: 0.8rem;"></span>
-    <div id="user-indicator" style="display:none; align-items:center; gap:8px;">
-      <div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.12);border-radius:20px;padding:4px 12px;">
-        <i class="bi bi-person-circle" style="color:var(--neon-blue);font-size:0.9rem;"></i>
-        <span id="user-email-display" style="font-size:0.75rem;font-weight:700;color:white;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-        <span id="user-admin-badge" style="display:none;background:var(--neon-green);color:#002b5e;font-size:0.65rem;font-weight:800;border-radius:20px;padding:1px 7px;">ADMIN</span>
-      </div>
-    </div>
-    <button class="btn btn-action" id="btnEntrar" onclick="entrarComGoogle()"
-      style="background:rgba(255,255,255,0.15);color:white;border:1.5px solid rgba(255,255,255,0.4);font-size:0.8rem;">
-      <i class="bi bi-google me-1"></i> Entrar
-    </button>
+    <!-- Login próprio removido: a autenticação é feita pelo sistema global (auth.js /
+         MapaAuth), que já exige sessão e injeta o chip do usuário no canto da tela. -->
   </div>
 </div>
 
@@ -378,6 +369,10 @@ const ROTULOS = {
 };
 
 // ── Estado global ──
+// Identidade/admin vêm do sistema global de login (auth.js / window.MapaAuth):
+//  - estaLogado: a página só carrega após a sessão global (auth.js redireciona ao
+//    login se não houver sessão), então é verdadeiro assim que MapaAuth está pronto.
+//  - isAdmin: super admin do sistema (perfil.is_super_admin).
 let dadosPorSegmento = { fundamental: [], infantil: [] };
 let isAdmin = false;
 let estaLogado = false;
@@ -562,9 +557,6 @@ function onDados(res) {
     escolasOficiais.infantil = res.escolasEMEI||[];
     mapaRegionalOficial.fundamental = res.regionalMapEMEF||{};
     mapaRegionalOficial.infantil = res.regionalMapEMEI||{};
-    isAdmin = !!res.isAdmin;
-    estaLogado = !!res.estaLogado;
-    emailUsuario = res.emailUsuario || '';
 
     // Fundamental2/Infantil2 são um 2º formulário de visita (diálogo/PPA/boas práticas)
     // para as mesmas escolas. Aparecem junto com as visitas originais na mesma listagem
@@ -591,11 +583,21 @@ function onDados(res) {
     dadosPorSegmento.fundamental = Array.isArray(res) ? res : [];
     dadosPorSegmento.infantil = [];
   }
-  _atualizarHeaderUsuario();
+  _sincronizarAuthGlobal();
   // Renderiza os cards imediatamente; as devolutivas carregam em 2º plano
   // (apenas para preencher a contagem do badge) sem bloquear a tela.
   mudarSegmento('fundamental');
   carregarDevolutivas();
+}
+
+// Deriva identidade/admin do sistema global de login (auth.js / window.MapaAuth).
+function _sincronizarAuthGlobal() {
+  const a = window.MapaAuth;
+  if (a && a.perfil) {
+    estaLogado = true;
+    emailUsuario = a.perfil.email || '';
+    isAdmin = !!a.perfil.is_super_admin;
+  }
 }
 
 function onErro(err) {
@@ -949,61 +951,7 @@ function abrirRelatorio(idx) {
   abrirModal(item, _devDoItem(item), 'rel');
 }
 
-// ── Autenticação ──
-function entrarComGoogle() {
-  const btn = document.getElementById('btnEntrar');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Verificando...'; }
-
-  // Detecta modo (Apps Script ou API externa)
-  if (typeof google !== 'undefined' && google.script) {
-    // Modo Apps Script
-    google.script.run
-      .withSuccessHandler(function(res) {
-        processarAutenticacao(res, btn);
-      })
-      .withFailureHandler(function(err) {
-        mostrarToast('Erro: ' + (err.message||''));
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-google me-1"></i> Entrar'; }
-      })
-      .autenticarUsuario();
-  } else {
-    // Modo API externa
-    chamarAPI('autenticar')
-      .then(res => processarAutenticacao(res, btn))
-      .catch(err => {
-        mostrarToast('Erro ao autenticar: ' + (err.message||''));
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-google me-1"></i> Entrar'; }
-      });
-  }
-}
-
-function processarAutenticacao(res, btn) {
-  if (res.ok) {
-    isAdmin = !!res.isAdmin;
-    estaLogado = !!res.estaLogado;
-    emailUsuario = res.email || '';
-    _atualizarHeaderUsuario();
-    mostrarToast(isAdmin ? 'Admin ativado!' : (estaLogado ? 'Logado!' : 'Erro ao identificar'));
-  }
-  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-google me-1"></i> Entrar'; }
-}
-
-function _atualizarHeaderUsuario() {
-  const indicator = document.getElementById('user-indicator');
-  const btnEntrar = document.getElementById('btnEntrar');
-  const emailDisplay = document.getElementById('user-email-display');
-  const adminBadge = document.getElementById('user-admin-badge');
-
-  if (estaLogado && emailUsuario) {
-    if (indicator) { indicator.style.display = 'flex'; }
-    if (btnEntrar) { btnEntrar.style.display = 'none'; }
-    if (emailDisplay) { emailDisplay.textContent = emailUsuario; }
-    if (adminBadge) { adminBadge.style.display = isAdmin ? 'inline-block' : 'none'; }
-  } else {
-    if (indicator) { indicator.style.display = 'none'; }
-    if (btnEntrar) { btnEntrar.style.display = ''; }
-  }
-}
+// (Login próprio removido — a autenticação é feita pelo sistema global auth.js/MapaAuth.)
 
 // ── Devolutivas ──
 function carregarDevolutivas(cb, forcar) {
@@ -1363,7 +1311,6 @@ function _gerarDevolutivaVisita(item) {
 // Botão dentro do modal da visita: gera/regenera a devolutiva daquela visita.
 function analisarVisitaAtual(btn) {
   if (_analisando || !_modalItem) return;
-  if (!estaLogado) { mostrarToast('Entre com o Google para gerar análises.'); return; }
   const item = _modalItem;
   _analisando = true;
   _setBtnLoading(btn, true);
@@ -1381,7 +1328,6 @@ function analisarVisitaAtual(btn) {
 // (uma a uma, em sequência — usa apenas a análise individual).
 function analisarLote() {
   if (_analisando) return;
-  if (!estaLogado) { mostrarToast('Entre com o Google para gerar análises.'); return; }
   const alvos = [...selecionados].map(i => filtrados[i]).filter(Boolean);
   if (alvos.length === 0) return;
   if (!confirm(`Gerar devolutiva por IA para ${alvos.length} visita(s) selecionada(s)?`)) return;
@@ -1407,7 +1353,6 @@ function analisarLote() {
 // Botão da barra lateral: análise consolidada de uma Regional (junta os 2 formulários).
 function analisarRegionalAtual(btn) {
   if (_analisando) return;
-  if (!estaLogado) { mostrarToast('Entre com o Google para gerar análises.'); return; }
   const regional = document.getElementById('filtroRegional').value;
   if (!regional) { mostrarToast('Selecione uma Regional no filtro ao lado.'); return; }
   const seg = segmentoAtual; // base (fundamental|infantil); a lista já junta os 2 tipos
@@ -1437,7 +1382,6 @@ function analisarRegionalAtual(btn) {
 // Botão da aba Devolutivas: síntese de rede a partir das análises regionais já salvas.
 function sintetizarRedeGlobal(btn) {
   if (_analisando) return;
-  if (!estaLogado) { mostrarToast('Entre com o Google para gerar análises.'); return; }
   const selSeg = document.getElementById('filtroSinteseSegmento');
   const seg = (selSeg && selSeg.value) || 'fundamental';
   if (!confirm(`Sintetizar a rede de "${seg === 'infantil' ? 'Educação Infantil' : 'Ensino Fundamental'}" a partir das análises regionais já salvas?`)) return;

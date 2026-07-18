@@ -65,7 +65,9 @@ pedagógicas originais.
 
 - **Navegação por abas**: Fundamental, Infantil, Devolutivas, Estatísticas
 - **Filtros**: Regional, Escola, Busca textual
-- **Disparo de análises por IA** (para usuários logados):
+- **Autenticação**: usa o login global do MAPA (`auth.js` / `window.MapaAuth`) — a
+  página não tem login próprio. `isAdmin` = super admin do sistema (`perfil.is_super_admin`).
+- **Disparo de análises por IA**:
   - **Individual**: botão "Gerar/Regerar devolutiva (IA)" no modal de cada visita.
   - **Em lote (individuais)**: marca várias visitas → "Gerar devolutivas (IA)" gera a
     devolutiva individual de cada uma, em sequência.
