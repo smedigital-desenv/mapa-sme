@@ -63,10 +63,22 @@ pedagógicas originais.
 
 ### Frontend (`relatorios.html`)
 
-- **Navegação por abas**: Fundamental, Infantil, Devolutivas
+- **Navegação por abas**: Fundamental, Infantil, Devolutivas, Estatísticas
 - **Filtros**: Regional, Escola, Busca textual
-- **Análise em Lote**: Selecionar múltiplas visitas para análise com IA
-- **Impressão/PDF**: Exportar relatórios formatados
+- **Disparo de análises por IA** (para usuários logados):
+  - **Individual**: botão "Gerar/Regerar devolutiva (IA)" no modal de cada visita.
+  - **Em lote (individuais)**: marca várias visitas → "Gerar devolutivas (IA)" gera a
+    devolutiva individual de cada uma, em sequência.
+  - **Regional**: com uma Regional filtrada → "Análise da Regional (IA)" consolida a
+    regional **juntando os dois formulários** (base + variante "2").
+  - **Síntese de rede**: na aba Devolutivas → "Gerar síntese de rede (IA)" consolida as
+    análises regionais já salvas do segmento.
+- **Exibição** das devolutivas nos 4 formatos (individual / rede / regional / síntese global).
+- **Impressão/PDF**: Exportar relatórios e devolutivas formatados.
+
+> A comunicação com o Apps Script (`chamarAPI`) envia os parâmetros no **corpo** da
+> requisição (`application/x-www-form-urlencoded`, sem preflight CORS), permitindo enviar
+> uma visita inteira para análise sem estourar o limite de tamanho da URL.
 
 ### Backend (`Code.gs`)
 

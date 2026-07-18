@@ -503,9 +503,25 @@ CRITÉRIOS PARA RISCO PEDAGÓGICO:
 
 // ── Prompt: visita de diálogo/PPA/boas práticas (Fundamental2/Infantil2) ──
 function _promptAnaliseBoasPraticas_(dadosVisita, unidadeEscolar, dataVisita, segmento) {
-  return `Você é um assessor técnico-pedagógico da Secretaria Municipal da Educação, responsável por analisar registros de visitas de acompanhamento voltadas ao diálogo com a gestão escolar (e, quando aplicável, com a coordenação pedagógica), ao Projeto Professor Alfabetizador — PPA (quando aplicável ao segmento) e ao mapeamento de boas práticas pedagógicas.
+  const ehFund2 = segmento === 'fundamental2';
 
-Analise o registro abaixo como uma visita de acompanhamento individual, considerando: o diálogo realizado com gestores(as) e, quando houver, com coordenadores(as) pedagógicos(as); a organização e o desenvolvimento do PPA (quando aplicável ao segmento); as boas práticas pedagógicas identificadas e sua intencionalidade educativa; os pontos de atenção nas turmas observadas (especialmente 1ºs e 2ºs anos, quando aplicável); e os encaminhamentos necessários para a próxima visita.
+  // O 2º formulário tem estruturas diferentes por segmento:
+  //  - Fundamental2: diálogo com gestão E com coordenação pedagógica; organização de
+  //    horários do PPA (Projeto Professor Alfabetizador) e seu desenvolvimento no 2º ano;
+  //    boas práticas; pontos de atenção nas turmas de 1ºs e 2ºs anos.
+  //  - Infantil2: diálogo com a gestão; identificação e descrição de práticas pedagógicas
+  //    observadas com intencionalidade educativa (não há PPA nem foco em 1º/2º ano).
+  const papel = ehFund2
+    ? `Você é um assessor técnico-pedagógico da Secretaria Municipal da Educação, responsável por analisar registros de visitas de acompanhamento ao Ensino Fundamental voltadas ao diálogo com a gestão escolar e com a coordenação pedagógica, à organização e ao desenvolvimento do Projeto Professor Alfabetizador (PPA) e ao mapeamento de boas práticas, com atenção às turmas de alfabetização (1ºs e 2ºs anos).`
+    : `Você é um assessor técnico-pedagógico da Secretaria Municipal da Educação, responsável por analisar registros de visitas de acompanhamento à Educação Infantil voltadas ao diálogo com a gestão escolar e à identificação de práticas pedagógicas observadas com intencionalidade educativa (boas práticas docentes).`;
+
+  const foco = ehFund2
+    ? `Analise o registro abaixo como uma visita de acompanhamento individual, considerando: o diálogo realizado com os(as) gestores(as) e com o(a) coordenador(a) pedagógico(a); a organização de horários do PPA e como o projeto está sendo desenvolvido no 2º ano; as boas práticas identificadas e sua intencionalidade educativa; os pontos de atenção nas turmas de 1ºs e 2ºs anos; e as devolutivas/encaminhamentos necessários para a próxima visita.`
+    : `Analise o registro abaixo como uma visita de acompanhamento individual, considerando: o diálogo realizado com o(a) gestor(a); as práticas pedagógicas observadas com intencionalidade educativa e as boas práticas docentes evidenciadas no contexto observado; os pontos de atenção apontados; e as devolutivas pedagógicas/encaminhamentos necessários para a continuidade do processo formativo na próxima visita.`;
+
+  return `${papel}
+
+${foco}
 
 METADADOS DA VISITA:
 {
@@ -579,12 +595,12 @@ Responda exclusivamente em JSON válido, sem markdown, sem comentários e sem qu
 }
 
 CRITÉRIOS PARA PRIORIDADE:
-- alta: diálogo com gestão/coordenação não realizado sem justificativa clara, ou pontos de atenção relevantes nas turmas de alfabetização.
-- média: diálogo parcial ou pontos de atenção pontuais, sem evidência de risco imediato.
+- alta: ${ehFund2 ? 'diálogo com gestão ou coordenação não realizado sem justificativa clara, fragilidades na organização/desenvolvimento do PPA, ou pontos de atenção relevantes nas turmas de 1ºs e 2ºs anos' : 'diálogo com a gestão não realizado sem justificativa clara, ou pontos de atenção relevantes nas práticas pedagógicas observadas'}.
+- média: pontos de atenção pontuais ou diálogo parcial, sem evidência de risco imediato.
 - baixa: diálogo realizado normalmente, boas práticas consistentes ou apenas ajustes pontuais.
 
 CRITÉRIOS PARA RISCO PEDAGÓGICO:
-- alto: evidências de prejuízo direto ou provável à alfabetização ou ao desenvolvimento das turmas de 1ºs e 2ºs anos (quando aplicável).
+- alto: ${ehFund2 ? 'evidências de prejuízo direto ou provável à alfabetização ou ao desenvolvimento das turmas de 1ºs e 2ºs anos' : 'evidências de prejuízo direto ou provável à intencionalidade pedagógica das práticas observadas ou ao desenvolvimento das crianças'}.
 - médio: fragilidades que podem impactar a aprendizagem se não forem acompanhadas.
 - baixo: ausência de indícios relevantes de risco ou presença predominante de boas práticas.`;
 }
@@ -701,18 +717,22 @@ ${JSON.stringify(visitasSerializadas, null, 2)}`;
 }
 
 // ── Análise de Regional ──────────────────────────────────────────
-// payload: { segmento: "fundamental"|"infantil"|"fundamental2"|"infantil2", regional: "Nome da Regional" }
-// Os formulários "2" não perguntam a regional no próprio registro; por isso a filtragem usa a
-// regional direta quando existe (fundamental/infantil) e cai para o mapa oficial escola→regional
-// (mesmo cadastro EMEF/EMEI) quando o registro não a informa (fundamental2/infantil2).
+// payload: { segmento: "fundamental"|"infantil" (base), regional: "Nome da Regional" }
+// A análise regional JUNTA os dois formulários do segmento (ex.: fundamental + fundamental2),
+// tratando-os como um único conjunto de evidências da regional. Os formulários "2" não
+// perguntam a regional no próprio registro; por isso a filtragem usa a regional direta quando
+// existe (fundamental/infantil) e cai para o mapa oficial escola→regional (mesmo cadastro
+// EMEF/EMEI) quando o registro não a informa (fundamental2/infantil2).
 function analisarRegionalComGemini(payload) {
   try {
-    const segmento = payload.segmento;
+    const segBase = (payload.segmento || '').replace(/2$/, ''); // aceita 'fundamental' ou 'fundamental2'
     const regional = payload.regional;
     const dadosCompletos = _getDadosVisitasCacheado();
-    const mapaReg = _mapaRegionalDoSegmento_(segmento, dadosCompletos);
+    const mapaReg = _mapaRegionalDoSegmento_(segBase, dadosCompletos);
 
-    const visitas = (dadosCompletos[segmento] || []).filter(v => {
+    // Junta os dois tipos de visita (base + variante "2") do segmento.
+    const todasVisitas = [].concat(dadosCompletos[segBase] || [], dadosCompletos[segBase + '2'] || []);
+    const visitas = todasVisitas.filter(v => {
       const regDireta = (v[COL_REGIONAL_] || '').toString().trim();
       const regResolvida = regDireta || (mapaReg[v['_ESCOLA_']] || '');
       return regResolvida === regional;
@@ -727,10 +747,7 @@ function analisarRegionalComGemini(payload) {
     const metadados = {
       tipo_analise: "regional",
       regional: regional,
-      segmento: segmento === 'fundamental' ? 'Ensino Fundamental'
-        : segmento === 'infantil' ? 'Educação Infantil'
-        : segmento === 'fundamental2' ? 'Ensino Fundamental — Diálogo/PPA/Boas Práticas'
-        : 'Educação Infantil — Diálogo/Boas Práticas',
+      segmento: segBase === 'fundamental' ? 'Ensino Fundamental' : 'Educação Infantil',
       quantidade_escolas: escolasUnicas.length,
       quantidade_visitas: visitas.length,
       unidades_analisadas: escolasUnicas

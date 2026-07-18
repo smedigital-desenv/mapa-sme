@@ -203,7 +203,7 @@
   <aside id="aside-principal" class="table-container">
     <div class="sel-bar">
       <div class="d-flex flex-column">
-        <span class="sel-bar-titulo"><i class="bi bi-stars text-warning me-1"></i> Análise em Lote IA</span>
+        <span class="sel-bar-titulo"><i class="bi bi-stars text-warning me-1"></i> Devolutivas por IA</span>
         <span id="contadorSel">0 selecionados</span>
       </div>
       <div class="d-flex gap-2">
@@ -211,14 +211,18 @@
         <button class="btn btn-sm btn-outline-danger fw-bold" onclick="limparSelecao()">Limpar</button>
       </div>
       <button class="btn btn-action btn-action-ia w-100 justify-content-center mt-2" id="btnAnalisarLote" onclick="analisarLote()" disabled>
-        <i class="bi bi-cpu"></i> Analisar com IA
+        <i class="bi bi-cpu"></i> Gerar devolutivas (IA)
       </button>
+      <div class="small text-muted mt-1" style="font-size:.68rem;">Gera a devolutiva individual de cada visita marcada.</div>
     </div>
     <div class="mb-3">
       <label class="form-label"><i class="bi bi-map me-1"></i> Regional</label>
       <select id="filtroRegional" class="form-select fw-bold shadow-sm" onchange="filtrar()">
         <option value="">Todas as Regionais</option>
       </select>
+      <button class="btn btn-action btn-action-ia w-100 justify-content-center mt-2" id="btnAnaliseRegional" onclick="analisarRegionalAtual(this)" disabled title="Selecione uma Regional para habilitar">
+        <i class="bi bi-diagram-3-fill me-1"></i> Análise da Regional (IA)
+      </button>
     </div>
     <div class="mb-3">
       <label class="form-label"><i class="bi bi-building-check me-1"></i> Unidade Escolar</label>
@@ -264,6 +268,17 @@
         <input type="text" id="buscaDev" class="form-control fw-bold" placeholder="Escola, regional, data…" oninput="filtrarDevolutivas()" />
       </div>
     </div>
+    <hr class="my-2">
+    <div style="font-weight:900;color:var(--primary);font-size:.9rem;" class="mb-2"><i class="bi bi-diagram-3-fill me-1"></i>Síntese de Rede</div>
+    <div class="small text-muted mb-2" style="font-size:.7rem;">Consolida as análises regionais já salvas do segmento em uma visão de rede.</div>
+    <label class="form-label"><i class="bi bi-layers-half me-1"></i> Segmento</label>
+    <select id="filtroSinteseSegmento" class="form-select fw-bold shadow-sm mb-2">
+      <option value="fundamental">Ensino Fundamental</option>
+      <option value="infantil">Educação Infantil</option>
+    </select>
+    <button class="btn btn-action btn-action-ia w-100 justify-content-center" id="btnSinteseRede" onclick="sintetizarRedeGlobal(this)">
+      <i class="bi bi-stars me-1"></i> Gerar síntese de rede (IA)
+    </button>
   </aside>
 
   <aside id="aside-estatisticas" class="table-container" style="display: none;">
@@ -460,16 +475,21 @@ function carregarDados() {
 }
 
 // ── Função auxiliar para chamar API ──
+// Envia action + parâmetros no CORPO como application/x-www-form-urlencoded.
+// Esse content-type é "simples" (CORS-safelisted), então não dispara preflight
+// OPTIONS, e o Apps Script preenche e.parameter a partir do corpo. Isso permite
+// payloads grandes (uma visita inteira, ou várias visitas de uma regional) que
+// estourariam o limite de tamanho da URL se fossem por query string.
 async function chamarAPI(action, params = {}) {
   try {
-    const url = new URL(API_URL);
-    url.searchParams.append('action', action);
-    Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    const body = new URLSearchParams();
+    body.append('action', action);
+    Object.keys(params).forEach(key => body.append(key, params[key]));
 
-    // text/plain evita o preflight CORS (OPTIONS) que o Apps Script não responde
-    const response = await fetch(url.toString(), {
+    const response = await fetch(API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: body.toString()
     });
 
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -478,6 +498,25 @@ async function chamarAPI(action, params = {}) {
     console.error('Erro ao chamar API:', err);
     throw err;
   }
+}
+
+// ── Chamada unificada (Apps Script embutido OU API externa) → Promise ──
+// gasFn: nome da função no Code.gs; gasArg: argumento posicional.
+// apiAction/apiParams: equivalente para o modo API externa (chamarAPI).
+function _chamarBackend(gasFn, gasArg, apiAction, apiParams) {
+  return new Promise((resolve, reject) => {
+    if (typeof google !== 'undefined' && google.script) {
+      google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[gasFn](gasArg);
+    } else {
+      chamarAPI(apiAction, apiParams).then(resolve).catch(reject);
+    }
+  });
+}
+
+// Data de hoje em dd/MM/yyyy (para carimbar gerações de devolutiva)
+function _hojeBR() {
+  const d = new Date();
+  return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear();
 }
 
 function _dadosMock() {
@@ -612,6 +651,13 @@ function filtrar() {
   const escola = document.getElementById('filtroEscola').value;
   const busca = document.getElementById('busca').value.trim().toLowerCase();
   const badge = document.getElementById('badgeCount');
+
+  // Botão de análise regional só faz sentido com uma Regional selecionada.
+  const btnReg = document.getElementById('btnAnaliseRegional');
+  if (btnReg) {
+    btnReg.disabled = !regional;
+    btnReg.title = regional ? `Analisar a regional "${regional}"` : 'Selecione uma Regional para habilitar';
+  }
 
   filtrados = todos.filter(d => {
     if (regional && (d[COL_REGIONAL]||'').toString().trim() !== regional) return false;
@@ -811,6 +857,7 @@ function _htmlRelatorioVisita(item) {
 
 // ── Modal unificado: Relatório da Visita + Devolutiva (IA) ──
 let _pdfHtmlRel = '', _pdfHtmlDev = '';
+let _modalItem = null; // visita atualmente aberta (p/ o botão de gerar devolutiva)
 
 function abrirModal(item, dev, aba) {
   const temRel = !!item, temDev = !!dev;
@@ -819,6 +866,7 @@ function abrirModal(item, dev, aba) {
   if (aba === 'rel' && !temRel) aba = 'dev';
   if (!aba) aba = temRel ? 'rel' : 'dev';
 
+  _modalItem = item || null;
   const escola = (item && item['_ESCOLA_']) || (dev && dev['Escola']) || '';
   _pdfHtmlRel = temRel ? _htmlRelatorioVisita(item) : '';
   _pdfHtmlDev = temDev ? _htmlDevolutiva(dev) : '';
@@ -840,13 +888,22 @@ function abrirModal(item, dev, aba) {
 
   const optRel = temRel ? `<label class="pdf-opt"><input type="checkbox" id="pdfRel" checked> Relatório</label>` : '';
   const optDev = temDev ? `<label class="pdf-opt"><input type="checkbox" id="pdfDev" checked> Devolutiva</label>` : '';
+  // Botão de IA só para visitas individuais (não faz sentido em cards de rede/regional,
+  // que não têm uma visita única). Rótulo muda se já existe devolutiva.
+  const podeAnalisar = temRel && (!dev || dev._tipo === 'individual' || dev._tipo === undefined);
+  const btnIA = podeAnalisar
+    ? `<button class="btn btn-action btn-action-ia" onclick="analisarVisitaAtual(this)"><i class="bi bi-cpu me-1"></i>${temDev ? 'Regerar devolutiva (IA)' : 'Gerar devolutiva (IA)'}</button>`
+    : '';
   document.getElementById('modalRelatorioFooter').innerHTML = `
     <div class="d-flex align-items-center justify-content-between w-100 flex-wrap gap-2">
       <div class="d-flex align-items-center gap-3 flex-wrap">
         <span style="font-size:.72rem;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;"><i class="bi bi-filetype-pdf me-1"></i>Incluir no PDF:</span>
         ${optRel}${optDev}
       </div>
-      <button class="btn btn-action btn-action-primary" onclick="gerarPdf()"><i class="bi bi-printer-fill me-1"></i>Imprimir / PDF</button>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        ${btnIA}
+        <button class="btn btn-action btn-action-primary" onclick="gerarPdf()"><i class="bi bi-printer-fill me-1"></i>Imprimir / PDF</button>
+      </div>
     </div>`;
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalRelatorio')).show();
@@ -1086,18 +1143,27 @@ function renderCardDevolutiva(dev, i) {
   const d = dev._dados || {};
   const risco = d.risco_pedagogico || {};
   const reg = _regionalDaDev(dev);
-  const sintese = d.sintese_executiva || (d.pontos_fortes && d.pontos_fortes[0]) || '';
+  const t = _tipoDev(dev);
+  const ehRede = dev._tipo === 'rede' || dev._tipo === 'regional' || dev._tipo === 'sintese_global';
+  const titulo = ehRede ? _tituloDevRede(dev) : (dev["Escola"] || '—');
+  const sintese = d.sintese_executiva || d.panorama_geral
+    || (d.pontos_fortes && d.pontos_fortes[0]) || (d.pontos_fortes_rede && d.pontos_fortes_rede[0]) || '';
   const idDev = escapar(dev["ID"] || '');
+  const chipTipo = `<span class="badge" style="background:${t.bg};color:${t.fg};font-size:0.58rem;font-weight:800;flex-shrink:0;"><i class="bi ${t.ic} me-1"></i>${t.txt}</span>`;
+  const meta = [];
+  if (d.quantidade_escolas) meta.push(`${escapar(d.quantidade_escolas)} esc.`);
+  if (d.quantidade_visitas) meta.push(`${escapar(d.quantidade_visitas)} vis.`);
 
   return `
     <div class="card-kpi rel-card" onclick="abrirDevolutivaIdx(${i})">
       <div class="d-flex justify-content-between align-items-start gap-2 border-bottom pb-2 mb-2">
-        <div class="card-title-escola">${escapar(dev["Escola"]||'—')}</div>
-        <span class="badge" style="background:var(--neon-pink);color:#fff;font-size:0.6rem;font-weight:800;flex-shrink:0;"><i class="bi bi-robot me-1"></i>IA</span>
+        <div class="card-title-escola">${escapar(titulo)}</div>
+        ${chipTipo}
       </div>
       <div class="card-meta-info mb-2 d-flex flex-wrap gap-2 align-items-center">
         <span><i class="bi bi-calendar3 me-1"></i>${escapar(dev["Data da Visita"]||'—')}</span>
-        ${reg?`<span class="badge bg-light text-primary border" style="font-size:0.6rem;font-weight:800;"><i class="bi bi-geo-alt me-1"></i>${escapar(reg)}</span>`:''}
+        ${(reg && !ehRede)?`<span class="badge bg-light text-primary border" style="font-size:0.6rem;font-weight:800;"><i class="bi bi-geo-alt me-1"></i>${escapar(reg)}</span>`:''}
+        ${meta.length?`<span class="badge bg-light text-dark border" style="font-size:0.6rem;font-weight:700;">${meta.join(' · ')}</span>`:''}
       </div>
       ${sintese?`<div style="font-size:0.78rem;color:#495057;line-height:1.4;flex-grow:1;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">${escapar(sintese)}</div>`:'<div style="flex-grow:1;"></div>'}
       ${(d.prioridade||risco.nivel)?`<div class="d-flex flex-wrap gap-1 mt-2">${_badgeMini('bi-flag-fill',d.prioridade)}${_badgeMini('bi-shield-exclamation',risco.nivel)}</div>`:''}
@@ -1144,9 +1210,23 @@ function _badgeNivel(valor) {
   return `<span style="background:${bg};color:${fg};font-weight:800;font-size:.68rem;padding:3px 10px;border-radius:999px;">${escapar(valor||'—')}</span>`;
 }
 
+// Converte um item de lista em texto. Aceita string ou objeto (prioridades,
+// boas práticas, disparidades) vindos das análises de rede/regional/síntese.
+function _itemTexto(x) {
+  if (x == null) return '';
+  if (typeof x === 'string') return x;
+  if (typeof x === 'object') {
+    if (x.prioridade) return `${x.prioridade}${x.nivel?` (${x.nivel})`:''}${x.justificativa?` — ${x.justificativa}`:''}${Array.isArray(x.regionais_impactadas)&&x.regionais_impactadas.length?` [${x.regionais_impactadas.join(', ')}]`:''}`;
+    if (x.pratica) return `${x.pratica}${x.regional_origem?` (origem: ${x.regional_origem})`:''}${x.como_replicar?` — replicar: ${x.como_replicar}`:''}${x.impacto_esperado?` — impacto: ${x.impacto_esperado}`:''}`;
+    if (x.desafio_unico) return `${x.regional?x.regional+': ':''}${x.desafio_unico}${x.oportunidade?` — oportunidade: ${x.oportunidade}`:''}`;
+    return JSON.stringify(x);
+  }
+  return String(x);
+}
+
 function _secLista(titulo, icone, cor, itens) {
   if (!itens || !itens.length) return '';
-  const lis = itens.map(t => `<li style="margin-bottom:5px;">${escapar(t)}</li>`).join('');
+  const lis = itens.map(t => `<li style="margin-bottom:5px;">${escapar(_itemTexto(t))}</li>`).join('');
   return `<div style="margin-bottom:16px;">
     <div style="font-size:.8rem;font-weight:800;color:${cor};margin-bottom:6px;"><i class="bi ${icone} me-1"></i>${titulo}</div>
     <ul style="margin:0;padding-left:20px;font-size:.88rem;color:#334155;line-height:1.45;">${lis}</ul>
@@ -1161,8 +1241,28 @@ function _secTexto(titulo, icone, cor, texto) {
   </div>`;
 }
 
+// Rótulo/estilo do tipo de devolutiva (individual x rede x regional x síntese)
+function _tipoDev(dev) {
+  switch (dev && dev._tipo) {
+    case 'regional':       return { txt:'Regional',      ic:'bi-diagram-3-fill', bg:'#ede9fe', fg:'#6d28d9' };
+    case 'rede':           return { txt:'Rede',          ic:'bi-diagram-2-fill', bg:'#e0f2fe', fg:'#0369a1' };
+    case 'sintese_global': return { txt:'Síntese Rede',  ic:'bi-globe',          bg:'#dcfce7', fg:'#15803d' };
+    default:               return { txt:'Individual',    ic:'bi-file-earmark-text', bg:'#f1f5f9', fg:'#475569' };
+  }
+}
+
+// Título curto e legível para cards/modais de rede/regional/síntese
+function _tituloDevRede(dev) {
+  if (dev._tipo === 'regional')       return dev["Regional"] || 'Regional';
+  if (dev._tipo === 'sintese_global') return `Rede — ${_rotuloSegmento(dev["Segmento"]) || 'Geral'}`;
+  return 'Rede (seleção)';
+}
+
 // ── HTML da Devolutiva (reutilizável p/ modal e PDF) ──
 function _htmlDevolutiva(dev) {
+  if (dev && (dev._tipo === 'rede' || dev._tipo === 'regional' || dev._tipo === 'sintese_global')) {
+    return _htmlDevolutivaRede(dev);
+  }
   const d = dev._dados || {};
   const risco = d.risco_pedagogico || {};
   return `
@@ -1188,15 +1288,176 @@ function _htmlDevolutiva(dev) {
     ${_secLista('Foco Formativo Sugerido','bi-mortarboard-fill','#0e7490',d.foco_formativo_sugerido)}`;
 }
 
+// ── HTML da Devolutiva de Rede/Regional/Síntese (reutilizável p/ modal e PDF) ──
+function _htmlDevolutivaRede(dev) {
+  const d = dev._dados || {};
+  const t = _tipoDev(dev);
+  const tipoLabel = dev._tipo === 'regional' ? 'Análise Regional'
+    : dev._tipo === 'sintese_global' ? 'Síntese de Rede Global' : 'Análise de Rede';
+  const titulo = _tituloDevRede(dev);
+  const meta = [];
+  if (d.quantidade_regionais) meta.push(`${escapar(d.quantidade_regionais)} regionais`);
+  if (d.quantidade_escolas)   meta.push(`${escapar(d.quantidade_escolas)} escolas`);
+  if (d.quantidade_visitas)   meta.push(`${escapar(d.quantidade_visitas)} visitas`);
+  const escolas = (dev["_tipo"] !== 'sintese_global') ? (dev["Escola"] || '') : '';
+  return `
+    <div style="border-bottom:3px solid var(--primary);padding-bottom:14px;margin-bottom:18px;">
+      <div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--neon-blue);"><i class="bi ${t.ic} me-1"></i>${tipoLabel} (IA)</div>
+      <div style="font-size:1.15rem;font-weight:800;color:#002b5e;margin-top:4px;">${escapar(titulo)}</div>
+      <div style="font-size:.8rem;color:#64748b;font-weight:600;margin-top:3px;">
+        <i class="bi bi-calendar3 me-1"></i>${escapar(dev["Data da Visita"]||'—')}${meta.length?` &nbsp;·&nbsp; ${meta.join(' · ')}`:''}${dev["Salvo em"]?` &nbsp;·&nbsp; <i class="bi bi-clock-history me-1"></i>Salvo em ${escapar(dev["Salvo em"])}`:''}
+      </div>
+      ${escolas?`<div style="font-size:.72rem;color:#94a3b8;margin-top:6px;line-height:1.4;"><i class="bi bi-building me-1"></i>${escapar(escolas)}</div>`:''}
+    </div>
+    ${_secTexto('Panorama Geral','bi-globe','#002b5e',d.panorama_geral)}
+    ${_secLista('Pontos Fortes da Rede','bi-hand-thumbs-up-fill','#047857',d.pontos_fortes_rede)}
+    ${_secLista('Desafios Comuns','bi-exclamation-triangle-fill','#b45309',d.desafios_comuns)}
+    ${_secLista('Prioridades','bi-flag-fill','#b91c1c',d.prioridades_da_rede)}
+    ${_secLista('Recomendações','bi-arrow-right-circle-fill','#1d4ed8',d.recomendacoes)}
+    ${_secLista('Boas Práticas para Socializar','bi-share-fill','#0e7490',d.boas_praticas_para_socializar)}
+    ${_secLista('Ações Formativas Sugeridas','bi-mortarboard-fill','#7c3aed',d.acoes_formativas_sugeridas)}
+    ${_secLista('Alertas para a Gestão','bi-shield-exclamation','#b91c1c',d.alertas_para_gestao)}
+    ${_secTexto('Síntese Executiva','bi-card-text','#002b5e',d.sintese_executiva)}`;
+}
+
 // ── Impressão ──
 function imprimir() {
   window.print();
 }
 
-// ── Análise em Lote (stub) ──
+// ════════════════════════════════════════════════
+//  Disparo de Análises por IA (Gemini via Apps Script)
+// ════════════════════════════════════════════════
+let _analisando = false;
+
+function _setBtnLoading(btn, loading, textoLoading) {
+  if (!btn) return;
+  if (loading) {
+    if (btn.dataset._idle === undefined) btn.dataset._idle = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> ${textoLoading || 'Analisando…'}`;
+  } else {
+    btn.disabled = false;
+    if (btn.dataset._idle !== undefined) { btn.innerHTML = btn.dataset._idle; delete btn.dataset._idle; }
+  }
+}
+
+// Gera (ou regenera) a devolutiva individual de UMA visita → Promise.
+// A visita é enviada inteira (inclui _SEGMENTO_, usado pelo backend p/ escolher o prompt).
+function _gerarDevolutivaVisita(item) {
+  const seg = item['_SEGMENTO_'] || segmentoAtual;
+  const escola = item['_ESCOLA_'] || '';
+  const dataVisita = item['Data da Visita:'] || item['Data da visita:'] || item['Carimbo de data/hora'] || '';
+  return _chamarBackend('analisarVisitaComGemini', item, 'analisar', { dados: JSON.stringify(item) })
+    .then(res => {
+      if (!res || !res.ok) throw new Error((res && res.erro) || 'Falha na análise');
+      const payload = { segmento: seg, escola: escola, dataVisita: dataVisita, dados: res.dados };
+      return _chamarBackend('salvarDevolutiva', payload, 'salvarDevolutiva', { payload: JSON.stringify(payload) });
+    })
+    .then(res => {
+      if (!res || !res.ok) throw new Error((res && res.erro) || 'Falha ao salvar');
+      return res;
+    });
+}
+
+// Botão dentro do modal da visita: gera/regenera a devolutiva daquela visita.
+function analisarVisitaAtual(btn) {
+  if (_analisando || !_modalItem) return;
+  if (!estaLogado) { mostrarToast('Entre com o Google para gerar análises.'); return; }
+  const item = _modalItem;
+  _analisando = true;
+  _setBtnLoading(btn, true);
+  _gerarDevolutivaVisita(item)
+    .then(() => {
+      mostrarToast('Devolutiva gerada!');
+      devolutivasCarregadas = false;
+      carregarDevolutivas(() => abrirModal(item, _devDoItem(item), 'dev'), true);
+    })
+    .catch(err => { mostrarToast('Erro: ' + (err.message || err)); _setBtnLoading(btn, false); })
+    .finally(() => { _analisando = false; });
+}
+
+// Botão da barra lateral: gera devolutivas individuais para as visitas selecionadas
+// (uma a uma, em sequência — usa apenas a análise individual).
 function analisarLote() {
-  if (selecionados.size === 0) return;
-  mostrarToast('Análise em lote — em breve!');
+  if (_analisando) return;
+  if (!estaLogado) { mostrarToast('Entre com o Google para gerar análises.'); return; }
+  const alvos = [...selecionados].map(i => filtrados[i]).filter(Boolean);
+  if (alvos.length === 0) return;
+  if (!confirm(`Gerar devolutiva por IA para ${alvos.length} visita(s) selecionada(s)?`)) return;
+  _analisando = true;
+  const btn = document.getElementById('btnAnalisarLote');
+  _setBtnLoading(btn, true, '0/' + alvos.length + '…');
+  let ok = 0, falhas = 0, i = 0;
+  const proximo = () => {
+    if (i >= alvos.length) {
+      mostrarToast(`Concluído: ${ok} gerada(s)${falhas ? `, ${falhas} falha(s)` : ''}.`);
+      devolutivasCarregadas = false;
+      carregarDevolutivas(null, true);
+      _analisando = false; _setBtnLoading(btn, false);
+      return;
+    }
+    const item = alvos[i++];
+    if (btn) btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> ${i}/${alvos.length}…`;
+    _gerarDevolutivaVisita(item).then(() => ok++).catch(() => falhas++).finally(proximo);
+  };
+  proximo();
+}
+
+// Botão da barra lateral: análise consolidada de uma Regional (junta os 2 formulários).
+function analisarRegionalAtual(btn) {
+  if (_analisando) return;
+  if (!estaLogado) { mostrarToast('Entre com o Google para gerar análises.'); return; }
+  const regional = document.getElementById('filtroRegional').value;
+  if (!regional) { mostrarToast('Selecione uma Regional no filtro ao lado.'); return; }
+  const seg = segmentoAtual; // base (fundamental|infantil); a lista já junta os 2 tipos
+  const visitasReg = (dadosPorSegmento[seg] || []).filter(v => (v[COL_REGIONAL] || '').toString().trim() === regional);
+  const escolas = [...new Set(visitasReg.map(v => v['_ESCOLA_']).filter(Boolean))].sort();
+  if (!escolas.length) { mostrarToast('Sem visitas nessa regional.'); return; }
+  if (!confirm(`Gerar análise regional de "${regional}"?\n${escolas.length} escola(s), ${visitasReg.length} visita(s) — juntando os 2 formulários.`)) return;
+  _analisando = true;
+  _setBtnLoading(btn, true);
+  const reqPayload = { segmento: seg, regional: regional };
+  _chamarBackend('analisarRegionalComGemini', reqPayload, 'analisarRegional', { payload: JSON.stringify(reqPayload) })
+    .then(res => {
+      if (!res || !res.ok) throw new Error((res && res.erro) || 'Falha na análise regional');
+      const salvar = { segmento: seg, regional: regional, escolas: escolas, dataGeracao: _hojeBR(), dados: res.dados };
+      return _chamarBackend('salvarDevolutivaRegional', salvar, 'salvarDevolutivaRegional', { payload: JSON.stringify(salvar) });
+    })
+    .then(res => {
+      if (!res || !res.ok) throw new Error((res && res.erro) || 'Falha ao salvar');
+      mostrarToast('Análise regional gerada!');
+      devolutivasCarregadas = false;
+      carregarDevolutivas(null, true);
+    })
+    .catch(err => mostrarToast('Erro: ' + (err.message || err)))
+    .finally(() => { _analisando = false; _setBtnLoading(btn, false); });
+}
+
+// Botão da aba Devolutivas: síntese de rede a partir das análises regionais já salvas.
+function sintetizarRedeGlobal(btn) {
+  if (_analisando) return;
+  if (!estaLogado) { mostrarToast('Entre com o Google para gerar análises.'); return; }
+  const selSeg = document.getElementById('filtroSinteseSegmento');
+  const seg = (selSeg && selSeg.value) || 'fundamental';
+  if (!confirm(`Sintetizar a rede de "${seg === 'infantil' ? 'Educação Infantil' : 'Ensino Fundamental'}" a partir das análises regionais já salvas?`)) return;
+  _analisando = true;
+  _setBtnLoading(btn, true);
+  const reqP = { segmento: seg };
+  _chamarBackend('analisarRedeAPartirDeRegionaisComGemini', reqP, 'analisarRedeAPartirDeRegionais', { payload: JSON.stringify(reqP) })
+    .then(res => {
+      if (!res || !res.ok) throw new Error((res && res.erro) || 'Falha na síntese');
+      const salvar = { segmento: seg, dataGeracao: _hojeBR(), dados: res.dados };
+      return _chamarBackend('salvarSinteseRedeGlobal', salvar, 'salvarSinteseRedeGlobal', { payload: JSON.stringify(salvar) });
+    })
+    .then(res => {
+      if (!res || !res.ok) throw new Error((res && res.erro) || 'Falha ao salvar');
+      mostrarToast('Síntese de rede gerada!');
+      devolutivasCarregadas = false;
+      carregarDevolutivas(null, true);
+    })
+    .catch(err => mostrarToast('Erro: ' + (err.message || err)))
+    .finally(() => { _analisando = false; _setBtnLoading(btn, false); });
 }
 
 // ════════════════════════════════════════════════
