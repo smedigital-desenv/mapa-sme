@@ -547,6 +547,9 @@ async function _lerDevolutivasSupabase() {
     "Salvo em": _fmtTimestamp(r.salvo_em),
     "Regional": r.regional || '',
     "_tipo": r.tipo || 'individual',
+    "_modelo": r.modelo || '',          // quem gerou (gemini | claude-…) — p/ comparar versões
+    "_chave": r.chave || '',            // agrupa versões da mesma visita
+    "_salvoEmRaw": r.salvo_em || '',    // timestamp bruto p/ ordenar versões
     "_dados": r.dados || {}
   }));
   return { ok: true, registros };

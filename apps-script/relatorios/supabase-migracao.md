@@ -114,9 +114,16 @@ update relatorios.relatorios_escolas
    set regional = null
  where regional_manual = false and regional is not null and regional = nome;
 
--- ── Devolutivas (geradas por IA) ─────────────────────────────────────────────
+-- ── Devolutivas (geradas por IA) — HISTÓRICO (append-only) ───────────────────
+-- Guardamos VÁRIAS versões por visita para comparar modelos (Gemini x Claude).
+--   chave  = hash determinístico segmento|escola|data (agrupa as versões da MESMA visita)
+--   modelo = quem gerou (gemini | claude-… ) → permite comparar qual ficou melhor
+--   id     = chave || '-' || modelo  → regerar com o MESMO modelo sobrescreve aquela
+--            versão; modelos diferentes coexistem. A tela mostra a mais recente por chave.
 create table if not exists relatorios.relatorios_devolutivas (
-  id            text primary key,            -- mesmo hash do _gerarId (regerar sobrescreve)
+  id            text primary key,            -- chave||'-'||modelo (única por visita+modelo)
+  chave         text,                         -- hash segmento|escola|data (agrupa versões)
+  modelo        text not null default 'gemini', -- gemini | claude-sonnet-5 | ...
   tipo          text not null default 'individual', -- individual | rede | regional | sintese_global
   segmento      text,
   escola        text,
@@ -127,9 +134,14 @@ create table if not exists relatorios.relatorios_devolutivas (
   dados         jsonb not null,              -- payload _dados (o mesmo que o front renderiza)
   atualizado_em timestamptz not null default now()
 );
+-- (idempotente) caso a tabela já exista de uma versão anterior:
+alter table relatorios.relatorios_devolutivas add column if not exists chave  text;
+alter table relatorios.relatorios_devolutivas add column if not exists modelo text not null default 'gemini';
+
 create index if not exists idx_relat_dev_escola   on relatorios.relatorios_devolutivas (escola);
 create index if not exists idx_relat_dev_segmento on relatorios.relatorios_devolutivas (segmento);
 create index if not exists idx_relat_dev_tipo     on relatorios.relatorios_devolutivas (tipo);
+create index if not exists idx_relat_dev_chave    on relatorios.relatorios_devolutivas (chave, salvo_em desc);
 
 create or replace function relatorios.tg_relat_dev_touch()
 returns trigger language plpgsql as $$
@@ -212,7 +224,9 @@ begin
   admin := coalesce((perms#>>'{perfil,is_super_admin}')::boolean, false);
 
   if admin then
-    return query select * from relatorios.relatorios_devolutivas;
+    return query
+      select * from relatorios.relatorios_devolutivas d
+      order by d.chave, d.salvo_em desc;      -- mais recente primeiro por visita
     return;
   end if;
 
@@ -223,7 +237,8 @@ begin
   return query
     select * from relatorios.relatorios_devolutivas d
     where d.tipo = 'individual'
-      and d.escola = any(coalesce(escolas, array[]::text[]));
+      and d.escola = any(coalesce(escolas, array[]::text[]))
+    order by d.chave, d.salvo_em desc;
 end $$;
 
 -- Cadastro oficial de escolas (dado de referência; qualquer autenticado pode ler).
