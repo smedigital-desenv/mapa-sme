@@ -1360,26 +1360,49 @@ function analisarVisitaAtual(btn) {
     .finally(() => { _analisando = false; });
 }
 
+// Devolutiva "desatualizada": a visita tem alguma data (data da visita ou carimbo do
+// formulário) POSTERIOR à data em que a análise foi salva ("Salvo em"). Ou seja, a visita
+// mudou/foi (re)enviada depois da análise — nesse caso a devolutiva NÃO deve ser pulada
+// no lote, e sim regerada.
+function _devDesatualizada(item, dev) {
+  const salvoEm = _parseData(dev && dev["Salvo em"]);
+  if (!salvoEm) return false; // sem data de análise → não força regeração
+  const cands = [
+    _parseData(item["Data da Visita:"] || item["Data da visita:"]),
+    _parseData(item["Carimbo de data/hora"])
+  ].filter(Boolean).map(d => d.getTime());
+  if (!cands.length) return false;
+  return Math.max.apply(null, cands) > salvoEm.getTime();
+}
+
+// Uma visita precisa de análise no lote se não tem devolutiva OU a devolutiva está
+// desatualizada (visita com data posterior à data da análise).
+function _precisaAnalise(item) {
+  const dev = _devDoItem(item);
+  return !dev || _devDesatualizada(item, dev);
+}
+
 // Botão da barra lateral: gera devolutivas individuais para as visitas selecionadas
-// (uma a uma, em sequência). "Lote inteligente": pula as que já têm devolutiva.
+// (uma a uma, em sequência). "Lote inteligente": pula as que já têm devolutiva ATUALIZADA;
+// regera as que não têm devolutiva ou cuja visita mudou depois da análise.
 function analisarLote() {
   if (_analisando) return;
   const alvos = [...selecionados].map(i => filtrados[i]).filter(Boolean);
   if (alvos.length === 0) return;
-  const semDev = alvos.filter(it => !_devDoItem(it));
-  const comDev = alvos.length - semDev.length;
+  const aGerar = alvos.filter(_precisaAnalise);
+  const pulados = alvos.length - aGerar.length;
 
   let fila;
-  if (semDev.length === 0) {
-    // Todas já têm devolutiva → só faz sentido regerar (com confirmação explícita).
-    if (!confirm(`Todas as ${alvos.length} visita(s) selecionada(s) já têm devolutiva.\nRegerar todas?`)) return;
+  if (aGerar.length === 0) {
+    // Todas já têm devolutiva atualizada → só faz sentido regerar (com confirmação explícita).
+    if (!confirm(`Todas as ${alvos.length} visita(s) selecionada(s) já têm devolutiva atualizada.\nRegerar todas mesmo assim?`)) return;
     fila = alvos;
   } else {
-    const msg = comDev > 0
-      ? `Gerar devolutiva por IA para ${semDev.length} visita(s).\n(${comDev} já têm devolutiva e serão puladas.)`
-      : `Gerar devolutiva por IA para ${semDev.length} visita(s) selecionada(s)?`;
+    const msg = pulados > 0
+      ? `Gerar devolutiva por IA para ${aGerar.length} visita(s).\n(${pulados} já têm devolutiva atualizada e serão puladas.)`
+      : `Gerar devolutiva por IA para ${aGerar.length} visita(s) selecionada(s)?`;
     if (!confirm(msg)) return;
-    fila = semDev;
+    fila = aGerar;
   }
   _processarLote(fila);
 }
