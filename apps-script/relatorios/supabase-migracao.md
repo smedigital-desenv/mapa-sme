@@ -89,14 +89,30 @@ create trigger trg_relat_visitas_touch
   before update on relatorios.relatorios_visitas
   for each row execute function relatorios.tg_relat_visitas_touch();
 
--- ── Cadastro oficial de escolas (EMEF/EMEI) → cobertura nas Estatísticas ──────
--- Espelha as abas EMEF/EMEI da planilha (nome + regional). Lido via RPC relat_escolas().
+-- ── Cadastro de escolas + regional (fonte da verdade, editável no relatorios.html) ──
+-- Lista de escolas (abas EMEF/EMEI, col A) com a regional. A regional é preenchida pelo
+-- sync a partir das RESPOSTAS dos formulários base (o que a escola marcou), e pode ser
+-- corrigida à mão na aba Estatísticas do relatorios.html — nesse caso regional_manual =
+-- true e o sync deixa de sobrescrevê-la. Lido via RPC relat_escolas().
 create table if not exists relatorios.relatorios_escolas (
-  segmento text not null,                     -- fundamental | infantil (base)
-  nome     text not null,
-  regional text,
+  segmento        text not null,              -- fundamental | infantil (base)
+  nome            text not null,
+  regional        text,
+  regional_manual boolean not null default false,  -- true = editada à mão, sync não mexe
+  atualizado_em   timestamptz not null default now(),
   primary key (segmento, nome)
 );
+-- (idempotente) colunas novas caso a tabela já exista de uma versão anterior:
+alter table relatorios.relatorios_escolas
+  add column if not exists regional_manual boolean not null default false;
+alter table relatorios.relatorios_escolas
+  add column if not exists atualizado_em timestamptz not null default now();
+
+-- Conserta o dado legado: onde a regional ficou igual ao nome da escola (bug da col B),
+-- zera para o sync repreencher a partir da fonte autoritativa (respostas dos formulários).
+update relatorios.relatorios_escolas
+   set regional = null
+ where regional_manual = false and regional is not null and regional = nome;
 
 -- ── Devolutivas (geradas por IA) ─────────────────────────────────────────────
 create table if not exists relatorios.relatorios_devolutivas (
@@ -220,6 +236,69 @@ $$;
 grant execute on function public.relat_visitas(text)  to authenticated;
 grant execute on function public.relat_devolutivas()  to authenticated;
 grant execute on function public.relat_escolas()      to authenticated;
+```
+
+### 4.1. Editar a regional de uma escola (admin) e sincronizar o cadastro
+
+Duas funções de escrita em `relatorios_escolas`:
+
+- **`relat_set_regional`** — chamada pelo `relatorios.html` quando um super admin corrige a
+  regional de uma escola. Marca `regional_manual = true`, então o sync deixa de sobrescrever.
+- **`relat_sync_escolas`** — chamada pelo `visitas-sync.gs` (service_role). Insere as escolas
+  do cadastro e preenche a regional a partir das respostas dos formulários, **sem tocar** nas
+  regionais editadas à mão (`regional_manual = true`).
+
+```sql
+-- Edição manual da regional (super admin). Congela o valor contra o sync.
+create or replace function public.relat_set_regional(
+  p_segmento text, p_nome text, p_regional text
+) returns jsonb
+language plpgsql security definer set search_path = relatorios, public as $$
+declare perms jsonb;
+begin
+  perms := to_jsonb(public.minhas_permissoes());
+  if not coalesce((perms#>>'{perfil,is_super_admin}')::boolean, false) then
+    raise exception 'nao autorizado';
+  end if;
+  insert into relatorios.relatorios_escolas (segmento, nome, regional, regional_manual, atualizado_em)
+  values (p_segmento, btrim(p_nome), nullif(btrim(p_regional), ''), true, now())
+  on conflict (segmento, nome) do update
+    set regional = excluded.regional, regional_manual = true, atualizado_em = now();
+  return jsonb_build_object('ok', true, 'segmento', p_segmento, 'nome', btrim(p_nome),
+                            'regional', nullif(btrim(p_regional), ''));
+end $$;
+
+-- Sync do cadastro (service_role). Preenche/atualiza regionais NÃO manuais; nunca
+-- apaga uma regional já conhecida com um valor nulo (coalesce mantém o que existe).
+create or replace function public.relat_sync_escolas(p_rows jsonb)
+returns integer
+language plpgsql security definer set search_path = relatorios, public as $$
+declare n integer;
+begin
+  with dados as (
+    select x->>'segmento' as segmento,
+           btrim(x->>'nome') as nome,
+           nullif(btrim(x->>'regional'), '') as regional
+    from jsonb_array_elements(coalesce(p_rows, '[]'::jsonb)) x
+    where btrim(coalesce(x->>'nome','')) <> ''
+  ), upi as (
+    insert into relatorios.relatorios_escolas (segmento, nome, regional, regional_manual, atualizado_em)
+    select segmento, nome, regional, false, now() from dados
+    on conflict (segmento, nome) do update
+      set regional = case when relatorios_escolas.regional_manual
+                          then relatorios_escolas.regional                      -- manual vence
+                          else coalesce(excluded.regional, relatorios_escolas.regional) end,
+          atualizado_em = now()
+    returning 1
+  )
+  select count(*) into n from upi;
+  return n;
+end $$;
+
+grant execute on function public.relat_set_regional(text, text, text) to authenticated;
+-- relat_sync_escolas é só para o sync (service_role já ignora o RLS e tem execute por padrão);
+-- fecha para os demais papéis:
+revoke execute on function public.relat_sync_escolas(jsonb) from public, anon, authenticated;
 ```
 
 ---

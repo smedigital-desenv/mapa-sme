@@ -57,8 +57,8 @@ A planilha do Google Sheets deve ter as seguintes abas:
 
 | Aba | Coluna A | Coluna B | Descrição |
 |-----|----------|----------|-----------|
-| **EMEF** | Nome da Escola | Regional | Cadastro de escolas Fundamental |
-| **EMEI** | Nome da Escola | Regional | Cadastro de escolas Infantil |
+| **EMEF** | Nome da Escola | (ignorada) | Lista de escolas Fundamental |
+| **EMEI** | Nome da Escola | (ignorada) | Lista de escolas Infantil |
 | **Fundamental** | (dados de visita) | - | Visitas pedagógicas EMEF |
 | **Infantil** | (dados de visita) | - | Visitas pedagógicas EMEI |
 | **Fundamental2** | (dados de visita) | - | Visitas EMEF de diálogo/PPA/boas práticas (2º formulário) |
@@ -71,9 +71,16 @@ A planilha do Google Sheets deve ter as seguintes abas:
 
 Em `Fundamental2`/`Infantil2` a escola visitada também fica na coluna F (índice 5, igual
 às abas originais) — apenas as perguntas seguintes mudam. Como esses formulários não
-perguntam a regional da escola, ela é resolvida em tempo de leitura a partir do cadastro
-oficial (`EMEF`/`EMEI`, coluna B), usando o mesmo mapa escola → regional das visitas
-pedagógicas originais.
+perguntam a regional da escola, ela é resolvida em tempo de leitura a partir das
+**respostas dos formulários base** (`Fundamental`/`Infantil`), onde a própria escola
+marcou a regional no campo "Marque a Regional...". Esse é o mapa escola → regional
+autoritativo; a coluna B das abas `EMEF`/`EMEI` **não** é usada para regional.
+
+A regional de cada escola vive na tabela `relatorios.relatorios_escolas` (Supabase) e
+pode ser **corrigida à mão** na aba Estatísticas do `relatorios.html` (super admin,
+ícone de lápis na coluna Regional). Uma regional editada à mão é marcada como manual e o
+sync deixa de sobrescrevê-la; as demais continuam sendo preenchidas automaticamente a
+partir das respostas.
 
 ## 🎯 Funções Principais
 
@@ -106,7 +113,7 @@ autenticarUsuario()                     // Verifica e-mail + admin
 analisarVisitaComGemini(dados)          // Análise individual com IA — escolhe o roteiro de prompt
                                          // (pedagógico ou diálogo/PPA/boas práticas) pelo segmento
 analisarRedeComGemini(payload)          // Análise de um conjunto de escolas (seleção manual)
-analisarRegionalComGemini(payload)      // Análise de uma regional (resolve regional via cadastro oficial)
+analisarRegionalComGemini(payload)      // Análise de uma regional (regional vem do mapa escola→regional)
 analisarRedeAPartirDeRegionaisComGemini(payload) // Síntese de rede a partir de análises regionais salvas
 salvarDevolutiva(payload)               // Persiste devolutiva individual
 salvarDevolutivaRede(payload)           // Persiste devolutiva de rede

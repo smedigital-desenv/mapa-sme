@@ -130,27 +130,32 @@ function _sincronizar() {
   // Cadastro oficial (EMEF/EMEI) → relatorios_escolas: dá a cobertura de escolas
   // "sem visita" nas Estatísticas. Falha aqui não impede o sync das visitas.
   var escolas = 0;
-  try { escolas = _sincronizarCadastro(ss); }
+  try { escolas = _sincronizarCadastro(ss, mapaReg); }
   catch (e) { erros.push('cadastro escolas: ' + e.message); }
 
   return { total: total, porSegmento: porSegmento, escolas: escolas, erros: erros };
 }
 
-// Espelha as abas EMEF/EMEI (col A = escola, col B = regional) em relatorios_escolas.
-function _sincronizarCadastro(ss) {
+// Espelha a lista de escolas (abas EMEF/EMEI, col A) em relatorios_escolas, com a
+// regional resolvida a partir das RESPOSTAS dos formulários base (fonte autoritativa —
+// é a regional que a própria escola marcou no formulário). A coluna B das abas de
+// cadastro NÃO é usada para regional (na planilha ela repete o nome da escola).
+// A gravação é feita pela RPC relat_sync_escolas, que preserva regionais editadas à
+// mão no relatorios.html (regional_manual = true) e só preenche/atualiza as demais.
+function _sincronizarCadastro(ss, mapaReg) {
   var registros = [];
   for (var base in ABA_CADASTRO) {
     var aba = ss.getSheetByName(ABA_CADASTRO[base]);
     if (!aba || aba.getLastRow() < 2) continue;
-    var vals = aba.getRange(2, 1, aba.getLastRow() - 1, 2).getValues();
-    for (var i = 0; i < vals.length; i++) {
-      var nome = vals[i][0] ? String(vals[i][0]).trim() : '';
-      var reg  = vals[i][1] ? String(vals[i][1]).trim() : '';
+    var nomes = aba.getRange(2, 1, aba.getLastRow() - 1, 1).getValues();
+    var mapaBase = mapaReg[base] || {};
+    for (var i = 0; i < nomes.length; i++) {
+      var nome = nomes[i][0] ? String(nomes[i][0]).trim() : '';
       if (!nome) continue;
-      registros.push({ segmento: base, nome: nome, regional: reg || null });
+      registros.push({ segmento: base, nome: nome, regional: mapaBase[nome] || null });
     }
   }
-  _upsert(TABELA_ESCOLAS, registros, ['segmento', 'nome']);
+  _rpc('relat_sync_escolas', { p_rows: registros });
   return registros.length;
 }
 
@@ -182,13 +187,16 @@ function _lerAbaVisitas(ss, nomeAba, segmento, mapaReg) {
     d['_ESCOLA_']   = escola;
     d['_SEGMENTO_'] = segmento;
 
-    // Regional: direta (se houver) ou resolvida pelo cadastro oficial.
+    // Regional: direta da resposta (formulário base) ou resolvida pelo mapa
+    // escola → regional (formulários "2" não perguntam a regional). Nunca deixa a
+    // regional virar o nome da escola (guarda contra dado inconsistente na planilha).
     var regional = String(d[COL_REGIONAL] || '').trim();
+    if (regional === escola) regional = '';
     if (!regional) {
       var base = segmento.replace(/2$/, '');
       regional = (mapaReg[base] || {})[escola] || '';
-      if (regional) d[COL_REGIONAL] = regional;
     }
+    if (regional) d[COL_REGIONAL] = regional; else delete d[COL_REGIONAL];
 
     var carimbo   = _paraData(linha[cab.indexOf('Carimbo de data/hora')]);
     var dataVisitaStr = d['Data da Visita:'] || d['Data da visita:'] || d['Carimbo de data/hora'] || '';
@@ -211,18 +219,26 @@ function _lerAbaVisitas(ss, nomeAba, segmento, mapaReg) {
   return out;
 }
 
-// Mapa escola → regional a partir das abas EMEF/EMEI (col A escola, col B regional).
+// Mapa escola → regional montado a partir das RESPOSTAS dos formulários base
+// (abas Fundamental/Infantil): a coluna "Marque a Regional..." traz a regional que a
+// própria escola marcou — fonte autoritativa. É esse mapa que preenche a regional das
+// visitas dos formulários "2" (que não perguntam a regional) e o cadastro de escolas.
+// A coluna B das abas EMEF/EMEI não é usada (na planilha ela repete o nome da escola).
 function _carregarMapaRegional(ss) {
-  var mapa = {};
-  for (var base in ABA_CADASTRO) {
-    mapa[base] = {};
-    var aba = ss.getSheetByName(ABA_CADASTRO[base]);
+  var mapa = { fundamental: {}, infantil: {} };
+  var ABAS_BASE = { Fundamental: 'fundamental', Infantil: 'infantil' };
+  for (var nomeAba in ABAS_BASE) {
+    var base = ABAS_BASE[nomeAba];
+    var aba = ss.getSheetByName(nomeAba);
     if (!aba || aba.getLastRow() < 2) continue;
-    var vals = aba.getRange(2, 1, aba.getLastRow() - 1, 2).getValues();
-    for (var i = 0; i < vals.length; i++) {
-      var esc = vals[i][0] ? String(vals[i][0]).trim() : '';
-      var reg = vals[i][1] ? String(vals[i][1]).trim() : '';
-      if (esc && reg) mapa[base][esc] = reg;
+    var dados = aba.getDataRange().getValues();
+    var cab = dados[0].map(function (c) { return String(c).trim(); });
+    var iReg = cab.indexOf(COL_REGIONAL);
+    if (iReg < 0) continue;
+    for (var i = 1; i < dados.length; i++) {
+      var esc = dados[i][5] ? String(dados[i][5]).trim() : '';   // coluna F
+      var reg = dados[i][iReg] ? String(dados[i][iReg]).trim() : '';
+      if (esc && reg && reg !== esc) mapa[base][esc] = reg;       // nunca escola como regional
     }
   }
   return mapa;
@@ -272,6 +288,22 @@ function _upsert(tabela, registros, onConflict) {
       throw new Error(tabela + ' → ' + cod + ': ' + resp.getContentText());
     }
   }
+}
+
+// Chama uma RPC (função em public). Usada para o cadastro de escolas, cuja gravação
+// tem lógica (preservar regionais editadas à mão), logo não é um upsert cru.
+function _rpc(fn, args) {
+  var key = _serviceKey();
+  var resp = UrlFetchApp.fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { apikey: key, Authorization: 'Bearer ' + key },  // RPC em public → sem Content-Profile
+    payload: JSON.stringify(args || {}),
+    muteHttpExceptions: true
+  });
+  var cod = resp.getResponseCode();
+  if (cod < 200 || cod >= 300) throw new Error('rpc ' + fn + ' → ' + cod + ': ' + resp.getContentText());
+  return resp.getContentText();
 }
 
 // ── Diagnóstico / util ─────────────────────────────────────────────────────

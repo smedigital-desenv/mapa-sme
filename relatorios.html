@@ -1652,7 +1652,7 @@ function _construirCobertura(segs) {
       const reg = mapaReg[escola] || (vs[0] && (vs[0][COL_REGIONAL]||'').toString().trim()) || '—';
       const temDev = vs.some(v => mapaDevolutivas.has(_chaveDev(v['_SEGMENTO_']||seg, escola, v['Data da Visita:']||v['Data da visita:']||'')));
       linhas.push({
-        escola, regional: reg, segmento: seg==='fundamental'?'Fundamental':'Infantil',
+        escola, regional: reg, segKey: seg, segmento: seg==='fundamental'?'Fundamental':'Infantil',
         nVisitas: vs.length, ultima, temDev
       });
     });
@@ -1785,7 +1785,7 @@ function _htmlTabelaCob(lista) {
   const linhasHtml = lista.map(l => `
     <tr>
       <td style="font-weight:700;color:#1e293b;">${escapar(l.escola)}</td>
-      <td>${escapar(l.regional)}</td>
+      <td>${escapar(l.regional)}${isAdmin ? ` <i class="bi bi-pencil-square" title="Editar regional (admin)" style="cursor:pointer;color:#6d28d9;margin-left:6px;" data-seg="${escapar(l.segKey)}" data-escola="${escapar(l.escola)}" data-reg="${escapar(l.regional==='—'?'':l.regional)}" onclick="editarRegional(this)"></i>` : ''}</td>
       <td>${escapar(l.segmento)}</td>
       <td class="text-center">${l.nVisitas}</td>
       <td>${_fmtData(l.ultima)}</td>
@@ -1816,6 +1816,33 @@ function _htmlTabelaCob(lista) {
 function _refreshTabelaCob() {
   const cont = document.getElementById('cob-tabela');
   if (cont) cont.innerHTML = _htmlTabelaCob(_listaTabela());
+}
+
+// Edição da regional de uma escola (super admin). Grava em relatorios_escolas via RPC
+// (marca regional_manual=true → o sync não sobrescreve). Atualiza o mapa em memória e
+// re-renderiza as Estatísticas.
+async function editarRegional(el) {
+  if (!isAdmin || !window.MAPA_SB) return;
+  const segKey = el.dataset.seg, escola = el.dataset.escola, atual = el.dataset.reg || '';
+  const conhecidas = [...new Set(
+    Object.values(mapaRegionalOficial).flatMap(m => Object.values(m || {}))
+  )].filter(Boolean).sort();
+  const dica = conhecidas.length ? '\n\nRegionais já em uso:\n• ' + conhecidas.join('\n• ') : '';
+  const nova = prompt(`Regional de "${escola}"\n(vazio remove a regional):${dica}`, atual);
+  if (nova === null) return;                 // cancelou
+  const val = nova.trim();
+  try {
+    const { error } = await window.MAPA_SB.rpc('relat_set_regional',
+      { p_segmento: segKey, p_nome: escola, p_regional: val });
+    if (error) throw error;
+    mapaRegionalOficial[segKey] = mapaRegionalOficial[segKey] || {};
+    if (val) mapaRegionalOficial[segKey][escola] = val;
+    else delete mapaRegionalOficial[segKey][escola];
+    mostrarToast('Regional atualizada.');
+    renderEstatisticas();
+  } catch (e) {
+    mostrarToast('Falha ao salvar: ' + (e.message || e));
+  }
 }
 
 function verTodasFreq() { filtrarKpi(null); }
