@@ -27,3 +27,12 @@ node_modules/
 *.sql
 *.csv
 *.dump
+
+# Segredos locais (service_role, chaves) — NUNCA no repo.
+.env
+*.env
+!*.env.example
+
+# Dados exportados/gerados da rotina local de devolutivas (dados pessoais).
+tools/relatorios/visitas-*.json
+tools/relatorios/devolutivas-*.json
