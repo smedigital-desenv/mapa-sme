@@ -74,6 +74,16 @@ create trigger trg_relat_visitas_touch
   before update on public.relatorios_visitas
   for each row execute function public.tg_relat_visitas_touch();
 
+-- ── Cadastro oficial de escolas (EMEF/EMEI) → cobertura nas Estatísticas ──────
+-- Espelha as abas EMEF/EMEI da planilha (nome + regional). É dado de referência
+-- (não sensível), então pode ser lido direto por usuários autenticados.
+create table if not exists public.relatorios_escolas (
+  segmento text not null,                     -- fundamental | infantil (base)
+  nome     text not null,
+  regional text,
+  primary key (segmento, nome)
+);
+
 -- ── Devolutivas (geradas por IA) ─────────────────────────────────────────────
 create table if not exists public.relatorios_devolutivas (
   id            text primary key,            -- mesmo hash do _gerarId (regerar sobrescreve)
@@ -194,6 +204,13 @@ também ignora o RLS.
 alter table public.relatorios_visitas     enable row level security;
 alter table public.relatorios_devolutivas enable row level security;
 -- Sem policy de SELECT/INSERT para 'authenticated' → leitura só via RPC, escrita só via service_role.
+
+-- Cadastro de escolas: dado de referência (não sensível) → leitura direta liberada,
+-- espelhando a tabela `escolas` que o resto do MAPA já lê com .from(...).
+alter table public.relatorios_escolas enable row level security;
+drop policy if exists relat_escolas_leitura on public.relatorios_escolas;
+create policy relat_escolas_leitura on public.relatorios_escolas
+  for select to authenticated using (true);
 ```
 
 > Se algum dia o front precisar ler a tabela **direto** (sem RPC), aí sim crie uma
@@ -219,18 +236,29 @@ intervenção. Respostas editadas atualizam a mesma linha (mesmo `visita_uid`).
 
 ---
 
-## 7. Próximo passo — leitura do front pelo Supabase
+## 7. Leitura do front pelo Supabase (já preparado, atrás de um flag)
 
-Depois que os dados estiverem fluindo, o `relatorios.html` troca a origem de leitura
-(hoje Apps Script) por Supabase, reaproveitando o cliente global (`window.MAPA_SB` /
-`auth.js`):
+O `relatorios.html` já tem a camada de leitura pelo Supabase escrita, **desligada por
+padrão** por um flag no topo do `<script>`:
 
-- `getDadosCompletos` → `MAPA_SB.rpc('relat_visitas', { p_segmento })`; cada linha usa
-  `row.dados` como o item (o `dados` jsonb já é o objeto que o front consome hoje).
-- `lerDevolutivas` → `MAPA_SB.rpc('relat_devolutivas')`; cada linha vira
-  `{ ID:id, Escola:escola, Segmento:segmento, "Data da Visita":data_visita, "Salvo em":…, _tipo:tipo, _dados:dados }`.
+```js
+const FONTE_DADOS = 'appsscript'; // troque para 'supabase' após aplicar o SQL e rodar o sync
+```
 
-O RLS já garante o isolamento por escola no servidor (hoje é feito no cliente).
+Enquanto `'appsscript'`, nada muda (segue lendo do Apps Script). Ao trocar para
+`'supabase'`, o front passa a ler do banco, reaproveitando o cliente global
+(`window.MAPA_SB` / `auth.js`):
+
+- **Visitas** → `MAPA_SB.rpc('relat_visitas')`; cada linha usa `row.dados` como o item
+  (o `dados` jsonb já é o objeto que o front consome hoje). As escolas oficiais e o
+  mapa regional vêm de `MAPA_SB.from('relatorios_escolas')`.
+- **Devolutivas** → `MAPA_SB.rpc('relat_devolutivas')`; cada linha vira
+  `{ ID, Escola, Segmento, "Data da Visita", "Salvo em", _tipo, _dados }`.
+
+O RLS garante o isolamento por escola **no servidor** (hoje é feito no cliente).
+
+**Para virar a chave:** aplique o SQL (seções 3–5), rode o sync (seção 6), confirme os
+dados, e então troque `FONTE_DADOS` para `'supabase'`.
 
 ---
 

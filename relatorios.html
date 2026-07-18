@@ -443,9 +443,25 @@ function mudarSecao(sec) {
 // ── URL da API (Google Apps Script) ──
 const API_URL = 'https://script.google.com/macros/s/AKfycbydArqsFE8fCijWuc_st3Kd3jbQaUWRyEnQja-Nh2dOaKueuV_jX0iaDyToMKRXjKHO/exec';
 
+// ── Origem dos dados ──
+// 'appsscript' (padrão): lê do Google Apps Script/Planilhas, como sempre.
+// 'supabase': lê do Supabase (RPCs relat_visitas/relat_devolutivas + relatorios_escolas),
+//   com isolamento por escola no servidor (RLS). Trocar só após aplicar o SQL e rodar o
+//   sync (ver apps-script/relatorios/supabase-migracao.md).
+const FONTE_DADOS = 'appsscript';
+
 // ── Carregamento ──
 function carregarDados() {
   document.getElementById('main').innerHTML = '<div class="spinner-wrapper"><div class="spinner-border text-primary" role="status" style="width:3rem;height:3rem;"></div></div>';
+
+  // Origem Supabase (quando ligada e o cliente global estiver pronto)
+  if (FONTE_DADOS === 'supabase' && window.MAPA_SB) {
+    _carregarDadosSupabase().catch(err => {
+      console.error('Falha ao carregar do Supabase:', err);
+      onErro(err);
+    });
+    return;
+  }
 
   // Detecta se está rodando em Google Apps Script ou como arquivo estático
   if (typeof google !== 'undefined' && google.script) {
@@ -467,6 +483,73 @@ function carregarDados() {
         onDados(_dadosMock());
       });
   }
+}
+
+// ── Leitura via Supabase ───────────────────────────────────────────────────
+// Monta o mesmo formato que onDados() já espera, reaproveitando toda a lógica
+// (tag de _SEGMENTO_, merge base+"2", filtros, cobertura). O RLS já filtra por
+// escola no servidor, então não é preciso o isolamento no cliente aqui.
+async function _carregarDadosSupabase() {
+  const SB = window.MAPA_SB;
+  const [visitasRes, escolasRes] = await Promise.all([
+    SB.rpc('relat_visitas', {}),
+    SB.from('relatorios_escolas').select('segmento,nome,regional')
+  ]);
+  if (visitasRes.error) throw visitasRes.error;
+
+  const res = {
+    fundamental: [], infantil: [], fundamental2: [], infantil2: [],
+    escolasEMEF: [], escolasEMEI: [], regionalMapEMEF: {}, regionalMapEMEI: {}
+  };
+
+  (visitasRes.data || []).forEach(v => {
+    const item = v.dados || {};
+    if (!item['_SEGMENTO_']) item['_SEGMENTO_'] = v.segmento;
+    if (!item['_ESCOLA_'])   item['_ESCOLA_']   = v.escola;
+    (res[v.segmento] = res[v.segmento] || []).push(item);
+  });
+
+  // Cadastro oficial → cobertura (escolas sem visita). Se a tabela não existir/estiver
+  // vazia, o front cai para o universo das escolas que aparecem nas visitas.
+  if (!escolasRes.error) {
+    (escolasRes.data || []).forEach(e => {
+      if (e.segmento === 'fundamental') {
+        res.escolasEMEF.push(e.nome);
+        if (e.regional) res.regionalMapEMEF[e.nome] = e.regional;
+      } else if (e.segmento === 'infantil') {
+        res.escolasEMEI.push(e.nome);
+        if (e.regional) res.regionalMapEMEI[e.nome] = e.regional;
+      }
+    });
+  }
+
+  onDados(res); // identidade/admin vêm do MapaAuth via _sincronizarAuthGlobal()
+}
+
+// Converte "Salvo em" (timestamptz ISO do Supabase) para dd/MM/yyyy HH:mm.
+function _fmtTimestamp(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return String(iso);
+  const p = n => ('0' + n).slice(-2);
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// Lê devolutivas do Supabase e devolve no mesmo formato de lerDevolutivas().
+async function _lerDevolutivasSupabase() {
+  const { data, error } = await window.MAPA_SB.rpc('relat_devolutivas', {});
+  if (error) throw error;
+  const registros = (data || []).map(r => ({
+    "ID": r.id || '',
+    "Escola": r.escola || '',
+    "Segmento": r.segmento || '',
+    "Data da Visita": r.data_visita || '',
+    "Salvo em": _fmtTimestamp(r.salvo_em),
+    "Regional": r.regional || '',
+    "_tipo": r.tipo || 'individual',
+    "_dados": r.dados || {}
+  }));
+  return { ok: true, registros };
 }
 
 // ── Função auxiliar para chamar API ──
@@ -993,7 +1076,12 @@ function carregarDevolutivas(cb, forcar) {
     if (cb) cb();
   };
 
-  if (typeof google !== 'undefined' && google.script) {
+  if (FONTE_DADOS === 'supabase' && window.MAPA_SB) {
+    // Origem Supabase (RLS filtra por escola no servidor)
+    _lerDevolutivasSupabase()
+      .then(onSucesso)
+      .catch(err => { console.error('Falha ao ler devolutivas do Supabase:', err); onSucesso({ ok: true, registros: [] }); });
+  } else if (typeof google !== 'undefined' && google.script) {
     // Modo Google Apps Script
     google.script.run.withSuccessHandler(onSucesso).lerDevolutivas();
   } else {

@@ -32,10 +32,11 @@
  */
 
 // ── Config ────────────────────────────────────────────────────────────────
-var SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
-var TABELA       = 'relatorios_visitas';
-var LOTE         = 500;
-var FREQ_HORAS   = 1;    // frequência da rotina automática (horas)
+var SUPABASE_URL   = 'https://gmwotfulohkmuqrezeef.supabase.co';
+var TABELA         = 'relatorios_visitas';
+var TABELA_ESCOLAS = 'relatorios_escolas';   // cadastro oficial (EMEF/EMEI) → cobertura
+var LOTE           = 500;
+var FREQ_HORAS     = 1;    // frequência da rotina automática (horas)
 
 // Abas de respostas → segmento. A coluna F (índice 5) traz a escola em todas.
 var ABAS_SEGMENTO = {
@@ -101,6 +102,7 @@ function sincronizarVisitasMenu() {
   var linhas = ['✅ Sincronização concluída.\n'];
   for (var seg in r.porSegmento) linhas.push('  • ' + seg + ': ' + r.porSegmento[seg] + ' visita(s)');
   linhas.push('\nTotal enviado (upsert): ' + r.total + ' visita(s).');
+  linhas.push('Cadastro de escolas: ' + (r.escolas || 0) + ' registro(s).');
   if (r.erros.length) linhas.push('\n⚠ Erros:\n  ' + r.erros.join('\n  '));
   _alerta('Sincronização de visitas', linhas.join('\n'));
 }
@@ -123,7 +125,32 @@ function _sincronizar() {
       erros.push(aba + ': ' + e.message);
     }
   }
-  return { total: total, porSegmento: porSegmento, erros: erros };
+
+  // Cadastro oficial (EMEF/EMEI) → relatorios_escolas: dá a cobertura de escolas
+  // "sem visita" nas Estatísticas. Falha aqui não impede o sync das visitas.
+  var escolas = 0;
+  try { escolas = _sincronizarCadastro(ss); }
+  catch (e) { erros.push('cadastro escolas: ' + e.message); }
+
+  return { total: total, porSegmento: porSegmento, escolas: escolas, erros: erros };
+}
+
+// Espelha as abas EMEF/EMEI (col A = escola, col B = regional) em relatorios_escolas.
+function _sincronizarCadastro(ss) {
+  var registros = [];
+  for (var base in ABA_CADASTRO) {
+    var aba = ss.getSheetByName(ABA_CADASTRO[base]);
+    if (!aba || aba.getLastRow() < 2) continue;
+    var vals = aba.getRange(2, 1, aba.getLastRow() - 1, 2).getValues();
+    for (var i = 0; i < vals.length; i++) {
+      var nome = vals[i][0] ? String(vals[i][0]).trim() : '';
+      var reg  = vals[i][1] ? String(vals[i][1]).trim() : '';
+      if (!nome) continue;
+      registros.push({ segmento: base, nome: nome, regional: reg || null });
+    }
+  }
+  _upsert(TABELA_ESCOLAS, registros, ['segmento', 'nome']);
+  return registros.length;
 }
 
 // Lê uma aba de respostas e devolve os registros prontos para o Supabase.
