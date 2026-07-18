@@ -33,6 +33,7 @@
 
 // ── Config ────────────────────────────────────────────────────────────────
 var SUPABASE_URL   = 'https://gmwotfulohkmuqrezeef.supabase.co';
+var SCHEMA         = 'relatorios';           // schema das tabelas (exponha em Project Settings ▸ API)
 var TABELA         = 'relatorios_visitas';
 var TABELA_ESCOLAS = 'relatorios_escolas';   // cadastro oficial (EMEF/EMEI) → cobertura
 var LOTE           = 500;
@@ -260,6 +261,7 @@ function _upsert(tabela, registros, onConflict) {
       headers: {
         apikey: key,
         Authorization: 'Bearer ' + key,
+        'Content-Profile': SCHEMA,            // grava no schema (não em public)
         Prefer: 'resolution=merge-duplicates,return=minimal'
       },
       payload: JSON.stringify(lote),
@@ -278,15 +280,16 @@ function testarConexao() {
   var url = SUPABASE_URL + '/rest/v1/' + TABELA + '?select=visita_uid&limit=1';
   var resp = UrlFetchApp.fetch(url, {
     method: 'get',
-    headers: { apikey: key, Authorization: 'Bearer ' + key },
+    headers: { apikey: key, Authorization: 'Bearer ' + key, 'Accept-Profile': SCHEMA },
     muteHttpExceptions: true
   });
   var cod = resp.getResponseCode();
-  var msg = 'HTTP ' + cod + '\nChave: ' + key.slice(0, 6) + '…' + key.slice(-4) +
+  var msg = 'HTTP ' + cod + ' · schema ' + SCHEMA + '\nChave: ' + key.slice(0, 6) + '…' + key.slice(-4) +
             ' (' + key.length + ' chars)\n\n' + resp.getContentText().slice(0, 400);
-  if (cod >= 200 && cod < 300)  msg = '✅ Conexão OK (tabela ' + TABELA + ' acessível).\n\n' + msg;
+  if (cod >= 200 && cod < 300)  msg = '✅ Conexão OK (' + SCHEMA + '.' + TABELA + ' acessível).\n\n' + msg;
   else if (cod === 401)         msg = '❌ Chave inválida (401). Recopie a service_role.\n\n' + msg;
-  else if (cod === 404)         msg = '❌ Tabela ' + TABELA + ' não existe. Rode o SQL de supabase-migracao.md.\n\n' + msg;
+  else if (cod === 404)         msg = '❌ Tabela não encontrada. Rode o SQL e exponha o schema "' + SCHEMA +
+                                      '" em Project Settings ▸ API ▸ Exposed schemas.\n\n' + msg;
   _alerta('Teste de conexão', msg);
 }
 

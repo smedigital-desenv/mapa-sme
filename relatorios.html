@@ -493,7 +493,7 @@ async function _carregarDadosSupabase() {
   const SB = window.MAPA_SB;
   const [visitasRes, escolasRes] = await Promise.all([
     SB.rpc('relat_visitas', {}),
-    SB.from('relatorios_escolas').select('segmento,nome,regional')
+    SB.rpc('relat_escolas', {})   // cadastro oficial (RPC em public → tabelas no schema)
   ]);
   if (visitasRes.error) throw visitasRes.error;
 

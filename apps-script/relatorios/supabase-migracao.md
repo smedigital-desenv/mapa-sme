@@ -42,11 +42,26 @@ Google Forms ──▶ Google Sheets (Fundamental/Infantil/…2)
 
 ---
 
-## 3. Tabelas
+## 3. Schema e tabelas
+
+> As tabelas ficam no schema **`relatorios`** (não em `public`). As **funções (RPCs)
+> ficam em `public`** apontando para cá — assim o `relatorios.html` segue chamando
+> `MAPA_SB.rpc(...)` sem precisar saber do schema. Para trocar o nome do schema, é só
+> substituir `relatorios` por outro nome neste SQL **e** no `var SCHEMA` do
+> `visitas-sync.gs`.
 
 ```sql
+-- ── Schema + permissões ──────────────────────────────────────────────────────
+create schema if not exists relatorios;
+
+-- O service_role (usado pelo sync via PostgREST) precisa de acesso ao schema.
+grant usage on schema relatorios to service_role;
+grant all privileges on all tables in schema relatorios to service_role;
+alter default privileges in schema relatorios
+  grant all privileges on tables to service_role;
+
 -- ── Visitas (espelho das 4 abas do formulário) ───────────────────────────────
-create table if not exists public.relatorios_visitas (
+create table if not exists relatorios.relatorios_visitas (
   visita_uid      text primary key,          -- MD5(segmento|carimbo|escola) — estável
   segmento        text not null,             -- fundamental | infantil | fundamental2 | infantil2
   escola          text not null,
@@ -60,24 +75,23 @@ create table if not exists public.relatorios_visitas (
   dados           jsonb not null,             -- linha completa (o mesmo objeto que o front usa)
   sincronizado_em timestamptz not null default now()
 );
-create index if not exists idx_relat_visitas_segmento on public.relatorios_visitas (segmento);
-create index if not exists idx_relat_visitas_escola   on public.relatorios_visitas (escola);
-create index if not exists idx_relat_visitas_regional on public.relatorios_visitas (regional);
+create index if not exists idx_relat_visitas_segmento on relatorios.relatorios_visitas (segmento);
+create index if not exists idx_relat_visitas_escola   on relatorios.relatorios_visitas (escola);
+create index if not exists idx_relat_visitas_regional on relatorios.relatorios_visitas (regional);
 
 -- bump de sincronizado_em quando o upsert atualizar uma visita já existente
-create or replace function public.tg_relat_visitas_touch()
+create or replace function relatorios.tg_relat_visitas_touch()
 returns trigger language plpgsql as $$
 begin new.sincronizado_em := now(); return new; end $$;
 
-drop trigger if exists trg_relat_visitas_touch on public.relatorios_visitas;
+drop trigger if exists trg_relat_visitas_touch on relatorios.relatorios_visitas;
 create trigger trg_relat_visitas_touch
-  before update on public.relatorios_visitas
-  for each row execute function public.tg_relat_visitas_touch();
+  before update on relatorios.relatorios_visitas
+  for each row execute function relatorios.tg_relat_visitas_touch();
 
 -- ── Cadastro oficial de escolas (EMEF/EMEI) → cobertura nas Estatísticas ──────
--- Espelha as abas EMEF/EMEI da planilha (nome + regional). É dado de referência
--- (não sensível), então pode ser lido direto por usuários autenticados.
-create table if not exists public.relatorios_escolas (
+-- Espelha as abas EMEF/EMEI da planilha (nome + regional). Lido via RPC relat_escolas().
+create table if not exists relatorios.relatorios_escolas (
   segmento text not null,                     -- fundamental | infantil (base)
   nome     text not null,
   regional text,
@@ -85,31 +99,36 @@ create table if not exists public.relatorios_escolas (
 );
 
 -- ── Devolutivas (geradas por IA) ─────────────────────────────────────────────
-create table if not exists public.relatorios_devolutivas (
+create table if not exists relatorios.relatorios_devolutivas (
   id            text primary key,            -- mesmo hash do _gerarId (regerar sobrescreve)
   tipo          text not null default 'individual', -- individual | rede | regional | sintese_global
   segmento      text,
   escola        text,
   regional      text,
   data_visita   text,                         -- string (casa com relatorios_visitas.data_visita_txt)
-  visita_uid    text references public.relatorios_visitas(visita_uid) on delete set null,
+  visita_uid    text references relatorios.relatorios_visitas(visita_uid) on delete set null,
   salvo_em      timestamptz not null default now(),
   dados         jsonb not null,              -- payload _dados (o mesmo que o front renderiza)
   atualizado_em timestamptz not null default now()
 );
-create index if not exists idx_relat_dev_escola   on public.relatorios_devolutivas (escola);
-create index if not exists idx_relat_dev_segmento on public.relatorios_devolutivas (segmento);
-create index if not exists idx_relat_dev_tipo     on public.relatorios_devolutivas (tipo);
+create index if not exists idx_relat_dev_escola   on relatorios.relatorios_devolutivas (escola);
+create index if not exists idx_relat_dev_segmento on relatorios.relatorios_devolutivas (segmento);
+create index if not exists idx_relat_dev_tipo     on relatorios.relatorios_devolutivas (tipo);
 
-create or replace function public.tg_relat_dev_touch()
+create or replace function relatorios.tg_relat_dev_touch()
 returns trigger language plpgsql as $$
 begin new.atualizado_em := now(); return new; end $$;
 
-drop trigger if exists trg_relat_dev_touch on public.relatorios_devolutivas;
+drop trigger if exists trg_relat_dev_touch on relatorios.relatorios_devolutivas;
 create trigger trg_relat_dev_touch
-  before update on public.relatorios_devolutivas
-  for each row execute function public.tg_relat_dev_touch();
+  before update on relatorios.relatorios_devolutivas
+  for each row execute function relatorios.tg_relat_dev_touch();
 ```
+
+> **Exponha o schema para o PostgREST** (necessário para o sync gravar via REST):
+> Supabase ▸ **Project Settings → API → Exposed schemas** → adicione `relatorios`
+> (mantendo `public`). O RLS abaixo mantém as tabelas fechadas para leitura direta
+> mesmo expostas.
 
 ---
 
@@ -125,11 +144,15 @@ sem duplicar regra.
 > então assumo um JSON com as chaves `perfil` e `escolas`. Se o seu retorno tiver
 > outra forma (ex.: nomes de coluna diferentes), ajuste os dois `->`/`#>>` abaixo.
 
+As funções vivem em **`public`** (o front chama `MAPA_SB.rpc(...)` normal) mas leem as
+tabelas do schema `relatorios`. `search_path = relatorios, public` deixa referenciar as
+tabelas sem qualificar e ainda enxergar `minhas_permissoes()` do `public`.
+
 ```sql
 -- Visitas que o usuário atual pode ver. p_segmento: fundamental|infantil (base) — inclui a variante "2".
 create or replace function public.relat_visitas(p_segmento text default null)
-returns setof public.relatorios_visitas
-language plpgsql security definer set search_path = public as $$
+returns setof relatorios.relatorios_visitas
+language plpgsql security definer set search_path = relatorios, public as $$
 declare perms jsonb; admin boolean; escolas text[];
 begin
   perms := to_jsonb(public.minhas_permissoes());
@@ -140,7 +163,7 @@ begin
 
   if admin then
     return query
-      select * from public.relatorios_visitas v
+      select * from relatorios.relatorios_visitas v
       where p_segmento is null
          or v.segmento = p_segmento
          or v.segmento = p_segmento || '2';
@@ -152,7 +175,7 @@ begin
     from jsonb_array_elements(coalesce(perms->'escolas', '[]'::jsonb)) e;
 
   return query
-    select * from public.relatorios_visitas v
+    select * from relatorios.relatorios_visitas v
     where v.escola = any(coalesce(escolas, array[]::text[]))
       and ( p_segmento is null
             or v.segmento = p_segmento
@@ -162,8 +185,8 @@ end $$;
 -- Devolutivas que o usuário atual pode ver (individuais filtram por escola;
 -- rede/regional/síntese só para super admin).
 create or replace function public.relat_devolutivas()
-returns setof public.relatorios_devolutivas
-language plpgsql security definer set search_path = public as $$
+returns setof relatorios.relatorios_devolutivas
+language plpgsql security definer set search_path = relatorios, public as $$
 declare perms jsonb; admin boolean; escolas text[];
 begin
   perms := to_jsonb(public.minhas_permissoes());
@@ -173,7 +196,7 @@ begin
   admin := coalesce((perms#>>'{perfil,is_super_admin}')::boolean, false);
 
   if admin then
-    return query select * from public.relatorios_devolutivas;
+    return query select * from relatorios.relatorios_devolutivas;
     return;
   end if;
 
@@ -182,13 +205,21 @@ begin
     from jsonb_array_elements(coalesce(perms->'escolas', '[]'::jsonb)) e;
 
   return query
-    select * from public.relatorios_devolutivas d
+    select * from relatorios.relatorios_devolutivas d
     where d.tipo = 'individual'
       and d.escola = any(coalesce(escolas, array[]::text[]));
 end $$;
 
+-- Cadastro oficial de escolas (dado de referência; qualquer autenticado pode ler).
+create or replace function public.relat_escolas()
+returns setof relatorios.relatorios_escolas
+language sql security definer set search_path = relatorios, public as $$
+  select * from relatorios.relatorios_escolas;
+$$;
+
 grant execute on function public.relat_visitas(text)  to authenticated;
 grant execute on function public.relat_devolutivas()  to authenticated;
+grant execute on function public.relat_escolas()      to authenticated;
 ```
 
 ---
@@ -200,21 +231,20 @@ As tabelas ficam **fechadas para leitura direta**: toda leitura passa pelas RPCs
 **gravações** vêm apenas do `service_role` (o sync e a carga de devolutivas), que
 também ignora o RLS.
 
-```sql
-alter table public.relatorios_visitas     enable row level security;
-alter table public.relatorios_devolutivas enable row level security;
--- Sem policy de SELECT/INSERT para 'authenticated' → leitura só via RPC, escrita só via service_role.
+Todas as três tabelas ficam **fechadas para leitura direta**: toda leitura passa pelas
+RPCs (que são `SECURITY DEFINER` e ignoram o RLS de forma controlada). As **gravações**
+vêm só do `service_role` (o sync e a carga de devolutivas), que também ignora o RLS.
 
--- Cadastro de escolas: dado de referência (não sensível) → leitura direta liberada,
--- espelhando a tabela `escolas` que o resto do MAPA já lê com .from(...).
-alter table public.relatorios_escolas enable row level security;
-drop policy if exists relat_escolas_leitura on public.relatorios_escolas;
-create policy relat_escolas_leitura on public.relatorios_escolas
-  for select to authenticated using (true);
+```sql
+alter table relatorios.relatorios_visitas     enable row level security;
+alter table relatorios.relatorios_devolutivas enable row level security;
+alter table relatorios.relatorios_escolas     enable row level security;
+-- Sem policy para 'authenticated' → leitura só via RPC (relat_*), escrita só via service_role.
 ```
 
-> Se algum dia o front precisar ler a tabela **direto** (sem RPC), aí sim crie uma
-> policy de `select` para `authenticated` espelhando o filtro por escola das RPCs.
+> Como as RPCs são `SECURITY DEFINER`, elas leem as tabelas independentemente do RLS —
+> o filtro por escola é feito dentro delas. O RLS aqui é a defesa em profundidade:
+> ninguém lê as tabelas direto pelo PostgREST, mesmo com o schema exposto.
 
 ---
 
@@ -226,6 +256,8 @@ Arquivo: `apps-script/relatorios/visitas-sync.gs` (neste repositório).
 2. **Configurações do projeto ▸ Propriedades do script**:
    - `SUPABASE_SERVICE_KEY` = a **service_role** do Supabase (Project Settings ▸ API).
    - ⚠️ Nunca commitar nem colar no navegador — ela ignora o RLS.
+   - Confirme que `var SCHEMA` no `visitas-sync.gs` é o mesmo nome do schema do SQL
+     (padrão `relatorios`) e que ele está em **Project Settings ▸ API ▸ Exposed schemas**.
 3. Recarregue a planilha → menu **"🔄 MAPA · Visitas"**.
 4. **Testar conexão** (valida a chave e a existência da tabela).
 5. **Sincronizar agora** (primeira carga) e confira em `relatorios_visitas`.
@@ -251,7 +283,7 @@ Enquanto `'appsscript'`, nada muda (segue lendo do Apps Script). Ao trocar para
 
 - **Visitas** → `MAPA_SB.rpc('relat_visitas')`; cada linha usa `row.dados` como o item
   (o `dados` jsonb já é o objeto que o front consome hoje). As escolas oficiais e o
-  mapa regional vêm de `MAPA_SB.from('relatorios_escolas')`.
+  mapa regional vêm de `MAPA_SB.rpc('relat_escolas')`.
 - **Devolutivas** → `MAPA_SB.rpc('relat_devolutivas')`; cada linha vira
   `{ ID, Escola, Segmento, "Data da Visita", "Salvo em", _tipo, _dados }`.
 
