@@ -6,10 +6,26 @@ Sistema de relatórios pedagógicos com análise por Gemini AI integrado ao MAPA
 
 ```
 apps-script/relatorios/
-├── Code.gs              # Backend (Google Apps Script)
-├── README.md            # Este arquivo
-└── sql/                 # Scripts SQL (quando usar DB externo)
+├── Code.gs                 # Backend atual (Google Apps Script + Planilhas)
+├── visitas-sync.gs         # Rotina: sincroniza a planilha → Supabase (gatilho por tempo)
+├── supabase-migracao.md    # Migração p/ Supabase: SQL (tabelas + RLS + RPCs) e passo a passo
+└── README.md               # Este arquivo
 ```
+
+## 🚚 Migração para o Supabase (em andamento)
+
+O Google Forms segue ativo; a coleta continua no Google Sheets. A migração alinha o
+módulo ao restante do MAPA (que já roda no Supabase):
+
+- **`visitas-sync.gs`** — Apps Script agendado que leva as respostas do formulário
+  (abas Fundamental/Infantil/…2) para a tabela `relatorios_visitas` no Supabase, de
+  forma incremental e idempotente. É uma **rotina** (gatilho por tempo, 1x/hora).
+- **`supabase-migracao.md`** — o SQL das tabelas (`relatorios_visitas`,
+  `relatorios_devolutivas`), o RLS por escola (reaproveitando `minhas_permissoes()`),
+  as RPCs de leitura, e o roteiro de cutover do front-end e da carga das devolutivas.
+
+Ganho principal: o isolamento de dados por escola passa a ser **no servidor** (RLS),
+em vez de filtragem no cliente como é hoje.
 
 ## 🔧 Instalação
 
