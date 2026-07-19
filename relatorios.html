@@ -192,28 +192,11 @@
 
 <div class="layout-wrapper">
   <aside id="aside-principal" class="table-container">
-    <div class="sel-bar">
-      <div class="d-flex flex-column">
-        <span class="sel-bar-titulo"><i class="bi bi-stars text-warning me-1"></i> Devolutivas por IA</span>
-        <span id="contadorSel">0 selecionados</span>
-      </div>
-      <div class="d-flex gap-2">
-        <button class="btn btn-sm btn-outline-secondary fw-bold flex-grow-1" onclick="selecionarTodos()">Marcar Todos</button>
-        <button class="btn btn-sm btn-outline-danger fw-bold" onclick="limparSelecao()">Limpar</button>
-      </div>
-      <button class="btn btn-action btn-action-ia w-100 justify-content-center mt-2" id="btnAnalisarLote" onclick="analisarLote()" disabled>
-        <i class="bi bi-cpu"></i> Gerar devolutivas (IA)
-      </button>
-      <div class="small text-muted mt-1" style="font-size:.68rem;">Gera a devolutiva individual de cada visita marcada.</div>
-    </div>
     <div class="mb-3">
       <label class="form-label"><i class="bi bi-map me-1"></i> Regional</label>
       <select id="filtroRegional" class="form-select fw-bold shadow-sm" onchange="filtrar()">
         <option value="">Todas as Regionais</option>
       </select>
-      <button class="btn btn-action btn-action-ia w-100 justify-content-center mt-2" id="btnAnaliseRegional" onclick="analisarRegionalAtual(this)" disabled title="Selecione uma Regional para habilitar">
-        <i class="bi bi-diagram-3-fill me-1"></i> Análise da Regional (IA)
-      </button>
     </div>
     <div class="mb-3">
       <label class="form-label"><i class="bi bi-building-check me-1"></i> Unidade Escolar</label>
@@ -259,17 +242,6 @@
         <input type="text" id="buscaDev" class="form-control fw-bold" placeholder="Escola, regional, data…" oninput="filtrarDevolutivas()" />
       </div>
     </div>
-    <hr class="my-2">
-    <div style="font-weight:900;color:var(--primary);font-size:.9rem;" class="mb-2"><i class="bi bi-diagram-3-fill me-1"></i>Síntese de Rede</div>
-    <div class="small text-muted mb-2" style="font-size:.7rem;">Consolida as análises regionais já salvas do segmento em uma visão de rede.</div>
-    <label class="form-label"><i class="bi bi-layers-half me-1"></i> Segmento</label>
-    <select id="filtroSinteseSegmento" class="form-select fw-bold shadow-sm mb-2">
-      <option value="fundamental">Ensino Fundamental</option>
-      <option value="infantil">Educação Infantil</option>
-    </select>
-    <button class="btn btn-action btn-action-ia w-100 justify-content-center" id="btnSinteseRede" onclick="sintetizarRedeGlobal(this)">
-      <i class="bi bi-stars me-1"></i> Gerar síntese de rede (IA)
-    </button>
   </aside>
 
   <aside id="aside-estatisticas" class="table-container" style="display: none;">
@@ -869,11 +841,8 @@ function _renderCard(item, idx) {
   const ehBoasPraticas = (item['_SEGMENTO_']||'').endsWith('2');
 
   return `
-    <div class="card-kpi rel-card ${isSel?'selecionado':''}" id="card-${idx}" onclick="abrirRelatorio(${idx})">
-      <div class="card-checkbox-wrap" onclick="event.stopPropagation()">
-        <input type="checkbox" class="card-checkbox" ${isSel?'checked':''} onchange="toggleSelecao(event,${idx})" />
-      </div>
-      <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2 pe-4">
+    <div class="card-kpi rel-card" id="card-${idx}" onclick="abrirRelatorio(${idx})">
+      <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2">
         <div class="card-title-escola">${escapar(nomeEscola)}</div>
         ${reg?`<span class="badge bg-light text-primary border" style="font-size:0.65rem;font-weight:800;">${escapar(reg)}</span>`:''}
       </div>
@@ -938,8 +907,10 @@ function limparSelecao() {
 
 function atualizarContadorSel() {
   const n = selecionados.size;
-  document.getElementById('contadorSel').textContent = n===0?'0 selecionados':`${n} selecionado${n!==1?'s':''}`;
-  document.getElementById('btnAnalisarLote').disabled = n===0;
+  const c = document.getElementById('contadorSel');
+  if (c) c.textContent = n===0?'0 selecionados':`${n} selecionado${n!==1?'s':''}`;
+  const b = document.getElementById('btnAnalisarLote');
+  if (b) b.disabled = n===0;
 }
 
 // ── HTML do Relatório da Visita (reutilizável p/ modal e PDF) ──
@@ -1033,12 +1004,9 @@ function abrirModal(item, dev, aba) {
 
   const optRel = temRel ? `<label class="pdf-opt"><input type="checkbox" id="pdfRel" checked> Relatório</label>` : '';
   const optDev = temDev ? `<label class="pdf-opt"><input type="checkbox" id="pdfDev" checked> Devolutiva</label>` : '';
-  // Botão de IA só para visitas individuais (não faz sentido em cards de rede/regional,
-  // que não têm uma visita única). Rótulo muda se já existe devolutiva.
-  const podeAnalisar = temRel && (!dev || dev._tipo === 'individual' || dev._tipo === undefined);
-  const btnIA = podeAnalisar
-    ? `<button class="btn btn-action btn-action-ia" onclick="analisarVisitaAtual(this)"><i class="bi bi-cpu me-1"></i>${temDev ? 'Regerar devolutiva (IA)' : 'Gerar devolutiva (IA)'}</button>`
-    : '';
+  // Geração de devolutivas saiu da tela (agora é feita fora do app); o modal fica só
+  // para leitura/impressão.
+  const btnIA = '';
   document.getElementById('modalRelatorioFooter').innerHTML = `
     <div class="d-flex align-items-center justify-content-between w-100 flex-wrap gap-2">
       <div class="d-flex align-items-center gap-3 flex-wrap">
