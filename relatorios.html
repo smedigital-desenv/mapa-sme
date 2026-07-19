@@ -215,6 +215,15 @@
 
   <aside id="aside-dev" class="table-container" style="display: none;">
     <div class="mb-3">
+      <label class="form-label"><i class="bi bi-robot me-1"></i> Tipo</label>
+      <select id="filtroDevTipo" class="form-select fw-bold shadow-sm" onchange="filtrarDevolutivas()">
+        <option value="">Todos os Tipos</option>
+        <option value="individual">Individuais</option>
+        <option value="regional">Regionais</option>
+        <option value="rede">Síntese de Rede</option>
+      </select>
+    </div>
+    <div class="mb-3">
       <label class="form-label"><i class="bi bi-layers-half me-1"></i> Segmento</label>
       <select id="filtroDevSegmento" class="form-select fw-bold shadow-sm" onchange="filtrarDevolutivas()">
         <option value="">Todos os Segmentos</option>
@@ -1171,13 +1180,20 @@ function popularFiltrosDevolutivas() {
 }
 
 function filtrarDevolutivas() {
+  const tipoFil = (document.getElementById('filtroDevTipo')||{}).value || '';
   const seg    = document.getElementById('filtroDevSegmento').value;
   const regFil = document.getElementById('filtroDevRegional').value;
   const prio   = document.getElementById('filtroDevPrioridade').value;
   const busca  = document.getElementById('buscaDev').value.trim().toLowerCase();
 
+  // 'rede' agrupa síntese de rede global e rede por seleção manual.
+  const tipoDaDev = d => d._tipo === 'regional' ? 'regional'
+                    : (d._tipo === 'sintese_global' || d._tipo === 'rede') ? 'rede'
+                    : 'individual';
+
   devolutivasFiltradas = todasDevolutivas.filter(d => {
     if (!d._versoes) return false;   // 1 card por visita (a versão mais recente); as demais ficam no seletor
+    if (tipoFil && tipoDaDev(d) !== tipoFil) return false;
     if (seg    && d["Segmento"] !== seg) return false;
     if (regFil && _regionalDaDev(d) !== regFil) return false;
     if (prio   && ((d._dados||{}).prioridade||'').toLowerCase() !== prio.toLowerCase()) return false;
