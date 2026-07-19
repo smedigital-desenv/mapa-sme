@@ -1195,13 +1195,37 @@ function renderizarDevolutivas() {
   const main = document.getElementById('main');
   if (devolutivasFiltradas.length === 0) { mostrarEstado('Nenhuma devolutiva encontrada.', 'bi-robot'); return; }
 
+  // Agrupa por tipo, preservando o índice original de devolutivasFiltradas (usado no onclick).
+  const grupos = { individual: [], regional: [], rede: [] };
+  devolutivasFiltradas.forEach((dev, i) => {
+    const k = dev._tipo === 'regional' ? 'regional'
+            : (dev._tipo === 'sintese_global' || dev._tipo === 'rede') ? 'rede'
+            : 'individual';
+    grupos[k].push({ dev, i });
+  });
+
+  const secoes = [
+    { key: 'individual', titulo: 'Devolutivas Individuais', icone: 'bi-file-earmark-text-fill' },
+    { key: 'regional',   titulo: 'Devolutivas Regionais',   icone: 'bi-diagram-3-fill' },
+    { key: 'rede',       titulo: 'Síntese de Rede',         icone: 'bi-stars' }
+  ];
+
   const n = devolutivasFiltradas.length;
   const stats = `<div class="d-flex flex-wrap gap-2 mb-4 align-items-center">
     <span class="badge bg-white text-dark border shadow-sm px-3 py-2 fw-bold"><i class="bi bi-robot me-1 text-primary"></i> ${n} devolutiva${n!==1?'s':''}</span>
   </div>`;
 
-  const cardsHtml = devolutivasFiltradas.map((dev,i) => renderCardDevolutiva(dev,i)).join('');
-  main.innerHTML = stats + `<div class="cards-grid">${cardsHtml}</div>`;
+  const html = secoes.filter(s => grupos[s.key].length).map(s => {
+    const cards = grupos[s.key].map(o => renderCardDevolutiva(o.dev, o.i)).join('');
+    return `
+      <div class="d-flex align-items-center gap-2 mb-2 mt-3" style="font-weight:900;color:var(--primary);font-size:1rem;">
+        <i class="bi ${s.icone}"></i> ${s.titulo}
+        <span class="badge bg-light text-dark border fw-bold" style="font-size:.7rem;">${grupos[s.key].length}</span>
+      </div>
+      <div class="cards-grid mb-2">${cards}</div>`;
+  }).join('');
+
+  main.innerHTML = stats + html;
 }
 
 function renderCardDevolutiva(dev, i) {
