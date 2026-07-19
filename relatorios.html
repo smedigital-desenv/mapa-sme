@@ -478,7 +478,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbydArqsFE8fCijWuc_st3Kd
 //   com isolamento por escola no servidor (RLS). Ver apps-script/relatorios/supabase-migracao.md.
 // Padrão seguro: enquanto validamos, a origem pode ser forçada pela URL (?fonte=supabase
 // ou ?fonte=appsscript). Para virar de vez, troque _FONTE_PADRAO para 'supabase'.
-const _FONTE_PADRAO = 'appsscript';
+const _FONTE_PADRAO = 'supabase';
 const FONTE_DADOS = (new URLSearchParams(location.search).get('fonte') || _FONTE_PADRAO).toLowerCase();
 
 // ── Carregamento ──
