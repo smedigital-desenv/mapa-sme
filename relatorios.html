@@ -143,6 +143,29 @@
     .tema-barra { background:#eef2f7; border-radius:999px; height:10px; overflow:hidden; }
     .tema-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,#6f42c1,#00b4d8); }
     .tema-num { font-size:.72rem; font-weight:800; color:#475569; text-align:right; }
+    .tema-linha.clic { cursor:pointer; padding:.1rem .25rem; border-radius:7px; }
+    .tema-linha.clic:hover { background:#f1f6ff; }
+    .tema-linha.ativo { background:#e0f2fe; box-shadow:inset 0 0 0 2px #00b4d8; }
+    /* Heatmap tema × regional */
+    .hm-wrap { overflow-x:auto; }
+    .hm-tbl { border-collapse:collapse; font-size:.74rem; min-width:100%; }
+    .hm-tbl th, .hm-tbl td { border:1px solid #eef2f7; }
+    .hm-canto { text-align:left; padding:6px 8px; font-weight:800; color:#64748b; background:#f8fafc; position:sticky; left:0; z-index:2; }
+    .hm-rot { padding:6px 4px; font-weight:800; color:#475569; background:#f8fafc; text-align:center; white-space:nowrap; }
+    .hm-tema { text-align:left; padding:5px 8px; font-weight:700; color:#334155; white-space:nowrap; background:#fff; position:sticky; left:0; z-index:1; }
+    .hm-tot { color:#94a3b8; font-weight:800; font-size:.66rem; }
+    .hm-cel { text-align:center; font-weight:800; padding:5px 6px; min-width:34px; }
+    /* Leitura da rede (síntese IA) */
+    .lr-grid { display:flex; flex-direction:column; gap:1rem; }
+    .lr-bloco { border-left:4px solid var(--neon-blue); background:#f8fbff; border-radius:0 10px 10px 0; padding:.8rem 1rem; }
+    .lr-cab { font-weight:900; color:var(--primary); font-size:.9rem; margin-bottom:.4rem; }
+    .lr-modelo { font-size:.6rem; font-weight:800; text-transform:uppercase; letter-spacing:.03em; color:#0369a1; background:#e0f2fe; border-radius:999px; padding:1px 8px; margin-left:.4rem; vertical-align:middle; }
+    .lr-sintese { font-size:.82rem; color:#334155; line-height:1.5; margin-bottom:.7rem; }
+    .lr-cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:.7rem 1.2rem; }
+    .lr-sec-tit { font-size:.7rem; font-weight:900; text-transform:uppercase; letter-spacing:.03em; margin-bottom:.25rem; }
+    .lr-ul { margin:0; padding-left:1.1rem; }
+    .lr-ul li { font-size:.76rem; color:#475569; line-height:1.4; margin-bottom:.18rem; }
+    .lr-niv { font-size:.6rem; font-weight:800; text-transform:uppercase; color:#b45309; background:#fef3c7; border-radius:999px; padding:0 6px; }
     /* Backlog de devolutivas */
     .backlog-lista { display:flex; flex-direction:column; gap:.4rem; max-height:290px; overflow:auto; }
     .backlog-item { padding:.4rem .55rem; border-left:3px solid #f59e0b; background:#fffbeb; border-radius:0 8px 8px 0; }
@@ -1737,6 +1760,7 @@ function _rotuloFiltro() {
   if (f.tipo === 'dev')      return 'Com devolutiva';
   if (f.tipo === 'pendente') return 'Devolutiva pendente';
   if (f.tipo === 'risco')    return 'Risco ' + (_ROT_RISCO[f.valor] || f.valor).toLowerCase();
+  if (f.tipo === 'tema')     return 'Tema: ' + ((_TEMAS.find(t => t.key === f.valor) || {}).lbl || f.valor);
   if (f.tipo === 'idade')    return ({ d30:'Última visita ≤30 dias', d60:'Última visita 31–60 dias', d90:'Última visita 61–90 dias', mais:'Última visita +90 dias' })[f.valor] || '';
   return _rotuloFreq(f.valor);
 }
@@ -1868,43 +1892,154 @@ function _painelRisco() {
   </div>`;
 }
 
-// C) Temas Recorrentes (frequência de termos nos pontos fracos / de atenção) ──
-const _STOP_TEMAS = new Set(('para com sem que dos das nas nos uma umas uns pelo pela pelos pelas este esta estes estas ' +
-  'isso aquele aquela ainda sobre muito muita muitos muitas quando porque como onde todos todas todo toda entre sendo ' +
-  'estao estão havia forma parte dessa desse desta deste nesta neste numa seus suas nao não sim mais menos apenas ' +
-  'tambem também cada qual quais tinha foram estava sido pode podem deve devem fazer feito ' +
-  'professora professor professores escola escolas unidade unidades ainda').split(/\s+/));
-function _termosDaDev(dev) {
-  const set = new Set();
-  const textos = [].concat(dev.pontos_fracos||[], dev.pontos_atencao||[], dev.prioridade ? [dev.prioridade] : []);
-  textos.forEach(t => String(t).split(/[^0-9A-Za-zÀ-ÿ]+/).forEach(w => {
-    if (!w) return;
-    if (/^[A-Z]{2,5}$/.test(w)) { set.add(w); return; }          // acrônimos (PPA, PPP, PRP, PRA, NEE…)
-    const lw = w.toLowerCase();
-    if (lw.length >= 5 && !_STOP_TEMAS.has(lw)) set.add(lw);
-  }));
-  return set;
+// C) Temas Pedagógicos (categorização semântica das devolutivas) ─────────
+// Em vez de contar palavras soltas, classificamos cada devolutiva em temas
+// pedagógicos reconhecíveis. A taxonomia espelha os `desafios_comuns` das
+// devolutivas de rede/regional. Uma escola pode cair em vários temas.
+let _estSegs = [], _estRegFil = '';
+function _normTxt(s) { return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+const _TEMAS = [
+  { key:'ppa',    lbl:'Atribuição do PPA (2ºs anos)',    re:/\bppa\b|atribuic|2o ano|segundo ano/ },
+  { key:'coord',  lbl:'Coordenação pedagógica',          re:/coordenac|coordenador/ },
+  { key:'alfab',  lbl:'Alfabetização',                   re:/alfabetiza|fluencia|pre-silabic|silabic|hipotese de escrita|sondagem/ },
+  { key:'espec',  lbl:'Educação Especial / inclusão',    re:/educacao especial|inclus|autist|\bnee\b|\btea\b|deficien|\blaudo\b|\baee\b/ },
+  { key:'recup',  lbl:'Recuperação (PRP/PRA)',           re:/\bprp\b|\bpra\b|recuperac|reforco escolar/ },
+  { key:'defas',  lbl:'Defasagem / transição EI→EF',     re:/defasag|pre-requisit|prerequisit|transic/ },
+  { key:'ppp',    lbl:'PPP / projeto (Infantil)',        re:/\bppp\b|professora do projeto|projeto pedagog|projeto polit/ },
+  { key:'rotina', lbl:'Rotina Estruturante',             re:/rotina estrutur/ },
+  { key:'integr', lbl:'Horários no período integral',    re:/periodo integral|\bsono\b|alimentac|horario do projeto/ },
+  { key:'acervo', lbl:'Acervo / espaços',                re:/acervo|espaco|materiais|biblioteca|brinqued|parque/ },
+  { key:'regist', lbl:'Registros pedagógicos',           re:/registro/ },
+  { key:'gestao', lbl:'Gestão / acompanhamento',         re:/sobrecarr|demanda administrativa|acumul|acompanhamento pedagog/ },
+  { key:'formac', lbl:'Formação docente',                re:/formacao (continuada|docente|de professor)|formacao em|formacao dos professor/ },
+  { key:'freq',   lbl:'Frequência / busca ativa',        re:/busca ativa|evasao|infrequen|frequencia dos (alun|estudant)/ }
+];
+function _txtDev(dev) {
+  return _normTxt([].concat(
+    dev.pontos_fracos||[], dev.pontos_atencao||[],
+    dev.prioridade ? [dev.prioridade] : [],
+    dev.justificativa_prioridade ? [dev.justificativa_prioridade] : [],
+    (dev.risco_pedagogico && dev.risco_pedagogico.descricao) ? [dev.risco_pedagogico.descricao] : []
+  ).join(' · '));
+}
+function _temasDaLinha(l) {
+  const s = new Set();
+  if (!l.dev) return s;
+  const t = _txtDev(l.dev);
+  _TEMAS.forEach(tm => { if (tm.re.test(t)) s.add(tm.key); });
+  return s;
 }
 function _painelTemas() {
-  const freq = {}; let base = 0;
-  _coberturaCompleta.forEach(l => {
-    if (!l.dev) return;
-    base++;
-    _termosDaDev(l.dev).forEach(t => { freq[t] = (freq[t]||0) + 1; });
-  });
-  const top = Object.entries(freq).sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0])).slice(0, 12);
-  if (top.length < 3) return '';
-  const max = top[0][1];
-  const barras = top.map(([termo,n]) => `
-    <div class="tema-linha">
-      <div class="tema-nome" title="${escapar(termo)}">${escapar(termo)}</div>
+  const base = _coberturaCompleta.filter(l => l.dev).length;
+  if (!base) return '';
+  const cont = {}; _TEMAS.forEach(tm => cont[tm.key] = 0);
+  _coberturaCompleta.forEach(l => _temasDaLinha(l).forEach(k => cont[k]++));
+  const linhas = _TEMAS.filter(tm => cont[tm.key] > 0).sort((a,b) => cont[b.key] - cont[a.key]);
+  if (linhas.length < 2) return '';
+  const max = cont[linhas[0].key];
+  const barras = linhas.map(tm => {
+    const n = cont[tm.key], pct = Math.round(n/base*100);
+    const at = (filtroAtivo && filtroAtivo.tipo==='tema' && filtroAtivo.valor===tm.key) ? ' ativo' : '';
+    return `<div class="tema-linha clic${at}" onclick="filtrarKpi('tema','${tm.key}')" title="${escapar(tm.lbl)}: ${n} escola(s) · ${pct}%">
+      <div class="tema-nome">${escapar(tm.lbl)}</div>
       <div class="tema-barra"><div class="tema-fill" style="width:${Math.round(n/max*100)}%;"></div></div>
       <div class="tema-num">${n}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   return `<div class="est-painel">
-    <div class="est-painel-tit"><i class="bi bi-tags-fill me-1"></i>Temas Recorrentes</div>
+    <div class="est-painel-tit"><i class="bi bi-diagram-3-fill me-1"></i>Temas Pedagógicos</div>
     <div class="tema-lista">${barras}</div>
-    <div class="est-painel-nota">Termos mais citados nos pontos fracos / de atenção de ${base} devolutiva${base!==1?'s':''} (nº de escolas).</div>
+    <div class="est-painel-nota">Categorias identificadas nas devolutivas de ${base} escola(s). Clique num tema para filtrar a tabela.</div>
+  </div>`;
+}
+
+// C2) Concentração de Temas por Regional (heatmap) ──────────────────────
+function _regCurto(r) {
+  const m = String(r).match(/regional\s*0*(\d+)/i);
+  if (m) return 'R' + m[1];
+  return String(r).length > 12 ? String(r).slice(0, 11) + '…' : String(r);
+}
+function _painelConcentracao() {
+  const regs = [...new Set(_coberturaCompleta
+    .filter(l => l.dev && l.regional && l.regional !== '—').map(l => l.regional))].sort();
+  if (regs.length < 2) return '';
+  const mat = {}, tot = {};
+  _TEMAS.forEach(tm => { mat[tm.key] = {}; tot[tm.key] = 0; });
+  _coberturaCompleta.forEach(l => {
+    if (!l.dev) return;
+    const reg = (l.regional && l.regional !== '—') ? l.regional : null;
+    _temasDaLinha(l).forEach(k => { tot[k]++; if (reg) mat[k][reg] = (mat[k][reg]||0) + 1; });
+  });
+  const temas = _TEMAS.filter(tm => tot[tm.key] > 0).sort((a,b) => tot[b.key] - tot[a.key]);
+  if (!temas.length) return '';
+  const maxCell = Math.max(1, ...temas.flatMap(tm => regs.map(r => mat[tm.key][r]||0)));
+  const th = regs.map(r => `<th class="hm-rot" title="${escapar(r)}">${escapar(_regCurto(r))}</th>`).join('');
+  const rows = temas.map(tm => {
+    const tds = regs.map(r => {
+      const n = mat[tm.key][r] || 0;
+      const a = n ? (0.12 + 0.88 * n / maxCell) : 0;
+      return `<td class="hm-cel" style="background:rgba(2,43,94,${a.toFixed(2)});color:${a>0.55?'#fff':'#334155'};">${n||''}</td>`;
+    }).join('');
+    return `<tr><td class="hm-tema">${escapar(tm.lbl)} <span class="hm-tot">${tot[tm.key]}</span></td>${tds}</tr>`;
+  }).join('');
+  return `<div class="est-painel est-painel-wide">
+    <div class="est-painel-tit"><i class="bi bi-grid-3x3-gap-fill me-1"></i>Concentração de Temas por Regional</div>
+    <div class="hm-wrap"><table class="hm-tbl">
+      <thead><tr><th class="hm-canto">Tema \\ Regional</th>${th}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <div class="est-painel-nota">Nº de escolas com cada tema, por regional. Célula mais escura = maior concentração. Passe o mouse no cabeçalho para o nome completo.</div>
+  </div>`;
+}
+
+// C3) Leitura da Rede/Regional (IA) — síntese qualitativa já escrita ─────
+// Traz para as Estatísticas os campos das devolutivas de REDE (sintese_global)
+// ou, se houver regional filtrada, da devolutiva REGIONAL correspondente.
+function _devsSinteseRelevantes() {
+  const isSeg = s => _estSegs.includes(String(s||'').toLowerCase());
+  const devs = _estRegFil
+    ? todasDevolutivas.filter(d => d._tipo === 'regional' && isSeg(d["Segmento"]) && (d["Regional"]||'') === _estRegFil)
+    : todasDevolutivas.filter(d => d._tipo === 'sintese_global' && isSeg(d["Segmento"]));
+  const porChave = new Map();
+  devs.forEach(d => {
+    const k = d._chave || _chaveDev(d["Segmento"], d["Escola"], d["Data da Visita"]);
+    const cur = porChave.get(k);
+    if (!cur || _tsDev(d) > _tsDev(cur)) porChave.set(k, d);
+  });
+  return [...porChave.values()];
+}
+function _painelLeituraRede() {
+  const devs = _devsSinteseRelevantes();
+  if (!devs.length) return '';
+  const sec = (titulo, arr, ic, cor) => {
+    const items = (arr||[]).slice(0, 6).map(x => {
+      const txt = (x && typeof x === 'object') ? (x.prioridade || x.desafio || x.texto || '') : x;
+      const niv = (x && typeof x === 'object' && x.nivel) ? ` <span class="lr-niv">${escapar(x.nivel)}</span>` : '';
+      return txt ? `<li>${escapar(txt)}${niv}</li>` : '';
+    }).join('');
+    return items ? `<div class="lr-sec"><div class="lr-sec-tit" style="color:${cor};"><i class="bi ${ic} me-1"></i>${titulo}</div><ul class="lr-ul">${items}</ul></div>` : '';
+  };
+  const blocos = devs.map(dev => {
+    const d = dev._dados || {};
+    const tit = dev._tipo === 'regional' ? (dev["Regional"] || 'Regional')
+      : ('Rede — ' + (_rotuloSegmento(dev["Segmento"]) || 'Geral'));
+    const modelo = _rotuloModelo(dev["_modelo"]);
+    return `<div class="lr-bloco">
+      <div class="lr-cab">${escapar(tit)}${modelo ? ` <span class="lr-modelo">${escapar(modelo)}</span>` : ''}</div>
+      ${d.sintese_executiva ? `<div class="lr-sintese">${escapar(d.sintese_executiva)}</div>` : ''}
+      <div class="lr-cols">
+        ${sec('Desafios comuns', d.desafios_comuns, 'bi-exclamation-triangle-fill', '#b45309')}
+        ${sec('Prioridades', d.prioridades_da_rede, 'bi-flag-fill', '#b91c1c')}
+        ${sec('Alertas para a gestão', d.alertas_para_gestao, 'bi-shield-exclamation', '#b91c1c')}
+        ${sec('Boas práticas', d.boas_praticas_para_socializar, 'bi-share-fill', '#0e7490')}
+      </div>
+    </div>`;
+  }).join('');
+  const alvo = _estRegFil ? 'Regional' : 'Rede';
+  return `<div class="est-painel est-painel-wide">
+    <div class="est-painel-tit"><i class="bi bi-stars me-1"></i>Leitura da ${alvo} (IA)</div>
+    <div class="lr-grid">${blocos}</div>
+    <div class="est-painel-nota">Síntese qualitativa da devolutiva de ${_estRegFil ? 'regional' : 'rede'}. O texto completo (recomendações, ações formativas etc.) está na aba Devolutivas.</div>
   </div>`;
 }
 
@@ -2022,6 +2157,7 @@ function renderEstatisticas() {
   const busca = document.getElementById('buscaEst').value.trim().toLowerCase();
   _coberturaCompleta = completa.filter(l =>
     (!regFil || l.regional === regFil) && (!busca || l.escola.toLowerCase().includes(busca)));
+  _estSegs = segs; _estRegFil = regFil;   // contexto p/ painéis de síntese (IA)
 
   // Métricas agregadas (sempre sobre o conjunto filtrado, independente do KPI ativo)
   const total = _coberturaCompleta.length;
@@ -2059,11 +2195,13 @@ function renderEstatisticas() {
   main.innerHTML = `
     ${kpis}
     <div class="est-paineis">
+      ${_painelLeituraRede()}
       ${_painelCoberturaRegional()}
       ${_painelRisco()}
       ${_painelIdade()}
       ${_painelBacklog()}
       ${_painelTemas()}
+      ${_painelConcentracao()}
       ${_painelTemporal()}
     </div>
     <div class="table-container" id="cob-tabela"></div>`;
@@ -2131,6 +2269,7 @@ function _listaTabela() {
     else if (f.tipo === 'dev')      lista = lista.filter(l => l.temDev);
     else if (f.tipo === 'pendente') lista = lista.filter(l => l.nVisitas > 0 && !l.temDev);
     else if (f.tipo === 'risco')    lista = lista.filter(l => _nivelRisco(l) === f.valor);
+    else if (f.tipo === 'tema')     lista = lista.filter(l => _temasDaLinha(l).has(f.valor));
     else if (f.tipo === 'idade')    lista = lista.filter(l => {
       if (!l.ultima) return false;
       const dias = Math.floor((Date.now() - l.ultima.getTime()) / 86400000);
