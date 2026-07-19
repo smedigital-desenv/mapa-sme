@@ -110,6 +110,47 @@
     .pill-ok   { background:#d1fae5; color:#047857; }
     .pill-no   { background:#fee2e2; color:#b91c1c; }
     .pill-dev  { background:#fce7f3; color:#be185d; }
+    .pill-risco-alto  { background:#fee2e2; color:#b91c1c; }
+    .pill-risco-medio { background:#fef3c7; color:#b45309; }
+    .pill-risco-baixo { background:#d1fae5; color:#047857; }
+    /* ── Painéis analíticos da aba Estatísticas ── */
+    .est-paineis { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1rem; margin:0 0 1.1rem; }
+    .est-painel { background:#fff; border-radius:14px; padding:1rem 1.15rem; box-shadow:0 4px 14px rgba(0,0,0,.05); }
+    .est-painel-wide { grid-column:1 / -1; }
+    .est-painel-tit { font-weight:900; color:var(--primary); font-size:.9rem; margin-bottom:.8rem; display:flex; align-items:center; gap:.35rem; }
+    .est-painel-nota { font-size:.68rem; color:#94a3b8; margin-top:.7rem; font-weight:600; }
+    /* Cobertura por regional */
+    .pr-lista { display:flex; flex-direction:column; gap:.5rem; max-height:270px; overflow:auto; }
+    .pr-linha { display:grid; grid-template-columns:minmax(90px,1.4fr) 3fr minmax(78px,auto); align-items:center; gap:.6rem; padding:.15rem .1rem; border-radius:8px; }
+    .pr-linha.clic { cursor:pointer; } .pr-linha.clic:hover { background:#f1f6ff; }
+    .pr-nome { font-size:.76rem; font-weight:700; color:#334155; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .pr-barra { background:#eef2f7; border-radius:999px; height:12px; overflow:hidden; }
+    .pr-fill { height:100%; border-radius:999px; transition:width .3s; }
+    .pr-num { font-size:.72rem; font-weight:700; color:#475569; white-space:nowrap; text-align:right; }
+    /* Chips (risco / idade) */
+    .risco-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(84px,1fr)); gap:.6rem; }
+    .risco-chip, .idade-chip { border:2px solid var(--rc,var(--ic,#e2e8f0)); border-radius:12px; padding:.55rem .3rem; text-align:center; background:#fff; }
+    .idade-chip { border-color:var(--ic); }
+    .risco-chip.clic, .idade-chip.clic { cursor:pointer; transition:transform .12s, box-shadow .12s; }
+    .risco-chip.clic:hover, .idade-chip.clic:hover { transform:translateY(-2px); box-shadow:0 6px 16px rgba(0,0,0,.10); }
+    .risco-chip.ativo, .idade-chip.ativo { box-shadow:0 0 0 3px rgba(0,43,94,.18); }
+    .rc-val { font-size:1.5rem; font-weight:900; color:var(--rc,var(--ic,#334155)); line-height:1; }
+    .rc-lbl { font-size:.64rem; font-weight:800; text-transform:uppercase; letter-spacing:.02em; color:#64748b; margin-top:.2rem; }
+    /* Temas recorrentes */
+    .tema-lista { display:flex; flex-direction:column; gap:.42rem; max-height:290px; overflow:auto; }
+    .tema-linha { display:grid; grid-template-columns:minmax(96px,1.3fr) 3fr 28px; align-items:center; gap:.55rem; }
+    .tema-nome { font-size:.75rem; font-weight:700; color:#334155; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .tema-barra { background:#eef2f7; border-radius:999px; height:10px; overflow:hidden; }
+    .tema-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,#6f42c1,#00b4d8); }
+    .tema-num { font-size:.72rem; font-weight:800; color:#475569; text-align:right; }
+    /* Backlog de devolutivas */
+    .backlog-lista { display:flex; flex-direction:column; gap:.4rem; max-height:290px; overflow:auto; }
+    .backlog-item { padding:.4rem .55rem; border-left:3px solid #f59e0b; background:#fffbeb; border-radius:0 8px 8px 0; }
+    .bk-nome { font-size:.78rem; font-weight:800; color:#1e293b; }
+    .bk-meta { font-size:.68rem; color:#94a3b8; font-weight:600; }
+    .bk-badge { background:#f59e0b; color:#fff; font-weight:900; border-radius:999px; padding:1px 10px; font-size:.78rem; margin-left:.4rem; }
+    .bk-badge.clic { cursor:pointer; } .bk-badge.clic:hover { background:#d97706; }
+    .backlog-vazio { font-size:.8rem; font-weight:700; color:#047857; background:#ecfdf5; border-radius:10px; padding:.7rem .9rem; }
     /* ── Área de impressão / PDF ── */
     #print-area { display: none; }
     .pdf-cab { display:flex; align-items:baseline; gap:12px; border-bottom:3px solid var(--primary); padding-bottom:10px; margin-bottom:20px; flex-wrap:wrap; }
@@ -1691,9 +1732,13 @@ const PALETA_FREQ = ['#002b5e','#39c46e','#FFD300','#FF007F','#00b4d8','#6f42c1'
 function _corFreq(f) { return f === 0 ? '#dc3545' : PALETA_FREQ[(f-1) % PALETA_FREQ.length]; }
 function _rotuloFreq(f) { return f === 0 ? 'Sem visita' : f + (f === 1 ? ' visita' : ' visitas'); }
 function _rotuloFiltro() {
-  if (!filtroAtivo) return '';
-  if (filtroAtivo.tipo === 'dev') return 'Com devolutiva';
-  return _rotuloFreq(filtroAtivo.valor);
+  const f = filtroAtivo;
+  if (!f) return '';
+  if (f.tipo === 'dev')      return 'Com devolutiva';
+  if (f.tipo === 'pendente') return 'Devolutiva pendente';
+  if (f.tipo === 'risco')    return 'Risco ' + (_ROT_RISCO[f.valor] || f.valor).toLowerCase();
+  if (f.tipo === 'idade')    return ({ d30:'Última visita ≤30 dias', d60:'Última visita 31–60 dias', d90:'Última visita 61–90 dias', mais:'Última visita +90 dias' })[f.valor] || '';
+  return _rotuloFreq(f.valor);
 }
 
 function _parseData(str) {
@@ -1726,14 +1771,231 @@ function _construirCobertura(segs) {
       const datas = vs.map(v => _parseData(v['Data da Visita:']||v['Data da visita:']||v['Carimbo de data/hora'])).filter(Boolean);
       const ultima = datas.length ? new Date(Math.max(...datas.map(d=>d.getTime()))) : null;
       const reg = mapaReg[escola] || (vs[0] && (vs[0][COL_REGIONAL]||'').toString().trim()) || '—';
-      const temDev = vs.some(v => mapaDevolutivas.has(_chaveDev(v['_SEGMENTO_']||seg, escola, v['Data da Visita:']||v['Data da visita:']||'')));
+      // devolutiva individual mais recente da escola → risco / prioridade / temas
+      let devDados = null, devTs = -Infinity;
+      vs.forEach(v => {
+        const dv = mapaDevolutivas.get(_chaveDev(v['_SEGMENTO_']||seg, escola, v['Data da Visita:']||v['Data da visita:']||''));
+        if (dv && (!dv._tipo || dv._tipo === 'individual')) {
+          const t = _tsDev(dv);
+          if (t >= devTs) { devTs = t; devDados = dv._dados || {}; }
+        }
+      });
       linhas.push({
         escola, regional: reg, segKey: seg, segmento: seg==='fundamental'?'Fundamental':'Infantil',
-        nVisitas: vs.length, ultima, temDev
+        nVisitas: vs.length, datas, ultima, temDev: !!devDados,
+        dev: devDados,
+        risco: (devDados && (devDados.risco_pedagogico||{}).nivel) || '',
+        prioridade: (devDados && devDados.prioridade) || ''
       });
     });
   });
   return linhas;
+}
+
+// ════════════════════════════════════════════════
+//  Painéis analíticos (novos): cobertura por regional, risco pedagógico,
+//  temas recorrentes, evolução temporal, envelhecimento e backlog de devolutivas.
+//  Todos operam sobre _coberturaCompleta (conjunto já filtrado por segmento/regional/busca).
+// ════════════════════════════════════════════════
+const _MESES_AB = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+let chartTemporal = null;
+
+// Nível de risco pedagógico normalizado a partir da devolutiva individual mais recente
+function _nivelRisco(l) {
+  if (!l.dev) return 'sem';
+  const n = String(l.risco||'').toLowerCase();
+  if (n.includes('alt'))  return 'alto';
+  if (n.includes('méd') || n.includes('med')) return 'medio';
+  if (n.includes('baix')) return 'baixo';
+  return 'sem';
+}
+const _ROT_RISCO = { alto:'Alto', medio:'Médio', baixo:'Baixo', sem:'Sem análise' };
+const _COR_RISCO = { alto:'#ef4444', medio:'#f59e0b', baixo:'#10b981', sem:'#94a3b8' };
+function _pillRisco(l) {
+  const n = _nivelRisco(l);
+  if (n === 'sem') return '<span class="text-muted">—</span>';
+  return `<span class="pill pill-risco-${n}">${_ROT_RISCO[n]}</span>`;
+}
+
+// A) Cobertura por Regional ─────────────────────────────────────────────
+function _painelCoberturaRegional() {
+  const porReg = {};
+  _coberturaCompleta.forEach(l => {
+    const r = (l.regional && l.regional !== '—') ? l.regional : 'Sem regional';
+    const o = porReg[r] || (porReg[r] = { total:0, visitadas:0 });
+    o.total++; if (l.nVisitas > 0) o.visitadas++;
+  });
+  const linhas = Object.entries(porReg)
+    .map(([reg,o]) => ({ reg, ...o, pct: o.total ? Math.round(o.visitadas/o.total*100) : 0 }))
+    .sort((a,b) => a.pct - b.pct || a.reg.localeCompare(b.reg));   // menor cobertura no topo
+  if (linhas.length < 2) return '';   // só compara com 2+ regionais
+  const barras = linhas.map(l => {
+    const cor = l.pct>=80 ? '#10b981' : l.pct>=50 ? '#f59e0b' : '#ef4444';
+    const clic = l.reg !== 'Sem regional';
+    return `<div class="pr-linha${clic?' clic':''}" ${clic?`data-reg="${escapar(l.reg)}" onclick="filtrarRegionalPainel(this)"`:''} title="${escapar(l.reg)}: ${l.visitadas}/${l.total} visitadas">
+      <div class="pr-nome">${escapar(l.reg)}</div>
+      <div class="pr-barra"><div class="pr-fill" style="width:${l.pct}%;background:${cor};"></div></div>
+      <div class="pr-num">${l.visitadas}/${l.total} · <b style="color:${cor};">${l.pct}%</b></div>
+    </div>`;
+  }).join('');
+  return `<div class="est-painel">
+    <div class="est-painel-tit"><i class="bi bi-map-fill me-1"></i>Cobertura por Regional</div>
+    <div class="pr-lista">${barras}</div>
+    <div class="est-painel-nota">Ordenado da menor cobertura para a maior. Clique numa regional para filtrar.</div>
+  </div>`;
+}
+function filtrarRegionalPainel(el) {
+  const r = el.dataset.reg || '';
+  const sel = document.getElementById('filtroEstRegional');
+  if ([...sel.options].some(o => o.value === r)) { sel.value = r; mudarFiltroEst(); }
+}
+
+// B) Painel de Risco Pedagógico ─────────────────────────────────────────
+function _painelRisco() {
+  const c = { alto:0, medio:0, baixo:0, sem:0 };
+  _coberturaCompleta.forEach(l => { c[_nivelRisco(l)]++; });
+  if (!(c.alto + c.medio + c.baixo)) return '';   // sem devolutivas: nada a mostrar
+  const chip = (k) => {
+    const clic = k !== 'sem';
+    const at = (filtroAtivo && filtroAtivo.tipo==='risco' && filtroAtivo.valor===k) ? ' ativo' : '';
+    return `<div class="risco-chip${clic?' clic':''}${at}" style="--rc:${_COR_RISCO[k]};" ${clic?`onclick="filtrarKpi('risco','${k}')"`:''}>
+      <div class="rc-val">${c[k]}</div><div class="rc-lbl">${_ROT_RISCO[k]}</div></div>`;
+  };
+  return `<div class="est-painel">
+    <div class="est-painel-tit"><i class="bi bi-shield-exclamation me-1"></i>Risco Pedagógico</div>
+    <div class="risco-grid">${chip('alto')}${chip('medio')}${chip('baixo')}${c.sem?chip('sem'):''}</div>
+    <div class="est-painel-nota">Da devolutiva mais recente de cada escola. Clique num nível para filtrar a tabela.</div>
+  </div>`;
+}
+
+// C) Temas Recorrentes (frequência de termos nos pontos fracos / de atenção) ──
+const _STOP_TEMAS = new Set(('para com sem que dos das nas nos uma umas uns pelo pela pelos pelas este esta estes estas ' +
+  'isso aquele aquela ainda sobre muito muita muitos muitas quando porque como onde todos todas todo toda entre sendo ' +
+  'estao estão havia forma parte dessa desse desta deste nesta neste numa seus suas nao não sim mais menos apenas ' +
+  'tambem também cada qual quais tinha foram estava sido pode podem deve devem fazer feito ' +
+  'professora professor professores escola escolas unidade unidades ainda').split(/\s+/));
+function _termosDaDev(dev) {
+  const set = new Set();
+  const textos = [].concat(dev.pontos_fracos||[], dev.pontos_atencao||[], dev.prioridade ? [dev.prioridade] : []);
+  textos.forEach(t => String(t).split(/[^0-9A-Za-zÀ-ÿ]+/).forEach(w => {
+    if (!w) return;
+    if (/^[A-Z]{2,5}$/.test(w)) { set.add(w); return; }          // acrônimos (PPA, PPP, PRP, PRA, NEE…)
+    const lw = w.toLowerCase();
+    if (lw.length >= 5 && !_STOP_TEMAS.has(lw)) set.add(lw);
+  }));
+  return set;
+}
+function _painelTemas() {
+  const freq = {}; let base = 0;
+  _coberturaCompleta.forEach(l => {
+    if (!l.dev) return;
+    base++;
+    _termosDaDev(l.dev).forEach(t => { freq[t] = (freq[t]||0) + 1; });
+  });
+  const top = Object.entries(freq).sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0])).slice(0, 12);
+  if (top.length < 3) return '';
+  const max = top[0][1];
+  const barras = top.map(([termo,n]) => `
+    <div class="tema-linha">
+      <div class="tema-nome" title="${escapar(termo)}">${escapar(termo)}</div>
+      <div class="tema-barra"><div class="tema-fill" style="width:${Math.round(n/max*100)}%;"></div></div>
+      <div class="tema-num">${n}</div>
+    </div>`).join('');
+  return `<div class="est-painel">
+    <div class="est-painel-tit"><i class="bi bi-tags-fill me-1"></i>Temas Recorrentes</div>
+    <div class="tema-lista">${barras}</div>
+    <div class="est-painel-nota">Termos mais citados nos pontos fracos / de atenção de ${base} devolutiva${base!==1?'s':''} (nº de escolas).</div>
+  </div>`;
+}
+
+// D) Evolução Temporal (visitas por mês) ────────────────────────────────
+function _painelTemporal() {
+  return `<div class="est-painel est-painel-wide">
+    <div class="est-painel-tit"><i class="bi bi-graph-up me-1"></i>Evolução das Visitas</div>
+    <div style="position:relative;height:210px;"><canvas id="canvasTemporal"></canvas></div>
+  </div>`;
+}
+function _desenharTemporal() {
+  const buckets = {};
+  _coberturaCompleta.forEach(l => (l.datas||[]).forEach(d => {
+    const k = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2);
+    buckets[k] = (buckets[k]||0) + 1;
+  }));
+  const keys = Object.keys(buckets).sort();
+  if (chartTemporal) { chartTemporal.destroy(); chartTemporal = null; }
+  const ctx = document.getElementById('canvasTemporal');
+  if (!ctx || typeof Chart === 'undefined' || !keys.length) return;
+  const labels = keys.map(k => { const [y,m] = k.split('-'); return _MESES_AB[+m-1] + '/' + y.slice(2); });
+  const data = keys.map(k => buckets[k]);
+  const temDL = typeof ChartDataLabels !== 'undefined';
+  const cfg = {
+    type: 'bar',
+    data: { labels, datasets: [{ label:'Visitas', data, backgroundColor:'#00b4d8', borderRadius:6, maxBarThickness:46 }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: {
+        legend: { display:false },
+        datalabels: temDL ? { anchor:'end', align:'end', color:'#0369a1', font:{ family:'Inter', weight:'bold', size:11 }, formatter:v=>v||'' } : undefined
+      },
+      scales: { y:{ beginAtZero:true, ticks:{ precision:0 } }, x:{ grid:{ display:false } } }
+    }
+  };
+  if (temDL) cfg.plugins = [ChartDataLabels];
+  chartTemporal = new Chart(ctx, cfg);
+}
+
+// E) Tempo desde a Última Visita (envelhecimento) ───────────────────────
+function _statsIdade() {
+  const now = Date.now(), b = { d30:0, d60:0, d90:0, mais:0 };
+  _coberturaCompleta.forEach(l => {
+    if (!l.ultima) return;
+    const dias = Math.floor((now - l.ultima.getTime()) / 86400000);
+    if (dias<=30) b.d30++; else if (dias<=60) b.d60++; else if (dias<=90) b.d90++; else b.mais++;
+  });
+  return b;
+}
+function _painelIdade() {
+  const b = _statsIdade();
+  if (!(b.d30+b.d60+b.d90+b.mais)) return '';
+  const chip = (k, rot, cor) => {
+    const at = (filtroAtivo && filtroAtivo.tipo==='idade' && filtroAtivo.valor===k) ? ' ativo' : '';
+    return `<div class="idade-chip clic${at}" style="--ic:${cor};" onclick="filtrarKpi('idade','${k}')">
+      <div class="rc-val">${b[k]}</div><div class="rc-lbl">${rot}</div></div>`;
+  };
+  return `<div class="est-painel">
+    <div class="est-painel-tit"><i class="bi bi-clock-history me-1"></i>Tempo desde a Última Visita</div>
+    <div class="risco-grid">
+      ${chip('d30','Até 30 dias','#10b981')}
+      ${chip('d60','31–60 dias','#f59e0b')}
+      ${chip('d90','61–90 dias','#fb923c')}
+      ${chip('mais','+90 dias','#ef4444')}
+    </div>
+    <div class="est-painel-nota">Apenas escolas já visitadas. Clique numa faixa para filtrar a tabela.</div>
+  </div>`;
+}
+
+// F) Backlog de Devolutivas (visitadas sem devolutiva) ──────────────────
+function _painelBacklog() {
+  const pend = _coberturaCompleta.filter(l => l.nVisitas>0 && !l.temDev)
+    .sort((a,b) => (b.ultima?b.ultima.getTime():0) - (a.ultima?a.ultima.getTime():0));
+  if (!pend.length) {
+    return `<div class="est-painel">
+      <div class="est-painel-tit"><i class="bi bi-inbox me-1"></i>Devolutivas Pendentes</div>
+      <div class="backlog-vazio"><i class="bi bi-check-circle-fill me-1"></i>Todas as escolas visitadas já têm devolutiva.</div>
+    </div>`;
+  }
+  const itens = pend.slice(0, 10).map(l => `
+    <div class="backlog-item">
+      <div class="bk-nome">${escapar(l.escola)}</div>
+      <div class="bk-meta">${escapar(l.regional)} · ${l.nVisitas} visita${l.nVisitas!==1?'s':''} · última ${_fmtData(l.ultima)}</div>
+    </div>`).join('');
+  const resto = pend.length > 10 ? `<div class="est-painel-nota">+${pend.length-10} escola(s) além das 10 mais recentes.</div>` : '';
+  return `<div class="est-painel">
+    <div class="est-painel-tit"><i class="bi bi-inbox me-1"></i>Devolutivas Pendentes
+      <span class="bk-badge clic" onclick="filtrarKpi('pendente')" title="Filtrar a tabela pelas pendentes">${pend.length}</span></div>
+    <div class="backlog-lista">${itens}</div>
+    ${resto}
+  </div>`;
 }
 
 function renderEstatisticas() {
@@ -1773,10 +2035,14 @@ function renderEstatisticas() {
   _coberturaCompleta.forEach(l => { contagem[l.nVisitas] = (contagem[l.nVisitas]||0) + 1; });
   const freqs = Object.keys(contagem).map(Number).sort((a,b) => a-b);
 
-  const ativoFreq = f => (filtroAtivo && filtroAtivo.tipo==='freq' && filtroAtivo.valor===f) ? 'ativo' : '';
-  const ativoDev  = (filtroAtivo && filtroAtivo.tipo==='dev') ? 'ativo' : '';
+  // Métricas derivadas das devolutivas
+  const riscoAlto = _coberturaCompleta.filter(l => _nivelRisco(l) === 'alto').length;
+  const pendentes = visitadas - comDev;
 
-  // KPI "Escolas" (limpa o filtro) + 1 KPI por frequência + Cobertura + Total + Com devolutiva
+  const ativoFreq = f => (filtroAtivo && filtroAtivo.tipo==='freq' && filtroAtivo.valor===f) ? 'ativo' : '';
+  const ativoTipo = (t,v) => (filtroAtivo && filtroAtivo.tipo===t && (v===undefined || filtroAtivo.valor===v)) ? 'ativo' : '';
+
+  // KPI "Escolas" (limpa o filtro) + 1 KPI por frequência + Cobertura + Total + Com devolutiva + Risco alto + Pendentes
   const kpiEscolas = `<div class="est-kpi info clic ${filtroAtivo?'':'ativo'}" onclick="filtrarKpi(null)"><div class="lbl">Escolas</div><div class="val">${total}</div></div>`;
   const kpisFreq = freqs.map(f => {
     const cor = _corFreq(f);
@@ -1784,26 +2050,40 @@ function renderEstatisticas() {
   }).join('');
   const kpiCobertura = `<div class="est-kpi"><div class="lbl">Cobertura</div><div class="val">${cobertura}%</div></div>`;
   const kpiTotalVis  = `<div class="est-kpi"><div class="lbl">Total de visitas</div><div class="val">${totalVisitas}</div></div>`;
-  const kpiDev       = `<div class="est-kpi dev clic ${ativoDev}" onclick="filtrarKpi('dev')"><div class="lbl">Com devolutiva</div><div class="val">${comDev}</div></div>`;
+  const kpiDev       = `<div class="est-kpi dev clic ${ativoTipo('dev')}" onclick="filtrarKpi('dev')"><div class="lbl">Com devolutiva</div><div class="val">${comDev}</div></div>`;
+  const kpiRisco     = riscoAlto ? `<div class="est-kpi warn clic ${ativoTipo('risco','alto')}" onclick="filtrarKpi('risco','alto')"><div class="lbl">Risco alto</div><div class="val">${riscoAlto}</div></div>` : '';
+  const kpiPend      = pendentes ? `<div class="est-kpi clic ${ativoTipo('pendente')}" style="border-left-color:#f59e0b;" onclick="filtrarKpi('pendente')"><div class="lbl">Dev. pendentes</div><div class="val" style="color:#b45309;">${pendentes}</div></div>` : '';
 
-  const kpis = `<div class="est-kpis-grid mb-3">${kpiEscolas}${kpisFreq}${kpiCobertura}${kpiTotalVis}${kpiDev}</div>`;
+  const kpis = `<div class="est-kpis-grid mb-3">${kpiEscolas}${kpisFreq}${kpiCobertura}${kpiTotalVis}${kpiDev}${kpiRisco}${kpiPend}</div>`;
 
   main.innerHTML = `
     ${kpis}
+    <div class="est-paineis">
+      ${_painelCoberturaRegional()}
+      ${_painelRisco()}
+      ${_painelIdade()}
+      ${_painelBacklog()}
+      ${_painelTemas()}
+      ${_painelTemporal()}
+    </div>
     <div class="table-container" id="cob-tabela"></div>`;
 
   _desenharDonut(_coberturaCompleta);
+  _desenharTemporal();
   _refreshTabelaCob();
 }
 
 // Mudança nos filtros da lateral (segmento/regional/busca) zera o KPI ativo
 function mudarFiltroEst() { filtroAtivo = null; renderEstatisticas(); }
 
-// Aplica filtro a partir de um KPI / fatia do donut (alterna se já ativo)
+// Aplica filtro a partir de um KPI / fatia do donut / painel (alterna se já ativo).
+// Tipos: 'freq' (valor=N) · 'dev' · 'pendente' · 'risco' (valor=alto|medio|baixo) · 'idade' (valor=d30|d60|d90|mais)
 function filtrarKpi(tipo, valor) {
   if (tipo === null) filtroAtivo = null;
-  else if (tipo === 'freq') filtroAtivo = (filtroAtivo && filtroAtivo.tipo==='freq' && filtroAtivo.valor===valor) ? null : { tipo:'freq', valor };
-  else if (tipo === 'dev')  filtroAtivo = (filtroAtivo && filtroAtivo.tipo==='dev') ? null : { tipo:'dev' };
+  else {
+    const igual = filtroAtivo && filtroAtivo.tipo === tipo && (valor === undefined || filtroAtivo.valor === valor);
+    filtroAtivo = igual ? null : (valor === undefined ? { tipo } : { tipo, valor });
+  }
   renderEstatisticas();
 }
 
@@ -1845,9 +2125,17 @@ function _desenharDonut(lista) {
 // Lista exibida na tabela = conjunto filtrado, opcionalmente recortado pela fatia do donut, ordenado
 function _listaTabela() {
   let lista = _coberturaCompleta.slice();
-  if (filtroAtivo) {
-    if (filtroAtivo.tipo === 'freq') lista = lista.filter(l => l.nVisitas === filtroAtivo.valor);
-    else if (filtroAtivo.tipo === 'dev') lista = lista.filter(l => l.temDev);
+  const f = filtroAtivo;
+  if (f) {
+    if      (f.tipo === 'freq')     lista = lista.filter(l => l.nVisitas === f.valor);
+    else if (f.tipo === 'dev')      lista = lista.filter(l => l.temDev);
+    else if (f.tipo === 'pendente') lista = lista.filter(l => l.nVisitas > 0 && !l.temDev);
+    else if (f.tipo === 'risco')    lista = lista.filter(l => _nivelRisco(l) === f.valor);
+    else if (f.tipo === 'idade')    lista = lista.filter(l => {
+      if (!l.ultima) return false;
+      const dias = Math.floor((Date.now() - l.ultima.getTime()) / 86400000);
+      return f.valor==='d30' ? dias<=30 : f.valor==='d60' ? (dias>30 && dias<=60) : f.valor==='d90' ? (dias>60 && dias<=90) : dias>90;
+    });
   }
   _ordenarLista(lista);
   return lista;
@@ -1867,6 +2155,7 @@ function _htmlTabelaCob(lista) {
       <td>${_fmtData(l.ultima)}</td>
       <td>${l.nVisitas>0?'<span class="pill pill-ok">Visitada</span>':'<span class="pill pill-no">Sem visita</span>'}</td>
       <td>${l.temDev?'<span class="pill pill-dev"><i class="bi bi-robot me-1"></i>Sim</span>':'<span class="text-muted">—</span>'}</td>
+      <td>${_pillRisco(l)}</td>
     </tr>`).join('');
   return `
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
@@ -1883,8 +2172,9 @@ function _htmlTabelaCob(lista) {
           <th onclick="ordenarCobertura('ultima')">Última visita${seta('ultima')}</th>
           <th onclick="ordenarCobertura('status')">Status${seta('status')}</th>
           <th onclick="ordenarCobertura('temDev')">Devolutiva${seta('temDev')}</th>
+          <th onclick="ordenarCobertura('risco')">Risco${seta('risco')}</th>
         </tr></thead>
-        <tbody>${linhasHtml || '<tr><td colspan="7" class="text-center text-muted py-4">Nenhuma escola encontrada.</td></tr>'}</tbody>
+        <tbody>${linhasHtml || '<tr><td colspan="8" class="text-center text-muted py-4">Nenhuma escola encontrada.</td></tr>'}</tbody>
       </table>
     </div>`;
 }
@@ -1936,6 +2226,7 @@ function _ordenarLista(lista) {
     if (c === 'status')      { va = a.nVisitas>0?1:0; vb = b.nVisitas>0?1:0; }
     else if (c === 'temDev') { va = a.temDev?1:0;     vb = b.temDev?1:0; }
     else if (c === 'ultima') { va = a.ultima?a.ultima.getTime():0; vb = b.ultima?b.ultima.getTime():0; }
+    else if (c === 'risco')  { const o={alto:3,medio:2,baixo:1,sem:0}; va=o[_nivelRisco(a)]; vb=o[_nivelRisco(b)]; }
     else { va = a[c]; vb = b[c]; }
     if (typeof va === 'string') return va.localeCompare(vb) * mult;
     return (va - vb) * mult;
@@ -1945,10 +2236,11 @@ function _ordenarLista(lista) {
 function exportarCoberturaCSV() {
   const lista = _listaTabela();
   if (!lista.length) { mostrarToast('Nada para exportar.'); return; }
-  const cab = ['Unidade Escolar','Regional','Segmento','Nº de visitas','Última visita','Status','Devolutiva'];
+  const cab = ['Unidade Escolar','Regional','Segmento','Nº de visitas','Última visita','Status','Devolutiva','Risco pedagógico'];
   const linhas = lista.map(l => [
     l.escola, l.regional, l.segmento, l.nVisitas, _fmtData(l.ultima),
-    l.nVisitas>0?'Visitada':'Sem visita', l.temDev?'Sim':'Não'
+    l.nVisitas>0?'Visitada':'Sem visita', l.temDev?'Sim':'Não',
+    _nivelRisco(l)==='sem' ? '' : _ROT_RISCO[_nivelRisco(l)]
   ]);
   const csv = [cab, ...linhas].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(';')).join('\r\n');
   const blob = new Blob(['﻿'+csv], { type: 'text/csv;charset=utf-8;' });
