@@ -112,9 +112,25 @@ async function exportar() {
   console.log('Envie esse arquivo ao Claude para gerar as devolutivas.');
 }
 
+// Chave de agrupamento por tipo de devolutiva (espelha o _gerarId do Code.gs):
+//   individual     → segmento|escola|data
+//   regional       → 'regional'|regional|segmento
+//   sintese_global → 'rede_global'|segmento
+//   rede (manual)  → 'rede'|escolas|data
+function chaveDaDevolutiva(it, data) {
+  switch (it.tipo) {
+    case 'regional':       return chaveDe('regional', it.regional || '', it.segmento || '');
+    case 'sintese_global': return chaveDe('rede_global', it.segmento || '', '');
+    case 'rede':           return chaveDe('rede', it.escola || '', data);
+    default:               return chaveDe(it.segmento, it.escola, data);
+  }
+}
+
 // ── import: grava as devolutivas geradas ─────────────────────────────────────
 // Formato esperado de cada item do arquivo (o que o Claude devolve):
-//   { visita_uid, segmento, escola, regional, data_visita, dados: { ...análise... } }
+//   individual: { visita_uid, segmento, escola, regional, data_visita, dados }
+//   regional:   { tipo:'regional', segmento, regional, escola:'<escolas>', data_visita, dados }
+//   rede:       { tipo:'sintese_global', segmento, data_visita, dados }
 async function importar() {
   const arq = process.argv[3];
   if (!arq) { console.error('✖ Uso: node devolutivas-local.mjs import <arquivo.json>'); process.exit(1); }
@@ -124,7 +140,7 @@ async function importar() {
   const agora = new Date().toISOString();
   const linhas = itens.map(it => {
     const data  = it.data_visita || it.data_visita_txt || '';
-    const chave = chaveDe(it.segmento, it.escola, data);
+    const chave = chaveDaDevolutiva(it, data);
     return {
       id:          `${chave}-${MODELO}`,
       chave,
