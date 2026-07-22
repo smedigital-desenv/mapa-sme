@@ -1681,6 +1681,40 @@ function abrirRelatorioTurma(escola, turmaRaw) {
   _preencherTurmaProfessor(escola, _ano, _tu);
 }
 
+// ── Atribuição: MESMA lógica da tela de Atribuição (atribuicao.html) ────────
+// Decide "tem professor?" por código do professor + situação NA ATIVA (texto),
+// e não pelo formato do campo status_atribuicao (que varia conforme o export).
+// Assim a fluência mostra a atribuição igual à tela de Atribuição.
+function _atribEmContracao(codigo) {
+  const cod = Number(codigo);
+  return !isNaN(cod) && cod >= 99000;   // código placeholder = contratação em andamento
+}
+function _atribNaAtiva(situacao) {
+  const t = String(situacao || '').toUpperCase().trim();
+  return t.includes('NA ATIVA') || t === 'ATIVA';
+}
+function _temAtribuicao(row) {
+  if (!row) return false;
+  const codTit = String(row.codigo_professor_prop || '').trim();
+  const codSub = String(row.codigo_professor_sub  || '').trim();
+  if (_atribEmContracao(codTit)) return true;                             // 1) titular em contratação
+  if (codTit && codTit !== '0' && _atribNaAtiva(row.situacao_professor)) return true;  // 2) titular ativo
+  if (!codSub || codSub === '0') return false;                           // 3) sem substituto → saldo
+  if (_atribEmContracao(codSub)) return true;                            // 4) substituto em contratação
+  if (_atribNaAtiva(row.situacao_professor_sub)) return true;            // 5) substituto ativo
+  return false;                                                          // 6) ninguém ativo → saldo
+}
+function _temSubstituto(row) {
+  if (!row) return false;
+  const codTit = String(row.codigo_professor_prop || '').trim();
+  const codSub = String(row.codigo_professor_sub  || '').trim();
+  const titularOcupa = _atribEmContracao(codTit) ||
+    (codTit && codTit !== '0' && _atribNaAtiva(row.situacao_professor));
+  const substitutoOcupa = (codSub && codSub !== '0') &&
+    (_atribEmContracao(codSub) || _atribNaAtiva(row.situacao_professor_sub));
+  return !titularOcupa && substitutoOcupa;
+}
+
 // Busca o regente (Magistério II) da turma na tabela `turmas` e exibe o nome
 async function _preencherTurmaProfessor(escola, ano, letra) {
   const cont = document.getElementById('relTurmaProf');
@@ -1689,7 +1723,8 @@ async function _preencherTurmaProfessor(escola, ano, letra) {
     const chave = escola.replace(/[,\.]/g, ' ').split(/\s+/).find(w => w.length > 3) || escola.split(' ')[0];
     const rows = await apiFetch(
       `turmas?select=nome_unidade,ano_escolar,letra_turma,descricao_disciplina,` +
-      `status_atribuicao,nome_professor_prop,nome_professor_sub` +
+      `status_atribuicao,nome_professor_prop,nome_professor_sub,` +
+      `codigo_professor_prop,codigo_professor_sub,situacao_professor,situacao_professor_sub` +
       `&nome_unidade=ilike.*${encodeURIComponent(chave)}*&limit=1000`
     );
 
@@ -1715,8 +1750,8 @@ async function _preencherTurmaProfessor(escola, ano, letra) {
       return;
     }
 
-    const atrib   = /^[24]\b/.test((reg.status_atribuicao||'').trim()) || (reg.status_atribuicao||'').toUpperCase().includes('TROCA');
-    const sub     = /^4\b/.test((reg.status_atribuicao||'').trim());
+    const atrib   = _temAtribuicao(reg);
+    const sub     = _temSubstituto(reg);
     const prop    = esc(reg.nome_professor_prop || '—');
     const subNome = reg.nome_professor_sub ? esc(reg.nome_professor_sub) : '';
     const cor     = atrib ? (sub ? '#d97706' : '#059669') : '#dc2626';
@@ -1886,7 +1921,8 @@ async function _preencherPPA(escola) {
     const chave = escola.replace(/[,\.]/g, ' ').split(/\s+/).find(w => w.length > 3) || escola.split(' ')[0];
     const rows = await apiFetch(
       `turmas?select=nome_unidade,ano_escolar,letra_turma,descricao_disciplina,` +
-      `carga_horaria,status_atribuicao,nome_professor_prop,nome_professor_sub,situacao_professor` +
+      `carga_horaria,status_atribuicao,nome_professor_prop,nome_professor_sub,situacao_professor,` +
+      `codigo_professor_prop,codigo_professor_sub,situacao_professor_sub` +
       `&nome_unidade=ilike.*${encodeURIComponent(chave)}*&limit=1000`
     );
 
@@ -1898,11 +1934,8 @@ async function _preencherPPA(escola) {
       return n.includes('MAGISTERIO II') || n.includes('MAGISTERIO 2');
     };
     const is2Ano = a => /\b2\s*ANO\b/.test(_norm(a || '').replace(/[º°]/g, ''));
-    const isAtrib = r => {
-      const st = (r.status_atribuicao || '').toUpperCase();
-      return /^[24]\b/.test(st.trim()) || st.includes('TROCA');
-    };
-    const isSub = r => /^4\b/.test((r.status_atribuicao || '').trim());
+    const isAtrib = r => _temAtribuicao(r);
+    const isSub   = r => _temSubstituto(r);
 
     // Todos os Magistério II da escola, ordenados por ano + turma
     const mgRows = rowsEsc
