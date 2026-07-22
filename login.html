@@ -132,7 +132,10 @@
       var CENTRAL = window.supabase.createClient(
         'https://pvdhepvtoavkyoschkod.supabase.co',
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2ZGhlcHZ0b2F2a3lvc2Noa29kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0MTUzNDQsImV4cCI6MjA5Nzk5MTM0NH0.BY6jPR9iDvh2xRlGtaU8vdKWp0NKyC7Amlzx-tytmrk',
-        { auth:{ persistSession:false, autoRefreshToken:false } }
+        // detectSessionInUrl:false → este cliente (só leitura do landing) NÃO pode
+        // tocar no retorno do OAuth do Google. Sem isso, ele consome o ?code= da URL
+        // antes do cliente do MAPA, que falha e exige um SEGUNDO login. (login duplo)
+        { auth:{ persistSession:false, autoRefreshToken:false, detectSessionInUrl:false } }
       );
       CENTRAL.from('sistema_landing').select('marca,sub,titulo,tagline,cta,cor,imagem_url,features')
         .eq('slug', SLUG).maybeSingle()
