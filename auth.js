@@ -1,288 +1,146 @@
 /* ============================================================================
-   auth.js — Biblioteca de autenticação/autorização compartilhada.
-   Incluir DEPOIS do supabase-js, em qualquer página protegida.
+   auth.js — PONTE para o Controle de Acesso CENTRAL da rede SME.
+   ----------------------------------------------------------------------------
+   O login e as permissões (quais telas o usuário vê) passam a ser governados
+   INTEIRAMENTE pelo central (window.AcessoSME, servido em /central/). Não
+   existe mais um login próprio do MAPA — mesmo entrando direto pela URL do
+   MAPA, sem sessão no central, a pessoa é levada para /central/login.html.
 
-   O que faz:
-     1. Garante o cliente Supabase.
-     2. Confirma a sessão (senão -> login.html).
-     3. Busca as permissões do usuário via RPC minhas_permissoes()
-        (cacheadas em sessionStorage p/ poupar egress do free tier).
-     4. Verifica acesso AO SISTEMA atual (window.MAPA_SISTEMA, padrão 'mapa');
-        sem perfil/sem papel -> tela "sem acesso".
-     5. Esconde links de telas que o usuário não pode ver (data-tela="slug").
-     6. Expõe window.MapaAuth para o resto da página.
+   Os DADOS continuam no Supabase do MAPA (mesmo projeto de sempre). Este
+   arquivo mantém window.MapaAuth e window.MAPA_SB com a MESMA forma de antes,
+   para que todas as páginas continuem funcionando sem precisar de alterações.
 
-   API pública (window.MapaAuth):
+   API pública (window.MapaAuth) — inalterada:
      .pronto            -> Promise que resolve quando a auth terminou
      .perfil            -> { id, nome, email, tipo, is_super_admin }
      .escolas           -> [{ id, nome, vinculo }]
      .sistema           -> objeto do sistema atual (slug, nome, telas...)
      .can(tela, acao)   -> bool  (acao: 'ver'|'editar'|'exportar', padrão 'ver')
-     .token()           -> Promise<access_token atual>
-     .authFetch(url,opt)-> fetch com Authorization do usuário (p/ RLS na fase 2)
-     .signOut()         -> encerra sessão e volta ao login
+     .token()           -> Promise<access_token atual (do CENTRAL)>
+     .authFetch(url,opt)-> fetch com Authorization do usuário
+     .signOut()         -> encerra sessão (no central) e volta ao login
+   Evento disparado quando pronto: 'mapa-auth-pronto' (document).
    ============================================================================ */
 (function () {
-  var CFG = {
+  // Config do Supabase do MAPA (mesmo projeto de sempre) — só para DADOS.
+  var MAPA_CFG = {
     url: 'https://gmwotfulohkmuqrezeef.supabase.co',
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk'
   };
   var SISTEMA_SLUG = window.MAPA_SISTEMA || 'mapa';
-  var CACHE_KEY = 'MAPA_PERMS_v1';
-  var SIMULA_KEY = 'MAPA_SIMULA';   // e-mail que o super admin está simulando
 
-  // Normaliza nome de escola/unidade para comparação (maiúsc., sem acento, só alfanum).
   function normEscola(s) {
     return String(s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
       .replace(/[^A-Z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
   }
-  // Nome "base" = parte antes da vírgula (sem o sufixo EMEI/EMEF/CEI/PROF…),
-  // que é o que distingue a unidade entre bases com grafias diferentes.
   function baseEscola(s) { return normEscola(String(s || '').split(',')[0]); }
 
-  function telaAtual() {
-    // Páginas podem compartilhar a permissão de outra tela definindo
-    // window.MAPA_TELA (ex.: um relatório que "pertence" à tela atribuicao).
-    if (window.MAPA_TELA) return window.MAPA_TELA;
-    var f = (location.pathname.split('/').pop() || 'index.html').replace(/\.html$/i, '');
-    return f === 'index' ? null : f;   // index = portal do sistema, sem tela específica
+  function gateOff() { try { if (window.__mapaGateOff) window.__mapaGateOff(); } catch (e) {} }
+
+  function overlayErro(msg) {
+    gateOff();
+    try {
+      var o = document.getElementById('mapaAcessoOverlay') || document.body;
+      var div = document.createElement('div');
+      div.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:linear-gradient(135deg,#002b5e,#075f82);'
+        + 'display:flex;align-items:center;justify-content:center;padding:20px;';
+      div.innerHTML =
+        '<div style="width:min(430px,92vw);background:#fff;border-radius:20px;box-shadow:0 24px 70px rgba(0,0,0,.35);padding:34px 30px;text-align:center;font-family:Inter,sans-serif;">'
+        + '<i class="bi bi-shield-exclamation" style="font-size:2.4rem;color:#dc2626;"></i>'
+        + '<h3 style="font-weight:900;color:#002b5e;margin:14px 0 6px;font-size:1.2rem;">Acesso indisponível</h3>'
+        + '<p style="color:#64748b;margin:0 0 16px;font-size:.94rem;line-height:1.45;">' + (msg || 'Não foi possível carregar o controle de acesso central.') + '</p>'
+        + '<a href="/central/login.html" style="display:inline-block;padding:10px 18px;border-radius:10px;background:#002b5e;color:#fff;font-weight:700;text-decoration:none;">Ir para o login</a>'
+        + '</div>';
+      (document.body || document.documentElement).appendChild(div);
+    } catch (e) {}
   }
 
-  function carregarSupabaseJs() {
+  function carregarScript(src) {
     return new Promise(function (resolve, reject) {
-      if (window.supabase && window.supabase.createClient) return resolve();
       var s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-      s.onload = resolve; s.onerror = function () { reject(new Error('Falha ao carregar supabase-js')); };
+      s.src = src; s.onload = resolve;
+      s.onerror = function () { reject(new Error('Falha ao carregar ' + src)); };
       document.head.appendChild(s);
     });
   }
 
-  function irParaLogin() {
-    var aqui = (location.pathname.split('/').pop() || 'index.html') + location.search + location.hash;
-    location.replace('login.html?next=' + encodeURIComponent(aqui));
-  }
+  // Marca o sistema ANTES de carregar o módulo central.
+  window.ACESSO_SISTEMA = SISTEMA_SLUG;
+  window.ACESSO_LOGIN = '/central/login.html';
 
-  function telaSemAcesso(msg) {
-    var simulando = window.MapaAuth && window.MapaAuth.simulando;
-    var extra = simulando
-      ? '<div style="margin-top:.4rem"><button onclick="window.MapaAuth.pararSimulacao()" class="btn btn-warning btn-sm fw-bold">'
-        + '<i class="bi bi-incognito"></i> Encerrar simulação</button></div>'
-        + '<p style="color:#94a3b8;font-size:.78rem;margin-top:.4rem">Você está simulando este perfil — ele não tem acesso aqui.</p>'
-      : '';
-    document.documentElement.innerHTML =
-      '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
-      '<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">' +
-      '<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet"></head>' +
-      '<body style="font-family:Inter,sans-serif;background:#f0f4f8;min-height:100vh;display:grid;place-items:center;margin:0;padding:1rem">' +
-      '<div style="background:#fff;border-radius:18px;box-shadow:0 12px 40px rgba(0,0,0,.12);max-width:440px;padding:2.2rem;text-align:center">' +
-      '<div style="font-size:2.4rem;color:#b91c1c"><i class="bi bi-shield-exclamation"></i></div>' +
-      '<h4 style="font-weight:900;color:#002b5e;margin:.6rem 0">Acesso não autorizado</h4>' +
-      '<p style="color:#475569;font-size:.9rem">' + msg + '</p>' +
-      extra +
-      '<button onclick="window.MapaAuth.signOut()" class="btn btn-outline-secondary btn-sm mt-2">Trocar de conta</button>' +
-      '</div></body>';
-  }
+  // Stub inicial: código que leia MapaAuth antes do central ficar pronto não quebra.
+  window.MapaAuth = window.MapaAuth || {
+    perfil: null, escolas: [], sistema: null, restritoEscola: false,
+    escolasNomes: [], escolasBases: [],
+    can: function () { return false; },
+    podeVerEscola: function () { return true; },
+    filtrarEscolas: function (rows) { return rows || []; }
+  };
 
-  function montar() {
-    var SB = (window.MAPA_SB) || window.supabase.createClient(CFG.url, CFG.anonKey);
-    window.MAPA_SB = SB;
+  (async function () {
+    try {
+      await carregarScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
+      // window.MAPA_SB: cliente do Supabase do MAPA, só para DADOS (sem sessão
+      // própria — o login é 100% do central). Mantido pelo mesmo nome de antes
+      // para as páginas que já o usam (frequencia, gerência-liminar, relatórios).
+      window.MAPA_SB = window.supabase.createClient(MAPA_CFG.url, MAPA_CFG.anonKey);
 
-    var api = {
-      pronto: null, perfil: null, escolas: [], sistema: null, _todos: [],
-      can: function (tela, acao) {
-        if (!this.sistema) return false;
-        if (this.perfil && this.perfil.is_super_admin) return true;
-        var t = this.sistema.telas && this.sistema.telas[tela];
-        return !!(t && t[acao || 'ver']);
-      },
-      // ── Isolamento de dados por escola ──────────────────────────────────
-      // restritoEscola = true quando o perfil efetivo (inclusive simulado) está
-      // amarrado a escolas específicas. Super admin e perfis sem escola = vê tudo.
-      restritoEscola: false,
-      escolasNomes: [],            // nomes normalizados (completos) das escolas do perfil
-      escolasBases: [],            // nomes "base" (antes da vírgula) p/ casamento tolerante
-      podeVerEscola: function (nome) {
-        if (!this.restritoEscola) return true;
-        var n = normEscola(nome);
-        if (!n) return false;
-        if (this.escolasNomes.indexOf(n) !== -1) return true;   // igualdade completa
-        var nb = baseEscola(nome);                              // tolerante: nome base
-        for (var i = 0; i < this.escolasBases.length; i++) {
-          var b = this.escolasBases[i];
-          if (b && (b === nb || nb.indexOf(b) === 0 || b.indexOf(nb) === 0)) return true;
-        }
-        return false;
-      },
-      // Filtra uma lista de registros pelas escolas do usuário.
-      // getNome(row) -> nome da unidade no registro (default: o próprio item).
-      filtrarEscolas: function (rows, getNome) {
-        if (!this.restritoEscola) return rows || [];
-        var self = this;
-        return (rows || []).filter(function (r) {
-          return self.podeVerEscola(getNome ? getNome(r) : r);
-        });
-      },
-      token: function () {
-        return SB.auth.getSession().then(function (r) {
-          return r.data.session ? r.data.session.access_token : null;
-        });
-      },
-      authFetch: function (url, opt) {
-        opt = opt || {};
-        return this.token().then(function (tok) {
-          opt.headers = Object.assign({}, opt.headers, {
-            apikey: CFG.anonKey,
-            Authorization: 'Bearer ' + (tok || CFG.anonKey)
-          });
-          return fetch(url, opt);
-        });
-      },
-      signOut: function () {
-        try { sessionStorage.removeItem(CACHE_KEY); sessionStorage.removeItem(SIMULA_KEY); } catch (e) {}
-        return SB.auth.signOut().then(irParaLogin).catch(irParaLogin);
-      },
-      // SIMULAÇÃO DE ACESSO (só super admin): ver o sistema como outro perfil.
-      simulando: null,      // e-mail simulado (ou null)
-      realPerfil: null,     // perfil real de quem está simulando
-      simular: function (email) {
-        try { sessionStorage.setItem(SIMULA_KEY, String(email || '').toLowerCase()); } catch (e) {}
-        location.href = 'index.html';
-      },
-      pararSimulacao: function () {
-        try { sessionStorage.removeItem(SIMULA_KEY); } catch (e) {}
-        location.reload();
+      await carregarScript('/central/config.js');
+      await carregarScript('/central/acesso-sme.js');
+    } catch (e) {
+      overlayErro('Falha ao carregar os módulos de acesso. Recarregue a página.');
+      return;
+    }
+
+    var A = window.AcessoSME;
+    if (!A || !A.pronto) {
+      overlayErro('O módulo de acesso central não carregou.');
+      return;
+    }
+
+    var apiCentral;
+    try { apiCentral = await A.pronto; }
+    catch (e) { overlayErro('Não foi possível verificar seu acesso no central.'); return; }
+
+    // Sem perfil = já foi redirecionado (login) ou já mostrou "sem acesso"
+    // (telaSemAcesso substituiu a página inteira). Nada mais a fazer aqui.
+    if (!apiCentral || !A.perfil) return;
+
+    // ── Monta window.MapaAuth a partir do AcessoSME (mesma forma de antes) ──
+    var api = window.MapaAuth;
+    api.perfil = A.perfil;
+    api.escolas = A.escolas || [];
+    api.escolasNomes = api.escolas.map(function (e) { return normEscola(e.nome); }).filter(Boolean);
+    api.escolasBases = api.escolas.map(function (e) { return baseEscola(e.nome); }).filter(Boolean);
+    api.restritoEscola = !(api.perfil && api.perfil.is_super_admin) && api.escolasNomes.length > 0;
+    api.sistema = A.sistema;
+    api.can = function (tela, acao) { return A.can(tela, acao); };
+    api.podeVerEscola = function (nome) {
+      if (!this.restritoEscola) return true;
+      var n = normEscola(nome); if (!n) return false;
+      if (this.escolasNomes.indexOf(n) !== -1) return true;
+      var nb = baseEscola(nome);
+      for (var i = 0; i < this.escolasBases.length; i++) {
+        var b = this.escolasBases[i];
+        if (b && (b === nb || nb.indexOf(b) === 0 || b.indexOf(nb) === 0)) return true;
       }
+      return false;
     };
-    window.MapaAuth = api;
+    api.filtrarEscolas = function (rows, getNome) {
+      if (!this.restritoEscola) return rows || [];
+      var self = this;
+      return (rows || []).filter(function (r) { return self.podeVerEscola(getNome ? getNome(r) : r); });
+    };
+    api.token = function () { return A.token(); };
+    api.authFetch = function (url, opt) { return A.authFetch(url, opt); };
+    api.signOut = function () { return A.signOut(); };
+    api.simulando = A.simulando || null;
+    api.realPerfil = A.realPerfil || null;
+    api.simular = function (email) { return A.simular(email); };
+    api.pararSimulacao = function () { return A.pararSimulacao(); };
+    api.pronto = Promise.resolve(api);
 
-    api.pronto = (async function () {
-      var sess = (await SB.auth.getSession()).data.session;
-      if (!sess) { irParaLogin(); return; }
-
-      // permissões (cache na sessão do navegador p/ poupar egress)
-      var perms = null;
-      try { perms = JSON.parse(sessionStorage.getItem(CACHE_KEY)); } catch (e) {}
-      if (!perms) {
-        var r = await SB.rpc('minhas_permissoes');
-        if (r.error) { telaSemAcesso('Erro ao verificar permissões: ' + r.error.message); return; }
-        perms = r.data;
-        try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(perms)); } catch (e) {}
-      }
-
-      if (!perms || !perms.autorizado) {
-        telaSemAcesso('A conta <b>' + (sess.user.email || '') + '</b> ainda não foi autorizada pela secretaria.');
-        return;
-      }
-
-      // SIMULAÇÃO: se há um e-mail em sessão E o usuário REAL é super admin,
-      // troca as permissões pelas do perfil simulado (egress: 1 RPC, sem cache).
-      var simEmail = null;
-      try { simEmail = sessionStorage.getItem(SIMULA_KEY); } catch (e) {}
-      if (simEmail && perms.perfil && perms.perfil.is_super_admin
-          && simEmail.toLowerCase() !== (perms.perfil.email || '').toLowerCase()) {
-        var rs = await SB.rpc('permissoes_de', { p_email: simEmail });
-        if (!rs.error && rs.data && rs.data.autorizado) {
-          api.realPerfil = perms.perfil;
-          api.simulando = simEmail;
-          perms = rs.data;                 // passa a "ser" o perfil simulado
-        } else {
-          try { sessionStorage.removeItem(SIMULA_KEY); } catch (e) {}
-        }
-      }
-
-      api.perfil = perms.perfil;
-      api.escolas = perms.escolas || [];
-      api.escolasNomes = api.escolas.map(function (e) { return normEscola(e.nome); }).filter(Boolean);
-      api.escolasBases = api.escolas.map(function (e) { return baseEscola(e.nome); }).filter(Boolean);
-      // restrito a escolas se NÃO for super admin e tiver escola(s) vinculada(s)
-      api.restritoEscola = !(api.perfil && api.perfil.is_super_admin) && api.escolasNomes.length > 0;
-      api._todos = perms.sistemas || [];
-      api.sistema = api._todos.filter(function (s) { return s.slug === SISTEMA_SLUG; })[0] || null;
-
-      if (!api.sistema) {
-        telaSemAcesso('Você não tem acesso ao sistema <b>' + SISTEMA_SLUG.toUpperCase() + '</b>. '
-          + 'Sistemas liberados: ' + (api._todos.map(function (s) { return s.nome; }).join(', ') || 'nenhum') + '.');
-        return;
-      }
-
-      // tela específica sem permissão de ver -> bloqueia
-      var tela = telaAtual();
-      if (tela && !api.can(tela, 'ver')) {
-        telaSemAcesso('Você não tem permissão para a tela <b>' + tela + '</b> deste sistema.');
-        return;
-      }
-
-      aplicarUI(api);
-      document.dispatchEvent(new CustomEvent('mapa-auth-pronto', { detail: api }));
-      return api;
-    })();
-  }
-
-  // Esconde links/elementos de telas não permitidas e injeta o "chip" do usuário.
-  function aplicarUI(api) {
-    // Faixa de SIMULAÇÃO (super admin vendo como outro perfil)
-    if (api.simulando && !document.getElementById('mapa-simula-bar')) {
-      var quem = (api.perfil && api.perfil.nome) ? (api.perfil.nome + ' · ' + api.simulando) : api.simulando;
-      var bar = document.createElement('div');
-      bar.id = 'mapa-simula-bar';
-      bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:5000;background:#b45309;color:#fff;'
-        + 'font:700 13px Inter,sans-serif;padding:7px 14px;display:flex;align-items:center;justify-content:center;'
-        + 'gap:12px;box-shadow:0 2px 10px rgba(0,0,0,.25)';
-      var span = document.createElement('span');
-      span.innerHTML = '<i class="bi bi-incognito"></i> Simulando acesso de: ';
-      var b = document.createElement('b'); b.textContent = quem; span.appendChild(b);
-      var btn = document.createElement('button');
-      btn.textContent = 'Encerrar simulação';
-      btn.style.cssText = 'border:0;background:#fff;color:#b45309;font-weight:800;border-radius:999px;padding:3px 12px;cursor:pointer';
-      btn.addEventListener('click', function () { api.pararSimulacao(); });
-      bar.appendChild(span); bar.appendChild(btn);
-      document.body.appendChild(bar);
-      document.body.style.paddingTop = '36px';
-    }
-
-    // elementos marcados com data-tela="slug" somem se não puder ver
-    document.querySelectorAll('[data-tela]').forEach(function (el) {
-      if (!api.can(el.getAttribute('data-tela'), 'ver')) el.style.display = 'none';
-    });
-    // elementos marcados com data-perm="tela:acao" (ex "avaliacao:editar")
-    document.querySelectorAll('[data-perm]').forEach(function (el) {
-      var p = (el.getAttribute('data-perm') || '').split(':');
-      if (!api.can(p[0], p[1] || 'ver')) el.style.display = 'none';
-    });
-    // data-tela-any="a,b,c": some se NENHUMA das telas listadas for visível
-    // (usado no botão "Aprendizagem" que agrupa avaliacao/elefante/fluencia).
-    document.querySelectorAll('[data-tela-any]').forEach(function (el) {
-      var ok = (el.getAttribute('data-tela-any') || '').split(',').some(function (s) {
-        return api.can(s.trim(), 'ver');
-      });
-      if (!ok) el.style.display = 'none';
-    });
-    // data-superadmin: elemento visível SÓ para super admin (ex.: Retrato Quantitativo).
-    var ehAdm = !!(api.perfil && api.perfil.is_super_admin);
-    document.querySelectorAll('[data-superadmin]').forEach(function (el) {
-      if (!ehAdm) el.style.display = 'none';
-    });
-
-    // chip do usuário + sair, fixado no canto (não depende do layout da página)
-    if (!document.getElementById('mapa-user-chip')) {
-      var nome = (api.perfil && (api.perfil.nome || api.perfil.email)) || '';
-      var div = document.createElement('div');
-      div.id = 'mapa-user-chip';
-      div.style.cssText = 'position:fixed;bottom:14px;right:14px;z-index:2000;background:#fff;'
-        + 'border:1px solid #e2e8f0;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.12);'
-        + 'padding:6px 10px;display:flex;align-items:center;gap:8px;font:600 12px Inter,sans-serif;color:#334155';
-      div.innerHTML =
-        '<i class="bi bi-person-circle" style="font-size:1.1rem;color:#002b5e"></i>' +
-        '<span style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + nome + '</span>' +
-        '<button id="mapa-logout" title="Sair" style="border:0;background:#f1f5f9;border-radius:999px;'
-        + 'width:26px;height:26px;cursor:pointer;color:#475569"><i class="bi bi-box-arrow-right"></i></button>';
-      document.body.appendChild(div);
-      document.getElementById('mapa-logout').addEventListener('click', function () { api.signOut(); });
-    }
-  }
-
-  carregarSupabaseJs().then(montar).catch(function (e) {
-    console.error('[auth.js]', e);
-  });
+    gateOff();
+    document.dispatchEvent(new CustomEvent('mapa-auth-pronto', { detail: api }));
+  })();
 })();

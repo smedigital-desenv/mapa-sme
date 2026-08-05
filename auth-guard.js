@@ -1,13 +1,14 @@
 /* ============================================================================
    auth-guard.js — PRIMEIRO <script> no <head> de cada página protegida.
-   Gate rápido e SÍNCRONO: se não houver sessão do Supabase no localStorage,
-   redireciona para login.html guardando o destino. Não valida permissões
-   (isso é trabalho do auth.js, que roda depois com o supabase-js carregado).
+   ----------------------------------------------------------------------------
+   O acesso ao MAPA agora é governado PELO CENTRAL (login + telas), igual ao
+   GOM: não existe mais um login próprio do MAPA. Este arquivo só faz o GATE
+   VISUAL imediato (cobre a página com um overlay "Verificando acesso..." antes
+   de qualquer conteúdo aparecer), para não haver flash de tela protegida.
+   A verificação de verdade (sessão + permissões via central) é feita pelo
+   auth.js, que roda depois (ele que remove este gate quando terminar).
    ============================================================================ */
 (function () {
-  var SUPABASE_REF = 'gmwotfulohkmuqrezeef';
-  var TOKEN_KEY = 'sb-' + SUPABASE_REF + '-auth-token';
-
   // Estilo do submenu "Aprendizagem" do cabeçalho (injetado cedo p/ evitar flash).
   try {
     var st = document.createElement('style');
@@ -24,22 +25,43 @@
     (document.head || document.documentElement).appendChild(st);
   } catch (e) {}
 
-  // Não protege a própria tela de login.
+  // A própria login.html (agora só uma ponte para o central) não precisa do gate.
   if (/login\.html$/i.test(location.pathname)) return;
 
-  var temSessao = false;
-  try {
-    var raw = localStorage.getItem(TOKEN_KEY);
-    if (raw) {
-      var s = JSON.parse(raw);
-      // sessão válida se tem access_token e (sem expiração OU ainda não expirou)
-      temSessao = !!(s && s.access_token &&
-        (!s.expires_at || s.expires_at * 1000 > Date.now()));
+  function overlay() {
+    var o = document.getElementById('mapaAcessoOverlay');
+    if (!o) {
+      o = document.createElement('div');
+      o.id = 'mapaAcessoOverlay';
+      o.setAttribute('aria-live', 'polite');
+      o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:linear-gradient(135deg,#002b5e,#075f82);'
+        + 'display:flex;align-items:center;justify-content:center;padding:20px;';
+      o.innerHTML =
+        '<div style="width:min(430px,92vw);background:#fff;border-radius:20px;box-shadow:0 24px 70px rgba(0,0,0,.35);padding:34px 30px;text-align:center;">'
+        + '<div class="spinner-border text-primary" role="status" style="width:2.6rem;height:2.6rem;border-color:#002b5e transparent #002b5e #002b5e"></div>'
+        + '<h3 style="font-weight:900;color:#002b5e;margin:18px 0 6px;font-size:1.25rem;font-family:Inter,sans-serif;">Verificando acesso...</h3>'
+        + '<p style="color:#64748b;margin:0;font-size:.94rem;line-height:1.45;font-family:Inter,sans-serif;">Controle de acesso central da SME.</p>'
+        + '</div>';
+      (document.body || document.documentElement).appendChild(o);
     }
-  } catch (e) { temSessao = false; }
-
-  if (!temSessao) {
-    var aqui = (location.pathname.split('/').pop() || 'index.html') + location.search + location.hash;
-    location.replace('login.html?next=' + encodeURIComponent(aqui));
+    return o;
   }
+
+  // Cobre a página imediatamente (antes do <body> terminar de montar).
+  try {
+    document.documentElement.classList.add('mapa-auth-gate');
+    overlay();
+  } catch (e) {}
+
+  // Se o <body> ainda não existia quando rodamos, garante o overlay assim que existir.
+  document.addEventListener('DOMContentLoaded', function () {
+    try { overlay(); } catch (e) {}
+  });
+
+  // Removido pelo auth.js quando a verificação (central) terminar.
+  window.__mapaGateOff = function () {
+    try { document.documentElement.classList.remove('mapa-auth-gate'); } catch (e) {}
+    var o = document.getElementById('mapaAcessoOverlay');
+    if (o) o.remove();
+  };
 })();
