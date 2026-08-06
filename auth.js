@@ -80,13 +80,22 @@
   (async function () {
     try {
       await carregarScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
-      // window.MAPA_SB: cliente do Supabase do MAPA, só para DADOS (sem sessão
-      // própria — o login é 100% do central). Mantido pelo mesmo nome de antes
-      // para as páginas que já o usam (frequencia, gerência-liminar, relatórios).
-      window.MAPA_SB = window.supabase.createClient(MAPA_CFG.url, MAPA_CFG.anonKey);
-
       await carregarScript('/central/config.js');
       await carregarScript('/central/acesso-sme.js');
+
+      // window.MAPA_SB: cliente do Supabase do MAPA, só para DADOS.
+      // IMPORTANTE: ele NÃO usa a chave anon como identidade. Toda requisição
+      // leva o access_token do CENTRAL (opção `accessToken` do supabase-js), e
+      // o projeto do MAPA valida esse token. Sem isso as consultas sairiam como
+      // `anon` — que não tem mais permissão nenhuma no banco, de propósito.
+      // Criado DEPOIS do central justamente para o token já estar disponível.
+      window.MAPA_SB = window.supabase.createClient(MAPA_CFG.url, MAPA_CFG.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+        accessToken: function () {
+          var A = window.AcessoSME;
+          return (A && A.token) ? A.token() : Promise.resolve(null);
+        }
+      });
     } catch (e) {
       overlayErro('Falha ao carregar os módulos de acesso. Recarregue a página.');
       return;

@@ -6779,9 +6779,12 @@ function _renderTabelaTotal(linhas) {
     console.error('[MAPA] Supabase não configurado. Verifique window.MAPA_SUPABASE no index.html.');
   }
 
-  const supa = window.supabase && supabaseUrl && supabaseAnonKey
+  // Reaproveita SEMPRE o window.MAPA_SB do auth.js: é ele que carrega o token
+  // do central. Um cliente criado aqui com a chave anon sairia como anônimo e
+  // seria recusado pelo banco.
+  const supa = window.MAPA_SB || (window.supabase && supabaseUrl && supabaseAnonKey
     ? window.supabase.createClient(supabaseUrl, supabaseAnonKey)
-    : null;
+    : null);
 
   const BIM_KEY_TO_NUM = {
     primeiroBimestre: 1,
