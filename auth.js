@@ -114,18 +114,12 @@
       await carregarScript('/central/acesso-sme.js');
 
       // window.MAPA_SB: cliente do Supabase do MAPA, só para DADOS.
-      // IMPORTANTE: ele NÃO usa a chave anon como identidade. Toda requisição
-      // leva o access_token do CENTRAL (opção `accessToken` do supabase-js), e
-      // o projeto do MAPA valida esse token. Sem isso as consultas sairiam como
-      // `anon` — que não tem mais permissão nenhuma no banco, de propósito.
-      // Criado DEPOIS do central justamente para o token já estar disponível.
-      window.MAPA_SB = window.supabase.createClient(MAPA_CFG.url, MAPA_CFG.anonKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-        accessToken: function () {
-          var A = window.AcessoSME;
-          return (A && A.token) ? A.token() : Promise.resolve(null);
-        }
-      });
+      // Sessão PERSISTENTE de propósito: quem emite essa sessão é a Edge
+      // Function `central-bridge`, e guardá-la faz a ponte ser chamada uma vez
+      // por sessão em vez de uma vez por página.
+      // (Não usar a opção `accessToken` aqui: ela desliga o auth do cliente, e
+      // é justamente o auth que precisamos para ter auth.uid() no banco.)
+      window.MAPA_SB = window.supabase.createClient(MAPA_CFG.url, MAPA_CFG.anonKey);
     } catch (e) {
       overlayErro('Falha ao carregar os módulos de acesso. Recarregue a página.');
       return;
@@ -142,12 +136,53 @@
     try { apiCentral = await A.pronto; }
     catch (e) { liberarToken(null); overlayErro('Não foi possível verificar seu acesso no central.'); return; }
 
-    // A partir daqui o fetch interceptado já consegue assinar as requisições.
-    liberarToken(function () { return A.token(); });
+    // Sem perfil = o central já redirecionou para o login ou já pintou a tela
+    // de "sem acesso". Nada a fazer aqui — e nada de abrir sessão no MAPA.
+    if (!apiCentral || !A.perfil) { liberarToken(null); return; }
 
-    // Sem perfil = já foi redirecionado (login) ou já mostrou "sem acesso"
-    // (telaSemAcesso substituiu a página inteira). Nada mais a fazer aqui.
-    if (!apiCentral || !A.perfil) return;
+    // ── Ponte: token do central -> sessão real deste projeto ────────────────
+    // Sem isso as consultas sairiam como `anon`, que não tem permissão nenhuma
+    // no banco. Reaproveita a sessão já guardada quando ela é do mesmo e-mail.
+    async function garantirSessaoMapa() {
+      var emailCentral = String((A.perfil && A.perfil.email) || '').toLowerCase();
+
+      var atual = (await window.MAPA_SB.auth.getSession()).data.session;
+      if (atual && String(atual.user.email || '').toLowerCase() === emailCentral) return true;
+      if (atual) await window.MAPA_SB.auth.signOut();   // trocou de conta no central
+
+      var tokenCentral = await A.token();
+      if (!tokenCentral) return false;
+
+      var r = await fetchOriginal(MAPA_CFG.url + '/functions/v1/central-bridge', {
+        method: 'POST',
+        headers: {
+          apikey: MAPA_CFG.anonKey,
+          Authorization: 'Bearer ' + tokenCentral,
+          'Content-Type': 'application/json'
+        },
+        body: '{}'
+      });
+      var resp = await r.json().catch(function () { return null; });
+      if (!r.ok || !resp || !resp.token_hash) {
+        overlayErro(resp && resp.erro === 'sem_acesso_ao_mapa'
+          ? 'Sua conta não tem acesso ao MAPA. Fale com a secretaria.'
+          : 'Não foi possível abrir sua sessão no MAPA. Recarregue a página.');
+        return false;
+      }
+
+      var v = await window.MAPA_SB.auth.verifyOtp({ token_hash: resp.token_hash, type: 'email' });
+      return !v.error;
+    }
+
+    if (!(await garantirSessaoMapa())) { liberarToken(null); return; }
+
+    // A partir daqui toda chamada ao banco do MAPA sai assinada com a sessão
+    // DESTE projeto — é ela que faz auth.uid() funcionar nas policies.
+    liberarToken(function () {
+      return window.MAPA_SB.auth.getSession().then(function (r) {
+        return r.data.session ? r.data.session.access_token : null;
+      });
+    });
 
     // ── Monta window.MapaAuth a partir do AcessoSME (mesma forma de antes) ──
     var api = window.MapaAuth;
@@ -174,12 +209,19 @@
       var self = this;
       return (rows || []).filter(function (r) { return self.podeVerEscola(getNome ? getNome(r) : r); });
     };
-    api.token = function () { return A.token(); };
+    // token() = token DESTE projeto (o que o banco do MAPA valida), não o do
+    // central. Quem quiser falar com o central usa AcessoSME.token().
+    api.token = function () {
+      return window.MAPA_SB.auth.getSession().then(function (r) {
+        return r.data.session ? r.data.session.access_token : null;
+      });
+    };
+    api.tokenCentral = function () { return A.token(); };
     // Cabeçalhos para falar com o REST do MAPA: a `apikey` continua sendo a do
     // projeto do MAPA (é o que roteia a requisição), mas quem diz QUEM É VOCÊ é
-    // o Bearer — e ele passa a ser o token do central, não mais a chave anon.
+    // o Bearer — e ele passa a ser a sessão do MAPA, não mais a chave anon.
     api.headers = function (extra) {
-      return A.token().then(function (tok) {
+      return api.token().then(function (tok) {
         var h = Object.assign({}, extra || {});
         h.apikey = MAPA_CFG.anonKey;
         h.Authorization = 'Bearer ' + (tok || MAPA_CFG.anonKey);
@@ -194,7 +236,14 @@
       });
     };
     window.MAPA_HEADERS = api.headers;
-    api.signOut = function () { return A.signOut(); };
+    // Sair encerra as DUAS sessões: a do MAPA e a do central. Sem isso a
+    // sessão local sobreviveria ao logout e a próxima pessoa no mesmo
+    // navegador entraria com a conta anterior.
+    api.signOut = function () {
+      return window.MAPA_SB.auth.signOut().catch(function () {}).then(function () {
+        return A.signOut();
+      });
+    };
     api.simulando = A.simulando || null;
     api.realPerfil = A.realPerfil || null;
     api.simular = function (email) { return A.simular(email); };
