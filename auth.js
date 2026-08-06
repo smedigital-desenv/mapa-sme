@@ -43,8 +43,15 @@
   var liberarToken;
   var tokenPronto = new Promise(function (r) { liberarToken = r; });
 
+  // ⚠️ Só o /rest/v1/ é interceptado. O /auth/v1/ NÃO pode entrar aqui: é por
+  // ele que o verifyOtp() cria a sessão, e ele ficaria esperando o token que
+  // só passa a existir depois que ele próprio terminar — deadlock, e a tela
+  // trava em "Verificando acesso…". O /functions/v1/ também fica de fora
+  // porque a ponte monta os próprios cabeçalhos.
+  var ALVO = MAPA_CFG.url + '/rest/v1/';
+
   window.fetch = function (input, init) {
-    if (typeof input !== 'string' || input.indexOf(MAPA_CFG.url) !== 0) {
+    if (typeof input !== 'string' || input.indexOf(ALVO) !== 0) {
       return fetchOriginal(input, init);
     }
     return tokenPronto.then(function (obterToken) {
@@ -151,30 +158,57 @@
       if (atual) await window.MAPA_SB.auth.signOut();   // trocou de conta no central
 
       var tokenCentral = await A.token();
-      if (!tokenCentral) return false;
+      if (!tokenCentral) {
+        console.error('[mapa-auth] o central não devolveu token');
+        overlayErro('Sua sessão no central expirou. Faça o login novamente.');
+        return false;
+      }
 
-      var r = await fetchOriginal(MAPA_CFG.url + '/functions/v1/central-bridge', {
-        method: 'POST',
-        headers: {
-          apikey: MAPA_CFG.anonKey,
-          Authorization: 'Bearer ' + tokenCentral,
-          'Content-Type': 'application/json'
-        },
-        body: '{}'
-      });
-      var resp = await r.json().catch(function () { return null; });
+      var r, resp;
+      try {
+        r = await fetchOriginal(MAPA_CFG.url + '/functions/v1/central-bridge', {
+          method: 'POST',
+          headers: {
+            apikey: MAPA_CFG.anonKey,
+            Authorization: 'Bearer ' + tokenCentral,
+            'Content-Type': 'application/json'
+          },
+          body: '{}'
+        });
+        resp = await r.json().catch(function () { return null; });
+      } catch (e) {
+        console.error('[mapa-auth] falha de rede ao chamar a ponte', e);
+        overlayErro('Não foi possível falar com o serviço de acesso do MAPA.');
+        return false;
+      }
+
       if (!r.ok || !resp || !resp.token_hash) {
+        console.error('[mapa-auth] a ponte recusou', r.status, resp);
         overlayErro(resp && resp.erro === 'sem_acesso_ao_mapa'
           ? 'Sua conta não tem acesso ao MAPA. Fale com a secretaria.'
-          : 'Não foi possível abrir sua sessão no MAPA. Recarregue a página.');
+          : 'Não foi possível abrir sua sessão no MAPA (' + ((resp && resp.erro) || r.status) + ').');
         return false;
       }
 
       var v = await window.MAPA_SB.auth.verifyOtp({ token_hash: resp.token_hash, type: 'email' });
-      return !v.error;
+      if (v.error) {
+        console.error('[mapa-auth] verifyOtp falhou', v.error);
+        overlayErro('Não foi possível abrir sua sessão no MAPA: ' + v.error.message);
+        return false;
+      }
+      return true;
     }
 
-    if (!(await garantirSessaoMapa())) { liberarToken(null); return; }
+    // Qualquer caminho de falha já pintou o erro e tirou o gate. Liberar o
+    // token com null é essencial: sem isso as chamadas ao /rest/v1/ que já
+    // estiverem na fila do interceptador ficariam penduradas para sempre.
+    var comSessao = false;
+    try { comSessao = await garantirSessaoMapa(); }
+    catch (e) {
+      console.error('[mapa-auth] erro inesperado ao abrir a sessão', e);
+      overlayErro('Erro inesperado ao abrir sua sessão no MAPA. Recarregue a página.');
+    }
+    if (!comSessao) { liberarToken(null); return; }
 
     // A partir daqui toda chamada ao banco do MAPA sai assinada com a sessão
     // DESTE projeto — é ela que faz auth.uid() funcionar nas policies.

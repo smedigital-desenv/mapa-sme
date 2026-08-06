@@ -36,8 +36,10 @@ const SISTEMA = 'mapa';
 // O JWKS é buscado uma vez e fica em cache pela lib, com rotação automática.
 const JWKS = createRemoteJWKSet(new URL(`${CENTRAL_URL}/auth/v1/.well-known/jwks.json`));
 
+// Não é controle de segurança (chamada de servidor para servidor ignora CORS),
+// mas fecha o uso a partir de outros sites e não custa nada.
 const CORS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://smedigital.com.br',
   'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
