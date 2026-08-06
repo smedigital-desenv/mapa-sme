@@ -44,6 +44,14 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+// Cabeçalho HTTP só aceita ASCII imprimível. Um caractere invisível que entre
+// na cópia do código (espaço não separável, hífen suave, quebra fantasma) faz
+// o fetch estourar com "not a valid ByteString" — erro que não diz onde está.
+// Chave e token são base64url por natureza, então limpar é seguro.
+function soAscii(s: string) {
+  return String(s || '').replace(/[^\x21-\x7E]/g, '');
+}
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -56,7 +64,7 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ erro: 'metodo_invalido' }, 405);
 
   try {
-    const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
+    const token = soAscii((req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, ''));
     if (!token) return json({ erro: 'sem_token' }, 401);
 
     // ── 1) A assinatura é mesmo do central? O token ainda vale? ─────────────
@@ -74,16 +82,24 @@ Deno.serve(async (req) => {
     // ── 2) O central confirma que essa pessoa pode entrar no MAPA ──────────
     // Repetimos a checagem aqui de propósito: o gate do navegador é conforto,
     // não segurança — qualquer um pode chamar esta função direto.
-    const r = await fetch(`${CENTRAL_URL}/rest/v1/rpc/minhas_permissoes`, {
-      method: 'POST',
-      headers: {
-        apikey: CENTRAL_ANON,
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: '{}',
-    });
-    if (!r.ok) return json({ erro: 'central_indisponivel' }, 502);
+    let r: Response;
+    try {
+      r = await fetch(`${CENTRAL_URL}/rest/v1/rpc/minhas_permissoes`, {
+        method: 'POST',
+        headers: {
+          apikey: soAscii(CENTRAL_ANON),
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: '{}',
+      });
+    } catch (e) {
+      return json({ erro: 'falha_ao_chamar_central', detalhe: String(e) }, 502);
+    }
+    if (!r.ok) {
+      return json({ erro: 'central_recusou', status: r.status,
+                    detalhe: await r.text().catch(() => '') }, 502);
+    }
 
     const perms = await r.json();
     if (!perms?.autorizado) return json({ erro: 'nao_autorizado' }, 403);
@@ -98,11 +114,16 @@ Deno.serve(async (req) => {
     if (emailPerms && emailPerms !== email) return json({ erro: 'email_divergente' }, 403);
 
     // ── 3) Emite a sessão AQUI, no projeto do MAPA ─────────────────────────
-    const admin = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-      { auth: { persistSession: false, autoRefreshToken: false } },
-    );
+    const urlMapa = soAscii(Deno.env.get('SUPABASE_URL') || '');
+    const chaveMapa = soAscii(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '');
+    if (!urlMapa || !chaveMapa) {
+      return json({ erro: 'ambiente_incompleto',
+                    detalhe: 'SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY ausente' }, 500);
+    }
+
+    const admin = createClient(urlMapa, chaveMapa, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
 
     let link = await admin.auth.admin.generateLink({ type: 'magiclink', email });
 
