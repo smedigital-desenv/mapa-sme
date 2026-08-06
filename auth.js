@@ -29,6 +29,36 @@
   };
   var SISTEMA_SLUG = window.MAPA_SISTEMA || 'mapa';
 
+  // ── Ponte de identidade para TODA chamada ao banco do MAPA ────────────────
+  // Oito páginas montam `fetch` na mão contra o REST, mandando a própria chave
+  // anon no Authorization (`Bearer ${SUPABASE_KEY}`). Como o anon perdeu todas
+  // as permissões no banco — de propósito, foi assim que o vazamento foi
+  // fechado — essas chamadas seriam recusadas.
+  //
+  // Em vez de editar 14 pontos espalhados (e correr o risco de esquecer um, ou
+  // de alguém escrever um novo amanhã), o fetch é interceptado UMA vez aqui:
+  // requisição para o domínio do MAPA sai sempre com o token do central no
+  // Authorization. Qualquer outro destino passa intocado.
+  var fetchOriginal = window.fetch.bind(window);
+  var liberarToken;
+  var tokenPronto = new Promise(function (r) { liberarToken = r; });
+
+  window.fetch = function (input, init) {
+    if (typeof input !== 'string' || input.indexOf(MAPA_CFG.url) !== 0) {
+      return fetchOriginal(input, init);
+    }
+    return tokenPronto.then(function (obterToken) {
+      return obterToken ? obterToken() : null;
+    }).then(function (tok) {
+      var opt = Object.assign({}, init || {});
+      var h = new Headers(opt.headers || {});
+      h.set('apikey', MAPA_CFG.anonKey);
+      h.set('Authorization', 'Bearer ' + (tok || MAPA_CFG.anonKey));
+      opt.headers = h;
+      return fetchOriginal(input, opt);
+    });
+  };
+
   function normEscola(s) {
     return String(s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
       .replace(/[^A-Z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -103,13 +133,17 @@
 
     var A = window.AcessoSME;
     if (!A || !A.pronto) {
+      liberarToken(null);
       overlayErro('O módulo de acesso central não carregou.');
       return;
     }
 
     var apiCentral;
     try { apiCentral = await A.pronto; }
-    catch (e) { overlayErro('Não foi possível verificar seu acesso no central.'); return; }
+    catch (e) { liberarToken(null); overlayErro('Não foi possível verificar seu acesso no central.'); return; }
+
+    // A partir daqui o fetch interceptado já consegue assinar as requisições.
+    liberarToken(function () { return A.token(); });
 
     // Sem perfil = já foi redirecionado (login) ou já mostrou "sem acesso"
     // (telaSemAcesso substituiu a página inteira). Nada mais a fazer aqui.
@@ -141,7 +175,25 @@
       return (rows || []).filter(function (r) { return self.podeVerEscola(getNome ? getNome(r) : r); });
     };
     api.token = function () { return A.token(); };
-    api.authFetch = function (url, opt) { return A.authFetch(url, opt); };
+    // Cabeçalhos para falar com o REST do MAPA: a `apikey` continua sendo a do
+    // projeto do MAPA (é o que roteia a requisição), mas quem diz QUEM É VOCÊ é
+    // o Bearer — e ele passa a ser o token do central, não mais a chave anon.
+    api.headers = function (extra) {
+      return A.token().then(function (tok) {
+        var h = Object.assign({}, extra || {});
+        h.apikey = MAPA_CFG.anonKey;
+        h.Authorization = 'Bearer ' + (tok || MAPA_CFG.anonKey);
+        return h;
+      });
+    };
+    api.authFetch = function (url, opt) {
+      opt = opt || {};
+      return api.headers(opt.headers).then(function (h) {
+        opt.headers = h;
+        return fetchOriginal(url, opt);
+      });
+    };
+    window.MAPA_HEADERS = api.headers;
     api.signOut = function () { return A.signOut(); };
     api.simulando = A.simulando || null;
     api.realPerfil = A.realPerfil || null;
