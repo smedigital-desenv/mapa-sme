@@ -128,7 +128,14 @@ Deno.serve(async (req) => {
         .eq('email', email).is('auth_user_id', null);
     }
 
-    return json({ token_hash: hash, email });
+    // Devolve também o tipo de verificação: o verifyOtp do navegador precisa
+    // usar exatamente este valor, senão o Supabase recusa com
+    // "Email link is invalid or has expired".
+    return json({
+      token_hash: hash,
+      tipo: link.data?.properties?.verification_type || 'magiclink',
+      email,
+    });
   } catch (e) {
     return json({ erro: 'falha_inesperada', detalhe: String(e) }, 500);
   }

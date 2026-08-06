@@ -190,13 +190,27 @@
         return false;
       }
 
-      var v = await window.MAPA_SB.auth.verifyOtp({ token_hash: resp.token_hash, type: 'email' });
-      if (v.error) {
-        console.error('[mapa-auth] verifyOtp falhou', v.error);
-        overlayErro('Não foi possível abrir sua sessão no MAPA: ' + v.error.message);
-        return false;
+      // O tipo tem que ser o mesmo com que o token foi gerado. A ponte informa
+      // qual é; a lista de reserva cobre variação entre versões do Supabase.
+      var tipos = [], erro = null;
+      if (resp.tipo) tipos.push(resp.tipo);
+      ['magiclink', 'email'].forEach(function (t) {
+        if (tipos.indexOf(t) === -1) tipos.push(t);
+      });
+
+      for (var i = 0; i < tipos.length; i++) {
+        var v = await window.MAPA_SB.auth.verifyOtp({
+          token_hash: resp.token_hash, type: tipos[i]
+        });
+        if (!v.error) return true;
+        erro = v.error;
+        console.warn('[mapa-auth] verifyOtp recusou o tipo "' + tipos[i] + '":', v.error.message);
       }
-      return true;
+
+      console.error('[mapa-auth] verifyOtp falhou em todos os tipos', erro);
+      overlayErro('Não foi possível abrir sua sessão no MAPA: ' + (erro && erro.message)
+        + '. Confira se o provedor "Email" está habilitado no Authentication do MAPA.');
+      return false;
     }
 
     // Qualquer caminho de falha já pintou o erro e tirou o gate. Liberar o
