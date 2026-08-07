@@ -53,6 +53,10 @@ function soAscii(s: string) {
 }
 
 function json(body: unknown, status = 200) {
+  // Toda resposta de erro vai para o log da função. Sem isto, uma falha aparece
+  // no navegador como 500 e o painel mostra so "booted"/"shutdown" — nada que
+  // ajude a descobrir onde quebrou.
+  if (status >= 400) console.error(`[central-bridge] ${status}`, JSON.stringify(body));
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...CORS, 'Content-Type': 'application/json' },
@@ -64,6 +68,7 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ erro: 'metodo_invalido' }, 405);
 
   try {
+    console.log('[central-bridge] chamada recebida');
     const token = soAscii((req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, ''));
     if (!token) return json({ erro: 'sem_token' }, 401);
 
@@ -178,6 +183,7 @@ Deno.serve(async (req) => {
       simulando: alvo !== email ? email : null,
     });
   } catch (e) {
+    console.error('[central-bridge] excecao', e instanceof Error ? e.stack : String(e));
     return json({ erro: 'falha_inesperada', detalhe: String(e) }, 500);
   }
 });
