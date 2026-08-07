@@ -150,20 +150,7 @@
     // ── Ponte: token do central -> sessão real deste projeto ────────────────
     // Sem isso as consultas sairiam como `anon`, que não tem permissão nenhuma
     // no banco. Reaproveita a sessão já guardada quando ela é do mesmo e-mail.
-    async function garantirSessaoMapa() {
-      var emailCentral = String((A.perfil && A.perfil.email) || '').toLowerCase();
-
-      var atual = (await window.MAPA_SB.auth.getSession()).data.session;
-      if (atual && String(atual.user.email || '').toLowerCase() === emailCentral) return true;
-      if (atual) await window.MAPA_SB.auth.signOut();   // trocou de conta no central
-
-      var tokenCentral = await A.token();
-      if (!tokenCentral) {
-        console.error('[mapa-auth] o central não devolveu token');
-        overlayErro('Sua sessão no central expirou. Faça o login novamente.');
-        return false;
-      }
-
+    async function pedirTokenAPonte(tokenCentral) {
       var r, resp;
       try {
         r = await fetchOriginal(MAPA_CFG.url + '/functions/v1/central-bridge', {
@@ -179,7 +166,7 @@
       } catch (e) {
         console.error('[mapa-auth] falha de rede ao chamar a ponte', e);
         overlayErro('Não foi possível falar com o serviço de acesso do MAPA.');
-        return false;
+        return null;
       }
 
       if (!r.ok || !resp || !resp.token_hash) {
@@ -187,8 +174,41 @@
         overlayErro(resp && resp.erro === 'sem_acesso_ao_mapa'
           ? 'Sua conta não tem acesso ao MAPA. Fale com a secretaria.'
           : 'Não foi possível abrir sua sessão no MAPA (' + ((resp && resp.erro) || r.status) + ').');
+        return null;
+      }
+      return resp;
+    }
+
+    async function garantirSessaoMapa() {
+      // ⚠️ Tem que ser o e-mail REAL de quem está logado, não o simulado.
+      // Durante a simulação, A.perfil vira o perfil observado, mas o token
+      // continua sendo o de quem simula — e é o token que a ponte valida. Usar
+      // o e-mail simulado aqui faria a comparação nunca bater: signOut e ponte
+      // a cada carregamento, em loop, derrubando o token no meio do caminho.
+      //
+      // Consequência a saber: a simulação NÃO troca a identidade no banco. Ela
+      // muda o que a tela mostra; o RLS continua enxergando quem realmente
+      // logou. Para testar o isolamento por escola de verdade, é preciso um
+      // login real da pessoa.
+      var emailReal = String(
+        (A.realPerfil && A.realPerfil.email) || (A.perfil && A.perfil.email) || ''
+      ).toLowerCase();
+
+      var atual = (await window.MAPA_SB.auth.getSession()).data.session;
+      if (atual && String(atual.user.email || '').toLowerCase() === emailReal) return true;
+      // Trocou de conta no central: encerra só esta aba, sem invalidar os
+      // refresh tokens da pessoa em outros dispositivos.
+      if (atual) await window.MAPA_SB.auth.signOut({ scope: 'local' });
+
+      var tokenCentral = await A.token();
+      if (!tokenCentral) {
+        console.error('[mapa-auth] o central não devolveu token');
+        overlayErro('Sua sessão no central expirou. Faça o login novamente.');
         return false;
       }
+
+      var resp = await pedirTokenAPonte(tokenCentral);
+      if (!resp || !resp.token_hash) return false;
 
       // O tipo tem que ser o mesmo com que o token foi gerado. A ponte informa
       // qual é; a lista de reserva cobre variação entre versões do Supabase.
@@ -198,6 +218,10 @@
         if (tipos.indexOf(t) === -1) tipos.push(t);
       });
 
+      // Uma tentativa por token: o verify CONSOME o hash, então repetir com
+      // outro tipo sobre o mesmo token sempre falharia — e a segunda mensagem
+      // de erro seria enganosa. Se o tipo informado pela ponte não servir,
+      // pedimos um token novo antes de tentar o próximo.
       for (var i = 0; i < tipos.length; i++) {
         var v = await window.MAPA_SB.auth.verifyOtp({
           token_hash: resp.token_hash, type: tipos[i]
@@ -205,6 +229,11 @@
         if (!v.error) return true;
         erro = v.error;
         console.warn('[mapa-auth] verifyOtp recusou o tipo "' + tipos[i] + '":', v.error.message);
+        if (i + 1 < tipos.length) {
+          var novo = await pedirTokenAPonte(tokenCentral);
+          if (!novo || !novo.token_hash) break;
+          resp = novo;
+        }
       }
 
       console.error('[mapa-auth] verifyOtp falhou em todos os tipos', erro);
