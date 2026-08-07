@@ -150,7 +150,7 @@
     // ── Ponte: token do central -> sessão real deste projeto ────────────────
     // Sem isso as consultas sairiam como `anon`, que não tem permissão nenhuma
     // no banco. Reaproveita a sessão já guardada quando ela é do mesmo e-mail.
-    async function pedirTokenAPonte(tokenCentral) {
+    async function pedirTokenAPonte(tokenCentral, simular) {
       var r, resp;
       try {
         r = await fetchOriginal(MAPA_CFG.url + '/functions/v1/central-bridge', {
@@ -160,7 +160,7 @@
             Authorization: 'Bearer ' + tokenCentral,
             'Content-Type': 'application/json'
           },
-          body: '{}'
+          body: JSON.stringify(simular ? { simular: simular } : {})
         });
         resp = await r.json().catch(function () { return null; });
       } catch (e) {
@@ -171,74 +171,79 @@
 
       if (!r.ok || !resp || !resp.token_hash) {
         console.error('[mapa-auth] a ponte recusou', r.status, resp);
-        overlayErro(resp && resp.erro === 'sem_acesso_ao_mapa'
-          ? 'Sua conta não tem acesso ao MAPA. Fale com a secretaria.'
-          : 'Não foi possível abrir sua sessão no MAPA (' + ((resp && resp.erro) || r.status) + ').');
+        overlayErro(
+          resp && resp.erro === 'sem_acesso_ao_mapa'
+            ? 'Esta conta não tem acesso ao MAPA. Fale com a secretaria.'
+          : resp && resp.erro === 'simulacao_negada'
+            ? 'Só super administradores podem abrir o sistema como outra pessoa.'
+            : 'Não foi possível abrir sua sessão no MAPA (' + ((resp && resp.erro) || r.status) + ').');
         return null;
       }
       return resp;
     }
 
+    // Abre a sessão a partir do que a ponte devolveu. Tenta o OTP primeiro:
+    // entre versões do supabase-js ele é mais estável que o token_hash.
+    async function abrirSessao(resp) {
+      var tentativas = [];
+      if (resp.otp) tentativas.push({ email: resp.email, token: resp.otp, type: resp.tipo || 'magiclink' });
+      if (resp.token_hash) tentativas.push({ token_hash: resp.token_hash, type: resp.tipo || 'magiclink' });
+
+      for (var i = 0; i < tentativas.length; i++) {
+        var v = await window.MAPA_SB.auth.verifyOtp(tentativas[i]);
+        if (!v.error) return null;
+        console.warn('[mapa-auth] verifyOtp recusou',
+          tentativas[i].otp ? 'otp' : 'token_hash', '—', v.error.message);
+        if (i + 1 === tentativas.length) return v.error;
+      }
+      return new Error('sem forma de abrir a sessão');
+    }
+
     async function garantirSessaoMapa() {
-      // ⚠️ Tem que ser o e-mail REAL de quem está logado, não o simulado.
-      // Durante a simulação, A.perfil vira o perfil observado, mas o token
-      // continua sendo o de quem simula — e é o token que a ponte valida. Usar
-      // o e-mail simulado aqui faria a comparação nunca bater: signOut e ponte
-      // a cada carregamento, em loop, derrubando o token no meio do caminho.
-      //
-      // Consequência a saber: a simulação NÃO troca a identidade no banco. Ela
-      // muda o que a tela mostra; o RLS continua enxergando quem realmente
-      // logou. Para testar o isolamento por escola de verdade, é preciso um
-      // login real da pessoa.
+      // Quem a ponte valida é sempre o token REAL de quem logou. Durante a
+      // simulação, A.perfil vira o perfil observado — por isso o e-mail real
+      // vem de A.realPerfil quando ela está ativa.
       var emailReal = String(
         (A.realPerfil && A.realPerfil.email) || (A.perfil && A.perfil.email) || ''
       ).toLowerCase();
 
+      // Simular no MAPA é personificação de verdade: a sessão emitida é a da
+      // pessoa observada e o BANCO passa a enxergá-la. É o único jeito de
+      // conferir o isolamento por escola agora que ele vive no Postgres. Só
+      // super admin consegue, e quem decide isso é a ponte, não esta linha.
+      var simulando = A.simulando
+        ? String((A.perfil && A.perfil.email) || A.simulando).toLowerCase()
+        : null;
+      var alvo = simulando || emailReal;
+
       var atual = (await window.MAPA_SB.auth.getSession()).data.session;
-      if (atual && String(atual.user.email || '').toLowerCase() === emailReal) return true;
-      // Trocou de conta no central: encerra só esta aba, sem invalidar os
-      // refresh tokens da pessoa em outros dispositivos.
+      if (atual && String(atual.user.email || '').toLowerCase() === alvo) return true;
+      // Trocou de conta (ou entrou/saiu da simulação): encerra só esta aba.
+      // O padrão do supabase-js é global e revogaria os refresh tokens da
+      // pessoa em todos os dispositivos.
       if (atual) await window.MAPA_SB.auth.signOut({ scope: 'local' });
 
       var tokenCentral = await A.token();
       if (!tokenCentral) {
-        console.error('[mapa-auth] o central não devolveu token');
+        console.error('[mapa-auth] o central nao devolveu token');
         overlayErro('Sua sessão no central expirou. Faça o login novamente.');
         return false;
       }
 
-      var resp = await pedirTokenAPonte(tokenCentral);
-      if (!resp || !resp.token_hash) return false;
+      var resp = await pedirTokenAPonte(tokenCentral, simulando);
+      if (!resp) return false;
 
-      // O tipo tem que ser o mesmo com que o token foi gerado. A ponte informa
-      // qual é; a lista de reserva cobre variação entre versões do Supabase.
-      var tipos = [], erro = null;
-      if (resp.tipo) tipos.push(resp.tipo);
-      ['magiclink', 'email'].forEach(function (t) {
-        if (tipos.indexOf(t) === -1) tipos.push(t);
-      });
-
-      // Uma tentativa por token: o verify CONSOME o hash, então repetir com
-      // outro tipo sobre o mesmo token sempre falharia — e a segunda mensagem
-      // de erro seria enganosa. Se o tipo informado pela ponte não servir,
-      // pedimos um token novo antes de tentar o próximo.
-      for (var i = 0; i < tipos.length; i++) {
-        var v = await window.MAPA_SB.auth.verifyOtp({
-          token_hash: resp.token_hash, type: tipos[i]
-        });
-        if (!v.error) return true;
-        erro = v.error;
-        console.warn('[mapa-auth] verifyOtp recusou o tipo "' + tipos[i] + '":', v.error.message);
-        if (i + 1 < tipos.length) {
-          var novo = await pedirTokenAPonte(tokenCentral);
-          if (!novo || !novo.token_hash) break;
-          resp = novo;
+      var erro = await abrirSessao(resp);
+      if (!erro) {
+        if (resp.simulando) {
+          console.info('[mapa-auth] sessão aberta COMO ' + resp.email
+            + ' (simulada por ' + resp.simulando + ')');
         }
+        return true;
       }
 
-      console.error('[mapa-auth] verifyOtp falhou em todos os tipos', erro);
-      overlayErro('Não foi possível abrir sua sessão no MAPA: ' + (erro && erro.message)
-        + '. Confira se o provedor "Email" está habilitado no Authentication do MAPA.');
+      console.error('[mapa-auth] não foi possível abrir a sessão', erro);
+      overlayErro('Não foi possível abrir a sessão no MAPA: ' + (erro && erro.message));
       return false;
     }
 

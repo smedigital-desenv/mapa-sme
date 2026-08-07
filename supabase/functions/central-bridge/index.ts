@@ -113,6 +113,21 @@ Deno.serve(async (req) => {
     const emailPerms = String(perms?.perfil?.email || '').trim().toLowerCase();
     if (emailPerms && emailPerms !== email) return json({ erro: 'email_divergente' }, 403);
 
+    // ── 2b) SIMULAÇÃO: super admin abrindo o sistema como outra pessoa ──────
+    // Isto é personificação de verdade: a sessão emitida é a do simulado, e o
+    // banco passa a enxergá-lo. É o único jeito de conferir o isolamento por
+    // escola agora que ele vive no Postgres e não mais no JavaScript.
+    // Só super admin do CENTRAL pode, e quem decide isso é o central, não o
+    // navegador — a resposta de minhas_permissoes já foi validada acima.
+    let alvo = email;
+    const corpo = await req.json().catch(() => ({}));
+    const simular = String(corpo?.simular || '').trim().toLowerCase();
+    if (simular && simular !== email) {
+      if (!perms?.perfil?.is_super_admin) return json({ erro: 'simulacao_negada' }, 403);
+      console.log(`[central-bridge] SIMULACAO: ${email} abrindo como ${simular}`);
+      alvo = simular;
+    }
+
     // ── 3) Emite a sessão AQUI, no projeto do MAPA ─────────────────────────
     const urlMapa = soAscii(Deno.env.get('SUPABASE_URL') || '');
     const chaveMapa = soAscii(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '');
@@ -125,37 +140,42 @@ Deno.serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    let link = await admin.auth.admin.generateLink({ type: 'magiclink', email });
+    let link = await admin.auth.admin.generateLink({ type: 'magiclink', email: alvo });
 
-    // Primeiro acesso de alguém que existe no central mas ainda não tem
-    // usuário aqui: cria e tenta de novo.
+    // Primeiro acesso de quem existe no central mas ainda não tem usuário aqui:
+    // cria com o e-mail já confirmado e tenta de novo.
     if (link.error) {
-      const criado = await admin.auth.admin.createUser({ email, email_confirm: true });
+      const criado = await admin.auth.admin.createUser({ email: alvo, email_confirm: true });
       if (criado.error && !/already/i.test(criado.error.message)) {
         return json({ erro: 'falha_ao_criar_usuario', detalhe: criado.error.message }, 500);
       }
-      link = await admin.auth.admin.generateLink({ type: 'magiclink', email });
+      link = await admin.auth.admin.generateLink({ type: 'magiclink', email: alvo });
     }
     if (link.error) return json({ erro: 'falha_ao_gerar_sessao', detalhe: link.error.message }, 500);
 
     const hash = link.data?.properties?.hashed_token;
-    if (!hash) return json({ erro: 'sem_hash' }, 500);
+    const otp = link.data?.properties?.email_otp;
+    if (!hash && !otp) return json({ erro: 'sem_token_de_sessao' }, 500);
 
     // Vincula o perfil do MAPA ao usuário de auth, se ainda não estiver.
     // É o que faz `perfis.auth_user_id` continuar casando com `auth.uid()`.
     const uid = link.data?.user?.id;
     if (uid) {
       await admin.from('perfis').update({ auth_user_id: uid })
-        .eq('email', email).is('auth_user_id', null);
+        .eq('email', alvo).is('auth_user_id', null);
     }
 
-    // Devolve também o tipo de verificação: o verifyOtp do navegador precisa
-    // usar exatamente este valor, senão o Supabase recusa com
-    // "Email link is invalid or has expired".
+    // Devolve as DUAS formas de abrir a sessão. O navegador tenta primeiro o
+    // `otp` (código + e-mail), que é o caminho mais estável entre versões do
+    // supabase-js; o `token_hash` fica de reserva. E o `tipo` precisa ser
+    // exatamente este, senão o Supabase recusa com "Email link is invalid or
+    // has expired".
     return json({
+      otp,
       token_hash: hash,
       tipo: link.data?.properties?.verification_type || 'magiclink',
-      email,
+      email: alvo,
+      simulando: alvo !== email ? email : null,
     });
   } catch (e) {
     return json({ erro: 'falha_inesperada', detalhe: String(e) }, 500);
