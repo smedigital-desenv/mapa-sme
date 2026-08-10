@@ -176,7 +176,12 @@
             ? 'Esta conta não tem acesso ao MAPA. Fale com a secretaria.'
           : resp && resp.erro === 'simulacao_negada'
             ? 'Só super administradores podem abrir o sistema como outra pessoa.'
-            : 'Não foi possível abrir sua sessão no MAPA (' + ((resp && resp.erro) || r.status) + ').');
+            : 'Não foi possível abrir sua sessão no MAPA ('
+              + ((resp && resp.erro) || r.status) + ')'
+              // O detalhe vem do Supabase e é o que realmente diz o que houve.
+              // Sem ele, sobra um código genérico e uma ida ao painel.
+              + (resp && resp.detalhe ? '<br><small style="opacity:.75">'
+                  + String(resp.detalhe).replace(/[<>]/g, '') + '</small>' : ''));
         return null;
       }
       return resp;
