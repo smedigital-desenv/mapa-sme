@@ -170,15 +170,30 @@ Deno.serve(async (req) => {
         .eq('email', alvo).is('auth_user_id', null);
     }
 
-    // Devolve as DUAS formas de abrir a sessão. O navegador tenta primeiro o
-    // `otp` (código + e-mail), que é o caminho mais estável entre versões do
-    // supabase-js; o `token_hash` fica de reserva. E o `tipo` precisa ser
-    // exatamente este, senão o Supabase recusa com "Email link is invalid or
-    // has expired".
+    // ── 4) Consome o token AQUI e devolve a sessão pronta ──────────────────
+    // Antes eu devolvia o token para o navegador consumir. Entre gerar e usar
+    // havia uma janela, e qualquer coisa nela — uma segunda chamada da ponte
+    // que invalida a anterior, um interceptador de fetch segurando a
+    // requisicao, um retry — matava o token. O sintoma era sempre o mesmo:
+    // "Email link is invalid or has expired" antes do primeiro uso.
+    // Gerando e consumindo no mesmo lugar, a janela deixa de existir.
+    const anonMapa = soAscii(Deno.env.get('SUPABASE_ANON_KEY') || '');
+    const v = await fetch(`${urlMapa}/auth/v1/verify`, {
+      method: 'POST',
+      headers: { apikey: anonMapa, 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        otp ? { type: 'magiclink', token: otp, email: alvo }
+            : { type: 'magiclink', token_hash: hash }),
+    });
+    const sessao = await v.json().catch(() => null);
+    if (!v.ok || !sessao?.access_token) {
+      return json({ erro: 'falha_ao_verificar_sessao', status: v.status,
+                    detalhe: JSON.stringify(sessao) }, 500);
+    }
+
     return json({
-      otp,
-      token_hash: hash,
-      tipo: link.data?.properties?.verification_type || 'magiclink',
+      access_token: sessao.access_token,
+      refresh_token: sessao.refresh_token,
       email: alvo,
       simulando: alvo !== email ? email : null,
     });

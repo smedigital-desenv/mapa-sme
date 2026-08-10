@@ -169,7 +169,7 @@
         return null;
       }
 
-      if (!r.ok || !resp || !resp.token_hash) {
+      if (!r.ok || !resp || !resp.access_token) {
         console.error('[mapa-auth] a ponte recusou', r.status, resp);
         overlayErro(
           resp && resp.erro === 'sem_acesso_ao_mapa'
@@ -187,21 +187,14 @@
       return resp;
     }
 
-    // Abre a sessão a partir do que a ponte devolveu. Tenta o OTP primeiro:
-    // entre versões do supabase-js ele é mais estável que o token_hash.
+    // A ponte já devolve a sessão verificada. Aqui só instalamos ela no
+    // cliente — nenhum token para consumir, nenhum tipo para adivinhar.
     async function abrirSessao(resp) {
-      var tentativas = [];
-      if (resp.otp) tentativas.push({ email: resp.email, token: resp.otp, type: resp.tipo || 'magiclink' });
-      if (resp.token_hash) tentativas.push({ token_hash: resp.token_hash, type: resp.tipo || 'magiclink' });
-
-      for (var i = 0; i < tentativas.length; i++) {
-        var v = await window.MAPA_SB.auth.verifyOtp(tentativas[i]);
-        if (!v.error) return null;
-        console.warn('[mapa-auth] verifyOtp recusou',
-          tentativas[i].otp ? 'otp' : 'token_hash', '—', v.error.message);
-        if (i + 1 === tentativas.length) return v.error;
-      }
-      return new Error('sem forma de abrir a sessão');
+      var v = await window.MAPA_SB.auth.setSession({
+        access_token: resp.access_token,
+        refresh_token: resp.refresh_token
+      });
+      return v.error || null;
     }
 
     async function garantirSessaoMapa() {
@@ -236,7 +229,7 @@
       }
 
       var resp = await pedirTokenAPonte(tokenCentral, simulando);
-      if (!resp) return false;
+      if (!resp || !resp.access_token) return false;
 
       var erro = await abrirSessao(resp);
       if (!erro) {
