@@ -9,48 +9,90 @@
 
 ---
 
-## 1. Por que este pedido é urgente
+## 1. Por que este pedido é urgente — números medidos
 
-A tabela `bimestres` do Supabase é hoje a maior estrutura do projeto e guarda dados **fechados
-e imutáveis** (bimestres já encerrados). Ela foi carregada por planilha, via
-`apps-script/migrar_bimestres.gs`, que registra no próprio cabeçalho:
+Medição real executada no banco de produção:
 
-```
-FASE 2: MIGRAR BIMESTRES DO GOOGLE SHEETS PARA SUPABASE
-Total: 269.701 registros
-```
+| Métrica | Valor |
+|---|---|
+| Banco de dados completo | **404 MB** |
+| Tabela `bimestres` (total) | **321 MB** |
+| — dados | 283 MB |
+| — índices | 38 MB |
+| **Participação da tabela no banco** | **79%** |
+| Linhas — 1º bimestre | 269.701 |
+| Linhas — 2º bimestre | 481.230 |
+| **Total de linhas** | **750.931** |
 
-São **269.701 linhas apenas no 1º bimestre**, com o 2º bimestre em ordem de grandeza
-equivalente. Estimativa preliminar: **~150 a 250 MB** somando as duas cargas (heap + índices) —
-percentual relevante da cota do plano contratado.
+**Uma única tabela responde por quase quatro quintos de todo o banco de dados.** Esse é o número
+que abre a reunião. Não é uma questão de otimização marginal: qualquer outra iniciativa de
+economia no projeto disputa os 21% restantes.
 
-O ponto central do argumento na reunião: **são dados que não mudam mais**. Não há escrita, não há
-correção, não há reprocessamento. Manter uma cópia estática de meio milhão de linhas em base
-transacional própria é custo puro. O dado já existe no DB2 — precisamos apenas de leitura.
+A tabela guarda dados **fechados e imutáveis** — bimestres já encerrados. Foi carregada por
+planilha, via `apps-script/migrar_bimestres.gs`, que registra no próprio cabeçalho a carga inicial
+de 269.701 registros do 1º bimestre.
 
-### 1.1 Medir antes de afirmar (rodar ANTES da reunião)
+O ponto central do argumento: **são dados que não mudam mais**. Não há escrita, não há correção,
+não há reprocessamento. Manter uma cópia estática de 750 mil linhas em base transacional própria é
+custo puro. O dado já existe no DB2 — precisamos apenas de leitura.
 
-Os números acima são estimativa. Para chegar com valor exato, executar no SQL Editor do Supabase:
+### 1.1 Projeção após a migração
+
+| Cenário | Tamanho do banco | Redução |
+|---|---|---|
+| Hoje | 404 MB | — |
+| Bimestres 1 e 2 removidos + `VACUUM FULL` | **~83 MB** | **−79%** |
+| Idem, mantendo tabela agregada local (plano B, seção 5.3) | ~85 a 95 MB | −77% |
+
+Como as únicas linhas presentes na tabela são dos bimestres 1 e 2, removê-las **esvazia a tabela
+por completo**. Não sobra resíduo.
+
+### 1.2 Anomalia a investigar antes da reunião
+
+O 2º bimestre tem **481.230 linhas contra 269.701 do 1º — 78% a mais**. Isso merece explicação
+antes de virar requisito para o DB2, porque há três causas possíveis com consequências bem
+diferentes:
+
+1. Mais disciplinas ou eixos avaliados no 2º bimestre (legítimo)
+2. Mais estudantes na base (legítimo)
+3. **Carga duplicada ou parcialmente reexecutada** (defeito — e espaço recuperável hoje mesmo)
+
+A hipótese 3 é plausível: o `migrar_bimestres.gs` envia lotes com
+`Prefer: resolution=merge-duplicates`, o que só evita duplicidade se houver constraint de unicidade
+declarada na tabela. Se não houver, uma reexecução da migração duplica linhas silenciosamente.
 
 ```sql
--- Espaço real ocupado pela tabela e seus índices
-SELECT
-  pg_size_pretty(pg_total_relation_size('public.bimestres')) AS total,
-  pg_size_pretty(pg_relation_size('public.bimestres'))       AS dados,
-  pg_size_pretty(pg_indexes_size('public.bimestres'))        AS indices;
+-- Diagnóstico: separa "mais alunos" de "mais linhas por aluno"
+SELECT bimestre,
+       COUNT(*)                        AS linhas,
+       COUNT(DISTINCT rema_aluno)      AS alunos,
+       ROUND(COUNT(*)::numeric
+             / NULLIF(COUNT(DISTINCT rema_aluno), 0), 1) AS linhas_por_aluno
+  FROM public.bimestres
+ GROUP BY bimestre
+ ORDER BY bimestre;
 
--- Distribuição por bimestre (quanto cada um pesa em linhas)
-SELECT bimestre, COUNT(*) AS linhas
-FROM public.bimestres
-GROUP BY bimestre
-ORDER BY bimestre;
-
--- Peso da tabela no total do banco
-SELECT pg_size_pretty(pg_database_size(current_database())) AS banco_total;
+-- Se linhas_por_aluno saltar, checar duplicidade exata
+SELECT COUNT(*) AS grupos_duplicados, SUM(n) - COUNT(*) AS linhas_excedentes
+  FROM (
+    SELECT COUNT(*) AS n
+      FROM public.bimestres
+     WHERE bimestre = 2
+     GROUP BY rema_aluno, fnc_disciplina, descricao_fne, fqs, codigo_resposta
+    HAVING COUNT(*) > 1
+  ) d;
 ```
 
-Levar esses três resultados impressos. "A tabela X ocupa Y MB de um total de Z" encerra a
-discussão sobre prioridade mais rápido do que qualquer justificativa qualitativa.
+Se a segunda consulta apontar volume relevante, há **espaço recuperável imediatamente**, sem
+depender de nenhuma liberação externa. Vale rodar antes da reunião — muda o tom da conversa se
+parte do problema for nosso.
+
+### 1.3 Cota do plano
+
+Confirmar o limite do plano Supabase contratado. O plano gratuito tem teto de 500 MB — se for o
+caso, os 404 MB atuais representam **81% da cota**, o que explica a urgência e deve ser dito
+explicitamente na reunião. Em plano pago o teto é bem maior, e o argumento passa a ser de custo e
+de higiene arquitetural, não de risco iminente de indisponibilidade.
 
 ---
 
@@ -244,8 +286,25 @@ SELECT
           <col_disciplina>, <col_eixo>, <col_val_resposta>, <col_cod_resposta>;
 ```
 
-Esta view devolve estimadas **10–20 mil linhas** contra as 270 mil do detalhe — a redução vem de
-remover `rema_aluno` e `nome_aluno` do grão. É o número que sustenta o plano da seção 5.
+A redução vem de remover `rema_aluno` e `nome_aluno` do grão — o que elimina o fator que multiplica
+as linhas. Contra as **750.931 linhas** do detalhe, a expectativa é de ordem de milhares.
+
+O número exato pode ser apurado no Supabase antes da reunião, aplicando a mesma agregação sobre os
+dados atuais — o resultado é idêntico ao que a view do DB2 devolveria:
+
+```sql
+SELECT COUNT(*) AS linhas_agregadas
+  FROM (
+    SELECT 1
+      FROM public.bimestres
+     WHERE bimestre IN (1, 2)
+     GROUP BY bimestre, nome_unidade, ano_escolar, turma,
+              fnc_disciplina, descricao_fne, valor_resposta, codigo_resposta
+  ) t;
+```
+
+Levar esse número medido: é ele que sustenta o plano da seção 5 e demonstra à equipe do DB2 que a
+view agregada tem custo de consulta baixo.
 
 ### 4.3 Compatibilidade com o que o painel já consome
 
@@ -268,26 +327,43 @@ apresentação — apenas o adaptador de dados.
 
 ### 5.1 Sequência recomendada
 
-1. Medir o espaço real (queries da seção 1.1) — **antes da reunião**
-2. Obter as views e o acesso de leitura (seções 3 e 4)
-3. Validar paridade: conferir que os totais vindos do DB2 batem com os do Supabase
+1. ~~Medir o espaço real~~ — **feito**: 321 MB de 404 MB, 79% do banco (seção 1)
+2. Investigar a anomalia do 2º bimestre (seção 1.2) — pode liberar espaço sem depender do DB2
+3. Obter as views e o acesso de leitura (seções 3 e 4)
+4. Validar paridade: conferir que os totais vindos do DB2 batem com os do Supabase
    para uma amostra de unidades. **Sem paridade confirmada, não apagar nada**
-4. Substituir a fonte do painel para os bimestres 1 e 2
-5. Manter as duas fontes em paralelo por um período de observação
-6. Só então remover as linhas dos bimestres 1 e 2 do Supabase
+5. Substituir a fonte do painel para os bimestres 1 e 2
+6. Manter as duas fontes em paralelo por um período de observação
+7. Só então remover as linhas dos bimestres 1 e 2 do Supabase
 
-### 5.2 Cuidado técnico na remoção
+### 5.2 Cuidado técnico na remoção — usar `TRUNCATE`, não `DELETE`
 
-`DELETE` **não devolve espaço em disco no PostgreSQL** — as páginas ficam marcadas como reutilizáveis,
-mas o arquivo não encolhe. Para efetivamente recuperar a cota:
+`DELETE` **não devolve espaço em disco no PostgreSQL**: as páginas ficam marcadas como
+reutilizáveis, mas o arquivo não encolhe e a cota continua consumida. O reflexo natural é
+compensar com `VACUUM FULL` — e aqui há uma armadilha concreta neste caso específico.
+
+**`VACUUM FULL` reescreve a tabela inteira em um arquivo novo antes de liberar o antigo**, ou seja,
+exige transitoriamente espaço livre equivalente ao tamanho da tabela. Com 321 MB de tabela em um
+banco de 404 MB, se a cota for de 500 MB **não há folga suficiente e a operação falha por falta de
+espaço** — exatamente o problema que se tentava resolver.
+
+Como a medição mostrou que a tabela contém **apenas** linhas dos bimestres 1 e 2, ela fica vazia
+após a remoção. Isso permite o caminho limpo:
 
 ```sql
-DELETE FROM public.bimestres WHERE bimestre IN (1, 2);
-VACUUM FULL public.bimestres;   -- exige lock exclusivo: agendar fora do horário de uso
+-- Devolve o espaço imediatamente, sem reescrita e sem exigir folga de disco
+TRUNCATE TABLE public.bimestres;
 ```
 
-Alternativa sem lock prolongado, se a tabela for particionável por bimestre: `DROP` da partição.
-Vale avaliar se compensa reestruturar antes.
+`TRUNCATE` descarta os arquivos de dados diretamente, é praticamente instantâneo e dispensa
+`VACUUM FULL`. Exige lock exclusivo, mas por um intervalo muito curto.
+
+**Se sobrarem linhas de outros bimestres** (situação diferente da medida hoje), aí sim é
+`DELETE` seguido de compactação — e nesse caso prefira `pg_repack`, que compacta sem lock
+prolongado e sem exigir o dobro de espaço, em vez de `VACUUM FULL`.
+
+> Antes de qualquer uma das duas operações: **backup**. Uma vez executado o `TRUNCATE`, não há
+> desfazer fora de restauração de backup.
 
 ### 5.3 Ganho imediato, independente do DB2
 
@@ -310,8 +386,12 @@ a própria função `agrupar_bimestres` existe exatamente para "evitar baixar a 
 inteira", conforme o comentário no código. O detalhe por estudante seria o único uso que ficaria
 temporariamente indisponível, retornando quando as views do DB2 entrarem no ar.
 
+Com os números medidos, o plano B sozinho já levaria o banco de **404 MB para algo em torno de
+85–95 MB** — resolve a urgência por completo, sem depender de nenhuma liberação externa.
+
 **Recomendação:** tratar 5.3 como caminho paralelo, não como substituto do pedido ao DB2. Ele
-resolve a urgência de espaço; as views resolvem a dependência estrutural.
+resolve a urgência de espaço; as views resolvem a dependência estrutural — sem elas, o detalhe por
+estudante fica indisponível e a base volta a crescer nos próximos bimestres.
 
 ---
 
@@ -363,7 +443,8 @@ estabelecido, não improvisado.
 ## 8. Pauta sugerida para a reunião
 
 **Bloco 1 — Contexto (5 min)**
-Números medidos de ocupação. Argumento central: dado fixo, sem escrita, já existente no DB2.
+Abrir com o número medido: **a tabela `bimestres` é 79% do banco inteiro — 321 MB de 404 MB, em
+750.931 linhas**. Argumento central: dado fixo, sem escrita, já existente no DB2.
 
 **Bloco 2 — Identificação da origem (15 min)**
 De-para dos campos `fnc_disciplina`, `descricao_fne`, `fqs`. Qual tabela/schema. Confirmar
@@ -388,9 +469,12 @@ maior prazo — sair da reunião com ela encaminhada.
 3. `codigo_resposta` e `valor_resposta` são campos distintos na origem ou derivados?
 4. Qual a chave primária real do registro na origem?
 5. Os dados dos bimestres 1 e 2 estão **fechados** no DB2, ou ainda sofrem correção retroativa?
-6. Existe histórico de anos anteriores disponível? (pode viabilizar série histórica sem custo de armazenamento)
-7. Há ambiente de homologação para testar antes de produção?
-8. Qual o prazo interno típico para criação de view e concessão de acesso?
+6. **O 2º bimestre tem 78% mais registros que o 1º na nossa base. Na origem essa proporção se
+   confirma?** Se o DB2 mostrar volumes equivalentes entre os dois, nossa carga do 2º bimestre
+   está duplicada — e o problema é nosso, não de armazenamento
+7. Existe histórico de anos anteriores disponível? (pode viabilizar série histórica sem custo de armazenamento)
+8. Há ambiente de homologação para testar antes de produção?
+9. Qual o prazo interno típico para criação de view e concessão de acesso?
 
 ---
 
@@ -398,4 +482,5 @@ maior prazo — sair da reunião com ela encaminhada.
 
 Precisamos de **duas views somente-leitura no DB2** (detalhe e agregado dos bimestres 1 e 2), de
 **um usuário de serviço com `SELECT`**, da **liberação de firewall** e dos **metadados de conexão e
-de catálogo** — para deixar de manter no Supabase meio milhão de linhas de dados que não mudam mais.
+de catálogo** — para deixar de manter no Supabase **750.931 linhas de dados que não mudam mais,
+hoje responsáveis por 79% de todo o banco**.
