@@ -47,45 +47,44 @@ custo puro. O dado já existe no DB2 — precisamos apenas de leitura.
 Como as únicas linhas presentes na tabela são dos bimestres 1 e 2, removê-las **esvazia a tabela
 por completo**. Não sobra resíduo.
 
-### 1.2 Anomalia a investigar antes da reunião
+### 1.2 Anomalia do 2º bimestre — investigada e explicada
 
-O 2º bimestre tem **481.230 linhas contra 269.701 do 1º — 78% a mais**. Isso merece explicação
-antes de virar requisito para o DB2, porque há três causas possíveis com consequências bem
-diferentes:
+O 2º bimestre tem **481.230 linhas contra 269.701 do 1º — 78% a mais**. A suspeita inicial era de
+carga duplicada. **A medição descartou essa hipótese.**
 
-1. Mais disciplinas ou eixos avaliados no 2º bimestre (legítimo)
-2. Mais estudantes na base (legítimo)
-3. **Carga duplicada ou parcialmente reexecutada** (defeito — e espaço recuperável hoje mesmo)
+| | 1º bimestre | 2º bimestre |
+|---|---|---|
+| Linhas | 269.701 | 481.230 |
+| Estudantes | 13.621 | 13.682 |
+| Disciplinas | 13 | 12 |
+| Eixos | 41 | 42 |
+| **Linhas por estudante** | **19,80** | **35,17** |
 
-A hipótese 3 é plausível: o `migrar_bimestres.gs` envia lotes com
-`Prefer: resolution=merge-duplicates`, o que só evita duplicidade se houver constraint de unicidade
-declarada na tabela. Se não houver, uma reexecução da migração duplica linhas silenciosamente.
+O número de estudantes, disciplinas e eixos é praticamente idêntico. O que cresceu foi a
+quantidade de **habilidades avaliadas por estudante** — de ~20 para ~35. Isso é comportamento
+pedagógico esperado: o 2º bimestre acumula mais habilidades da BNCC.
+
+A checagem de duplicidade encontrou apenas **564 linhas excedentes em 481.230 — 0,1%**, ruído
+irrelevante. Não há ganho de espaço a extrair por aí.
+
+> **Consequência para a reunião:** o crescimento é legítimo e deve continuar. O 3º e o 4º bimestre
+> tendem a ser ainda maiores. Isso reforça o pedido em vez de enfraquecê-lo — sem as views, a base
+> cresce sem teto.
+
+Vale, ainda assim, registrar que **não existe constraint de unicidade** na tabela: os índices são
+apenas `bimestres_pkey (id)`, `bimestre`, `nome_unidade`, `(ano_escolar, turma)` e `turma`. O
+`Prefer: resolution=merge-duplicates` usado na migração portanto nunca teve efeito. Não causou
+dano relevante desta vez, mas é defeito latente para qualquer recarga futura.
+
+**Ganho lateral imediato:** dois desses índices são inúteis e ocupam espaço. `idx_bimestres_bim`
+indexa uma coluna com **2 valores distintos** em 750 mil linhas, e `idx_bimestres_turma` indexa uma
+com **9 valores**. Nenhum planejador vai usá-los para filtrar — o índice de baixa cardinalidade
+custa mais que a varredura. Podem ser removidos hoje:
 
 ```sql
--- Diagnóstico: separa "mais alunos" de "mais linhas por aluno"
-SELECT bimestre,
-       COUNT(*)                        AS linhas,
-       COUNT(DISTINCT rema_aluno)      AS alunos,
-       ROUND(COUNT(*)::numeric
-             / NULLIF(COUNT(DISTINCT rema_aluno), 0), 1) AS linhas_por_aluno
-  FROM public.bimestres
- GROUP BY bimestre
- ORDER BY bimestre;
-
--- Se linhas_por_aluno saltar, checar duplicidade exata
-SELECT COUNT(*) AS grupos_duplicados, SUM(n) - COUNT(*) AS linhas_excedentes
-  FROM (
-    SELECT COUNT(*) AS n
-      FROM public.bimestres
-     WHERE bimestre = 2
-     GROUP BY rema_aluno, fnc_disciplina, descricao_fne, fqs, codigo_resposta
-    HAVING COUNT(*) > 1
-  ) d;
+DROP INDEX IF EXISTS public.idx_bimestres_bim;
+DROP INDEX IF EXISTS public.idx_bimestres_turma;
 ```
-
-Se a segunda consulta apontar volume relevante, há **espaço recuperável imediatamente**, sem
-depender de nenhuma liberação externa. Vale rodar antes da reunião — muda o tom da conversa se
-parte do problema for nosso.
 
 ### 1.3 Cota do plano
 
@@ -96,37 +95,119 @@ de higiene arquitetural, não de risco iminente de indisponibilidade.
 
 ---
 
-## 2. Estrutura atual — o que precisa ser reproduzido no DB2
+## 2. Dicionário de campos — medido, não estimado
 
-Layout gravado hoje no Supabase (extraído de `migrar_bimestres.gs`, mapeamento posicional da
-planilha de origem). Esta é a **especificação funcional** que as views precisam atender:
+Perfil extraído da tabela em produção. Todos os campos estão hoje como `text` no PostgreSQL, sem
+tamanho declarado. A coluna **"tipo a pedir"** é a especificação para as views do DB2, dimensionada
+com folga sobre o comprimento máximo real.
 
-| # | Campo (MAPA/PostgreSQL) | Coluna da planilha | Descrição de negócio |
+| # | Campo | Máx. real | Distintos | Tipo a pedir no DB2 | Observação |
+|---|---|---|---|---|---|
+| 1 | `nome_unidade` | 43 | 37 | `VARCHAR(60)` | Formato "NOME, EMEF" |
+| 2 | `avaliacao` | 44 | 16 (6 reais) | `VARCHAR(60)` | **Contém o ano letivo embutido** |
+| 3 | `ano_escolar` | 5 | 5 | `VARCHAR(10)` | "1 ANO" a "5 ANO" |
+| 4 | `bimestre` | — | 2 | `SMALLINT` | Apenas 1 e 2 presentes |
+| 5 | `turma` | 1 | 9 | `CHAR(1)` | Só a letra — **não é única entre escolas** |
+| 6 | `rema_aluno` | 6 | 14.139 | `VARCHAR(10)` | RA de 6 dígitos |
+| 7 | `nome_aluno` | 52 | — | `VARCHAR(60)` | Avaliar necessidade (LGPD, seção 7) |
+| 8 | `fnc_disciplina` | 37 | 15 | `VARCHAR(40)` | Componente curricular |
+| 9 | `descricao_fne` | 65 | 52 (46 reais) | `VARCHAR(80)` | Eixo/unidade temática da BNCC |
+| 10 | `fqs` | **321** | 207 | **pedir CÓDIGO** | Ver 2.2 — muda o desenho da view |
+| 11 | `codigo_resposta` | 1 | 6 | `CHAR(1)` | Valores 1 a 6 |
+| 12 | `texto_resposta` | **354** | 93 | **pedir do domínio** | Ver 2.2 |
+| 13 | `valor_resposta` | 1 | 11 | `CHAR(1)` | `S`, `N`, `X` e dígitos 0–9 |
+| 14 | `created_at` | — | — | — | Só nosso; não pedir |
+
+### 2.1 A pista dos prefixos — confirmada e ampliada
+
+Os prefixos **`fnc_`**, **`fne_`** e **`fqs`** não são convenção do MAPA. O perfil dos dados
+confirma que são campos de um formulário estruturado da origem:
+
+- `fnc_disciplina` → **componente curricular** (15 valores)
+- `descricao_fne` → **eixo / unidade temática da BNCC** (46 valores reais)
+- `fqs` → **o enunciado da habilidade avaliada** (207 valores)
+
+A hierarquia é clara: disciplina → eixo → habilidade. Pedir na reunião o de-para dos nomes físicos
+desses três campos deve identificar a tabela-fonte de imediato (bloco B1 do script de descoberta).
+
+### 2.2 O achado que muda o desenho da view
+
+**`fqs` não é um código — é o texto integral da habilidade da BNCC**, com até 321 caracteres.
+Exemplos reais:
+
+> *"Constrói repertório lexical de cores, números, materiais escolares, membros da família e
+> animais."* — repetido em **27.241 linhas**
+>
+> *"Nível de Leitura (Legenda: 1 - 2 - 3 - 4 - 5 - 6)"* — repetido em **23.971 linhas**
+
+São **207 textos distintos armazenados 750.931 vezes**. Pela mesma lógica, `texto_resposta` tem
+93 valores distintos com até 354 caracteres, e o valor mais comum — `"Sim"` — aparece em 439.475
+linhas.
+
+Isso explica boa parte dos 283 MB de dados, e leva a um **pedido diferente e melhor**:
+
+> **A view de detalhe deve devolver o CÓDIGO da habilidade (o identificador na origem — se for
+> BNCC, algo como `EF01MA01`), não o texto.** O texto vem de uma segunda view pequena, de domínio,
+> com ~207 linhas.
+
+O mesmo vale para as respostas: pedir o código e uma view de domínio, em vez do texto repetido.
+Ver as views propostas na seção 4.
+
+Medir o peso exato de cada campo texto, para levar o número à reunião:
+
+```sql
+SELECT pg_size_pretty(SUM(pg_column_size(fqs)))             AS espaco_fqs,
+       pg_size_pretty(SUM(pg_column_size(texto_resposta)))  AS espaco_texto_resposta,
+       pg_size_pretty(SUM(pg_column_size(avaliacao)))       AS espaco_avaliacao,
+       pg_size_pretty(SUM(pg_column_size(nome_aluno)))      AS espaco_nome_aluno,
+       pg_size_pretty(SUM(pg_column_size(descricao_fne)))   AS espaco_eixo,
+       pg_size_pretty(SUM(pg_column_size(nome_unidade)))    AS espaco_unidade
+  FROM public.bimestres;
+```
+
+### 2.3 Defeito de codificação — argumento adicional para o pedido
+
+A migração por planilha corrompeu caracteres acentuados em um conjunto pequeno mas real de linhas.
+O caractere de substituição `�` aparece em valores como:
+
+| Valor corrompido | Linhas |
+|---|---|
+| `FICHA DE ACOMP. E AVALIA<?>ÃO - 1º ANO - 2026` | 3 |
+| `FICHA DE ACOMP. E AVALIAÇ<?>O - 4º ANO - 2026` | 2 |
+| `MAT<?>RIA E ENERGIA` | 1 |
+| `M<?>SICA` | 1 |
+| `PRODUÇ<?>O TEXTUAL` | 1 |
+
+O efeito prático é que os 16 valores distintos de `avaliacao` são, na verdade, **6 reais e 10
+variantes corrompidas**; e os 52 de `descricao_fne` são ~46 reais mais 6 corrompidos. O mesmo
+ocorre em dezenas de valores de `fqs`.
+
+Isso **infla artificialmente as agregações** — uma escola cujo eixo virou `M<?>SICA` aparece como
+categoria separada nos gráficos. E é um argumento direto na reunião: **consumir da origem elimina
+a classe inteira de defeito**, além de reforçar a importância da pergunta sobre CCSID/codepage
+(seção 3.2). Se a origem for EBCDIC e a conversão não for tratada, o problema se repete.
+
+### 2.4 Duas instâncias no mesmo lugar — decisão de escopo
+
+A tabela mistura **dois instrumentos diferentes**:
+
+| Instrumento | Linhas | Eixos | Escala de resposta |
 |---|---|---|---|
-| 1 | `unidade_id` | — (resolvido por lookup) | FK para `unidades` no Supabase; derivado de `nome_unidade` |
-| 2 | `nome_unidade` | `row[0]` | Nome da unidade escolar |
-| 3 | `avaliacao` | `row[1]` | Identificação da avaliação aplicada |
-| 4 | `ano_escolar` | `row[2]` | Ano/série do estudante |
-| 5 | `bimestre` | `row[3]` | Período letivo (1 a 4) |
-| 6 | `turma` | `row[4]` | Identificação da turma |
-| 7 | `rema_aluno` | `row[5]` | Registro de matrícula do estudante (chave do aluno) |
-| 8 | `nome_aluno` | `row[6]` | Nome do estudante |
-| 9 | `fnc_disciplina` | `row[7]` | Disciplina/componente curricular |
-| 10 | `descricao_fne` | `row[8]` | Eixo avaliado (ex.: ESCRITA, LEITURA, PRODUÇÃO TEXTUAL) |
-| 11 | `fqs` | `row[9]` | **Semântica a confirmar com a equipe do DB2** |
-| 12 | `codigo_resposta` | `row[10]` | Código da resposta/nível atingido |
-| 13 | `texto_resposta` | `row[11]` | Descrição textual da resposta |
-| 14 | `valor_resposta` | `row[12]` | Valor numérico da resposta |
+| `FICHA DE ACOMP. E AVALIAÇÃO` (1º ao 5º ano) | ~746.500 | BNCC — ORALIDADE, NÚMEROS, LEITURA… | `S` / `N` / `X` e níveis 1–6 |
+| `1. ESTUDO DE CASO AEE - INICIAL - 2026` | 4.451 | Comunicação, Autonomia, Segurança… | `0` / `1` / `2` |
 
-### 2.1 Observação que vale levantar na reunião
+O segundo é da **Educação Especial (AEE)** e tem eixos e escala próprios. Definir na reunião se as
+views cobrem os dois ou apenas a ficha regular — provavelmente vêm de tabelas diferentes na origem,
+o que dobraria o pedido.
 
-Os prefixos **`fnc_`**, **`fne_`** e **`fqs`** não são convenção do MAPA — são nomes herdados,
-quase certamente de campos físicos do próprio DB2 que atravessaram a planilha sem tradução.
+### 2.5 O ano letivo existe, mas está escondido
 
-Isso é uma boa notícia: sugere que **as tabelas de origem já existem** e que o trabalho é de
-exposição/permissão, não de modelagem do zero. Vale abrir a reunião pedindo o **de-para dos nomes
-físicos** desses três campos — provavelmente identifica a tabela-fonte imediatamente e encurta
-todo o resto da conversa.
+O campo `avaliacao` traz o ano embutido no texto: `"FICHA DE ACOMP. E AVALIAÇÃO - 2º ANO - 2026"`.
+Não há coluna `ano_letivo` separada.
+
+**Pedir à origem o ano letivo como coluna própria.** Sem ele, qualquer histórico de anos anteriores
+se mistura, e a única forma de separar é fazer parsing de string — frágil e sujeito exatamente ao
+tipo de corrupção descrito em 2.3.
 
 ---
 
@@ -242,23 +323,26 @@ essa separação é o que permite o ganho de espaço descrito na seção 5.
 Grão: **um registro por estudante × disciplina × eixo × bimestre**.
 Uso: consulta pontual de drill-down. Baixo volume por chamada, sempre filtrada.
 
+> **Mudança em relação à versão anterior deste documento:** a view devolve o **código** da
+> habilidade e da resposta, não os textos. Os textos vêm das views de domínio (4.3), que têm ~207
+> e ~93 linhas. Ver a justificativa em 2.2.
+
 ```sql
 CREATE VIEW <SCHEMA>.VW_MAPA_AVALIACAO_BIMESTRE_DET AS
 SELECT
     TRIM(<col_unidade>)      AS nome_unidade,
     TRIM(<col_avaliacao>)    AS avaliacao,
+    <col_ano_letivo>         AS ano_letivo,      -- pedir como coluna própria (ver 2.5)
     TRIM(<col_ano_escolar>)  AS ano_escolar,
     <col_bimestre>           AS bimestre,
     TRIM(<col_turma>)        AS turma,
     TRIM(<col_rema>)         AS rema_aluno,
-    TRIM(<col_nome_aluno>)   AS nome_aluno,
+    TRIM(<col_nome_aluno>)   AS nome_aluno,      -- avaliar necessidade: LGPD, seção 7
     TRIM(<col_disciplina>)   AS fnc_disciplina,
     TRIM(<col_eixo>)         AS descricao_fne,
-    TRIM(<col_fqs>)          AS fqs,
+    TRIM(<col_cod_habilidade>) AS cod_habilidade, -- CÓDIGO, não o texto (ver 2.2)
     <col_cod_resposta>       AS codigo_resposta,
-    TRIM(<col_txt_resposta>) AS texto_resposta,
-    <col_val_resposta>       AS valor_resposta,
-    <col_ano_letivo>         AS ano_letivo
+    <col_val_resposta>       AS valor_resposta
   FROM <SCHEMA>.<TABELA_ORIGEM>
  WHERE <col_bimestre> IN (1, 2);
 ```
@@ -305,7 +389,52 @@ O número foi apurado aplicando a mesma agregação sobre os dados atuais do Sup
 exatamente o que a view do DB2 devolverá. Vale citá-lo na reunião: demonstra à equipe do DB2 que a
 view agregada tem custo de consulta baixo e cabe em qualquer janela de execução.
 
-### 4.3 Compatibilidade com o que o painel já consome
+### 4.3 Views de domínio — as duas tabelas pequenas que evitam repetir texto
+
+São views minúsculas, carregadas uma vez e mantidas em cache. É o que substitui os 321 caracteres
+de `fqs` e os 354 de `texto_resposta` repetidos em todas as linhas.
+
+```sql
+-- ~207 linhas: código da habilidade -> enunciado, com sua hierarquia
+CREATE VIEW <SCHEMA>.VW_MAPA_HABILIDADE AS
+SELECT TRIM(<col_cod_habilidade>) AS cod_habilidade,
+       TRIM(<col_fqs>)            AS descricao_habilidade,
+       TRIM(<col_disciplina>)     AS fnc_disciplina,
+       TRIM(<col_eixo>)           AS descricao_fne
+  FROM <SCHEMA>.<TABELA_HABILIDADES>;
+
+-- ~93 linhas: código da resposta -> texto e valor
+CREATE VIEW <SCHEMA>.VW_MAPA_RESPOSTA AS
+SELECT <col_cod_resposta>       AS codigo_resposta,
+       <col_val_resposta>       AS valor_resposta,
+       TRIM(<col_txt_resposta>) AS texto_resposta
+  FROM <SCHEMA>.<TABELA_RESPOSTAS>;
+```
+
+**Pergunta obrigatória na reunião:** essas duas tabelas de domínio existem separadamente na origem,
+ou o texto está desnormalizado dentro da própria tabela de avaliação? Se não existirem, as views
+podem ser construídas com `SELECT DISTINCT` sobre a tabela principal — funciona, mas vale saber
+qual é o caso.
+
+### 4.4 O domínio de respostas precisa ser saneado na origem
+
+O perfil expôs inconsistências reais na combinação código/valor/texto:
+
+| `codigo_resposta` | `valor_resposta` | `texto_resposta` | Linhas |
+|---|---|---|---|
+| 3 | X | `Não Avaliado` | 87.288 |
+| 3 | X | `Não avaliado` | 64.652 |
+| 3 | X | `Não Avalaido` | 408 |
+| 3 | N | `Não avaliado` | 535 |
+
+Quatro representações do mesmo conceito: duas divergindo só por maiúscula, uma com o **erro de
+digitação "Avalaido"**, e uma com o valor `N` onde as demais usam `X`.
+
+Hoje o painel compensa isso em código — é o que fazem `respostaLabel()` e `normalizar()` em
+`avaliacao.html`. **Pedir que a view entregue o domínio já normalizado** permite eliminar essa
+camada de correção e garante que as agregações não fragmentem a mesma categoria em quatro.
+
+### 4.5 Compatibilidade com o que o painel já consome
 
 As views precisam responder às mesmas perguntas que as RPCs atuais do Supabase:
 
@@ -521,17 +650,30 @@ maior prazo — sair da reunião com ela encaminhada.
 
 ### 8.1 Perguntas em aberto — levar por escrito
 
-1. `fqs` significa o quê? É código, sequencial ou classificação?
-2. Existe `ano_letivo` na origem? O layout atual não tem esse campo, e sem ele os anos se misturam
-3. `codigo_resposta` e `valor_resposta` são campos distintos na origem ou derivados?
-4. Qual a chave primária real do registro na origem?
-5. Os dados dos bimestres 1 e 2 estão **fechados** no DB2, ou ainda sofrem correção retroativa?
-6. **O 2º bimestre tem 78% mais registros que o 1º na nossa base. Na origem essa proporção se
-   confirma?** Se o DB2 mostrar volumes equivalentes entre os dois, nossa carga do 2º bimestre
-   está duplicada — e o problema é nosso, não de armazenamento
-7. Existe histórico de anos anteriores disponível? (pode viabilizar série histórica sem custo de armazenamento)
-8. Há ambiente de homologação para testar antes de produção?
-9. Qual o prazo interno típico para criação de view e concessão de acesso?
+As três primeiras já foram respondidas pela medição e viram **afirmações**, não perguntas:
+
+| Pergunta original | Status |
+|---|---|
+| O que significa `fqs`? | **Respondido:** é o enunciado da habilidade da BNCC, 207 valores, até 321 caracteres |
+| Existe `ano_letivo`? | **Respondido:** existe, mas embutido no texto de `avaliacao` ("… - 2026") |
+| A carga do 2º bimestre está duplicada? | **Respondido:** não. 564 linhas excedentes em 481.230 (0,1%) |
+
+Restam estas:
+
+1. Qual o **código** de cada habilidade na origem? É o código BNCC (`EF01MA01`) ou um
+   identificador interno? Sem ele não dá para trocar o texto pelo código (seção 2.2)
+2. Existem **tabelas de domínio** separadas para habilidade e para resposta, ou o texto está
+   desnormalizado dentro da tabela de avaliação?
+3. Podem entregar `ano_letivo` como **coluna própria**, em vez de embutido no nome da avaliação?
+4. O **Estudo de Caso AEE** vem da mesma tabela que a Ficha de Acompanhamento, ou de outra?
+   (seção 2.4 — pode dobrar o pedido)
+5. Qual a **chave primária real** do registro na origem?
+6. O domínio de respostas pode vir **normalizado**? Hoje o mesmo conceito aparece como
+   `Não Avaliado`, `Não avaliado`, `Não Avalaido` e com valor `N` ou `X` (seção 4.4)
+7. Os dados dos bimestres 1 e 2 estão **fechados**, ou ainda sofrem correção retroativa?
+8. Existe **histórico de anos anteriores**? Pode viabilizar série histórica sem custo de armazenamento
+9. Há **ambiente de homologação** para testar antes de produção?
+10. Qual o **prazo interno** típico para criação de view e concessão de acesso?
 
 ---
 
