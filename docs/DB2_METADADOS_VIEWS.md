@@ -228,6 +228,11 @@ alias estável. Isso evita replicar tratamento de string em toda consulta do nos
 >
 > São também **dialeto DB2 e rodam no servidor do DB2**, não no Supabase. Para o SQL que
 > executamos do nosso lado, em PostgreSQL, ver a **seção 5.3**.
+>
+> 🔎 **Não é preciso saber os nomes de cor.** Os scripts em
+> [`sql/descoberta/`](../sql/descoberta/README.md) descobrem tanto a especificação do nosso lado
+> quanto a tabela de origem no DB2, consultando o catálogo. Rodar antes de preencher as lacunas
+> acima.
 
 Duas views cobrem todo o uso atual do painel. O desenho separa **agregado** (o que o painel
 carrega sempre) de **detalhe** (o que só é buscado quando o usuário clica em um estudante) —
