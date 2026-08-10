@@ -221,6 +221,14 @@ alias estável. Isso evita replicar tratamento de string em toda consulta do nos
 
 ## 4. Views propostas
 
+> ⚠️ **Os blocos SQL desta seção são modelos para a equipe do DB2, não scripts executáveis.**
+> Tudo que aparece entre `< >` — `<SCHEMA>`, `<TABELA_ORIGEM>`, `<col_unidade>` — é lacuna a ser
+> preenchida com os nomes físicos reais, que são justamente o que vamos descobrir na reunião
+> (seção 2.1). Executar como está resulta em `syntax error at or near "<"`.
+>
+> São também **dialeto DB2 e rodam no servidor do DB2**, não no Supabase. Para o SQL que
+> executamos do nosso lado, em PostgreSQL, ver a **seção 5.3**.
+
 Duas views cobrem todo o uso atual do painel. O desenho separa **agregado** (o que o painel
 carrega sempre) de **detalhe** (o que só é buscado quando o usuário clica em um estudante) —
 essa separação é o que permite o ganho de espaço descrito na seção 5.
@@ -286,25 +294,12 @@ SELECT
           <col_disciplina>, <col_eixo>, <col_val_resposta>, <col_cod_resposta>;
 ```
 
-A redução vem de remover `rema_aluno` e `nome_aluno` do grão — o que elimina o fator que multiplica
-as linhas. Contra as **750.931 linhas** do detalhe, a expectativa é de ordem de milhares.
+**Cardinalidade medida: 50.156 linhas**, contra 750.931 do detalhe — **15× menos**. A redução vem
+de remover `rema_aluno` e `nome_aluno` do grão, que é o fator que multiplica as linhas.
 
-O número exato pode ser apurado no Supabase antes da reunião, aplicando a mesma agregação sobre os
-dados atuais — o resultado é idêntico ao que a view do DB2 devolveria:
-
-```sql
-SELECT COUNT(*) AS linhas_agregadas
-  FROM (
-    SELECT 1
-      FROM public.bimestres
-     WHERE bimestre IN (1, 2)
-     GROUP BY bimestre, nome_unidade, ano_escolar, turma,
-              fnc_disciplina, descricao_fne, valor_resposta, codigo_resposta
-  ) t;
-```
-
-Levar esse número medido: é ele que sustenta o plano da seção 5 e demonstra à equipe do DB2 que a
-view agregada tem custo de consulta baixo.
+O número foi apurado aplicando a mesma agregação sobre os dados atuais do Supabase, de modo que é
+exatamente o que a view do DB2 devolverá. Vale citá-lo na reunião: demonstra à equipe do DB2 que a
+view agregada tem custo de consulta baixo e cabe em qualquer janela de execução.
 
 ### 4.3 Compatibilidade com o que o painel já consome
 
@@ -365,11 +360,15 @@ prolongado e sem exigir o dobro de espaço, em vez de `VACUUM FULL`.
 > Antes de qualquer uma das duas operações: **backup**. Uma vez executado o `TRUNCATE`, não há
 > desfazer fora de restauração de backup.
 
-### 5.3 Ganho imediato, independente do DB2
+### 5.3 Ganho imediato, independente do DB2 — SQL executável no Supabase
 
-Se a liberação do DB2 demorar — cenário realista — há um ganho disponível sem depender de
-terceiros: **substituir o detalhe pelo agregado no próprio Supabase**, aplicando localmente a
-mesma lógica da view `..._AGG`.
+Este é o **único bloco do documento pronto para rodar como está**, no SQL Editor do Supabase.
+Dialeto PostgreSQL, sem placeholders.
+
+A cardinalidade do agregado já foi medida: **50.156 linhas**, contra 750.931 do detalhe — uma
+redução de **15×**, ou 93,3% menos linhas. O agregado deve ocupar em torno de 10 a 15 MB.
+
+#### Passo 1 — criar a tabela agregada
 
 ```sql
 CREATE TABLE public.bimestres_agg AS
@@ -378,16 +377,70 @@ SELECT bimestre, nome_unidade, ano_escolar, turma,
        COUNT(*) AS qtd
   FROM public.bimestres
  WHERE bimestre IN (1, 2)
- GROUP BY 1,2,3,4,5,6,7,8;
+ GROUP BY 1, 2, 3, 4, 5, 6, 7, 8;
 ```
 
-Isso já entrega a maior parte da economia, porque o painel consome majoritariamente agregado —
-a própria função `agrupar_bimestres` existe exatamente para "evitar baixar a tabela bimestres
-inteira", conforme o comentário no código. O detalhe por estudante seria o único uso que ficaria
-temporariamente indisponível, retornando quando as views do DB2 entrarem no ar.
+#### Passo 2 — validar paridade ANTES de apagar qualquer coisa
 
-Com os números medidos, o plano B sozinho já levaria o banco de **404 MB para algo em torno de
-85–95 MB** — resolve a urgência por completo, sem depender de nenhuma liberação externa.
+```sql
+SELECT (SELECT SUM(qtd) FROM public.bimestres_agg)                          AS soma_agregado,
+       (SELECT COUNT(*) FROM public.bimestres WHERE bimestre IN (1, 2))     AS linhas_originais;
+```
+
+Os dois valores precisam bater **exatamente em 750.931**. Se não baterem, parar e investigar —
+não prosseguir.
+
+#### Passo 3 — índice para os filtros do painel
+
+```sql
+CREATE INDEX idx_bimestres_agg_filtros
+    ON public.bimestres_agg (bimestre, nome_unidade, ano_escolar, turma);
+
+CREATE INDEX idx_bimestres_agg_disciplina
+    ON public.bimestres_agg (bimestre, fnc_disciplina);
+```
+
+#### Passo 4 — conferir o tamanho obtido
+
+```sql
+SELECT pg_size_pretty(pg_total_relation_size('public.bimestres_agg')) AS agregado,
+       pg_size_pretty(pg_database_size(current_database()))           AS banco;
+```
+
+#### Passo 5 — repontar a RPC, e só então liberar o espaço
+
+> 🛑 **Ordem obrigatória.** O painel lê a tabela `bimestres` diretamente e através da RPC
+> `agrupar_bimestres`. Executar o `TRUNCATE` da seção 5.2 **antes** de repontar a RPC para
+> `bimestres_agg` derruba as telas de avaliação. Repontar primeiro, validar o painel, truncar
+> depois.
+
+**Risco associado:** a definição de `agrupar_bimestres` **não está versionada neste repositório** —
+existe apenas dentro do Supabase. Antes de alterá-la, exportar o código atual e commitá-lo em
+`sql/`, para que exista ponto de retorno. Recomenda-se aproveitar a ocasião para versionar também
+as demais RPCs (`obter_bimestre_registros`, `resumo_disciplinas_bimestre`,
+`estatisticas_bimestre`, `detalhe_aluno_bimestre`).
+
+```sql
+-- Exportar a definição atual antes de qualquer alteração
+SELECT pg_get_functiondef(oid)
+  FROM pg_proc
+ WHERE proname IN ('agrupar_bimestres', 'obter_bimestre_registros',
+                   'resumo_disciplinas_bimestre', 'estatisticas_bimestre',
+                   'detalhe_aluno_bimestre');
+```
+
+#### Resultado esperado
+
+| | Linhas | Espaço |
+|---|---|---|
+| Hoje — `bimestres` | 750.931 | 321 MB |
+| Depois — `bimestres_agg` | 50.156 | ~10 a 15 MB |
+| **Banco completo** | — | **404 MB → ~95 MB** |
+
+Isso entrega a maior parte da economia porque o painel consome majoritariamente agregado — a
+própria função `agrupar_bimestres` existe exatamente para "evitar baixar a tabela bimestres
+inteira", conforme o comentário no código. O detalhe por estudante seria o único uso temporariamente
+indisponível, retornando quando as views do DB2 entrarem no ar.
 
 **Recomendação:** tratar 5.3 como caminho paralelo, não como substituto do pedido ao DB2. Ele
 resolve a urgência de espaço; as views resolvem a dependência estrutural — sem elas, o detalhe por
