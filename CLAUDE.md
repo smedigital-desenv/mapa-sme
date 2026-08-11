@@ -157,6 +157,12 @@ particular ou estadual, que existem e são legítimos).
 
 **Ela sobrevive à reimportação dos dados; corrigir a grafia na origem não.**
 
+⚠️ **O apelido casa por igualdade exata**, incluindo maiúsculas e acentos. Ao
+cadastrar, copie a grafia exatamente como aparece no dado — não "arrume" a
+caixa. Padronizar a grafia dos dados sem antes tornar `resolver_unidade()`
+insensível à caixa faz a tradução parar de casar, e o sintoma é unidade da rede
+sumindo da tela de quem tem direito a ela.
+
 Ao aparecer uma unidade nova, o padrão seguro é entrar como "fora da rede" e
 ser promovida só após conferência humana. Errar para o lado de esconder é
 visível e reclamável; errar para o lado de mostrar é invisível e grave.
