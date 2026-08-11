@@ -16,8 +16,12 @@
 
 Sistema de monitoramento de aprendizagem e acompanhamento dos projetos
 alfabetizadores da rede municipal de Ribeirão Preto. Serve ~112 unidades
-(EMEF, EMEI, CEI) e trabalha com dado nominal de aluno, incluindo educação
-especial e alunos sob liminar judicial.
+(EMEF, EMEI, CEI).
+
+⚠️ **Este repositório é público e o sistema trata dados pessoais de crianças,
+alguns de natureza sensível.** Nada que identifique aluno, nenhuma credencial e
+nenhum detalhe de fragilidade operacional deve entrar aqui — nem em código, nem
+em comentário, nem neste arquivo.
 
 Site estático (HTML/JS puro, sem framework nem build) publicado no GitHub Pages
 sob `smedigital.com.br/mapa-sme/`. Os dados ficam num projeto Supabase próprio.
@@ -89,13 +93,10 @@ A partir daí `auth.uid()` existe no banco do MAPA e as policies funcionam.
 
 > ⚠️ **LEIA ANTES DE "CONSERTAR" QUALQUER `403` OU `permission denied`.**
 
-O sistema já sofreu uma exposição em que a base inteira — nome, RA, escola,
-turma e deficiência de alunos com liminar judicial — estava legível por
-qualquer pessoa da internet, sem login. A causa foi o papel `anon` ter `SELECT`
-nas tabelas e `EXECUTE` nas funções.
-
-As regras abaixo são o que fecha isso. Um `403` vindo delas é o sistema
-funcionando.
+As restrições abaixo foram aplicadas deliberadamente, após revisão de
+segurança, e são o que garante o isolamento por unidade. **Um `403` ou
+`permission denied` vindo delas é o sistema funcionando como projetado**, não
+uma avaria a ser corrigida com `grant`.
 
 ### Invariantes — quebrar qualquer uma reabre o vazamento
 
@@ -195,23 +196,27 @@ erro — dá a impressão de que o resto passou. Ao falhar no meio, presuma que
 
 `VACUUM` não roda em transação; `ANALYZE` roda.
 
-**Nunca versione arquivo `.sql` neste repositório** — o `.gitignore` bloqueia
-`*.sql`, `*.csv` e `*.dump`. Já houve incidente de dado real em seed público.
+**Nunca versione arquivo `.sql`, `.csv` ou `.dump` neste repositório** — o
+`.gitignore` os bloqueia. Este é um repositório público; script de carga e
+export costumam carregar dado real junto, e uma vez publicado o histórico do
+Git guarda para sempre. Scripts de banco ficam fora do versionamento.
 
 ---
 
-## 5. Restrições operacionais conhecidas
+## 5. Diagnóstico de infraestrutura
 
-- **Plano free do Supabase, teto de 0,5 GB.** A tabela `bimestres` sozinha
-  ocupa a maior parte. O projeto já parou duas vezes por falta de espaço,
-  recusando conexão e derrubando todas as telas. Sintomas: `PGRST002`,
-  `504`, `Connection terminated due to connection timeout`. Quando isso
-  acontecer, **não procure bug no código** — olhe a página de Usage primeiro.
-- Índices sem uso já foram removidos. O que resta de folga é pequeno e o dado
-  cresce a cada bimestre lançado.
-- Depois de mudanças grandes de DDL, rode `ANALYZE` nas tabelas afetadas e
-  `notify pgrst, 'reload schema';`. Estatísticas velhas produzem planos ruins e
-  timeouts que parecem falha de permissão.
+Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
+**não são bug de aplicação** e não se resolvem mexendo em permissão:
+
+- `PGRST002`, `504`, `Connection terminated due to connection timeout` →
+  verifique a saúde e a capacidade da instância no painel do Supabase (aba
+  Usage / Reports) **antes** de procurar erro no código ou nas policies.
+- Timeout em tabela pequena logo após mudanças de esquema → estatísticas
+  desatualizadas. Rode `ANALYZE` nas tabelas afetadas e
+  `notify pgrst, 'reload schema';`.
+- A capacidade da instância e o crescimento do volume são acompanhados pela
+  equipe responsável; consulte o painel para o estado atual em vez de assumir
+  qualquer número.
 
 ---
 
