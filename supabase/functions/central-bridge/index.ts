@@ -181,7 +181,10 @@ Deno.serve(async (req) => {
     // a cada acesso. Ninguem faz login com senha no MAPA — a autenticacao real
     // acontece no central, e e ela que ja foi validada nos passos 1 e 2.
     const anonMapa = soAscii(Deno.env.get('SUPABASE_ANON_KEY') || '');
-    const senha = crypto.randomUUID() + '-' + crypto.randomUUID();
+    // 36 caracteres, 122 bits de entropia. O GoTrue limita a senha a 72, e dois
+    // UUIDs concatenados davam 73 — um a mais. Um so ja e muito mais do que o
+    // suficiente para um segredo que nunca sai daqui e e trocado a cada acesso.
+    const senha = crypto.randomUUID();
 
     const upd = await admin.auth.admin.updateUserById(uid!, { password: senha });
     if (upd.error) {
