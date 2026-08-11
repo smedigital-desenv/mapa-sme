@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-bs-theme="dark" data-tema="escuro" data-acento="ciano" data-fundo="medio">
+<head>
+  <meta charset="utf-8">
+  <script src="auth-guard.js"></script>
+  <script>window.MAPA_SISTEMA = 'mapa';</script>
+  <script src="auth.js" defer></script>
+  <script src="config-central.js" defer></script>
+  <script src="demo-mode.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MAPA — Educação Especial</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+/* defaults do Chart.js para o visual de teste — acrescentado por gerar-v2.py */
+(function () {
+  if (!window.Chart) return;
+  var C = window.Chart;
+  C.defaults.color = '#94A0AB';
+  C.defaults.borderColor = 'rgba(255,255,255,.10)';
+  C.defaults.font.family = 'DM Sans, system-ui, sans-serif';
+  if (C.defaults.plugins && C.defaults.plugins.legend) {
+    C.defaults.plugins.legend.labels.color = '#94A0AB';
+  }
+  if (C.defaults.scales) {
+    ['linear', 'category', 'radialLinear'].forEach(function (k) {
+      if (!C.defaults.scales[k]) return;
+      if (C.defaults.scales[k].grid) C.defaults.scales[k].grid.color = 'rgba(255,255,255,.08)';
+      if (C.defaults.scales[k].ticks) C.defaults.scales[k].ticks.color = '#8996A3';
+    });
+  }
+})();
+</script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    window.MAPA_SUPABASE = {
+      url: "https://gmwotfulohkmuqrezeef.supabase.co",
+      anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk"
+    };
+  </script>
+  <style>
+    :root { --primary:#002b5e; --neon-blue:#00e5ff; }
+    html,body { background:#eef2f7; } body { font-family:'Inter',sans-serif; }
+    .mg-header { background:var(--primary); color:#fff; border-bottom:5px solid var(--neon-blue); padding:.9rem 1.6rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; position:sticky; top:0; z-index:1050; box-shadow:0 6px 18px rgba(0,43,94,.18); }
+    .mg-brand { display:flex; align-items:center; gap:.6rem; min-width:180px; cursor:pointer; }
+    .mg-brand-icon { width:34px; height:34px; display:grid; place-items:center; color:var(--neon-blue); font-size:1.4rem; }
+    .mg-brand h4 { margin:0; font-weight:900; font-size:1.4rem; line-height:1; }
+    .mg-brand-sub { font-size:.63rem; color:rgba(255,255,255,.68); font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-top:2px; }
+    .mg-nav { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; flex:1; min-width:280px; }
+    .mg-nav-btn { display:inline-flex; align-items:center; gap:.4rem; justify-content:center; min-width:140px; font-size:.78rem; font-weight:900; padding:6px 14px; border-radius:8px; border:2px solid transparent; color:#fff; text-decoration:none; transition:.2s; white-space:nowrap; cursor:pointer; }
+    .mg-nav-btn:hover { border-color:rgba(255,255,255,.4); } .mg-nav-btn.active { background:#fff; color:var(--primary); }
+    .mg-nav-icon { min-width:auto; padding:6px 10px; }
+    .mg-action-btn { background:#fff; color:var(--primary); border:0; border-radius:8px; padding:6px 12px; font-weight:900; font-size:.78rem; display:inline-flex; align-items:center; gap:.4rem; cursor:pointer; }
+    @media (max-width:992px){ .mg-nav-btn{ min-width:auto; } }
+    .faixa { background:linear-gradient(90deg,#013a7d,#002b5e); color:#fff; padding:.6rem 1.6rem; display:flex; align-items:center; gap:.6rem; }
+    .faixa .ic { color:var(--neon-blue); font-size:1.3rem; } .faixa h5 { margin:0; font-weight:900; }
+    .faixa .sub { font-size:.62rem; color:rgba(255,255,255,.7); font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .subtabs { background:#fff; border-bottom:1px solid #dbe5ef; padding:.5rem 1.2rem; display:flex; gap:8px; flex-wrap:wrap; position:sticky; top:64px; z-index:1040; }
+    .tab-btn { border:2px solid #cbd5e1; background:#fff; color:#334155; font-weight:800; font-size:.85rem; padding:7px 18px; border-radius:999px; cursor:pointer; transition:.15s; display:inline-flex; align-items:center; gap:.4rem; }
+    .tab-btn:hover { border-color:var(--primary); } .tab-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+    .kpi { background:#fff; border-radius:14px; padding:.85rem 1rem; box-shadow:0 4px 14px rgba(0,0,0,.05); border-left:5px solid var(--primary); }
+    .kpi .label { font-size:.66rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.03em; }
+    .kpi .val { font-size:1.6rem; font-weight:900; color:var(--primary); line-height:1.1; }
+    .card-box { background:#fff; border-radius:16px; box-shadow:0 4px 14px rgba(0,0,0,.05); }
+    .sec-tt { font-weight:900; color:var(--primary); font-size:.95rem; }
+    table.mapa { width:100%; font-size:.82rem; }
+    table.mapa thead th { position:sticky; top:0; background:var(--primary); color:#fff; font-weight:800; font-size:.68rem; text-transform:uppercase; letter-spacing:.02em; padding:8px 10px; white-space:nowrap; }
+    table.mapa tbody td { padding:6px 10px; border-bottom:1px solid #eef2f7; }
+    table.mapa tbody tr:hover { background:#f1f6ff; }
+    .row-clic { cursor:pointer; }
+    .badge-st { font-weight:800; font-size:.66rem; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+    .st-ok{background:#d1fae5;color:#047857;} .st-pend{background:#fee2e2;color:#b91c1c;} .st-fora{background:#e2e8f0;color:#475569;}
+    .bar { height:9px; border-radius:999px; background:#e5e7eb; overflow:hidden; min-width:48px; } .bar > span { display:block; height:100%; }
+    .pct2 { display:flex; flex-direction:column; gap:3px; min-width:120px; }
+  </style>
+
+<!-- ↓↓↓ acrescentado por tools/gerar-v2.py — pele de teste ↓↓↓ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mapa-v2.css">
+<!-- ↑↑↑ -->
+</head>
+<body>
+<div class="v2-faixa">
+  <b>VERSÃO 2 · TESTE</b>
+  <span>Esta página é uma cópia para avaliar o visual novo. A que está em uso continua em</span>
+  <a href="educacao_especial-v2.html">educacao_especial.html</a>
+</div>
+<canvas id="ceu" aria-hidden="true"></canvas>
+<span class="v2-orbita v2-orbita--1" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--2" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--3" aria-hidden="true"></span>
+
+
+<header class="mg-header">
+  <div class="mg-brand" onclick="location.href='index.html'" title="Página inicial do MAPA">
+    <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div><div><h4>MAPA</h4><div class="mg-brand-sub">SME Ribeirão Preto</div></div>
+  </div>
+  <nav class="mg-nav">
+    <div class="mg-dd" data-tela-any="avaliacao,elefante,fluencia">
+      <a class="mg-nav-btn mg-dd-toggle" href="avaliacao-v2.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="avaliacao-v2.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item" href="elefante-v2.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+        <a class="mg-dd-item" href="fluencia-v2.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn" href="atribuicao-v2.html"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn active" href="educacao_especial-v2.html"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <a class="mg-nav-btn" href="frequencia-v2.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+    <a class="mg-nav-btn" href="relatorios-v2.html"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+    <a class="mg-nav-btn" href="boletim-v2.html"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+    <a class="mg-nav-btn mg-nav-icon" href="#" id="btnConfig" style="display:none" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
+  </nav>
+  <div><button class="mg-action-btn" onclick="location.reload()" title="Atualizar"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button></div>
+</header>
+
+<div class="faixa"><i class="bi bi-universal-access-circle ic"></i><div><h5>Educação Especial</h5><div class="sub">SME Ribeirão Preto · Alunos com deficiência</div></div></div>
+
+<div class="subtabs">
+  <button class="tab-btn active" data-view="dash" onclick="trocarView('dash')"><i class="bi bi-grid-1x2-fill"></i>Visão Geral da Unidade</button>
+  <button class="tab-btn" data-view="aee" onclick="trocarView('aee')"><i class="bi bi-clipboard2-pulse"></i>AEE · Estudo de Caso e PEI</button>
+  <button class="tab-btn" data-view="liminar" onclick="trocarView('liminar')"><i class="bi bi-hammer"></i>Liminares</button>
+  <button class="tab-btn" data-view="apoio" onclick="trocarView('apoio')"><i class="bi bi-people"></i>Apoio Pedagógico</button>
+</div>
+
+<main class="container-fluid px-3 px-lg-4 py-3">
+
+  <!-- ══════ VISÃO GERAL DA UNIDADE (AEE + Liminares + Apoio) ══════ -->
+  <section id="viewDash">
+    <div class="row g-2 g-lg-3 mb-3" id="kpisDash"></div>
+    <div class="card-box p-3">
+      <div class="sec-tt mb-2"><i class="bi bi-building me-1"></i>Por unidade — AEE + Liminares + Apoio</div>
+      <div class="d-flex gap-2 flex-wrap align-items-center mb-2 p-2" style="background:#f8fafc;border:1px solid #eef2f7;border-radius:10px;">
+        <span class="text-muted fw-bold d-flex align-items-center" style="font-size:.74rem;white-space:nowrap;"><i class="bi bi-funnel-fill me-1"></i>Filtros</span>
+        <select id="filtroSitDash" class="form-select form-select-sm" style="width:auto;min-width:160px;"><option value="">Liminar: todas</option><option value="com">Com liminar</option><option value="sem">Sem liminar</option><option value="Atendida">Atendida</option><option value="Pendência">Pendência</option><option value="semapoio">Liminar sem apoio</option><option value="Fora">Fora da rede mun.</option></select>
+        <select id="filtroAeeDash" class="form-select form-select-sm" style="width:auto;min-width:150px;"><option value="">AEE: todos</option><option value="ec">EC &lt; 100%</option><option value="eccompleto">Estudo de Caso completo</option><option value="semec">Sem estudo de caso</option><option value="pei">PEI &lt; 100%</option><option value="peicompleto">PEI completo</option><option value="sempei">Sem PEI</option></select>
+        <select id="filtroTipoDash" class="form-select form-select-sm" style="width:auto;min-width:110px;"><option value="">Tipo: todos</option><option>CEI</option><option>EMEI</option><option>EMEF</option><option>CEEEF</option></select>
+        <input id="buscaDash" class="form-control form-control-sm" style="flex:1;min-width:160px;max-width:260px;" placeholder="Buscar unidade…">
+        <button class="btn btn-sm btn-outline-secondary fw-bold ms-auto" onclick="limparFiltrosDash()" title="Limpar filtros"><i class="bi bi-x-circle me-1"></i>Limpar</button>
+      </div>
+      <div class="text-muted mb-1" style="font-size:.72rem;"><i class="bi bi-hand-index"></i> Clique numa unidade para ver as turmas → e a turma para ver os alunos.</div>
+      <div style="max-height:74vh;overflow:auto;"><table class="mapa"><thead><tr>
+        <th>Unidade</th>
+        <th class="text-center">Turmas AEE</th><th class="text-center">Alunos AEE</th>
+        <th class="text-center">% Estudo de Caso</th><th class="text-center">% PEI</th>
+        <th class="text-center">Lim. Manhã</th><th class="text-center">Prof. M</th><th class="text-center">Lim. Tarde</th><th class="text-center">Prof. T</th>
+        <th class="text-center">Situação liminar</th>
+      </tr></thead><tbody id="tbDash"></tbody></table></div>
+      <div class="text-muted mt-2" style="font-size:.75rem;" id="contadorDash"></div>
+    </div>
+  </section>
+
+  <!-- ══════ AEE (Estudo de Caso + PEI numa tela só) ══════ -->
+  <section id="viewAEE" style="display:none;">
+    <div class="row g-2 g-lg-3 mb-3" id="kpisAEE"></div>
+    <div class="row g-3 mb-3">
+      <div class="col-lg-3"><div class="card-box p-3 h-100"><div class="sec-tt mb-2">Estudo de Caso</div><div style="position:relative;height:210px;"><canvas id="donutEC"></canvas></div></div></div>
+      <div class="col-lg-3"><div class="card-box p-3 h-100"><div class="sec-tt mb-2">PEI</div><div style="position:relative;height:210px;"><canvas id="donutPEI"></canvas></div></div></div>
+      <div class="col-lg-6"><div class="card-box p-3 h-100"><div class="sec-tt mb-2">Escolas com menor conclusão (EC × PEI)</div><div style="position:relative;height:210px;"><canvas id="barAEE"></canvas></div></div></div>
+    </div>
+    <div class="row g-3">
+      <div class="col-xl-5"><div class="card-box p-3 h-100">
+        <div class="d-flex align-items-center justify-content-between mb-2"><div class="sec-tt"><i class="bi bi-building me-1"></i>Por escola</div><input id="buscaUnidade" class="form-control form-control-sm" style="max-width:190px;" placeholder="Filtrar escola…"></div>
+        <div style="max-height:70vh;overflow:auto;"><table class="mapa"><thead><tr><th>Escola</th><th class="text-center">Alunos</th><th style="min-width:120px;">% Estudo de Caso</th><th style="min-width:120px;">% PEI</th></tr></thead><tbody id="tbUnidades"></tbody></table></div>
+      </div></div>
+      <div class="col-xl-7"><div class="card-box p-3 h-100">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div class="sec-tt"><i class="bi bi-people-fill me-1"></i>Alunos <span id="escopo" class="text-muted fw-normal" style="font-size:.8rem;"></span></div>
+          <div class="d-flex gap-2 flex-wrap"><input id="buscaAluno" class="form-control form-control-sm" style="max-width:200px;" placeholder="Buscar aluno/RA…"><button class="btn btn-sm btn-success fw-bold" onclick="exportar('aee')"><i class="bi bi-download me-1"></i>Excel</button></div>
+        </div>
+        <div style="max-height:70vh;overflow:auto;"><table class="mapa"><thead><tr><th>Escola</th><th>Série</th><th>Turma</th><th>RA</th><th>Aluno</th><th style="min-width:110px;">% Estudo de Caso</th><th style="min-width:110px;">% PEI</th></tr></thead><tbody id="tbAlunos"></tbody></table></div>
+        <div class="text-muted mt-2" style="font-size:.75rem;" id="contador"></div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ══════ LIMINARES (cruzado) ══════ -->
+  <section id="viewLiminar" style="display:none;">
+    <div class="row g-2 g-lg-3 mb-3" id="kpisLim"></div>
+    <div class="row g-3 mb-3">
+      <div class="col-lg-4"><div class="card-box p-3 h-100"><div class="sec-tt mb-2">Unidades por situação</div><div style="position:relative;height:230px;"><canvas id="donutLim"></canvas></div></div></div>
+      <div class="col-lg-8"><div class="card-box p-3 h-100"><div class="sec-tt mb-2">Unidades em pendência — turmas de liminar (15 maiores)</div><div style="position:relative;height:230px;"><canvas id="barLim"></canvas></div></div></div>
+    </div>
+    <div class="row g-3"><div class="col-12"><div class="card-box p-3">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+        <div class="sec-tt"><i class="bi bi-building me-1"></i>Por unidade — turmas de liminar × professores de apoio</div>
+        <div class="d-flex gap-2 flex-wrap">
+          <select id="filtroStatusLim" class="form-select form-select-sm" style="max-width:170px;"><option value="">Todas as situações</option><option>Atendida</option><option>Pendência</option><option>Fora da rede municipal</option></select>
+          <input id="buscaLimUn" class="form-control form-control-sm" style="max-width:200px;" placeholder="Buscar escola…">
+          <a class="btn btn-sm btn-primary fw-bold" href="gerencia-liminar-v2.html" data-tela="gerencia_liminar"><i class="bi bi-pencil-square me-1"></i>Gerenciar</a>
+          <button class="btn btn-sm btn-success fw-bold" onclick="exportar('lim')"><i class="bi bi-download me-1"></i>Excel</button>
+        </div>
+      </div>
+      <div class="text-muted mb-1" style="font-size:.72rem;"><i class="bi bi-hand-index"></i> Clique numa escola para ver as turmas → e a turma para ver os alunos. "Turmas" = salas distintas com aluno de liminar.</div>
+      <div style="max-height:70vh;overflow:auto;"><table class="mapa"><thead><tr>
+        <th>Escola</th>
+        <th class="text-center">Turmas de liminar</th>
+        <th class="text-center">Salas M</th><th class="text-center">Prof. M</th>
+        <th class="text-center">Salas T</th><th class="text-center">Prof. T</th>
+        <th class="text-center">Situação</th>
+      </tr></thead><tbody id="tbLimUn"></tbody></table></div>
+      <div class="text-muted mt-2" style="font-size:.75rem;" id="contadorLim"></div>
+    </div></div></div>
+  </section>
+
+  <!-- ══════ APOIO ══════ -->
+  <section id="viewApoio" style="display:none;">
+    <div class="row g-2 g-lg-3 mb-3" id="kpisApoio"></div>
+    <div class="row g-3"><div class="col-12"><div class="card-box p-3">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+        <div class="sec-tt"><i class="bi bi-building me-1"></i>Apoio pedagógico por escola</div>
+        <div class="d-flex gap-2"><button id="btnApoioEdit" class="btn btn-sm btn-outline-warning fw-bold" style="display:none;" onclick="toggleApoioEdit()"><i class="bi bi-pencil-square me-1"></i>Liberar edição</button><select id="filtroTipoApoio" class="form-select form-select-sm" style="max-width:130px;"><option value="">Todos</option><option>CEI</option><option>EMEI</option><option>EMEF</option></select><input id="buscaApoio" class="form-control form-control-sm" style="max-width:220px;" placeholder="Buscar escola…"><button class="btn btn-sm btn-success fw-bold" onclick="exportar('apoio')"><i class="bi bi-download me-1"></i>Excel</button></div>
+      </div>
+      <div style="max-height:72vh;overflow:auto;"><table class="mapa"><thead><tr><th>Tipo</th><th>Escola</th><th class="text-center">Prof. Manhã</th><th class="text-center">Prof. Tarde</th><th class="text-center">Total Prof.</th><th class="text-center">Apoios (ASSEJ)</th><th class="text-center">Salas vinculadas</th></tr></thead><tbody id="tbApoio"></tbody></table></div>
+      <div class="text-muted mt-2" style="font-size:.75rem;" id="contadorApoio"></div>
+    </div></div></div>
+  </section>
+</main>
+
+<!-- Popup escola/turma (liminares) -->
+<div id="popOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)fecharPop()">
+  <div style="background:#fff;border-radius:16px;max-width:920px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="background:var(--primary);color:#fff;padding:.9rem 1.2rem;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+      <div style="min-width:0;">
+        <div id="popBack" style="display:none;font-size:.72rem;cursor:pointer;opacity:.85;margin-bottom:2px;" onclick="voltarTurmas()"><i class="bi bi-arrow-left"></i> voltar às turmas</div>
+        <div style="font-weight:900;font-size:1.05rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="popTitulo"></div>
+        <div style="font-size:.62rem;opacity:.85;text-transform:uppercase;letter-spacing:.06em;" id="popSub"></div>
+      </div>
+      <button onclick="fecharPop()" style="background:#fff;color:var(--primary);border:0;border-radius:8px;width:32px;height:32px;font-weight:900;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:.7rem 1.2rem;border-bottom:1px solid #eef2f7;font-size:.85rem;" id="popResumo"></div>
+    <div style="overflow:auto;padding:.4rem 1.2rem 1rem;"><table class="mapa"><thead id="popHead"></thead><tbody id="popBody"></tbody></table></div>
+  </div>
+</div>
+
+<!-- Popup Visão Geral (unidade -> turma -> aluno) -->
+<div id="dashOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)fecharDash()">
+  <div style="background:#fff;border-radius:16px;max-width:1000px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="background:var(--primary);color:#fff;padding:.9rem 1.2rem;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+      <div style="min-width:0;">
+        <div id="dashBack" style="display:none;font-size:.72rem;cursor:pointer;opacity:.85;margin-bottom:2px;" onclick="voltarUnidadeDash()"><i class="bi bi-arrow-left"></i> voltar às turmas</div>
+        <div style="font-weight:900;font-size:1.05rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="dashTitulo"></div>
+        <div style="font-size:.62rem;opacity:.85;text-transform:uppercase;letter-spacing:.06em;" id="dashSub"></div>
+      </div>
+      <button onclick="fecharDash()" style="background:#fff;color:var(--primary);border:0;border-radius:8px;width:32px;height:32px;font-weight:900;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:.7rem 1.2rem;border-bottom:1px solid #eef2f7;font-size:.85rem;" id="dashResumo"></div>
+    <div style="overflow:auto;padding:.6rem 1.2rem 1rem;" id="dashContent"></div>
+  </div>
+</div>
+
+<!-- Popup Vincular professor de apoio às salas -->
+<div id="apoioOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)fecharApoioVinc()">
+  <div style="background:#fff;border-radius:16px;max-width:760px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="background:var(--primary);color:#fff;padding:.9rem 1.2rem;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+      <div style="min-width:0;">
+        <div style="font-weight:900;font-size:1.05rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="apoioTitulo"></div>
+        <div style="font-size:.62rem;opacity:.85;text-transform:uppercase;letter-spacing:.06em;" id="apoioSub"></div>
+      </div>
+      <button onclick="fecharApoioVinc()" style="background:#fff;color:var(--primary);border:0;border-radius:8px;width:32px;height:32px;font-weight:900;cursor:pointer;">✕</button>
+    </div>
+    <div style="overflow:auto;padding:.8rem 1.2rem 1rem;" id="apoioContent"></div>
+  </div>
+</div>
+
+<script>
+  const SB = window.MAPA_SB || window.supabase.createClient(window.MAPA_SUPABASE.url, window.MAPA_SUPABASE.anonKey);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const fmt = n => Number(n||0).toLocaleString('pt-BR');
+  const charts={}; function chart(id,cfg){ if(charts[id])charts[id].destroy(); charts[id]=new Chart(document.getElementById(id),cfg); }
+  function barra(p,cor){ p=Math.max(0,Math.min(100,Math.round(p||0))); return `<div class="d-flex align-items-center gap-2"><div class="bar" style="flex:1;"><span style="width:${p}%;background:${cor};"></span></div><b style="font-size:.72rem;color:#475569;min-width:34px;">${p}%</b></div>`; }
+  function kpiHTML(id,cards){ document.getElementById(id).innerHTML=cards.map(x=>`<div class="col-6 col-md-4 col-lg"><div class="kpi" style="border-left-color:${x[2]};"><div class="label">${x[0]}</div><div class="val" style="color:${x[2]};">${x[1]}</div></div></div>`).join(''); }
+  function baixar(nome,head,linhas){ const csv='﻿'+head.join(';')+'\n'+linhas.map(l=>l.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'})); a.download=nome; a.click(); }
+  const COR_EC='#0ea5e9', COR_PEI='#8b5cf6';
+
+  // ── Isolamento por escola (super admin e perfis sem escola veem tudo) ──
+  function _eeAuth(){ return new Promise(r=>{ if(window.MapaAuth&&window.MapaAuth.perfil)return r(); document.addEventListener('mapa-auth-pronto',()=>r(),{once:true}); setTimeout(r,8000); }); }
+  function _eeRestrito(){ return !!(window.MapaAuth && window.MapaAuth.restritoEscola); }
+  function _eePode(n){ try{ return !_eeRestrito() || window.MapaAuth.podeVerEscola(n); }catch(e){ return true; } }
+  function _eeFilt(arr,idx){ var a=(arr||[]).filter(r=>_tipoOk(r[idx])); if(_eeRestrito()) a=a.filter(r=>_eePode(r[idx])); return a; }
+  function _soma(arr,i){ return (arr||[]).reduce((a,u)=>a+(Number(u[i])||0),0); }
+
+  /* ───────── AEE ───────── */
+  let GERAL={}, UNID=[], ALUNOS=[], _uAtiva=null;
+  let _aeeLoaded=false;
+  async function carregarAEE(){ if(_aeeLoaded) return; _aeeLoaded=true; const {data,error}=await SB.rpc('ee_resumo'); if(error){_aeeLoaded=false;alert('Erro AEE: '+error.message);return;} GERAL=data.geral||{}; UNID=data.por_unidade||[];
+    UNID=_eeFilt(UNID,0); GERAL={ total:_soma(UNID,1), aval:_soma(UNID,2), pendentes:_soma(UNID,3), ec_aval:_soma(UNID,4), pei_aval:_soma(UNID,5), unidades:UNID.length };
+    renderAEE(); await selUnidade(null); }
+  function renderAEE(){
+    const g=GERAL;
+    kpiHTML('kpisAEE',[['Alunos (únicos)',fmt(g.total),'var(--primary)'],['Com Estudo de Caso',`${fmt(g.ec_aval)} · ${g.total?Math.round(g.ec_aval/g.total*100):0}%`,COR_EC],['Com PEI',`${fmt(g.pei_aval)} · ${g.total?Math.round(g.pei_aval/g.total*100):0}%`,COR_PEI],['Pendentes (sem nada)',fmt(g.pendentes),'#ef4444'],['Escolas',fmt(g.unidades),'#64748b']]);
+    donutAEE('donutEC',g.ec_aval||0,(g.total||0)-(g.ec_aval||0),COR_EC,'Com Estudo de Caso');
+    donutAEE('donutPEI',g.pei_aval||0,(g.total||0)-(g.pei_aval||0),COR_PEI,'Com PEI');
+    barAEE(); renderUnidades();
+  }
+  function donutAEE(id,f,r,cor,lab){ chart(id,{type:'doughnut',data:{labels:[lab,'Sem'],datasets:[{data:[f,r],backgroundColor:[cor,'#e5e7eb'],borderColor:'#fff',borderWidth:3,hoverOffset:12}]},options:{maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{font:{size:10}}}}}}); }
+  // por_unidade=[unidade,total,aval,pend,ec,pei]
+  const pEC=u=>u[1]?Math.round(u[4]/u[1]*100):0, pPEI=u=>u[1]?Math.round(u[5]/u[1]*100):0;
+  function barAEE(){ const arr=[...UNID].filter(u=>u[1]>0).sort((a,b)=>(pEC(a)+pPEI(a))-(pEC(b)+pPEI(b))).slice(0,12);
+    chart('barAEE',{type:'bar',data:{labels:arr.map(a=>a[0].length>22?a[0].slice(0,20)+'…':a[0]),datasets:[{label:'Estudo de Caso',data:arr.map(pEC),backgroundColor:COR_EC,borderRadius:4},{label:'PEI',data:arr.map(pPEI),backgroundColor:COR_PEI,borderRadius:4}]},options:{indexAxis:'y',maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10}}},tooltip:{callbacks:{title:i=>arr[i[0].dataIndex][0],label:x=>`${x.dataset.label}: ${x.raw}%`}}},scales:{x:{max:100,ticks:{callback:v=>v+'%'}},y:{ticks:{font:{size:9}}}}}}); }
+  function renderUnidades(){ const t=(document.getElementById('buscaUnidade').value||'').toLowerCase();
+    const tot=UNID.reduce((a,u)=>a+u[1],0),ec=UNID.reduce((a,u)=>a+u[4],0),pei=UNID.reduce((a,u)=>a+u[5],0);
+    const lista=UNID.filter(u=>!t||String(u[0]).toLowerCase().includes(t)).sort((a,b)=>(pEC(a)+pPEI(a))-(pEC(b)+pPEI(b)));
+    const ln=(nome,al,ecp,peip,at,oc)=>`<tr class="row-clic${at?' table-active':''}" onclick="${oc}"><td title="${esc(nome)}">${esc(nome)}</td><td class="text-center fw-bold">${al}</td><td>${barra(ecp,COR_EC)}</td><td>${barra(peip,COR_PEI)}</td></tr>`;
+    document.getElementById('tbUnidades').innerHTML=ln('🌐 Toda a rede',tot,tot?Math.round(ec/tot*100):0,tot?Math.round(pei/tot*100):0,!_uAtiva,'selUnidade(null)')+lista.map(u=>ln(u[0],u[1],pEC(u),pPEI(u),_uAtiva===u[0],`selUnidade('${esc(String(u[0]).replace(/'/g,"\\'"))}')`)).join(''); }
+  async function selUnidade(u){ _uAtiva=u; renderUnidades(); document.getElementById('escopo').textContent=u?`· ${u}`:'· Toda a rede';
+    document.getElementById('tbAlunos').innerHTML=`<tr><td colspan="7" class="text-center text-muted p-3"><span class="spinner-border spinner-border-sm me-2"></span>Carregando…</td></tr>`;
+    const {data,error}=await SB.rpc('ee_alunos',{p_unidade:u,p_status:null}); if(error){document.getElementById('tbAlunos').innerHTML=`<tr><td colspan="7" class="text-danger p-3">Erro: ${esc(error.message)}</td></tr>`;return;} ALUNOS=_eeFilt(data||[],0); renderAlunos(); }
+  const cel=(r,q,cor)=>{ if(!q) return '<span class="text-muted">—</span>'; return barra(Math.round(r/q*100),cor); };
+  function renderAlunos(){ const t=(document.getElementById('buscaAluno').value||'').toLowerCase();
+    const l=ALUNOS.filter(a=>!t||String(a[4]).toLowerCase().includes(t)||String(a[3]).includes(t));
+    document.getElementById('tbAlunos').innerHTML=l.map(a=>`<tr><td title="${esc(a[0])}" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a[0])}</td><td>${esc(a[1])}</td><td class="text-center">${esc(a[2])}</td><td>${esc(a[3])}</td><td>${esc(a[4])}</td><td>${cel(a[6],a[7],COR_EC)}</td><td>${cel(a[8],a[9],COR_PEI)}</td></tr>`).join('')||`<tr><td colspan="7" class="text-center text-muted p-3">Nenhum aluno.</td></tr>`;
+    document.getElementById('contador').textContent=`${l.length} aluno(s)`; }
+
+  /* ───────── LIMINARES (macro: escola → turma → aluno) ───────── */
+  let LIM=null, _escAtual=null;
+  const clsSt=s=> s==='Atendida'?'st-ok': s==='Pendência'?'st-pend':'st-fora';
+  function _filtLim(data){
+    var un=_eeFilt(data.unidades,0);
+    return { ...data, unidades:un, turmas:_eeFilt(data.turmas,0), alunos:_eeFilt(data.alunos,2),
+      geral:{ unidades:un.length, turmas:_soma(un,2),
+        atendidas:un.filter(u=>u[7]==='Atendida').length,
+        pendentes:un.filter(u=>u[7]==='Pendência').length,
+        fora:un.filter(u=>String(u[7]||'').indexOf('Fora')===0).length } }; }
+  async function carregarLim(){ if(LIM) return renderLim(); const {data,error}=await SB.rpc('ee_liminar'); if(error){alert('Erro Liminares: '+error.message);return;} LIM=_filtLim(data); await carregarVinculos(); await carregarAlunosAll(); buildLimCov(); renderLim(); }
+  // unidade = [escola,tipo,total_turmas,turmas_manha,turmas_tarde,prof_manha,prof_tarde,status]
+  function renderLim(){ const un=_limConsolidar();
+    const eff=un.map(u=>_statusUnCov(u[0],u[7]));   // status efetivo (cobertura AEE) por unidade
+    const atendidas=eff.filter(s=>s==='Atendida').length, pendentes=eff.filter(s=>s==='Pendência').length, fora=eff.filter(s=>String(s||'').indexOf('Fora')===0).length;
+    kpiHTML('kpisLim',[['Unidades',fmt(un.length),'var(--primary)'],['Turmas de liminar',fmt(_soma(un,2)),'#0ea5e9'],['Atendidas',fmt(atendidas),'#10b981'],['Pendências',fmt(pendentes),'#ef4444'],['Fora da rede mun.',fmt(fora),'#94a3b8']]);
+    chart('donutLim',{type:'doughnut',data:{labels:['Atendida','Pendência','Fora da rede'],datasets:[{data:[atendidas,pendentes,fora],backgroundColor:['#10b981','#ef4444','#94a3b8'],borderColor:'#fff',borderWidth:3,hoverOffset:12}]},options:{maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{font:{size:11}}}}}});
+    const pend=un.filter((u,i)=>eff[i]==='Pendência').sort((a,b)=>b[2]-a[2]).slice(0,15);
+    chart('barLim',{type:'bar',data:{labels:pend.map(u=>u[0].length>24?u[0].slice(0,22)+'…':u[0]),datasets:[{data:pend.map(u=>u[2]),backgroundColor:'#ef4444',borderRadius:5}]},options:{indexAxis:'y',maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>pend[i[0].dataIndex][0],label:x=>`${x.raw} turma(s) de liminar`}}},scales:{y:{ticks:{font:{size:9}}}}}});
+    renderLimUn();
+  }
+  function renderLimUn(){ const st=document.getElementById('filtroStatusLim').value, t=(document.getElementById('buscaLimUn').value||'').toLowerCase();
+    const rows=_limConsolidar().map(u=>({u, s:_statusUnCov(u[0],u[7])}));
+    const l=rows.filter(r=>(!st||r.s===st)&&(!t||String(r.u[0]).toLowerCase().includes(t))).sort((a,b)=> a.s<b.s?-1:a.s>b.s?1:(b.u[2]-a.u[2]));
+    const cov=(s,p)=> p>=s?'#10b981':'#ef4444';
+    document.getElementById('tbLimUn').innerHTML=l.map(({u,s})=>`<tr class="row-clic" onclick="abrirEscola('${esc(String(u[0]).replace(/'/g,"\\'"))}')"><td title="${esc(u[0])}">${esc(u[0])}</td><td class="text-center fw-bold" style="font-size:1rem;">${u[2]}</td><td class="text-center">${u[3]}</td><td class="text-center" style="color:${cov(u[3],u[5])};font-weight:700;">${u[5]}</td><td class="text-center">${u[4]}</td><td class="text-center" style="color:${cov(u[4],u[6])};font-weight:700;">${u[6]}</td><td class="text-center"><span class="badge-st ${clsSt(s)}">${esc(s)}</span></td></tr>`).join('')||'<tr><td colspan="7" class="text-muted p-3 text-center">Sem dados</td></tr>';
+    document.getElementById('contadorLim').textContent=`${l.length} unidade(s)`; }
+  // ── Popup nível 1: turmas da escola ──
+  function abrirEscola(escola){ _escAtual=escola;
+    const un=_limConsolidar().find(u=>u[0]===escola)||[];
+    const seenT={}, turmas=[]; (LIM.turmas||[]).forEach(t=>{ if(!_matchEscEE(t[0],escola))return; const lab=_normEE(t[1]); if(seenT[lab])return; seenT[lab]=1; turmas.push(t); });
+    const unS=_statusUnCov(escola, un[7]);
+    document.getElementById('popBack').style.display='none';
+    document.getElementById('popTitulo').textContent=escola;
+    document.getElementById('popSub').textContent='Turmas de liminar na unidade';
+    document.getElementById('popResumo').innerHTML=`<span class="badge-st ${clsSt(unS)}">${esc(unS||'—')}</span> &nbsp; <b>${un[2]||turmas.length}</b> turma(s) &nbsp;·&nbsp; Manhã: ${un[3]||0} salas / <b style="color:#f59e0b;">${un[5]||0}</b> prof &nbsp; Tarde: ${un[4]||0} salas / <b style="color:#0ea5e9;">${un[6]||0}</b> prof`;
+    document.getElementById('popHead').innerHTML='<tr><th>Turma</th><th class="text-center">Alunos</th><th class="text-center">Situação</th></tr>';
+    const ordemP=['Manhã','Tarde','Integral','Noite','Outro'];
+    const porPer={}; turmas.forEach(t=>{ (porPer[t[2]]||(porPer[t[2]]=[])).push(t); });
+    const grupos=ordemP.filter(p=>porPer[p]).concat(Object.keys(porPer).filter(p=>!ordemP.includes(p)));
+    document.getElementById('popBody').innerHTML=grupos.map(p=>{
+      const linhas=porPer[p].map(t=>{ const ts=_statusLimTurmaAEE(t[0],t[1]); return `<tr class="row-clic" onclick="abrirTurma('${esc(String(t[0]).replace(/'/g,"\\'"))}','${esc(String(t[1]).replace(/'/g,"\\'"))}')"><td>${esc(t[1])}</td><td class="text-center fw-bold">${t[3]}</td><td class="text-center"><span class="badge-st ${clsSt(ts)}">${esc(ts)}</span></td></tr>`; }).join('');
+      return `<tr><td colspan="3" style="background:#eef4ff;font-weight:800;color:var(--primary);"><i class="bi bi-clock me-1"></i>${esc(p)} <span style="font-weight:400;color:#64748b;">· ${porPer[p].length} turma(s)</span></td></tr>`+linhas;
+    }).join('')||'<tr><td colspan="3" class="text-muted text-center p-3">Sem turmas.</td></tr>';
+    document.getElementById('popOverlay').style.display='flex';
+  }
+  // ── Popup nível 2: alunos da turma ──
+  function abrirTurma(escola,turma){
+    const al=(LIM.alunos||[]).filter(a=>_matchEscEE(a[2],escola) && a[3]===turma);
+    document.getElementById('popBack').style.display='block';
+    document.getElementById('popTitulo').textContent=turma;
+    document.getElementById('popSub').textContent=escola;
+    document.getElementById('popResumo').innerHTML=`<b>${al.length}</b> aluno(s) com liminar nesta turma`;
+    document.getElementById('popHead').innerHTML='<tr><th>Aluno</th><th>RA</th><th class="text-center">Período</th><th>Deficiência</th></tr>';
+    document.getElementById('popBody').innerHTML=al.map(a=>`<tr><td>${esc(a[0])}</td><td>${esc(a[1])}</td><td class="text-center">${esc(a[4])||'—'}</td><td>${esc(a[5])||'—'}</td></tr>`).join('')||'<tr><td colspan="4" class="text-muted text-center p-3">Sem alunos.</td></tr>';
+  }
+  function voltarTurmas(){ if(_escAtual) abrirEscola(_escAtual); }
+  function fecharPop(){ document.getElementById('popOverlay').style.display='none'; }
+
+  /* ───────── APOIO ───────── */
+  let APOIO=null, _VINC=null;
+  async function carregarApoio(){ if(APOIO) return renderApoio(); await _eeAuth(); const {data,error}=await SB.rpc('ee_apoio'); if(error){alert('Erro Apoio: '+error.message);return;}
+    var es=_eeFilt(data.escolas,1); APOIO={ ...data, escolas:es, geral:{ escolas:es.length, prof_manha:_soma(es,2), prof_tarde:_soma(es,3), professores:_soma(es,2)+_soma(es,3), apoios:_soma(es,4) } };
+    await carregarVinculos(); renderApoio(); }
+  async function carregarVinculos(){ if(_VINC!==null) return; try{ const {data,error}=await SB.from('ee_apoio_vinculo').select('id,escola,periodo,slot,turma_label'); _VINC=error?[]:(data||[]); }catch(e){ _VINC=[]; } }
+  function vincDistinct(escola){ const s=new Set(); (_VINC||[]).forEach(v=>{ if(_matchEscEE(v.escola,escola)) s.add(_normEE(v.turma_label)); }); return s.size; }
+  // pode editar = super admin OU gestor vinculado à escola (espelha a RLS de ee_apoio_vinculo)
+  function podeEditar(escola){ var a=window.MapaAuth; if(!a||!a.perfil) return false; if(a.perfil.is_super_admin) return true; return _eeRestrito() && _eePode(escola); }
+  // matching tolerante de escola/turma (p/ cruzar vínculos com a Visão Geral) e turno
+  const _normEE = s => String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+  const _baseEE = s => _normEE(String(s||'').split(',')[0]);
+  // nº da unidade: "II"/"Unidade II" = 2; "III" = 3; sem número OU "I" = 1 (Unidade I ≡ sem unidade).
+  // Distingue unidades partidas que têm a mesma base (ex.: Sebastiao … vs … Unidade II).
+  function _unidadeNum(s){ const n=' '+_normEE(s)+' '; if(/ III /.test(n)) return '3'; if(/ II /.test(n)) return '2'; return '1'; }
+  function _matchEscEE(a,b){ const na=_normEE(a),nb=_normEE(b); if(!na||!nb)return false; if(_unidadeNum(a)!==_unidadeNum(b)) return false; if(na===nb)return true; const ba=_baseEE(a),bb=_baseEE(b); return !!(ba&&bb&&(ba===bb||ba.indexOf(bb)===0||bb.indexOf(ba)===0)); }
+  // nome canônico (sem tipo nem número de unidade) + número — p/ agrupar registros fragmentados
+  const _coreEsc = s => _normEE(s).replace(/\b(EMEF|EMEI|EMEIEF|CEI|CEMEI|CEEEF|EEI|CRECHE|AMES|NEI)\b/g,' ').replace(/\b(UNIDADE|UNID|UN|III|II|I)\b/g,' ').replace(/\s+/g,' ').trim();
+  const _canonKey = s => _coreEsc(s)+'|'+_unidadeNum(s);
+  // Consolida unidades de liminar fragmentadas (mesmo nome canônico): turmas DISTINTAS ao vivo
+  // (das ee_liminar_turma), prof = MAIOR entre fragmentos (vêm duplicados), "Fora" se algum for fora.
+  function _limConsolidar(){
+    const g={};
+    (LIM&&LIM.unidades||[]).forEach(u=>{ const key=_canonKey(u[0]);
+      const o=g[key]||(g[key]={nome:u[0], pM:0, pT:0, fora:false});
+      if(String(u[0]).length < String(o.nome).length) o.nome=u[0];
+      o.pM=Math.max(o.pM,+u[5]||0); o.pT=Math.max(o.pT,+u[6]||0);
+      if(String(u[7]||'').indexOf('Fora')===0) o.fora=true; });
+    const tk={}; (LIM&&LIM.turmas||[]).forEach(t=>{ const key=_canonKey(t[0]); (tk[key]||(tk[key]=[])).push(t); });
+    return Object.keys(g).map(key=>{ const o=g[key], ts=tk[key]||[]; const all=new Set(), sM=new Set(), sT=new Set();
+      ts.forEach(t=>{ const lab=_normEE(t[1]); all.add(lab); const p=String(t[2]||'').toUpperCase()[0]; if(p==='M')sM.add(lab); else if(p==='T')sT.add(lab); });
+      return [o.nome,'',all.size,sM.size,sT.size,o.pM,o.pT,o.fora?'Fora da rede municipal':''];   // [escola,tipo,total,salasM,salasT,profM,profT,status]
+    });
+  }
+  const _perSig = p => (String(p||'').trim().toUpperCase()[0]||'');   // 'M' | 'T' | 'N'
+  function _apoiosDaTurma(escola, turmaKey){
+    const lab=_normEE(turmaKey);
+    return (_VINC||[]).filter(v=> _matchEscEE(v.escola, escola) && _normEE(v.turma_label)===lab)
+      .map(v=> 'Apoio '+(v.periodo==='Manhã'?'M':'T')+' '+v.slot).sort();
+  }
+  // ── Cobertura de liminar ANCORADA NA TURMA DO AEE (serie+turma) — único elo confiável:
+  //    liminar(nome) → aluno AEE → turma AEE → vínculo. (Rótulos de turma divergem entre
+  //    AEE/liminar/turmas e o RA também difere; só o nome+turma AEE é estável.)
+  let _ALUNOS_ALL=null, _limCov={}, _limCovBase={};
+  async function carregarAlunosAll(){ if(_ALUNOS_ALL) return; try{ const r=await SB.rpc('ee_alunos',{p_unidade:null,p_status:null}); _ALUNOS_ALL=(r.error?[]:(r.data||[])).filter(a=>_tipoOk(a[0])); }catch(e){ _ALUNOS_ALL=[]; } }
+  function buildLimCov(){
+    _limCov={}; _limCovBase={};
+    if(!_ALUNOS_ALL || !LIM) return;
+    const unidades=[...new Set((_ALUNOS_ALL||[]).map(a=>a[0]))];
+    const baseToUn={}; unidades.forEach(un=>{ baseToUn[_baseEE(un)+'|'+_unidadeNum(un)]=un; });
+    const findUn = e => baseToUn[_baseEE(e)+'|'+_unidadeNum(e)] || unidades.find(x=>_matchEscEE(x,e));
+    const limByUn={};   // unidade AEE -> Set(nomes com liminar)
+    (LIM.alunos||[]).forEach(a=>{ const un=findUn(a[2]); if(!un) return; (limByUn[un]||(limByUn[un]=new Set())).add(_normEE(a[0])); });
+    const turmasByUn={};
+    (_ALUNOS_ALL||[]).forEach(a=>{ const un=a[0], k=(a[1]+' '+a[2]).trim(); const t=(turmasByUn[un]||(turmasByUn[un]={}));
+      if(!(k in t)) t[k]=false; const ls=limByUn[un]; if(ls && ls.has(_normEE(a[4]))) t[k]=true; });
+    Object.keys(turmasByUn).forEach(un=>{ let tot=0,cob=0; const t=turmasByUn[un];
+      Object.keys(t).forEach(k=>{ if(t[k]){ tot++; if(_apoiosDaTurma(un,k).length>0) cob++; } });
+      _limCov[un]={tot,cob}; _limCovBase[_baseEE(un)+'|'+_unidadeNum(un)]={tot,cob}; });
+  }
+  // status da unidade pela cobertura AEE ("Fora da rede" preservado). SEM fallback p/ o status
+  // antigo (contagem): só é "Atendida" se TODAS as turmas de liminar têm prof vinculado.
+  function _statusUnCov(unidade, statusOrig){
+    if(String(statusOrig||'').indexOf('Fora')===0) return statusOrig;
+    let c=_limCov[unidade] || _limCovBase[_baseEE(unidade)+'|'+_unidadeNum(unidade)];
+    if(!c){ const k=Object.keys(_limCov).find(x=>_matchEscEE(x, unidade)); if(k) c=_limCov[k]; }
+    return (c && c.tot>0 && c.cob>=c.tot) ? 'Atendida' : 'Pendência';
+  }
+  // status de uma turma de liminar (rótulo ee_liminar_turma): mapeia seus alunos (nome) → turma AEE → vínculo
+  function _statusLimTurmaAEE(escolaLim, turmaLim){
+    const nomes=(LIM&&LIM.alunos||[]).filter(a=>_matchEscEE(a[2],escolaLim) && a[3]===turmaLim).map(a=>_normEE(a[0]));
+    if(!nomes.length) return 'Pendência';
+    const un=[...new Set((_ALUNOS_ALL||[]).map(a=>a[0]))].find(x=>_matchEscEE(x,escolaLim)); if(!un) return 'Pendência';
+    const aee=(_ALUNOS_ALL||[]).filter(a=>a[0]===un);
+    return nomes.every(nm=>{ const al=aee.find(a=>_normEE(a[4])===nm); return al && _apoiosDaTurma(un,(al[1]+' '+al[2]).trim()).length>0; }) ? 'Atendida' : 'Pendência';
+  }
+  // vínculos (objetos) de uma turma AEE, dedup por período+slot (tolerante a grafia de escola)
+  function _vincDaTurma(escola, turmaKey){ const lab=_normEE(turmaKey), seen={}, out=[];
+    (_VINC||[]).forEach(v=>{ if(_matchEscEE(v.escola,escola) && _normEE(v.turma_label)===lab){ const k=(v.periodo==='Manhã'?'M':'T')+v.slot; if(!seen[k]){ seen[k]=1; out.push(v); } } });
+    return out.sort((a,b)=> (a.periodo+String(a.slot)).localeCompare(b.periodo+String(b.slot))); }
+  // vincular/desvincular direto da Visão Geral — turma_label = chave AEE (ex.: "CIC 4 B")
+  async function adicionarVincDash(turmaKey, selEl){
+    const val=selEl.value; if(!val) return; selEl.disabled=true;
+    const p=val.split('|'), sig=p[0], slot=+p[1], periodo=sig==='M'?'Manhã':'Tarde';
+    const perfil_id=(window.MapaAuth&&window.MapaAuth.perfil)?window.MapaAuth.perfil.id:null;
+    const {data,error}=await SB.from('ee_apoio_vinculo').insert({escola:_dashUni,periodo,slot,turma_label:turmaKey,perfil_id}).select();
+    if(error){ alert('Erro ao vincular: '+error.message); selEl.disabled=false; return; }
+    if(_VINC) _VINC.push(...(data||[]).map(v=>({id:v.id,escola:v.escola,periodo:v.periodo,slot:v.slot,turma_label:v.turma_label})));
+    buildLimCov(); renderUnidadeTurmas(); if(APOIO) renderApoioTab();
+  }
+  async function removerVincDash(id){
+    const {error}=await SB.from('ee_apoio_vinculo').delete().eq('id',id);
+    if(error){ alert('Erro ao remover: '+error.message); return; }
+    if(_VINC) _VINC=_VINC.filter(v=>v.id!==id);
+    buildLimCov(); renderUnidadeTurmas(); if(APOIO) renderApoioTab();
+  }
+  function recalcApoioGeral(){ const es=APOIO.escolas||[]; APOIO.geral={ escolas:es.length, prof_manha:_soma(es,2), prof_tarde:_soma(es,3), professores:_soma(es,2)+_soma(es,3), apoios:_soma(es,4) }; }
+  function renderApoioKpis(){ const g=APOIO.geral||{};
+    kpiHTML('kpisApoio',[['Escolas',fmt(g.escolas),'var(--primary)'],['Prof. Manhã',fmt(g.prof_manha),'#f59e0b'],['Prof. Tarde',fmt(g.prof_tarde),'#0ea5e9'],['Total Professores',fmt(g.professores),'#10b981'],['Apoios (ASSEJ)',fmt(g.apoios),'#8b5cf6']]); }
+  // edição da quantidade de profissionais: só super admin e atrás do botão (tela vem em consulta)
+  let _apoioEdit=false;
+  function isSuper(){ return !!(window.MapaAuth && window.MapaAuth.perfil && window.MapaAuth.perfil.is_super_admin); }
+  function toggleApoioEdit(){ _apoioEdit=!_apoioEdit;
+    const b=document.getElementById('btnApoioEdit');
+    if(b){ b.classList.toggle('btn-outline-warning',!_apoioEdit); b.classList.toggle('btn-warning',_apoioEdit);
+      b.innerHTML=_apoioEdit?'<i class="bi bi-check2-circle me-1"></i>Concluir edição':'<i class="bi bi-pencil-square me-1"></i>Liberar edição'; }
+    renderApoioTab();
+  }
+  function renderApoio(){ renderApoioKpis();
+    const b=document.getElementById('btnApoioEdit'); if(b) b.style.display=isSuper()?'':'none';
+    renderApoioTab();
+  }
+  // salvar a quantidade (prof_manha/prof_tarde/apoios) de uma escola na tabela ee_apoio
+  async function salvarApoio(escola, campo, inputEl){
+    const v=Math.max(0, parseInt(inputEl.value,10)||0); inputEl.value=v; inputEl.disabled=true;
+    const upd={}; upd[campo]=v;
+    const {error}=await SB.from('ee_apoio').update(upd).eq('escola',escola);
+    inputEl.disabled=false;
+    if(error){ alert('Erro ao salvar: '+error.message); return; }
+    const idx={prof_manha:2,prof_tarde:3,apoios:4}[campo];
+    const row=(APOIO.escolas||[]).find(e=>e[1]===escola); if(row) row[idx]=v;
+    recalcApoioGeral(); renderApoioKpis();   // KPIs no topo; total da linha sem re-render (mantém o foco)
+    const tr=inputEl.closest('tr'); const tc=tr&&tr.querySelector('.ap-total'); if(tc&&row) tc.textContent=(row[2]||0)+(row[3]||0);
+  }
+  function renderApoioTab(){ const tp=document.getElementById('filtroTipoApoio').value, t=(document.getElementById('buscaApoio').value||'').toLowerCase();
+    const editing = isSuper() && _apoioEdit;   // edição da quantidade só p/ super admin com edição liberada
+    const l=(APOIO.escolas||[]).filter(e=>(!tp||e[0]===tp)&&(!t||String(e[1]).toLowerCase().includes(t)));
+    document.getElementById('tbApoio').innerHTML=l.map(e=>{ const escola=e[1], cnt=vincDistinct(escola), ed=podeEditar(escola), total=(e[2]||0)+(e[3]||0);
+      const acao = (ed && total>0)
+        ? `<button class="btn btn-sm btn-outline-primary" style="font-weight:700;padding:2px 10px;" onclick="abrirApoioVinc('${esc(String(escola).replace(/'/g,"\\'"))}',${e[2]||0},${e[3]||0})"><i class="bi bi-link-45deg"></i> ${cnt?'Editar':'Vincular'}</button>`
+        : (cnt?`<span class="text-muted" style="font-size:.78rem;">${cnt} sala(s)</span>`:'<span class="text-muted">—</span>');
+      const badge = cnt?`<span class="badge bg-success me-1">${cnt}</span>`:'';
+      const escJs=esc(String(escola).replace(/'/g,"\\'"));
+      const numCell=(val,cor,campo)=> editing
+        ? `<td class="text-center"><input type="number" min="0" value="${val||0}" class="form-control form-control-sm d-inline-block text-center" style="width:56px;font-weight:700;color:${cor};padding:1px 4px;" onchange="salvarApoio('${escJs}','${campo}',this)"></td>`
+        : `<td class="text-center" style="color:${cor};font-weight:700;">${val||0}</td>`;
+      return `<tr><td><span class="badge bg-secondary">${esc(e[0])}</span></td><td title="${esc(escola)}">${esc(escola)}</td>${numCell(e[2],'#f59e0b','prof_manha')}${numCell(e[3],'#0ea5e9','prof_tarde')}<td class="text-center fw-bold ap-total">${(e[2]||0)+(e[3]||0)}</td>${numCell(e[4],'#8b5cf6','apoios')}<td class="text-center">${badge}${acao}</td></tr>`;
+    }).join('')||'<tr><td colspan="7" class="text-muted p-3 text-center">Sem dados</td></tr>';
+    document.getElementById('contadorApoio').textContent=`${l.length} escola(s)`; }
+
+  /* ───────── Vínculo Professor de Apoio × Sala (modal) ───────── */
+  let _vEscola=null, _vVinc=[], _vTurmas=[], _vProf={M:0,T:0}, _vEdit=false;
+  const _pLabel = p => ({M:'Manhã',T:'Tarde',N:'Noite'}[String(p||'').toUpperCase()]||p||'');
+  const _turmaLabel = t => (String(t[0]||'').trim()+' '+String(t[1]||'').trim()).trim();
+  async function abrirApoioVinc(escola, profM, profT){
+    _vEscola=escola; _vProf={M:profM,T:profT}; _vEdit=podeEditar(escola);
+    document.getElementById('apoioTitulo').textContent=escola;
+    document.getElementById('apoioSub').textContent='Professores de apoio × turmas (AEE)';
+    document.getElementById('apoioOverlay').style.display='flex';
+    document.getElementById('apoioContent').innerHTML='<div class="text-muted p-3"><span class="spinner-border spinner-border-sm me-2"></span>Carregando turmas…</div>';
+    await carregarAlunosAll();
+    const vRes=await SB.from('ee_apoio_vinculo').select('*');
+    if(_vEscola!==escola) return;
+    const seen={}; _vTurmas=[];   // chaves AEE (serie+turma) da escola
+    (_ALUNOS_ALL||[]).forEach(a=>{ if(!_matchEscEE(a[0],escola)) return; const k=(a[1]+' '+a[2]).trim(); if(!k||seen[k])return; seen[k]=1; _vTurmas.push(k); });
+    _vTurmas.sort();
+    _vVinc = vRes.error?[]:((vRes.data||[]).filter(v=>_matchEscEE(v.escola, escola)));   // tolerante à grafia
+    renderApoioVinc();
+  }
+  function renderApoioVinc(){
+    const turmas=_vTurmas;
+    let h='';
+    if(!_vEdit) h+='<div class="alert alert-warning py-2 mb-2" style="font-size:.8rem;"><i class="bi bi-eye me-1"></i>Visualização — você não tem permissão para editar esta escola.</div>';
+    if(!turmas.length) h+='<div class="alert alert-info py-2 mb-2" style="font-size:.8rem;"><i class="bi bi-info-circle me-1"></i>Nenhuma turma de AEE encontrada para esta escola.</div>';
+    [['Manhã','M'],['Tarde','T']].forEach(([per,sig])=>{
+      const n=_vProf[sig]||0;
+      h+=`<div class="mb-3"><div class="fw-bold mb-2" style="color:var(--primary);"><i class="bi bi-clock me-1"></i>${per} — ${n} professor(es) de apoio</div>`;
+      if(!n){ h+='<div class="text-muted" style="font-size:.8rem;">Sem professores de apoio neste turno.</div></div>'; return; }
+      for(let s=1;s<=n;s++){
+        const links=_vVinc.filter(v=>v.periodo===per && v.slot===s);
+        const linked=new Set(links.map(v=>_normEE(v.turma_label)));
+        const chips=links.map(v=>`<span class="badge-st st-ok" style="font-size:.72rem;margin:2px;display:inline-flex;align-items:center;gap:5px;">${esc(v.turma_label)}${_vEdit?` <i class="bi bi-x-circle" style="cursor:pointer;" title="remover" onclick="removerVinc(${v.id})"></i>`:''}</span>`).join('') || '<span class="text-muted" style="font-size:.76rem;">nenhuma turma</span>';
+        const opts=turmas.filter(k=>!linked.has(_normEE(k))).map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join('');
+        const sel=(_vEdit && turmas.length)?`<select class="form-select form-select-sm" style="max-width:210px;" onchange="adicionarVinc('${per}',${s},this)"><option value="">+ adicionar turma…</option>${opts}</select>`:'';
+        h+=`<div class="d-flex align-items-center flex-wrap gap-2 mb-1" style="border-bottom:1px solid #f1f5f9;padding:5px 0;"><b style="min-width:84px;font-size:.8rem;color:#475569;">Apoio ${sig} ${s}</b><div style="flex:1;min-width:140px;">${chips}</div>${sel}</div>`;
+      }
+      h+='</div>';
+    });
+    document.getElementById('apoioContent').innerHTML=h;
+  }
+  async function adicionarVinc(periodo, slot, selEl){
+    const lab=selEl.value; if(!lab) return; selEl.disabled=true;
+    const perfil_id=(window.MapaAuth&&window.MapaAuth.perfil)?window.MapaAuth.perfil.id:null;
+    const {data,error}=await SB.from('ee_apoio_vinculo').insert({escola:_vEscola,periodo,slot,turma_label:lab,perfil_id}).select();
+    if(error){ alert('Erro ao vincular: '+error.message); selEl.disabled=false; return; }
+    const novos=data||[]; _vVinc.push(...novos);
+    if(_VINC) _VINC.push(...novos.map(v=>({id:v.id,escola:v.escola,periodo:v.periodo,slot:v.slot,turma_label:v.turma_label})));
+    buildLimCov(); renderApoioVinc(); renderApoioTab();
+  }
+  async function removerVinc(id){
+    const {error}=await SB.from('ee_apoio_vinculo').delete().eq('id',id);
+    if(error){ alert('Erro ao remover: '+error.message); return; }
+    _vVinc=_vVinc.filter(v=>v.id!==id); if(_VINC) _VINC=_VINC.filter(v=>v.id!==id);
+    buildLimCov(); renderApoioVinc(); renderApoioTab();
+  }
+  function fecharApoioVinc(){ _vEscola=null; document.getElementById('apoioOverlay').style.display='none'; }
+
+  /* ───────── VISÃO GERAL (dash) ───────── */
+  let DASH=null, _dashUni=null, _dashAlunosCache={}, _dashLim={}, _dashU=null, _dashTurmas=[], _dashTurmasCache={};
+  async function carregarDash(){ if(DASH) return renderDash();
+    const {data,error}=await SB.rpc('ee_dash'); if(error){alert('Erro Visão Geral: '+error.message);return;}
+    var du=_eeFilt(data.unidades,0); var al=_soma(du,2);
+    var ecW=du.reduce((a,u)=>a+(Number(u[3])||0)*(Number(u[2])||0),0);
+    var peiW=du.reduce((a,u)=>a+(Number(u[4])||0)*(Number(u[2])||0),0);
+    DASH={ ...data, unidades:du, geral:{ unidades:du.length, turmas_nee:_soma(du,1), alunos_nee:al,
+      ec_pct: al?Math.round(ecW/al):0, pei_pct: al?Math.round(peiW/al):0, liminar_turmas:_soma(du,5) } };
+    if(!LIM){ try{ const r=await SB.rpc('ee_liminar'); if(!r.error) LIM=_filtLim(r.data); }catch(e){} }
+    await carregarVinculos(); await carregarAlunosAll(); buildLimCov();
+    renderDash(); }
+  // unidade = [unidade,turmas_nee,alunos_nee,ec_pct,pei_pct,liminar_turmas,liminar_manha,liminar_tarde,prof_manha,prof_tarde,liminar_status,liminar_escola]
+  function renderDash(){ const g=DASH.geral||{};
+    kpiHTML('kpisDash',[['Unidades',fmt(g.unidades),'var(--primary)'],['Turmas AEE',fmt(g.turmas_nee),'#0ea5e9'],['Alunos AEE',fmt(g.alunos_nee),'#10b981'],['% Estudo de Caso',(g.ec_pct||0)+'%',COR_EC],['% PEI',(g.pei_pct||0)+'%',COR_PEI],['Turmas liminar',fmt(g.liminar_turmas),'#ef4444']]);
+    renderDashTab(); }
+  // tipo da unidade pelo sufixo (último segmento após a vírgula). EEI/CRECHE/AMES e
+  // conveniadas sem sigla = "Outros" (excluídas dos números — ver _tipoOk/_eeFilt).
+  function _tipoUn(nome){ const seg=String(nome||'').split(',').pop().trim().toUpperCase();
+    if(/^CEEEF\b/.test(seg)) return 'CEEEF';
+    if(/^EMEF\b/.test(seg)) return 'EMEF';
+    if(/^EMEI\b/.test(seg)) return 'EMEI';
+    if(/^CEI\b/.test(seg)) return 'CEI';
+    const n=' '+String(nome||'').toUpperCase()+' ';
+    if(/[ ,.]CEEEF[ ,.]/.test(n)) return 'CEEEF';
+    if(/[ ,.]EMEF[ ,.]/.test(n)) return 'EMEF';
+    if(/[ ,.]EMEI[ ,.]/.test(n)) return 'EMEI';
+    if(/[ ,.]CEI[ ,.]/.test(n)) return 'CEI';
+    return 'Outros'; }
+  function _tipoOk(nome){ const t=_tipoUn(nome); return t==='CEI'||t==='EMEI'||t==='EMEF'||t==='CEEEF'; }
+  function limparFiltrosDash(){ ['filtroSitDash','filtroTipoDash','filtroAeeDash','buscaDash'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); renderDashTab(); }
+  function renderDashTab(){ const t=(document.getElementById('buscaDash').value||'').toLowerCase();
+    const sit=document.getElementById('filtroSitDash').value, tipo=document.getElementById('filtroTipoDash').value, aee=document.getElementById('filtroAeeDash').value;
+    const l=(DASH.unidades||[]).filter(u=>{
+      if(t && !String(u[0]).toLowerCase().includes(t)) return false;
+      if(tipo && _tipoUn(u[0])!==tipo) return false;
+      if(aee==='ec'  && !(u[3]!=null && u[3]<100)) return false;
+      if(aee==='eccompleto' && u[3]!==100) return false;
+      if(aee==='semec' && u[3]!=null) return false;
+      if(aee==='pei' && !(u[4]!=null && u[4]<100)) return false;
+      if(aee==='peicompleto' && u[4]!==100) return false;
+      if(aee==='sempei' && u[4]!=null) return false;
+      if(sit){ const ds=u[5]>0?_statusUnCov(u[0],u[10]):'';
+        if(sit==='com' && !(u[5]>0)) return false;
+        if(sit==='sem' && u[5]>0) return false;
+        if(sit==='Atendida' && ds!=='Atendida') return false;
+        if(sit==='Pendência' && ds!=='Pendência') return false;
+        if(sit==='Fora' && String(ds).indexOf('Fora')!==0) return false;
+        if(sit==='semapoio'){ const c=_limCov[u[0]]||_limCovBase[_baseEE(u[0])]; if(!(u[5]>0 && (!c || c.cob===0))) return false; }
+      }
+      return true;
+    });
+    document.getElementById('tbDash').innerHTML=l.map(u=>{ const ds=u[5]>0?_statusUnCov(u[0],u[10]):''; return `<tr class="row-clic" onclick="abrirUnidadeDash('${esc(String(u[0]).replace(/'/g,"\\'"))}')">
+      <td title="${esc(u[0])}">${esc(u[0])}</td>
+      <td class="text-center fw-bold">${u[1]}</td><td class="text-center">${u[2]}</td>
+      <td>${u[3]==null?'<span class="text-muted">—</span>':barra(u[3],COR_EC)}</td>
+      <td>${u[4]==null?'<span class="text-muted">—</span>':barra(u[4],COR_PEI)}</td>
+      <td class="text-center" style="color:${u[6]>0?'#ef4444':'#94a3b8'};font-weight:${u[6]>0?'700':'400'};">${u[6]||'—'}</td>
+      <td class="text-center" style="font-weight:700;color:${u[6]>0?(u[8]>=u[6]?'#10b981':'#ef4444'):'#475569'};">${u[8]||0}</td>
+      <td class="text-center" style="color:${u[7]>0?'#ef4444':'#94a3b8'};font-weight:${u[7]>0?'700':'400'};">${u[7]||'—'}</td>
+      <td class="text-center" style="font-weight:700;color:${u[7]>0?(u[9]>=u[7]?'#10b981':'#ef4444'):'#475569'};">${u[9]||0}</td>
+      <td class="text-center">${ds?`<span class="badge-st ${clsSt(ds)}">${esc(ds)}</span>`:'<span class="text-muted" style="font-size:.72rem;">sem liminar</span>'}</td>
+    </tr>`; }).join('')||'<tr><td colspan="10" class="text-muted p-3 text-center">Sem dados</td></tr>';
+    document.getElementById('contadorDash').textContent=`${l.length} unidade(s)`; }
+  async function abrirUnidadeDash(unidade){ _dashUni=unidade;
+    const u=(DASH.unidades||[]).find(x=>x[0]===unidade)||[];
+    document.getElementById('dashBack').style.display='none';
+    document.getElementById('dashTitulo').textContent=unidade;
+    document.getElementById('dashSub').textContent='Turmas com Atendimento Educacional Especializado (AEE)';
+    document.getElementById('dashResumo').innerHTML=`<b>${u[1]||0}</b> turmas AEE · <b>${u[2]||0}</b> alunos &nbsp;|&nbsp; EC <b style="color:${COR_EC}">${u[3]==null?'—':u[3]+'%'}</b> · PEI <b style="color:${COR_PEI}">${u[4]==null?'—':u[4]+'%'}</b> &nbsp;|&nbsp; Liminar: <b>${u[5]||0}</b> turma(s) (M ${u[6]||0}/<span style="color:#f59e0b;">${u[8]||0}p</span> · T ${u[7]||0}/<span style="color:#0ea5e9;">${u[9]||0}p</span>) <span id="dashLimBadge"></span>`;
+    document.getElementById('dashOverlay').style.display='flex';
+    document.getElementById('dashContent').innerHTML='<div class="text-muted p-3"><span class="spinner-border spinner-border-sm me-2"></span>Carregando turmas…</div>';
+    _dashU=u;
+    let alunos=_dashAlunosCache[unidade];
+    if(!alunos){ const r=await SB.rpc('ee_alunos',{p_unidade:unidade,p_status:null}); alunos=r.error?[]:(r.data||[]); _dashAlunosCache[unidade]=alunos; }
+    if(_dashUni!==unidade) return;
+    // mapa de liminar POR NOME (RAs das bases são IDs diferentes). _dashLim[nome] = {periodo,deficiencia}
+    const limEsc=u[11]; _dashLim={};
+    if(LIM){ (LIM.alunos||[]).forEach(a=>{
+        if(!(_matchEscEE(a[2],limEsc) || _matchEscEE(a[2],unidade))) return;
+        const nm=_normEE(a[0]); if(!nm) return; _dashLim[nm]={ periodo:a[4], deficiencia:a[5] };
+      }); }
+    renderUnidadeTurmas();
+  }
+  function renderUnidadeTurmas(){
+    const unidade=_dashUni, u=_dashU||[], alunos=_dashAlunosCache[unidade]||[], canEdit=podeEditar(unidade);
+    const tmap={};
+    alunos.forEach(a=>{ const k=(a[1]+' '+a[2]).trim(); const o=tmap[k]||(tmap[k]={n:0,ecc:0,peic:0,lim:0,limPer:''}); o.n++; if((a[7]||0)>0)o.ecc++; if((a[9]||0)>0)o.peic++;
+      const lr=_dashLim[_normEE(a[4])]; if(lr){ o.lim++; if(!o.limPer&&lr.periodo)o.limPer=lr.periodo; } });
+    const turmas=Object.entries(tmap).sort((a,b)=>a[0].localeCompare(b[0]));
+    // quantas turmas distintas cada slot de apoio já cobre nesta escola (p/ decidir o vínculo)
+    const _slotCount={}; { const m={}; (_VINC||[]).forEach(v=>{ if(_matchEscEE(v.escola,unidade)){ const key=(v.periodo==='Manhã'?'M':'T')+v.slot; (m[key]||(m[key]=new Set())).add(_normEE(v.turma_label)); } }); Object.keys(m).forEach(key=>_slotCount[key]=m[key].size); }
+    let html='<div class="sec-tt mb-1" style="font-size:.85rem;">Turmas (AEE) — clique para ver os alunos'+(canEdit?' &middot; use <b>+ apoio</b> para vincular':'')+'</div>';
+    html+='<table class="mapa"><thead><tr><th>Turma</th><th class="text-center">Alunos AEE</th><th>Liminar</th><th style="min-width:104px;">% Estudo de Caso</th><th style="min-width:104px;">% PEI</th><th style="min-width:150px;">Prof. de apoio</th></tr></thead><tbody>';
+    html+=turmas.map(([k,o])=>{
+      const vincs=_vincDaTurma(unidade,k);
+      const badges=vincs.map(v=>`<span class="badge bg-info text-dark" style="font-size:.64rem;font-weight:700;white-space:nowrap;">Apoio ${v.periodo==='Manhã'?'M':'T'} ${v.slot}${canEdit?` <i class="bi bi-x-circle" style="cursor:pointer;" title="remover" onclick="event.stopPropagation();removerVincDash(${v.id})"></i>`:''}</span>`).join(' ');
+      let addSel='';
+      if(canEdit){
+        const linked=new Set(vincs.map(v=>(v.periodo==='Manhã'?'M':'T')+v.slot));
+        const opts=[], add=(s,cnt)=>{ for(let i=1;i<=(cnt||0);i++){ const key=s+i; if(!linked.has(key)){ const c=_slotCount[key]||0; opts.push(`<option value="${s}|${i}">Apoio ${s} ${i}${c?` · em ${c} turma${c>1?'s':''}`:' · livre'}</option>`); } } };
+        const sig=_perSig(o.limPer);   // só os apoios do período da turma (turma sem liminar → ambos)
+        if(sig==='M') add('M',u[8]); else if(sig==='T') add('T',u[9]); else { add('M',u[8]); add('T',u[9]); }
+        if(opts.length) addSel=`<select class="form-select form-select-sm" style="width:auto;min-width:118px;display:inline-block;font-size:.7rem;" onclick="event.stopPropagation();" onchange="adicionarVincDash('${esc(k.replace(/'/g,"\\'"))}',this)"><option value="">+ apoio…</option>${opts.join('')}</select>`;
+      }
+      const apCell=`<div class="d-flex flex-wrap align-items-center gap-1">${badges||(canEdit?'':'<span class="text-muted">—</span>')}${addSel}</div>`;
+      const atend=vincs.length>0;   // "Atendida" = turma tem professor de apoio vinculado
+      const limC=o.lim?`<span class="badge-st ${atend?'st-ok':'st-pend'}">${o.lim} · ${atend?'Atendida':'Pendência'}</span>${o.limPer?` <span class="text-muted" style="font-size:.66rem;">${esc(o.limPer)}</span>`:''}`:'<span class="text-muted">—</span>';
+      const gap=o.lim>0 && !atend;
+      return `<tr class="row-clic" style="${gap?'background:#fef2f2;':''}" onclick="abrirTurmaDash('${esc(k.replace(/'/g,"\\'"))}')"><td style="${gap?'border-left:3px solid #ef4444;':''}">${esc(k)}</td><td class="text-center fw-bold">${o.n}</td><td>${limC}</td><td>${o.ecc?barra(Math.round(o.ecc/o.n*100),COR_EC):'<span class="text-muted">—</span>'}</td><td>${o.peic?barra(Math.round(o.peic/o.n*100),COR_PEI):'<span class="text-muted">—</span>'}</td><td>${apCell}</td></tr>`;
+    }).join('')||'<tr><td colspan="6" class="text-muted text-center p-2">Sem turmas.</td></tr>';
+    html+='</tbody></table>';
+    html+='<div class="text-muted mt-2" style="font-size:.72rem;"><span style="display:inline-block;width:10px;height:10px;background:#fef2f2;border-left:3px solid #ef4444;vertical-align:-1px;"></span> turma com liminar e <b>sem</b> professor de apoio vinculado</div>';
+    const unS=(u[5]>0)?_statusUnCov(unidade,u[10]):''; const _be=document.getElementById('dashLimBadge'); if(_be) _be.innerHTML=unS?`<span class="badge-st ${clsSt(unS)}">${esc(unS)}</span>`:'';
+    document.getElementById('dashContent').innerHTML=html;
+  }
+  function abrirTurmaDash(turmaKey){
+    const alunos=(_dashAlunosCache[_dashUni]||[]).filter(a=>(a[1]+' '+a[2]).trim()===turmaKey);
+    document.getElementById('dashBack').style.display='block';
+    document.getElementById('dashTitulo').textContent=turmaKey;
+    document.getElementById('dashSub').textContent=_dashUni;
+    const _ap=_apoiosDaTurma(_dashUni,turmaKey);
+    document.getElementById('dashResumo').innerHTML=`<b>${alunos.length}</b> aluno(s) com AEE`+(_ap.length?` &nbsp;|&nbsp; Prof. de apoio: `+_ap.map(x=>`<span class="badge bg-info text-dark" style="font-size:.66rem;font-weight:700;">${esc(x)}</span>`).join(' '):'');
+    let html='<table class="mapa"><thead><tr><th>Aluno</th><th>RA</th><th>Liminar / deficiência</th><th style="min-width:104px;">% Estudo de Caso</th><th style="min-width:104px;">% PEI</th></tr></thead><tbody>';
+    const _atend=_ap.length>0;   // situação da turma pela regra de vínculo
+    html+=alunos.map(a=>{ const lr=_dashLim[_normEE(a[4])];
+      const limC=lr?`<span class="badge-st ${_atend?'st-ok':'st-pend'}">${_atend?'Atendida':'Pendência'}</span>${lr.deficiencia?` <span class="text-muted" style="font-size:.7rem;">${esc(lr.deficiencia)}</span>`:''}`:'<span class="text-muted">—</span>';
+      return `<tr><td>${esc(a[4])}</td><td>${esc(a[3])}</td><td>${limC}</td><td>${a[7]?barra(Math.round(a[6]/a[7]*100),COR_EC):'<span class="text-muted">—</span>'}</td><td>${a[9]?barra(Math.round(a[8]/a[9]*100),COR_PEI):'<span class="text-muted">—</span>'}</td></tr>`;
+    }).join('')||'<tr><td colspan="5" class="text-muted text-center p-2">Sem alunos.</td></tr>';
+    html+='</tbody></table>';
+    document.getElementById('dashContent').innerHTML=html;
+  }
+  function voltarUnidadeDash(){ if(_dashUni) abrirUnidadeDash(_dashUni); }
+  function fecharDash(){ document.getElementById('dashOverlay').style.display='none'; }
+
+  /* ───────── navegação / export ───────── */
+  function trocarView(v){ document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+    document.getElementById('viewDash').style.display=v==='dash'?'':'none';
+    document.getElementById('viewAEE').style.display=v==='aee'?'':'none';
+    document.getElementById('viewLiminar').style.display=v==='liminar'?'':'none';
+    document.getElementById('viewApoio').style.display=v==='apoio'?'':'none';
+    if(v==='dash')carregarDash(); else if(v==='aee')carregarAEE(); else if(v==='liminar')carregarLim(); else if(v==='apoio')carregarApoio(); }
+  function exportar(qual){
+    if(qual==='aee'){ const t=(document.getElementById('buscaAluno').value||'').toLowerCase(); const l=ALUNOS.filter(a=>!t||String(a[4]).toLowerCase().includes(t)||String(a[3]).includes(t)); baixar(`aee_${_uAtiva||'rede'}.csv`,['Escola','Serie','Turma','RA','Aluno','Status','EC_Resp','EC_Quest','PEI_Resp','PEI_Quest','Pct'],l); }
+    else if(qual==='lim'){ const st=document.getElementById('filtroStatusLim').value,t=(document.getElementById('buscaLimUn').value||'').toLowerCase(); const l=_limConsolidar().map(u=>({u,s:_statusUnCov(u[0],u[7])})).filter(r=>(!st||r.s===st)&&(!t||String(r.u[0]).toLowerCase().includes(t))).map(({u,s})=>[u[0],u[2],u[3],u[5],u[4],u[6],s]); baixar('liminares_por_unidade.csv',['Escola','TurmasLiminar','SalasManha','ProfManha','SalasTarde','ProfTarde','Situacao'],l); }
+    else { const tp=document.getElementById('filtroTipoApoio').value,t=(document.getElementById('buscaApoio').value||'').toLowerCase(); const l=(APOIO.escolas||[]).filter(e=>(!tp||e[0]===tp)&&(!t||String(e[1]).toLowerCase().includes(t))); baixar('apoio_pedagogico.csv',['Tipo','Escola','ProfManha','ProfTarde','Apoios'],l); }
+  }
+  document.getElementById('buscaUnidade').addEventListener('input',renderUnidades);
+  document.getElementById('buscaAluno').addEventListener('input',renderAlunos);
+  document.getElementById('filtroStatusLim').addEventListener('change',renderLimUn);
+  document.getElementById('buscaLimUn').addEventListener('input',renderLimUn);
+  document.getElementById('filtroTipoApoio').addEventListener('change',renderApoioTab);
+  document.getElementById('buscaApoio').addEventListener('input',renderApoioTab);
+  document.getElementById('buscaDash').addEventListener('input',renderDashTab);
+  document.getElementById('filtroSitDash').addEventListener('change',renderDashTab);
+  document.getElementById('filtroTipoDash').addEventListener('change',renderDashTab);
+  document.getElementById('filtroAeeDash').addEventListener('change',renderDashTab);
+  (async()=>{ await _eeAuth(); carregarDash(); })();
+</script>
+<script src="mapa-v2-ceu.js" defer></script>
+</body>
+</html>
