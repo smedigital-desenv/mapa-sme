@@ -186,7 +186,15 @@ Deno.serve(async (req) => {
     // suficiente para um segredo que nunca sai daqui e e trocado a cada acesso.
     const senha = crypto.randomUUID();
 
-    const upd = await admin.auth.admin.updateUserById(uid!, { password: senha });
+    // `email_confirm: true` tambem aqui, e nao so na criacao: usuarios que ja
+    // existiam de fluxos anteriores podem estar sem confirmacao, e o grant de
+    // senha recusa com "email_not_confirmed". Confirmar aqui nao afrouxa nada —
+    // a identidade da pessoa ja foi validada pelo central nos passos 1 e 2, e e
+    // so isso que esse campo registra.
+    const upd = await admin.auth.admin.updateUserById(uid!, {
+      password: senha,
+      email_confirm: true,
+    });
     if (upd.error) {
       return json({ erro: 'falha_ao_preparar_sessao', detalhe: upd.error.message }, 500);
     }
