@@ -114,7 +114,21 @@
     filtrarEscolas: function (rows) { return rows || []; }
   };
 
+  // Enquanto a pagina esta sendo PRE-RENDERIZADA, ela roda numa aba invisivel.
+  // O index.html pede prerender de atribuicao.html com eagerness "immediate",
+  // entao havia DUAS execucoes simultaneas do auth.js: a visivel e a oculta.
+  // Cada uma abria sua propria sessao, e uma invalidava o token da outra — dai
+  // o "otp_expired" intermitente, que parecia problema de tempo e nao era.
+  // Aqui a execucao espera a aba virar visivel antes de tocar em sessao.
+  function esperarAtivacao() {
+    if (!document.prerendering) return Promise.resolve();
+    return new Promise(function (r) {
+      document.addEventListener('prerenderingchange', function () { r(); }, { once: true });
+    });
+  }
+
   (async function () {
+    await esperarAtivacao();
     try {
       await carregarScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
       await carregarScript('/central/config.js');

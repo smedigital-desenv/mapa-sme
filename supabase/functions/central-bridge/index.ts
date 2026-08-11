@@ -170,24 +170,32 @@ Deno.serve(async (req) => {
         .eq('email', alvo).is('auth_user_id', null);
     }
 
-    // ── 4) Consome o token AQUI e devolve a sessão pronta ──────────────────
-    // Antes eu devolvia o token para o navegador consumir. Entre gerar e usar
-    // havia uma janela, e qualquer coisa nela — uma segunda chamada da ponte
-    // que invalida a anterior, um interceptador de fetch segurando a
-    // requisicao, um retry — matava o token. O sintoma era sempre o mesmo:
-    // "Email link is invalid or has expired" antes do primeiro uso.
-    // Gerando e consumindo no mesmo lugar, a janela deixa de existir.
+    // ── 4) Abre a sessao SEM depender de OTP ───────────────────────────────
+    // O caminho do magic link nao funciona aqui: mesmo gerando e verificando no
+    // mesmo processo, em milissegundos, o GoTrue responde "otp_expired". Nao e
+    // tempo — e o formato do token, que esse fluxo nao aceita.
+    //
+    // Entao trocamos por algo deterministico: definimos uma senha aleatoria
+    // para o usuario e pegamos a sessao pelo grant de senha. A senha e gerada
+    // aqui, nunca sai desta funcao, nunca vai para o navegador e e substituida
+    // a cada acesso. Ninguem faz login com senha no MAPA — a autenticacao real
+    // acontece no central, e e ela que ja foi validada nos passos 1 e 2.
     const anonMapa = soAscii(Deno.env.get('SUPABASE_ANON_KEY') || '');
-    const v = await fetch(`${urlMapa}/auth/v1/verify`, {
+    const senha = crypto.randomUUID() + '-' + crypto.randomUUID();
+
+    const upd = await admin.auth.admin.updateUserById(uid!, { password: senha });
+    if (upd.error) {
+      return json({ erro: 'falha_ao_preparar_sessao', detalhe: upd.error.message }, 500);
+    }
+
+    const v = await fetch(`${urlMapa}/auth/v1/token?grant_type=password`, {
       method: 'POST',
       headers: { apikey: anonMapa, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        otp ? { type: 'magiclink', token: otp, email: alvo }
-            : { type: 'magiclink', token_hash: hash }),
+      body: JSON.stringify({ email: alvo, password: senha }),
     });
     const sessao = await v.json().catch(() => null);
     if (!v.ok || !sessao?.access_token) {
-      return json({ erro: 'falha_ao_verificar_sessao', status: v.status,
+      return json({ erro: 'falha_ao_abrir_sessao', status: v.status,
                     detalhe: JSON.stringify(sessao) }, 500);
     }
 
