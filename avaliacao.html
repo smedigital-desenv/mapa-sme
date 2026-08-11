@@ -7588,10 +7588,13 @@ function _renderTabelaTotal(linhas) {
         if (error) throw error;
         return montarAlunosDiag(data || []);
       } catch (err) {
-        console.warn('[MAPA Supabase] RPC alunos_diagnostica indisponível; usando fallback.', err);
+        // Sem fallback para a tabela crua: `alunos` e `bimestres` sao inacessiveis
+        // pelo REST de proposito — o recorte por unidade vive dentro da RPC. Cair
+        // na tabela so produzia 403 e escondia o erro real da funcao.
+        console.error('[MAPA Supabase] RPC alunos_diagnostica falhou:', err);
+        throw err;
       }
 
-      // Fallback: baixa as linhas (só as colunas necessárias) e agrega no navegador
       const rows = await fetchAll('alunos', 'nome_unidade,ano_escolar,turma,rema_aluno,nome_aluno,descricao_fne,disciplina_fnc,valor_resposta,codigo_resposta,texto_resposta');
       const dict = {};
       rows.forEach(r => {
@@ -7621,10 +7624,11 @@ function _renderTabelaTotal(linhas) {
         const { grupos, hier } = await rpcAgruparBimestres({ bimestre, anoLike });
         return pacoteDeGrupos(grupos, hier);
       } catch (err) {
-        console.warn('[MAPA Supabase] RPC agrupar_bimestres indisponível; usando fallback fetchAll.', err);
+        console.error('[MAPA Supabase] RPC agrupar_bimestres falhou:', err);
+        throw err;
       }
 
-      // Fallback: baixa as linhas e agrega no navegador (comportamento antigo)
+      // (fallback removido: `bimestres` nao e mais alcancavel pelo REST)
       const rows = await fetchAll('bimestres', '*', q => {
         q = q.eq('bimestre', bimestre);
         if (ano && ano !== 'TODOS') q = q.ilike('ano_escolar', `%${ano.replace(' ANO', '')}%`);
@@ -7757,7 +7761,8 @@ function _renderTabelaTotal(linhas) {
       try {
         bimestreGrupos = (await rpcAgruparBimestres({ incluirHier: false })).grupos;
       } catch (err) {
-        console.warn('[MAPA Supabase] RPC agrupar_bimestres indisponível no Total; usando fallback.', err);
+        console.error('[MAPA Supabase] RPC agrupar_bimestres falhou no Total:', err);
+        throw err;
       }
 
       const [bimestresRows, alunosRows] = await Promise.all([
@@ -7855,10 +7860,11 @@ function _renderTabelaTotal(linhas) {
         });
         return { ok: true, arvore };
       } catch (err) {
-        console.warn('[MAPA Supabase] RPC arvore_total indisponível; usando fallback.', err);
+        console.error('[MAPA Supabase] RPC arvore_total falhou:', err);
+        throw err;
       }
 
-      // Fallback: baixa as linhas e conta no navegador (comportamento antigo)
+      // (fallback removido: `bimestres` nao e mais alcancavel pelo REST)
       const [bimestresRows, alunosRows] = await Promise.all([
         fetchAll('bimestres').catch(() => []),
         fetchAll('alunos').catch(() => [])
