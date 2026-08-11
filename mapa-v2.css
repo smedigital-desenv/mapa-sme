@@ -81,6 +81,9 @@
 
 /* ─── 3. FUNDO ──────────────────────────────────────────── */
 
+/* O html também precisa ser pintado: várias telas definem html{background:...}
+   claro, e quando o conteúdo é mais curto que a janela é ele que aparece. */
+html{ background:var(--fundo) !important; }
 body{
   background:var(--fundo) !important;
   color:var(--texto);
@@ -193,6 +196,34 @@ body::before{
 .mg-dd-item:hover{
   background:rgba(var(--acento-rgb),.10) !important;
   color:var(--texto) !important;
+}
+
+/* ─── 5b. SEGUNDA BARRA DA PÁGINA ───────────────────────── */
+/* Cada tela traz a própria barra logo abaixo do cabeçalho da rede, e cada
+   uma com classe diferente (modal-tabs, cfg-tabs, barra-seg, subtabs...).
+   Em vez de caçar nome por nome, o alvo é "o que vem logo depois do
+   cabeçalho": tirando fundo, borda e sombra própria, as duas barras passam
+   a ler como uma faixa só, sem mexer no HTML. */
+.mg-header + *{
+  background:transparent !important;
+  background-image:none !important;
+  border-top:0 !important;
+  box-shadow:none !important;
+  border-bottom:1px solid var(--borda) !important;
+  padding-top:.35rem !important;
+  padding-bottom:.35rem !important;
+  backdrop-filter:blur(10px);
+}
+/* o título da tela dentro dessa barra vira rótulo discreto, para não
+   competir com a marca MAPA que está logo acima */
+.mg-header + * > h1,.mg-header + * > h2,
+.mg-header + * .titulo-tela,.mg-header + * .page-title{
+  font-family:var(--mono) !important;
+  font-size:.66rem !important;
+  font-weight:400 !important;
+  letter-spacing:.18em !important;
+  text-transform:uppercase !important;
+  color:var(--texto-3) !important;
 }
 
 /* ─── 6. TÍTULOS ────────────────────────────────────────── */
@@ -420,6 +451,7 @@ hr{ border-color:var(--borda) !important; opacity:1; }
    mudar o CSS embutido de alguma página. */
 
 /* fundos claros -> superfície do tema escuro */
+#totalMainChartContainer,
 .avaliacao-header-card,
 .backlog-item,
 .backlog-vazio,
@@ -565,12 +597,26 @@ hr{ border-color:var(--borda) !important; opacity:1; }
 .turmas-dropdown-list::-webkit-scrollbar-thumb,
 .turmas-dropdown-search,
 .turmas-item-icon,
-.turmas-menu-select-btn{
+.turmas-menu-select-btn,
+table.mapa tbody tr:hover,
+table.matriz tbody th,
+table.matriz thead th,
+table.matriz tr.total-row th, table.matriz tr.total-row td,
+table.mtx tbody th,
+table.mtx thead th,
+table.mtx tr.total-row th, table.mtx tr.total-row td,
+table.tbl-cob tbody tr:hover,
+td.cell-na,
+td.cell-nok,
+td.cell-ok,
+th,
+tr.tot{
   background:var(--superficie) !important;
   color:var(--texto);
 }
 
 /* textos escuros -> texto claro */
+#print-area,
 .avaliacao-title,
 .backlog-vazio,
 .badge-per,
@@ -579,7 +625,7 @@ hr{ border-color:var(--borda) !important; opacity:1; }
 .btn-detalhe-eixo,
 .btn-ic,
 .btn-modo.active,
-.cap,.note,
+.cap, .note,
 .card-meta-info,
 .cfg-btn-ghost,
 .cfg-btn-icon,
@@ -674,11 +720,18 @@ hr{ border-color:var(--borda) !important; opacity:1; }
 .turmas-dropdown-search input,
 .turmas-dropdown-section-title,
 .turmas-item-text small,
-.verlink{
+.verlink,
+h2,
+h3,
+table.matriz td .big,
+table.matriz thead th,
+table.mtx td .big,
+table.mtx thead th{
   color:var(--texto) !important;
 }
 
 /* bordas claras -> borda do tema escuro */
+#totalMainChartContainer,
 .avaliacao-header-card,
 .banner,
 .bloco-info,
@@ -730,8 +783,91 @@ hr{ border-color:var(--borda) !important; opacity:1; }
 .turma-ppa-check,
 .turmas-dropdown-menu,
 .turmas-dropdown-search,
-.turmas-dropdown-section + .turmas-dropdown-section{
+.turmas-dropdown-section + .turmas-dropdown-section,
+table.mapa tbody td,
+table.matriz th, table.matriz td,
+table.matriz tr.total-row th, table.matriz tr.total-row td,
+table.mtx th, table.mtx td,
+table.mtx tr.total-row th, table.mtx tr.total-row td,
+table.tbl-cob tbody td,
+td,
+th{
   border-color:var(--borda) !important;
+}
+
+/* fundo claro cravado no atributo style= */
+[style*="background:#00e5ff"],
+[style*="background:#d1fae5"],
+[style*="background:#dbeafe"],
+[style*="background:#e0e7ff"],
+[style*="background:#e2e8f0"],
+[style*="background:#e4f5ea"],
+[style*="background:#e9ecef"],
+[style*="background:#ede9fe"],
+[style*="background:#eef2ff"],
+[style*="background:#eef4ff"],
+[style*="background:#f0f4ff"],
+[style*="background:#f0fdf4"],
+[style*="background:#f1f5f9"],
+[style*="background:#f59e0b"],
+[style*="background:#f5f3ff"],
+[style*="background:#f5f7ff"],
+[style*="background:#f8f9fa"],
+[style*="background:#f8fafc"],
+[style*="background:#f8faff"],
+[style*="background:#faf5ff"],
+[style*="background:#fafbff"],
+[style*="background:#fbe2e2"],
+[style*="background:#fbeed3"],
+[style*="background:#fee2e2"],
+[style*="background:#fef2f2"],
+[style*="background:#fef3c7"],
+[style*="background:#fef9c3"],
+[style*="background:#fff"],
+[style*="background:#fff0f0"],
+[style*="background:#fff7ed"],
+[style*="background:#ffffff"],
+[style*="background:white"]{
+  background-color:var(--superficie) !important;
+}
+
+/* texto escuro cravado no atributo style= */
+[style*="color:#002b5e"],
+[style*="color:#0062ff"],
+[style*="color:#047857"],
+[style*="color:#059669"],
+[style*="color:#065f46"],
+[style*="color:#0ea5e9"],
+[style*="color:#0f172a"],
+[style*="color:#16a34a"],
+[style*="color:#1d4ed8"],
+[style*="color:#1e293b"],
+[style*="color:#1e40af"],
+[style*="color:#2563eb"],
+[style*="color:#334155"],
+[style*="color:#3730a3"],
+[style*="color:#4338ca"],
+[style*="color:#475569"],
+[style*="color:#495057"],
+[style*="color:#6366F1"],
+[style*="color:#64748b"],
+[style*="color:#666"],
+[style*="color:#6c757d"],
+[style*="color:#6d28d9"],
+[style*="color:#7c3aed"],
+[style*="color:#854d0e"],
+[style*="color:#8B5CF6"],
+[style*="color:#92400e"],
+[style*="color:#991b1b"],
+[style*="color:#EC4899"],
+[style*="color:#b45309"],
+[style*="color:#b91c1c"],
+[style*="color:#c2410c"],
+[style*="color:#d97706"],
+[style*="color:#dc2626"],
+[style*="color:#dc3545"],
+[style*="color:#ef4444"]{
+  color:var(--texto) !important;
 }
 
 /* ─── 12. FUNDOS CLAROS EM style= ───────────────────────── */
@@ -763,7 +899,11 @@ hr{ border-color:var(--borda) !important; opacity:1; }
    por classe não alcança: era o que deixava .sub, .hint e .chip-per.active
    ilegíveis. Remapear as variáveis conserta a família inteira de uma vez. */
 :root{
-  --primary:#12222E;          /* era #002b5e — virou superfície, não tinta */
+  /* --primary era #002b5e e é usada como TINTA 164 vezes contra 66 como
+     fundo. Mapeá-la para uma superfície escura fez os nomes de escola e
+     boa parte dos rótulos virarem texto escuro sobre fundo escuro. Ela vira
+     tinta clara; os poucos lugares que a usam como fundo estão logo abaixo. */
+  --primary:var(--texto);
   --neon-blue:var(--acento);
   --muted:var(--texto-2);
   --ink:var(--texto);
@@ -784,9 +924,36 @@ hr{ border-color:var(--borda) !important; opacity:1; }
   --purple:#A98BEF; --arte:#A98BEF;
 }
 /* onde o navy era usado como TINTA sobre claro, agora precisa ser claro */
-.chip-per.active,.chip.active,.seg button.active{
+.chip-per.active,.chip.active,.seg button.active,
+.btn-toggle.active,.tab-btn.active,.subtabs .active{
+  background:var(--acento) !important;
+  border-color:var(--acento) !important;
   color:var(--acento-tinta) !important;
 }
+/* os poucos lugares onde --primary era FUNDO precisam voltar a ser escuros,
+   já que a variável agora é tinta clara */
+#toast,.modal-head,.nav-header,
+table.mapa thead th,table.tbl-cob thead th{
+  background:#101C26 !important;
+  color:var(--texto) !important;
+}
+.btn-action-primary,.modal-tabs .nav-link.active,
+.turmas-disciplina-item.active,.tab-btn.active{
+  background:var(--acento) !important;
+  border-color:var(--acento) !important;
+  color:var(--acento-tinta) !important;
+}
+
+/* Linha destacada ou sob o cursor: várias telas usam branco puro, que agora
+   engole o texto claro. Vira um realce translúcido, que funciona no escuro. */
+tr:hover > td,tr.selecionada > td,tr.ativa > td,
+.main-row:hover,.escola-header:hover,.grp-escola:hover,
+.hier-unidade:hover,.hier-turma:hover,.el-grp-header:hover,
+.cfg-table tbody tr:hover,.turmas-disciplina-item:hover{
+  background:rgba(var(--acento-rgb),.09) !important;
+  color:var(--texto) !important;
+}
+
 /* botão primário do relatório executivo: texto branco sobre o azul médio
    dava 2,5:1. Usa o mesmo par do botão primário do resto do sistema. */
 .btn.pri,.btn.pri:hover{

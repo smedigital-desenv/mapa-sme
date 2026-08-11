@@ -49,6 +49,24 @@ def regras(css):
         yield m.group(1).strip(), m.group(2)
 
 
+def estilos_embutidos(texto):
+    """Atributos style= do documento todo, inclusive dentro de string JS.
+
+    O extrator antigo só lia blocos <style>. As telas montam as linhas de
+    dado em JavaScript, com a cor cravada no atributo — era ali que estava
+    a maior parte do que ficou ilegível.
+    """
+    for m in re.finditer(r'style=\\?["\']([^"\']{4,400}?)\\?["\']', texto):
+        yield m.group(1)
+
+
+def declaracoes(bloco):
+    for parte in bloco.split(";"):
+        if ":" in parte:
+            prop, _, val = parte.partition(":")
+            yield prop.strip().lower(), val.strip()
+
+
 def main():
     fundos, textos, bordas = set(), set(), set()
 
@@ -60,9 +78,19 @@ def main():
             texto = fh.read()
         for css in blocos_de_estilo(texto):
             for seletor, decls in regras(css):
-                if not seletor.startswith(".") or "," in seletor[:1]:
-                    continue
                 sel = " ".join(seletor.split())
+                if not sel or sel[0] in "@%0123456789":
+                    continue
+                # Nunca mexer no documento inteiro. Precisa ser por parte da
+                # vírgula: "html, body" escapava de uma comparação com o
+                # seletor inteiro e pintava o body de superfície — foi o que
+                # deixou todas as telas ilegíveis, com texto claro sobre claro.
+                partes = [x.strip() for x in sel.split(",") if x.strip()]
+                partes = [x for x in partes
+                          if not re.fullmatch(r"(html|body|:root|\*)", x)]
+                if not partes:
+                    continue
+                sel = ", ".join(partes)
                 if any(sel.startswith(t) and (len(sel) == len(t) or sel[len(t)] in ":. ")
                        for t in JA_TRATADOS):
                     continue
@@ -91,6 +119,23 @@ def main():
                     if hexa and (luminancia(hexa.group(0)) or 0) > 0.80:
                         bordas.add(sel)
 
+    # atributos style= — inclusive os montados em JavaScript
+    st_fundo, st_texto = set(), set()
+    for nome in sorted(paginas):
+        with open(os.path.join(RAIZ, nome), encoding="utf-8") as fh:
+            texto = fh.read()
+        for bloco in estilos_embutidos(texto):
+            for prop, val in declaracoes(bloco):
+                hexa = re.search(r"#[0-9a-fA-F]{3,6}", val)
+                if prop in ("background", "background-color"):
+                    lum = luminancia(hexa.group(0)) if hexa else None
+                    if "white" in val.lower() or (lum is not None and lum > 0.58):
+                        st_fundo.add(prop + ":" + val.split()[0])
+                elif prop == "color" and hexa:
+                    lum = luminancia(hexa.group(0))
+                    if lum is not None and lum < 0.55:
+                        st_texto.add(prop + ":" + hexa.group(0))
+
     saida = []
     saida.append("/* ─── 11. CORES CRAVADAS NAS PÁGINAS ────────────────────── */")
     saida.append("/* Gerado por tools/extrair-claros.py. As telas foram escritas para tema")
@@ -113,6 +158,17 @@ def main():
         saida.append("/* bordas claras -> borda do tema escuro */")
         saida.append(",\n".join(sorted(bordas)) + "{")
         saida.append("  border-color:var(--borda) !important;")
+        saida.append("}")
+
+    if st_fundo:
+        saida.append("\n/* fundo claro cravado no atributo style= */")
+        saida.append(",\n".join('[style*="%s"]' % x for x in sorted(st_fundo)) + "{")
+        saida.append("  background-color:var(--superficie) !important;")
+        saida.append("}\n")
+    if st_texto:
+        saida.append("/* texto escuro cravado no atributo style= */")
+        saida.append(",\n".join('[style*="%s"]' % x for x in sorted(st_texto)) + "{")
+        saida.append("  color:var(--texto) !important;")
         saida.append("}")
 
     print("\n".join(saida))
