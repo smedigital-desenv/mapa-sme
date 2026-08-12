@@ -205,95 +205,23 @@ main, .container, .container-fluid, .modal, .offcanvas, .v2-faixa{
   color:var(--texto) !important;
 }
 
-/* ─── 5b. BARRA ÚNICA ───────────────────────────────────── */
-/* mapa-v2-menu.js move o grupo de abas da tela para dentro do cabeçalho.
-   Aqui ele ganha aparência de continuação do menu, separado por um filete
-   vertical em vez de virar uma segunda faixa. */
-/* Uma linha só. Sem isto o menu da rede é espremido pela barra da tela e
-   quebra em três linhas — fica pior que as duas barras originais. Faltando
-   espaço, a faixa rola na horizontal em vez de empilhar. */
-.mg-header.v2-cabecalho-unico{
-  flex-wrap:nowrap !important;
-  overflow-x:auto;
-  overflow-y:visible;
-  scrollbar-width:thin;
-  gap:.5rem;
-}
-.mg-header.v2-cabecalho-unico::-webkit-scrollbar{ height:4px; }
-.mg-header.v2-cabecalho-unico::-webkit-scrollbar-thumb{
-  background:var(--borda-forte); border-radius:4px;
-}
-.mg-header.v2-cabecalho-unico .mg-nav{
-  flex-wrap:nowrap !important;
-  min-width:0 !important;
-  flex:0 1 auto !important;
-  gap:2px !important;
-}
-.mg-header.v2-cabecalho-unico .mg-nav-btn{
-  min-width:0 !important;
-  padding:5px 11px !important;
-  font-size:.75rem !important;
-  white-space:nowrap;
-}
-.mg-header.v2-cabecalho-unico .mg-brand{ flex:none; }
-.mg-header.v2-cabecalho-unico .mg-spacer{ display:none !important; }
-.v2-subnav{
-  display:flex !important;
-  align-items:center;
-  gap:6px;
-  flex-wrap:nowrap;
-  flex:none;
-  margin-left:auto !important;
-  margin:0 0 0 .6rem !important;
-  padding:0 0 0 .9rem !important;
-  border:0 !important;
-  border-left:1px solid var(--borda) !important;
-  background:transparent !important;
-  box-shadow:none !important;
-}
-/* os botões da tela adotam a mesma pílula do menu da rede */
-.v2-subnav > button,.v2-subnav > a,
-.v2-subnav .btn,.v2-subnav .nav-link,.v2-subnav .tab-btn,.v2-subnav .btn-toggle{
-  font-family:var(--sans) !important;
-  font-size:.76rem !important;
-  font-weight:500 !important;
-  border-radius:999px !important;
-  padding:5px 13px !important;
-  border:1px solid transparent !important;
-  background:transparent !important;
-  color:var(--texto-2) !important;
-  box-shadow:none !important;
-  margin:0 !important;
-}
-.v2-subnav > button:hover,.v2-subnav > a:hover,
-.v2-subnav .btn:hover,.v2-subnav .nav-link:hover{
-  color:var(--texto) !important;
-  border-color:var(--borda-forte) !important;
-}
-.v2-subnav .active,.v2-subnav [aria-selected="true"],
-.v2-subnav .btn.active,.v2-subnav .nav-link.active,.v2-subnav .btn-toggle.active{
-  background:rgba(var(--acento-rgb),.16) !important;
-  border-color:rgba(var(--acento-rgb),.55) !important;
-  color:var(--acento) !important;
-  font-weight:600 !important;
-}
-/* o que sobrou da barra antiga */
-.v2-barra-vazia{ display:none !important; }
-.v2-barra-restante{
+/* ─── 5b. SEGUNDA BARRA DA PÁGINA ───────────────────────── */
+/* Tentei juntar as duas barras movendo o grupo de abas para dentro do
+   cabeçalho, por JavaScript. Não deu certo e foi revertido: cada tela
+   estrutura o próprio topo de um jeito, e o que servia numa quebrava
+   outra — no Início pegou a grade de módulos, na Atribuição os itens do
+   menu passaram a se sobrepor. Juntar de verdade exige editar o HTML de
+   cada tela, que é justamente o que esta pele evita.
+
+   Fica o que funciona sem risco: a barra seguinte perde fundo, borda e
+   sombra próprios, e as duas leem como uma faixa contínua. */
+.mg-header + *:not(script):not(canvas):not(.v2-orbita){
   background:transparent !important;
   background-image:none !important;
   border-top:0 !important;
   box-shadow:none !important;
-  padding-top:.3rem !important;
-  padding-bottom:.3rem !important;
-}
-/* Enquanto o script não roda (ou desiste), a barra seguinte ao menos perde
-   fundo e sombra próprios, para não parecer uma segunda faixa. */
-.mg-header:not(.v2-cabecalho-unico) + *:not(script):not(canvas){
-  background:transparent !important;
-  background-image:none !important;
-  border-top:0 !important;
-  box-shadow:none !important;
+  padding-top:.4rem !important;
+  padding-bottom:.4rem !important;
 }
 
 /* ─── 5c. UTILITÁRIOS DE COR DO BOOTSTRAP ───────────────── */

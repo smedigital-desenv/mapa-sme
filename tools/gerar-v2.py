@@ -9,7 +9,6 @@ uma cópia <nome>-v2.html idêntica, com quatro acréscimos:
   2. <link> para mapa-v2.css no fim do <head>, para entrar depois do
      CSS embutido da página e sobrescrevê-lo;
   3. faixa de aviso, canvas do fundo e arcos, logo após o <body>;
-     mais o script que junta as duas barras do topo numa só;
   4. defaults do Chart.js, logo depois do script do Chart.
 
 Os links internos passam a apontar para as versões -v2, para a
@@ -76,8 +75,7 @@ CHART = """
 </script>
 """
 
-CEU = ('<script src="mapa-v2-ceu.js" defer></script>\n'
-       '<script src="mapa-v2-menu.js" defer></script>\n')
+CEU = '<script src="mapa-v2-ceu.js" defer></script>\n'
 
 
 def paginas():
