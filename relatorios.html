@@ -746,10 +746,37 @@ function onDados(res) {
     dadosPorSegmento.infantil = [];
   }
   _sincronizarAuthGlobal();
+
+  // Porta da tela. Fica aqui, depois do MapaAuth estar pronto, para ter o
+  // perfil em mãos — e antes de qualquer renderização, para não exibir nada.
+  if (!podeVerRelatorios(window.MapaAuth && window.MapaAuth.perfil)) {
+    telaRestrita();
+    return;
+  }
+
   // Renderiza os cards imediatamente; as devolutivas carregam em 2º plano
   // (apenas para preencher a contagem do badge) sem bloquear a tela.
   mudarSegmento('fundamental');
   carregarDevolutivas();
+}
+
+// Relatórios é restrito a SECRETARIA e SUPER ADMIN.
+// Nega por padrão: perfil ausente, ou sem `tipo` definido, não entra. A regra
+// de verdade está no banco (as funções relat_* fazem a mesma checagem) — isto
+// aqui é só para não abrir uma tela que voltaria vazia.
+function podeVerRelatorios(perfil) {
+  if (!perfil) return false;
+  if (perfil.is_super_admin) return true;
+  return String(perfil.tipo || '').trim().toLowerCase() === 'secretaria';
+}
+
+function telaRestrita() {
+  document.getElementById('main').innerHTML =
+    '<div class="alert alert-warning shadow-sm text-center py-4">'
+    + '<i class="bi bi-lock-fill fs-3 d-block mb-2"></i>'
+    + '<div class="fw-bold mb-1">Tela restrita</div>'
+    + '<div class="small">Relatórios está disponível apenas para perfis da secretaria. '
+    + 'Se você precisa de acesso, fale com a administração da rede.</div></div>';
 }
 
 // Deriva identidade/admin do sistema global de login (auth.js / window.MapaAuth).
