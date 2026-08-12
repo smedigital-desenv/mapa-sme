@@ -138,11 +138,15 @@ main, .container, .container-fluid, .modal, .offcanvas, .v2-faixa{
 
 .mg-header{
   background:transparent !important;
-  border-bottom:1px solid var(--borda) !important;
   box-shadow:none !important;
-  padding:.85rem 1.4rem !important;
+  padding:.85rem 1.4rem .6rem !important;
   backdrop-filter:blur(10px);
   z-index:1050 !important;   /* acima de <main>, senão o submenu fica atrás */
+  /* Sem filete embaixo. Era ele que cortava o topo em duas faixas: o
+     cabeçalho da rede terminava numa linha e a barra da tela começava
+     logo abaixo. Sem o corte, as duas leem como um bloco só, e a borda
+     passa a fechar o conjunto inteiro (regra 5b). */
+  border-bottom:0 !important;
 }
 /* a área de hover precisa cobrir a folga até o menu, senão o ponteiro
    "sai" do gatilho antes de alcançar o último item e o menu fecha */
@@ -220,8 +224,16 @@ main, .container, .container-fluid, .modal, .offcanvas, .v2-faixa{
   background-image:none !important;
   border-top:0 !important;
   box-shadow:none !important;
-  padding-top:.4rem !important;
-  padding-bottom:.4rem !important;
+  padding-top:.2rem !important;
+  padding-bottom:.55rem !important;
+  /* o filete agora fecha o conjunto todo, não separa as duas partes */
+  border-bottom:1px solid var(--borda) !important;
+}
+/* quando a tela não tem barra própria, o cabeçalho precisa fechar sozinho */
+.mg-header:last-child,
+.mg-header:has(+ script),
+.mg-header:has(+ canvas){
+  border-bottom:1px solid var(--borda) !important;
 }
 
 /* ─── 5c. UTILITÁRIOS DE COR DO BOOTSTRAP ───────────────── */
