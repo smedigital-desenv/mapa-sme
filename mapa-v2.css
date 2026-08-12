@@ -296,6 +296,28 @@ main, .container, .container-fluid, .modal, .offcanvas, .v2-faixa{
   box-shadow:none !important;
 }
 
+/* ─── 5c. UTILITÁRIOS DE COR DO BOOTSTRAP ───────────────── */
+/* .bg-white, .bg-light, .text-dark e afins vêm do Bootstrap, não do CSS das
+   páginas — por isso escaparam do extrator e das regras por classe. Eram
+   eles que deixavam os cartões de gráfico brancos com o resto escuro. */
+.bg-white,.bg-light,.bg-body,.bg-body-secondary,.bg-body-tertiary{
+  background-color:var(--superficie) !important;
+  color:var(--texto) !important;
+}
+.text-dark,.text-black,.text-body,.text-body-emphasis{
+  color:var(--texto) !important;
+}
+.text-body-secondary{ color:var(--texto-2) !important; }
+.border,.border-top,.border-bottom,.border-start,.border-end{
+  border-color:var(--borda) !important;
+}
+.bg-white .text-muted,.bg-light .text-muted{ color:var(--texto-2) !important; }
+/* filete colorido à esquerda dos cartões: o navy some no escuro */
+[style*="border-left:4px solid #002b5e"],
+[style*="border-left: 4px solid #002b5e"]{
+  border-left-color:var(--acento) !important;
+}
+
 /* ─── 6. TÍTULOS ────────────────────────────────────────── */
 
 h1,h2,h3,h4,h5,.secao-titulo,.sec-tt{
