@@ -108,8 +108,11 @@ body::before{
 .v2-orbita--2{ width:104vw; height:104vw; left:2vw; top:-58vw; border-color:rgba(var(--halo),.26); }
 .v2-orbita--3{ width:126vw; height:126vw; right:-38vw; top:-40vw; border-color:rgba(var(--halo),.24); }
 
-/* tudo que é conteúdo fica acima do fundo */
-.mg-header, main, .container, .container-fluid, .modal, .offcanvas, .v2-faixa{
+/* Conteúdo acima do fundo. O cabeçalho fica FORA desta regra de propósito:
+   ela fixava position:relative, matando o position:sticky original, e dava a
+   ele o mesmo z-index de <main>. Como <main> vem depois no DOM, empatado ele
+   ganha — e o submenu "Aprendizagem" abria ATRÁS do conteúdo, sem clique. */
+main, .container, .container-fluid, .modal, .offcanvas, .v2-faixa{
   position:relative; z-index:2;
 }
 
@@ -139,7 +142,11 @@ body::before{
   box-shadow:none !important;
   padding:.85rem 1.4rem !important;
   backdrop-filter:blur(10px);
+  z-index:1050 !important;   /* acima de <main>, senão o submenu fica atrás */
 }
+/* a área de hover precisa cobrir a folga até o menu, senão o ponteiro
+   "sai" do gatilho antes de alcançar o último item e o menu fecha */
+.mg-dd-menu{ padding-top:10px !important; margin-top:-4px !important; }
 .mg-brand h4{
   font-family:var(--serifada) !important;
   font-weight:400 !important;
@@ -198,32 +205,95 @@ body::before{
   color:var(--texto) !important;
 }
 
-/* ─── 5b. SEGUNDA BARRA DA PÁGINA ───────────────────────── */
-/* Cada tela traz a própria barra logo abaixo do cabeçalho da rede, e cada
-   uma com classe diferente (modal-tabs, cfg-tabs, barra-seg, subtabs...).
-   Em vez de caçar nome por nome, o alvo é "o que vem logo depois do
-   cabeçalho": tirando fundo, borda e sombra própria, as duas barras passam
-   a ler como uma faixa só, sem mexer no HTML. */
-.mg-header + *{
+/* ─── 5b. BARRA ÚNICA ───────────────────────────────────── */
+/* mapa-v2-menu.js move o grupo de abas da tela para dentro do cabeçalho.
+   Aqui ele ganha aparência de continuação do menu, separado por um filete
+   vertical em vez de virar uma segunda faixa. */
+/* Uma linha só. Sem isto o menu da rede é espremido pela barra da tela e
+   quebra em três linhas — fica pior que as duas barras originais. Faltando
+   espaço, a faixa rola na horizontal em vez de empilhar. */
+.mg-header.v2-cabecalho-unico{
+  flex-wrap:nowrap !important;
+  overflow-x:auto;
+  overflow-y:visible;
+  scrollbar-width:thin;
+  gap:.5rem;
+}
+.mg-header.v2-cabecalho-unico::-webkit-scrollbar{ height:4px; }
+.mg-header.v2-cabecalho-unico::-webkit-scrollbar-thumb{
+  background:var(--borda-forte); border-radius:4px;
+}
+.mg-header.v2-cabecalho-unico .mg-nav{
+  flex-wrap:nowrap !important;
+  min-width:0 !important;
+  flex:0 1 auto !important;
+  gap:2px !important;
+}
+.mg-header.v2-cabecalho-unico .mg-nav-btn{
+  min-width:0 !important;
+  padding:5px 11px !important;
+  font-size:.75rem !important;
+  white-space:nowrap;
+}
+.mg-header.v2-cabecalho-unico .mg-brand{ flex:none; }
+.mg-header.v2-cabecalho-unico .mg-spacer{ display:none !important; }
+.v2-subnav{
+  display:flex !important;
+  align-items:center;
+  gap:6px;
+  flex-wrap:nowrap;
+  flex:none;
+  margin-left:auto !important;
+  margin:0 0 0 .6rem !important;
+  padding:0 0 0 .9rem !important;
+  border:0 !important;
+  border-left:1px solid var(--borda) !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+/* os botões da tela adotam a mesma pílula do menu da rede */
+.v2-subnav > button,.v2-subnav > a,
+.v2-subnav .btn,.v2-subnav .nav-link,.v2-subnav .tab-btn,.v2-subnav .btn-toggle{
+  font-family:var(--sans) !important;
+  font-size:.76rem !important;
+  font-weight:500 !important;
+  border-radius:999px !important;
+  padding:5px 13px !important;
+  border:1px solid transparent !important;
+  background:transparent !important;
+  color:var(--texto-2) !important;
+  box-shadow:none !important;
+  margin:0 !important;
+}
+.v2-subnav > button:hover,.v2-subnav > a:hover,
+.v2-subnav .btn:hover,.v2-subnav .nav-link:hover{
+  color:var(--texto) !important;
+  border-color:var(--borda-forte) !important;
+}
+.v2-subnav .active,.v2-subnav [aria-selected="true"],
+.v2-subnav .btn.active,.v2-subnav .nav-link.active,.v2-subnav .btn-toggle.active{
+  background:rgba(var(--acento-rgb),.16) !important;
+  border-color:rgba(var(--acento-rgb),.55) !important;
+  color:var(--acento) !important;
+  font-weight:600 !important;
+}
+/* o que sobrou da barra antiga */
+.v2-barra-vazia{ display:none !important; }
+.v2-barra-restante{
   background:transparent !important;
   background-image:none !important;
   border-top:0 !important;
   box-shadow:none !important;
-  border-bottom:1px solid var(--borda) !important;
-  padding-top:.35rem !important;
-  padding-bottom:.35rem !important;
-  backdrop-filter:blur(10px);
+  padding-top:.3rem !important;
+  padding-bottom:.3rem !important;
 }
-/* o título da tela dentro dessa barra vira rótulo discreto, para não
-   competir com a marca MAPA que está logo acima */
-.mg-header + * > h1,.mg-header + * > h2,
-.mg-header + * .titulo-tela,.mg-header + * .page-title{
-  font-family:var(--mono) !important;
-  font-size:.66rem !important;
-  font-weight:400 !important;
-  letter-spacing:.18em !important;
-  text-transform:uppercase !important;
-  color:var(--texto-3) !important;
+/* Enquanto o script não roda (ou desiste), a barra seguinte ao menos perde
+   fundo e sombra próprios, para não parecer uma segunda faixa. */
+.mg-header:not(.v2-cabecalho-unico) + *:not(script):not(canvas){
+  background:transparent !important;
+  background-image:none !important;
+  border-top:0 !important;
+  box-shadow:none !important;
 }
 
 /* ─── 6. TÍTULOS ────────────────────────────────────────── */
