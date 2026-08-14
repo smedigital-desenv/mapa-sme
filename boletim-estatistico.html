@@ -164,12 +164,14 @@
 <div class="be-ov" id="beOvUp"><div class="be-modal" style="max-width:640px">
   <div class="mh"><b>Atualizar dados do Boletim</b><button class="mx" id="beUpX">&times;</button></div>
   <div class="mb">
-    <div class="be-obs"><b>Restrito à Seção de Fluxo Escolar.</b> Envie a planilha <b>DADOS_GERAL (.xlsx)</b> exportada do Google Sheets. O sistema lê, converte por escola e grava no Supabase (uma linha por unidade).</div>
+    <div class="be-obs"><b>Restrito à Seção de Fluxo Escolar.</b> O sistema reconhece automaticamente dois arquivos:<br>
+      • <b>DADOS_GERAL (.xlsx)</b> → boletim <b>completo</b> (histórico + metas + 2026).<br>
+      • <b>2026.xlsx</b> → atualiza <b>só as seções de 2026</b>, preservando o histórico já gravado.</div>
     <input type="file" id="beArq" accept=".xlsx" class="be-btn" style="background:#eef1f6;color:var(--pri);width:100%;text-align:left">
     <div id="beUpInfo" style="margin:.8rem 0;font-size:.82rem;color:var(--muted)"></div>
     <button class="be-btn" id="beUpProc" style="width:100%;justify-content:center" disabled>Processar e gravar</button>
     <div id="beUpRes" style="margin-top:.8rem;font-weight:800"></div>
-    <div class="be-obs" style="margin-top:.8rem;border-color:#ffd166">A planilha precisa manter o mesmo layout de colunas do modelo (aba <b>Dados_Geral</b>). O botão só aparece para <b>s.fluxoescolar</b> e para super admin.</div>
+    <div class="be-obs" style="margin-top:.8rem;border-color:#ffd166">Para o boletim completo, o ideal é subir o <b>DADOS_GERAL</b> pelo menos uma vez (traz o histórico). Depois, o <b>2026.xlsx</b> mantém o ano corrente atualizado. O botão só aparece para <b>s.fluxoescolar</b> e super admin.</div>
   </div>
 </div></div>
 
@@ -371,7 +373,9 @@ function render(){
   document.getElementById('beNome').textContent=e.nome;
   document.getElementById('beCod').textContent='Cód. '+(e.cod!=null?e.cod:'—');
   document.getElementById('beSeg').textContent=e.seg||'—';
-  document.getElementById('beBtnHist').style.display='inline-flex';
+  const temHist = e.hist && Object.keys(e.hist).length>0;
+  const temHP = e.histPend && Object.values(e.histPend).some(b=>Object.values(b).some(row=>(row||[]).some(x=>x!=null&&x!=='-')));
+  document.getElementById('beBtnHist').style.display=(temHist||temHP)?'inline-flex':'none';
   let h='<div class="be-g be-g2">'+card('Número de estudantes na unidade',anos(e.estud,'v-green'))
     +card('Estudantes com problema de frequência',anos(e.freq,'v-green'))+'</div>';
   let p='<table class="be-t"><tr><th style="width:16%"></th><th>Frequência</th><th>Registro de aula</th><th>Plano de ensino</th><th>Avaliação</th></tr>';
@@ -431,43 +435,129 @@ function lerArquivo(ev){
   };
   r.readAsArrayBuffer(f);
 }
-function acharAba(wb){ return wb.SheetNames.find(n=>/dados.?geral/i.test(n))||wb.SheetNames[0]; }
+/* Detecta o tipo de planilha enviada:
+   - 'dadosgeral': export do DADOS_GERAL (aba "Dados_Geral") → boletim completo
+   - '2026'      : planilha 2026.xlsx (abas "PENDÊNCIAS/OCORRÊNCIAS ... 2026") → só o ano corrente */
+function detectarTipo(wb){
+  if(wb.SheetNames.some(n=>/dados.?geral/i.test(n))) return 'dadosgeral';
+  if(wb.SheetNames.some(n=>/PEND[EÊ]NCIAS|OCORR[EÊ]NCIAS/i.test(n) && /2026/.test(n))) return '2026';
+  if(wb.SheetNames.some(n=>/UNIDADE ESCOLAR/i.test(''))) return 'dadosgeral';
+  return 'desconhecido';
+}
+
+/* ── Fonte 1: DADOS_GERAL (aba única, layout de colunas COLS) ── */
+function parseDadosGeral(wb){
+  const aba=wb.SheetNames.find(n=>/dados.?geral/i.test(n))||wb.SheetNames[0];
+  const rows=XLSX.utils.sheet_to_json(wb.Sheets[aba],{header:1,raw:true,defval:null});
+  let hdr=-1;
+  for(let i=0;i<Math.min(rows.length,15);i++){
+    if((rows[i]||[]).some(c=>typeof c==='string'&&/UNIDADE ESCOLAR/i.test(c))){ hdr=i; break; }
+  }
+  const inicio=hdr>=0?hdr+1:0, out=[];
+  for(let i=inicio;i<rows.length;i++){
+    const row=rows[i]||[];
+    const nome=(typeof row[0]==='string'?row[0]:'').trim();
+    if(!nome||nome.length<4||/UNIDADE ESCOLAR/i.test(nome)) continue;
+    const seg=/EMEF/i.test(nome)?'EMEF':(/EMEI/i.test(nome)?'EMEI':(/CEI/i.test(nome)?'CEI':'OUTRO'));
+    const campos=[];
+    for(let c=0;c<COLS.length;c++) campos.push([COLS[c],(c<row.length?row[c]:null)]);
+    out.push({nome:nome, seg:seg, dados:buildStructured(nome,seg,campos)});
+  }
+  return out;
+}
+
+/* ── Fonte 2: 2026.xlsx (várias abas por segmento, junção por nome) ── */
+function _rows2026(wb,name){ return (name&&wb.Sheets[name])?XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,raw:true,defval:null}):null; }
+function _mapByName(rows,ncols){
+  const m={}; if(!rows) return m;
+  for(let i=2;i<rows.length;i++){
+    const r=rows[i]||[]; const nm=(typeof r[0]==='string'?r[0].trim():''); if(!nm) continue;
+    const a=[]; for(let c=0;c<ncols;c++) a.push(c<r.length?r[c]:null); m[nm]=a;
+  }
+  return m;
+}
+function _segDoNome(nome,fallback){
+  const m=/,\s*(EMEF|EMEI|CEI)\s*$/i.exec(nome);
+  return m?m[1].toUpperCase():fallback;
+}
+function parse2026(wb){
+  const SEGS=['EMEF','EMEI','CEI','PARCEIRAS'];
+  const acha=(kind,seg)=>wb.SheetNames.find(n=>kind.test(n)&&n.includes(' '+seg+' ')&&n.includes('2026'));
+  const schools={}, PEND={}, DAD={}, OCO={};
+  for(const seg of SEGS){
+    PEND[seg]=_mapByName(_rows2026(wb,acha(/PEND[EÊ]NCIAS/i,seg)),17);
+    DAD[seg] =_mapByName(_rows2026(wb,acha(/^DADOS/i,seg)),3);
+    OCO[seg] =_mapByName(_rows2026(wb,acha(/OCORR[EÊ]NCIAS/i,seg)),15);
+    [...Object.keys(PEND[seg]),...Object.keys(DAD[seg]),...Object.keys(OCO[seg])].forEach(n=>{ schools[n]=seg; });
+  }
+  const out=[];
+  for(const nome in schools){
+    const grupo=schools[nome], P=PEND[grupo][nome], D=DAD[grupo][nome], O=OCO[grupo][nome];
+    const seg=_segDoNome(nome, grupo==='PARCEIRAS'?'CEI':grupo);
+    const total = D?inteiro(D[1]):(O?inteiro(O[11]):'-');
+    const pf    = O?inteiro(O[12]):'-';
+    const pend={};
+    for(let b=0;b<4;b++){ const base=1+b*4; pend[(b+1)+'º Bim']=[0,1,2,3].map(k=>P?raw(P[base+k]):'-'); }
+    out.push({
+      nome:nome, seg:seg, full:(seg==='EMEF'), total:total, pf:pf, pend:pend,
+      ba: O?[raw(O[1]),raw(O[2]),raw(O[3]),raw(O[4])]:['-','-','-','-'], baPer: O?raw(O[5]):'-',
+      ncom: O?[raw(O[6]),raw(O[7]),raw(O[8]),raw(O[9])]:['-','-','-','-'], ncomPer: O?raw(O[10]):'-'
+    });
+  }
+  return out;
+}
+
+async function gravar(registros, res){
+  res.textContent='Gravando '+registros.length+' unidades no Supabase…';
+  const LOTE=100;
+  for(let i=0;i<registros.length;i+=LOTE){
+    const r=await sb().from('boletim_estatistico').upsert(registros.slice(i,i+LOTE),{onConflict:'nome'});
+    if(r.error) throw r.error;
+  }
+}
+
 async function processar(){
   if(!_wb) return;
   const res=document.getElementById('beUpRes');
   const btn=document.getElementById('beUpProc'); btn.disabled=true;
   res.style.color='#334155'; res.textContent='Lendo planilha…';
   try{
-    const aba=acharAba(_wb);
-    const rows=XLSX.utils.sheet_to_json(_wb.Sheets[aba],{header:1,raw:true,defval:null});
-    // localiza a linha de cabeçalho "UNIDADE ESCOLAR" e começa os dados depois dela
-    let hdr=-1;
-    for(let i=0;i<Math.min(rows.length,15);i++){
-      if((rows[i]||[]).some(c=>typeof c==='string'&&/UNIDADE ESCOLAR/i.test(c))){ hdr=i; break; }
+    const tipo=detectarTipo(_wb);
+    const agora=new Date().toISOString(), quem=perfilEmail();
+    let registros=[];
+    if(tipo==='dadosgeral'){
+      registros=parseDadosGeral(_wb).map(u=>({nome:u.nome,codigo:null,segmento:u.seg,dados:u.dados,atualizado_em:agora,atualizado_por:quem}));
+      if(!registros.length){ res.style.color='#9f1239'; res.textContent='Nenhuma escola encontrada no DADOS_GERAL.'; btn.disabled=false; return; }
+      await gravar(registros,res);
+      res.style.color='#166534'; res.innerHTML='✓ '+registros.length+' unidades gravadas do DADOS_GERAL (boletim completo). Recarregando…';
+    } else if(tipo==='2026'){
+      // Merge: preserva histórico/metas já gravados; atualiza só as seções de 2026.
+      res.textContent='Lendo dados de 2026 e preservando o histórico…';
+      const ex={};
+      const r0=await sb().from('boletim_estatistico').select('nome,codigo,dados');
+      if(!r0.error)(r0.data||[]).forEach(x=>{ ex[x.nome]={codigo:x.codigo, dados:(x.dados&&typeof x.dados==='object')?x.dados:{}}; });
+      registros=parse2026(_wb).map(u=>{
+        const prev=ex[u.nome]||{codigo:null,dados:{}}, base=prev.dados;
+        const estud=(Array.isArray(base.estud)&&base.estud.length===5)?base.estud.slice():['-','-','-','-','-']; estud[4]=u.total;
+        const freq =(Array.isArray(base.freq )&&base.freq.length ===5)?base.freq.slice() :['-','-','-','-','-']; freq[4]=u.pf;
+        const dados=Object.assign({}, base, {
+          nome:u.nome, seg:u.seg, full:u.full,
+          estud:estud, freq:freq, pend:u.pend,
+          ba:u.ba, baPer:u.baPer, ncom:u.ncom, ncomPer:u.ncomPer,
+          sit: base.sit||{}, hist: base.hist||{}, histPend: base.histPend||{},
+          histAnos: base.histAnos||['2018','2019','2020','2021','2022','2023','2024','2025'],
+          pendAnos: base.pendAnos||['2022','2023','2024','2025']
+        });
+        return {nome:u.nome, codigo:prev.codigo!=null?prev.codigo:null, segmento:u.seg, dados:dados, atualizado_em:agora, atualizado_por:quem};
+      });
+      if(!registros.length){ res.style.color='#9f1239'; res.textContent='Nenhuma escola encontrada nas abas de 2026.'; btn.disabled=false; return; }
+      await gravar(registros,res);
+      res.style.color='#166534'; res.innerHTML='✓ '+registros.length+' unidades atualizadas (dados de 2026, histórico preservado). Recarregando…';
+    } else {
+      res.style.color='#9f1239';
+      res.innerHTML='Planilha não reconhecida. Envie o <b>DADOS_GERAL</b> (boletim completo) ou o <b>2026.xlsx</b> (dados do ano corrente).';
+      btn.disabled=false; return;
     }
-    const inicio=hdr>=0?hdr+1:0;
-    const registros=[];
-    for(let i=inicio;i<rows.length;i++){
-      const row=rows[i]||[];
-      const nome=(typeof row[0]==='string'?row[0]:'').trim();
-      if(!nome||nome.length<4||/UNIDADE ESCOLAR/i.test(nome)) continue;
-      const seg = /EMEF/i.test(nome)?'EMEF' : (/EMEI/i.test(nome)?'EMEI' : (/CEI/i.test(nome)?'CEI':'OUTRO'));
-      const campos=[];
-      for(let c=0;c<COLS.length;c++){ campos.push([COLS[c], (c<row.length?row[c]:null)]); }
-      const dados=buildStructured(nome, seg, campos);
-      registros.push({ nome:nome, codigo:null, segmento:seg, dados:dados,
-        atualizado_em:new Date().toISOString(), atualizado_por:perfilEmail() });
-    }
-    if(!registros.length){ res.style.color='#9f1239'; res.textContent='Nenhuma escola encontrada na aba "'+aba+'".'; btn.disabled=false; return; }
-    res.textContent='Gravando '+registros.length+' unidades no Supabase…';
-    // upsert em lotes por nome
-    const LOTE=100;
-    for(let i=0;i<registros.length;i+=LOTE){
-      const r=await sb().from('boletim_estatistico').upsert(registros.slice(i,i+LOTE),{onConflict:'nome'});
-      if(r.error) throw r.error;
-    }
-    res.style.color='#166534';
-    res.innerHTML='✓ '+registros.length+' unidades gravadas (aba "'+aba+'"). Recarregando…';
     setTimeout(()=>{ document.getElementById('beOvUp').classList.remove('show'); carregar(); },900);
   }catch(err){
     res.style.color='#9f1239';
