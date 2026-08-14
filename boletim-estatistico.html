@@ -457,7 +457,7 @@ function parseDadosGeral(wb){
   for(let i=inicio;i<rows.length;i++){
     const row=rows[i]||[];
     const nome=(typeof row[0]==='string'?row[0]:'').trim();
-    if(!nome||nome.length<4||/UNIDADE ESCOLAR/i.test(nome)) continue;
+    if(!_nomeValido(nome)) continue;
     const seg=/EMEF/i.test(nome)?'EMEF':(/EMEI/i.test(nome)?'EMEI':(/CEI/i.test(nome)?'CEI':'OUTRO'));
     const campos=[];
     for(let c=0;c<COLS.length;c++) campos.push([COLS[c],(c<row.length?row[c]:null)]);
@@ -468,10 +468,17 @@ function parseDadosGeral(wb){
 
 /* ── Fonte 2: 2026.xlsx (várias abas por segmento, junção por nome) ── */
 function _rows2026(wb,name){ return (name&&wb.Sheets[name])?XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,raw:true,defval:null}):null; }
+/* Ignora linhas que não são unidade: totais, metadados e cabeçalhos residuais. */
+function _nomeValido(nm){
+  if(!nm||nm.length<5) return false;
+  if(/^TOTAL\b/i.test(nm) || /TOTAL\s*-/i.test(nm) || /TOTAL\s+(DA\s+REDE|GERAL)/i.test(nm)) return false;
+  if(/atualizad|data da atualiz|unidade escolar|ensino fundamental|ensino infantil/i.test(nm)) return false;
+  return /[A-Za-zÀ-ÿ]/.test(nm);
+}
 function _mapByName(rows,ncols){
   const m={}; if(!rows) return m;
   for(let i=2;i<rows.length;i++){
-    const r=rows[i]||[]; const nm=(typeof r[0]==='string'?r[0].trim():''); if(!nm) continue;
+    const r=rows[i]||[]; const nm=(typeof r[0]==='string'?r[0].trim():''); if(!_nomeValido(nm)) continue;
     const a=[]; for(let c=0;c<ncols;c++) a.push(c<r.length?r[c]:null); m[nm]=a;
   }
   return m;
