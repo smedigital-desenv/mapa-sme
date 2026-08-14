@@ -87,6 +87,29 @@ A partir daí `auth.uid()` existe no banco do MAPA e as policies funcionam.
   personificação real, restrita a super admin do central e registrada no log da
   função. Sem isso não há como testar o isolamento, já que ele vive no Postgres.
 
+### Integração CODERP — Edge Function `coderp-ficha`
+
+A API **ObterFichaAvaliacao** do CODERP (Ficha de Acompanhamento e Avaliação
+Bimestral) é consumida **ao vivo** — por decisão de projeto, **nada do que ela
+devolve é gravado no banco do MAPA**. A API existe justamente para não inflar o
+consumo da instância; não reverta isso criando tabela de cache/carga.
+
+O acesso passa pela Edge Function **`coderp-ficha`** (projeto do MAPA), porque
+o token da API do CODERP é credencial: vive no secret `CODERP_TOKEN` da função
+e **nunca vai para o navegador nem para este repositório**. A função:
+
+1. exige sessão válida **deste** projeto (deploy com Verify JWT **LIGADO** —
+   ao contrário da `central-bridge`);
+2. refaz no banco, com a identidade de quem chamou, a checagem
+   `vejo_a_rede_toda()` — por ora **todos os níveis** (rede, escola, turma,
+   aluno) exigem visão de rede. Abrir o recorte por unidade exige antes mapear
+   o código CODERP (`uni_cod`) para o catálogo `escolas`;
+3. injeta o token e repassa a consulta (níveis: `/IndicadorRede`, `/IndicadorEscola`,
+   `/IndicadorTurma`, `/IndicadorAluno`), devolvendo a resposta como veio.
+
+Secrets: `CODERP_TOKEN` (obrigatório) e `CODERP_URL` (opcional; o padrão é o
+ambiente `dsv`). A tela `teste-api-ficha.html` consome a função para validação.
+
 ---
 
 ## 3. Modelo de segurança do banco
@@ -187,11 +210,12 @@ workflow `deploy-pages.yml` manualmente pela aba Actions depois de publicar.
 git fetch origin -q && git rev-parse --short origin/main
 ```
 
-⚠️ **A Edge Function não vai junto no deploy.** Alterar
+⚠️ **As Edge Functions não vão junto no deploy.** Alterar
 `supabase/functions/central-bridge/index.ts` exige republicar pelo painel do
-Supabase ou pela CLI, **com Verify JWT desligado**. Front-end e função precisam
-estar na mesma versão: quando desalinham, o sintoma é "não foi possível abrir
-sua sessão" com status 200.
+Supabase ou pela CLI, **com Verify JWT desligado**; a `coderp-ficha` republica
+**com Verify JWT ligado** (o padrão). Front-end e função precisam estar na
+mesma versão: quando desalinham, o sintoma é "não foi possível abrir sua
+sessão" com status 200.
 
 ### SQL
 

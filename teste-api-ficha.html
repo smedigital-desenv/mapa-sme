@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teste — API Ficha de Avaliação (CODERP) | MAPA SME</title>
+  <script src="auth-guard.js"></script>
+  <script src="auth.js" defer></script>
+  <style>
+    :root{ --bg:#eef1f6; --card:#fff; --ink:#1e2a3a; --muted:#5b6b7f; --line:#e2e8f0;
+           --blue:#1e5eb8; --blue-d:#16407e; --red:#d23b3b; --green:#15914b; }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);line-height:1.5;font-size:15px;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+    .wrap{max-width:1080px;margin:0 auto;padding:16px 20px 80px}
+    header{background:linear-gradient(135deg,var(--blue-d),var(--blue));color:#fff;
+      border-radius:16px;padding:24px 28px;margin-bottom:20px}
+    header h1{margin:0 0 4px;font-size:22px} header p{margin:0;opacity:.9;font-size:13.5px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:13px;
+      padding:18px;margin-bottom:16px;box-shadow:0 1px 3px rgba(20,40,80,.05)}
+    label{display:block;font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:3px}
+    input,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;
+      font-size:14px;background:#fff;color:var(--ink)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+    .btn{margin-top:14px;border:0;background:var(--blue);color:#fff;font-weight:700;
+      font-size:14px;padding:10px 22px;border-radius:9px;cursor:pointer}
+    .btn:hover{background:var(--blue-d)} .btn:disabled{opacity:.5;cursor:not-allowed}
+    .aviso{font-size:13px;color:var(--muted);margin-top:10px}
+    .msg{padding:10px 14px;border-radius:9px;font-size:13.5px;margin-bottom:10px;display:none}
+    .msg.err{display:block;background:#fdecec;color:var(--red);border:1px solid #f5c6c6}
+    .msg.ok{display:block;background:#eaf7ef;color:var(--green);border:1px solid #c9e9d4}
+    .tbl-wrap{overflow-x:auto}
+    table{border-collapse:collapse;width:100%;font-size:13px}
+    th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;white-space:nowrap}
+    th{background:#f6f8fb;font-weight:700}
+    pre{background:#0f1b2d;color:#cfe3ff;border-radius:9px;padding:14px;font-size:12px;
+      overflow-x:auto;max-height:420px}
+    .oculto{display:none}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Teste — API Ficha de Avaliação (CODERP)</h1>
+    <p>Consulta ao vivo, via Edge Function <code>coderp-ficha</code>. Nada é gravado no banco do MAPA.
+       Acesso restrito a quem enxerga a rede toda.</p>
+  </header>
+
+  <div class="card">
+    <div class="grid">
+      <div>
+        <label for="fNivel">Nível de agregação</label>
+        <select id="fNivel">
+          <option value="rede">Rede</option>
+          <option value="escola">Escola</option>
+          <option value="turma">Turma</option>
+          <option value="aluno">Aluno</option>
+        </select>
+      </div>
+      <div><label for="fAno">Ano letivo *</label><input id="fAno" type="number" value="2026"></div>
+      <div><label for="fBim">Bimestre (1–4) *</label><input id="fBim" type="number" min="1" max="4" value="2"></div>
+      <div id="cEscola" class="oculto"><label for="fEscola">Código da escola</label><input id="fEscola" type="number" placeholder="ex.: 123"></div>
+      <div id="cAnoEsc" class="oculto"><label for="fAnoEsc">Ano escolar</label><input id="fAnoEsc" type="text" placeholder="ex.: 5A"></div>
+      <div id="cTurma" class="oculto"><label for="fTurma">Turma</label><input id="fTurma" type="text" placeholder="ex.: A"></div>
+      <div id="cRema" class="oculto"><label for="fRema">REMA (matrícula)</label><input id="fRema" type="number" placeholder="matrícula do aluno"></div>
+    </div>
+    <button class="btn" id="btnConsultar" disabled>Consultar</button>
+    <div class="aviso">O token da API fica guardado no servidor (secret da função) e nunca chega ao navegador.</div>
+  </div>
+
+  <div id="msg" class="msg"></div>
+
+  <div class="card oculto" id="cardTabela">
+    <h3 style="margin:0 0 10px;font-size:16px">Resultado (<span id="qtdLinhas">0</span> linhas)</h3>
+    <div class="tbl-wrap"><table id="tbl"><thead></thead><tbody></tbody></table></div>
+  </div>
+
+  <div class="card oculto" id="cardJson">
+    <h3 style="margin:0 0 10px;font-size:16px">Resposta bruta</h3>
+    <pre id="jsonBruto"></pre>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var URL_FN = 'https://gmwotfulohkmuqrezeef.supabase.co/functions/v1/coderp-ficha';
+  var $ = function (id) { return document.getElementById(id); };
+
+  // Campos visíveis por nível (rede pede só ano/bimestre; aluno pede tudo).
+  var CAMPOS = {
+    rede:   [],
+    escola: ['cEscola'],
+    turma:  ['cEscola', 'cAnoEsc', 'cTurma'],
+    aluno:  ['cEscola', 'cAnoEsc', 'cTurma', 'cRema']
+  };
+  function ajustarCampos() {
+    var ativos = CAMPOS[$('fNivel').value] || [];
+    ['cEscola', 'cAnoEsc', 'cTurma', 'cRema'].forEach(function (id) {
+      $(id).classList.toggle('oculto', ativos.indexOf(id) < 0);
+    });
+  }
+  $('fNivel').addEventListener('change', ajustarCampos);
+  ajustarCampos();
+
+  function mostrarMsg(texto, tipo) {
+    var m = $('msg');
+    m.className = 'msg ' + tipo;
+    m.textContent = texto;
+  }
+
+  function montarTabela(linhas) {
+    var thead = $('tbl').querySelector('thead');
+    var tbody = $('tbl').querySelector('tbody');
+    thead.innerHTML = ''; tbody.innerHTML = '';
+    if (!linhas.length) { $('cardTabela').classList.add('oculto'); return; }
+    var cols = Object.keys(linhas[0]);
+    var tr = document.createElement('tr');
+    cols.forEach(function (c) { var th = document.createElement('th'); th.textContent = c; tr.appendChild(th); });
+    thead.appendChild(tr);
+    linhas.forEach(function (l) {
+      var r = document.createElement('tr');
+      cols.forEach(function (c) {
+        var td = document.createElement('td');
+        td.textContent = l[c] === null || l[c] === undefined ? '' : String(l[c]);
+        r.appendChild(td);
+      });
+      tbody.appendChild(r);
+    });
+    $('qtdLinhas').textContent = String(linhas.length);
+    $('cardTabela').classList.remove('oculto');
+  }
+
+  async function consultar() {
+    var btn = $('btnConsultar');
+    btn.disabled = true; btn.textContent = 'Consultando…';
+    $('msg').className = 'msg';
+    $('cardTabela').classList.add('oculto');
+    $('cardJson').classList.add('oculto');
+    try {
+      var nivel = $('fNivel').value;
+      var parms = { anoLetivo: parseInt($('fAno').value, 10), bimestre: parseInt($('fBim').value, 10) };
+      var ativos = CAMPOS[nivel];
+      if (ativos.indexOf('cEscola') >= 0 && $('fEscola').value) parms.escola = parseInt($('fEscola').value, 10);
+      if (ativos.indexOf('cTurma') >= 0 && $('fTurma').value) parms.turma = $('fTurma').value.trim();
+      if (ativos.indexOf('cRema') >= 0 && $('fRema').value) parms.rema = parseInt($('fRema').value, 10);
+      if (ativos.indexOf('cAnoEsc') >= 0 && $('fAnoEsc').value) {
+        // A API usa grafias diferentes do mesmo campo conforme o nível:
+        // "anoEscolar" no aluno, "anoescolar" na turma. Contrato do CODERP.
+        parms[nivel === 'aluno' ? 'anoEscolar' : 'anoescolar'] = $('fAnoEsc').value.trim();
+      }
+
+      var tok = await window.MapaAuth.token();
+      if (!tok) { mostrarMsg('Sessão do MAPA indisponível. Recarregue a página.', 'err'); return; }
+
+      var r = await fetch(URL_FN, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+        body: JSON.stringify({ nivel: nivel, parms: parms })
+      });
+      var resp = await r.json().catch(function () { return null; });
+
+      $('jsonBruto').textContent = JSON.stringify(resp, null, 2);
+      $('cardJson').classList.remove('oculto');
+
+      if (!r.ok) {
+        var det = resp && (resp.erro || resp.detalhe) ? (resp.erro + (resp.detalhe ? ' — ' + resp.detalhe : '')) : ('HTTP ' + r.status);
+        mostrarMsg('A consulta falhou: ' + det, 'err');
+        return;
+      }
+
+      // A lista vem com nome diferente por nível; pega o primeiro array de
+      // fichas presente na resposta.
+      var lista = resp.fichasAvaliacoes || resp.fichasAvaliacoesRede
+               || resp.fichasAvaliacoesEscola || resp.fichasAvaliacoesTurma || [];
+      var msgs = (resp.Messages || []).map(function (m) { return m.Description || m.Id; }).filter(Boolean);
+      if (msgs.length) mostrarMsg('Mensagens da API: ' + msgs.join(' | '), lista.length ? 'ok' : 'err');
+      else mostrarMsg('Consulta concluída: ' + lista.length + ' linha(s).', 'ok');
+      montarTabela(lista);
+    } catch (e) {
+      mostrarMsg('Erro inesperado: ' + e, 'err');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Consultar';
+    }
+  }
+
+  $('btnConsultar').addEventListener('click', consultar);
+
+  // Habilita o botão quando a sessão do MAPA estiver pronta.
+  function liberar() { $('btnConsultar').disabled = false; }
+  if (window.MapaAuth && window.MapaAuth.perfil) liberar();
+  else document.addEventListener('mapa-auth-pronto', liberar, { once: true });
+})();
+</script>
+</body>
+</html>
