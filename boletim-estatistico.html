@@ -458,7 +458,7 @@ function parseDadosGeral(wb){
     const row=rows[i]||[];
     const nome=(typeof row[0]==='string'?row[0]:'').trim();
     if(!_nomeValido(nome)) continue;
-    const seg=/EMEF/i.test(nome)?'EMEF':(/EMEI/i.test(nome)?'EMEI':(/CEI/i.test(nome)?'CEI':'OUTRO'));
+    const seg=_segLabel(nome);
     const campos=[];
     for(let c=0;c<COLS.length;c++) campos.push([COLS[c],(c<row.length?row[c]:null)]);
     out.push({nome:nome, seg:seg, dados:buildStructured(nome,seg,campos)});
@@ -483,9 +483,15 @@ function _mapByName(rows,ncols){
   }
   return m;
 }
-function _segDoNome(nome,fallback){
-  const m=/,\s*(EMEF|EMEI|CEI)\s*$/i.exec(nome);
-  return m?m[1].toUpperCase():fallback;
+/* Classifica o segmento pela grafia do nome (serve aos dois parsers). */
+function _segLabel(nome){
+  const up=(nome||'').toUpperCase();
+  if(/\bEMEF\b|CEEEF/.test(up)) return 'EMEF';
+  if(/\bEMEI\b/.test(up)) return 'EMEI';
+  if(/\bCEI\b/.test(up)) return 'CEI';
+  if(/\bEEI\b|E\.E\.I|ESCOLA DE EDUCA/.test(up)) return 'EEI';
+  if(/CRECHE/.test(up)) return 'Creche';
+  return 'Parceira';
 }
 function parse2026(wb){
   const SEGS=['EMEF','EMEI','CEI','PARCEIRAS'];
@@ -500,7 +506,7 @@ function parse2026(wb){
   const out=[];
   for(const nome in schools){
     const grupo=schools[nome], P=PEND[grupo][nome], D=DAD[grupo][nome], O=OCO[grupo][nome];
-    const seg=_segDoNome(nome, grupo==='PARCEIRAS'?'CEI':grupo);
+    const seg=_segLabel(nome);
     const total = D?inteiro(D[1]):(O?inteiro(O[11]):'-');
     const pf    = O?inteiro(O[12]):'-';
     const pend={};
