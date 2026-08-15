@@ -108,7 +108,7 @@ e **nunca vai para o navegador nem para este repositório**. A função:
    `/IndicadorTurma`, `/IndicadorAluno`), devolvendo a resposta como veio.
 
 Secrets: `CODERP_TOKEN` (obrigatório) e `CODERP_URL` (opcional; o padrão é o
-ambiente `dsv`). A tela `teste-api-ficha.html` consome a função para validação.
+ambiente `dsv`).
 
 **Quem consome em produção são as abas de bimestre da `avaliacao.html`**
 (`pacoteViaFichaApi`): uma chamada `IndicadorTurma` por ano escolar, sem
