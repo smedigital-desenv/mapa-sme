@@ -349,31 +349,60 @@
 
     // ── Pré-aquecimento da Ficha CODERP ────────────────────────────────────
     // De QUALQUER tela do MAPA (menos a própria Avaliações, que faz as suas
-    // consultas), dispara em segundo plano as consultas de rede dos 4
-    // bimestres. Elas enchem o cache de 10 min da Edge Function coderp-ficha:
-    // quando a pessoa abrir Avaliações, as respostas saem na hora, sem
-    // esperar o CODERP. Fire-and-forget — falha aqui não afeta tela nenhuma.
-    if (!/avaliacao\.html/i.test(location.pathname)) {
+    // consultas), dispara em segundo plano as consultas da Ficha: rede dos 4
+    // bimestres e, na sequência, as fichas aluno a aluno das escolas com
+    // lançamento no 1º/2º bimestre. Tudo entra no cache de 10 min da Edge
+    // Function coderp-ficha: quando a pessoa abrir Avaliações, até o detalhe
+    // por turma sai na hora, sem esperar o CODERP e sem "números subindo".
+    // Fire-and-forget — falha aqui não afeta tela nenhuma.
+    if (!/avaliacao\.html/i.test(location.pathname) && !api.restritoEscola) {
       setTimeout(function () {
+        var anoLetivo = new Date().getFullYear();
         var fila = [];
         [1, 2, 3, 4].forEach(function (b) {
           ['1 ANO', '2 ANO', '3 ANO', '4 ANO', '5 ANO'].forEach(function (a) {
-            fila.push({ bimestre: b, anoescolar: a });
+            fila.push({ nivel: 'turma', parms: { anoLetivo: anoLetivo, bimestre: b, anoescolar: a } });
           });
         });
-        var anoLetivo = new Date().getFullYear();
-        function proxima() {
-          var p = fila.shift();
-          if (!p) return;
-          api.token().then(function (tok) {
+
+        function chamar(corpo) {
+          return api.token().then(function (tok) {
             if (!tok) return null;
             return fetchOriginal(MAPA_CFG.url + '/functions/v1/coderp-ficha', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
-              body: JSON.stringify({ nivel: 'turma',
-                parms: { anoLetivo: anoLetivo, bimestre: p.bimestre, anoescolar: p.anoescolar } })
+              body: JSON.stringify(corpo)
             });
-          }).catch(function () {}).then(function () { proxima(); });
+          });
+        }
+
+        // Depois da rede, enfileira as fichas por escola dos bimestres atuais.
+        function enfileirarEscolas(b) {
+          return chamar({ nivel: 'escola', parms: { anoLetivo: anoLetivo, bimestre: b } })
+            .then(function (r) { return r ? r.json() : null; })
+            .then(function (d) {
+              var vistos = {};
+              ((d && d.fichasAvaliacoesEscola) || []).forEach(function (e) {
+                if (vistos[e.uni_cod]) return;
+                vistos[e.uni_cod] = true;
+                fila.push({ nivel: 'aluno', parms: { anoLetivo: anoLetivo, bimestre: b, escola: Number(e.uni_cod) } });
+              });
+            })
+            .catch(function () {});
+        }
+
+        var preparo = null;
+        function proxima() {
+          var p = fila.shift();
+          if (!p) {
+            // Fila da rede acabou: prepara a fila do detalhe (uma vez só).
+            if (!preparo) {
+              preparo = Promise.all([enfileirarEscolas(1), enfileirarEscolas(2)])
+                .then(function () { proxima(); proxima(); proxima(); });
+            }
+            return;
+          }
+          chamar(p).catch(function () {}).then(function () { proxima(); });
         }
         // 3 consultas simultâneas: aquece rápido sem disputar rede com a tela.
         proxima(); proxima(); proxima();
