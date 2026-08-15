@@ -106,11 +106,14 @@ e **nunca vai para o navegador nem para este repositório**. A função:
    o código CODERP (`uni_cod`) para o catálogo `escolas`;
 3. injeta o token e repassa a consulta (níveis: `/IndicadorRede`, `/IndicadorEscola`,
    `/IndicadorTurma`, `/IndicadorAluno`), devolvendo a resposta como veio;
-4. mantém **cache em memória de 10 min** das respostas pequenas (níveis
-   agregados) — a permissão é checada por requisição ANTES do cache, que
-   guarda só a resposta do CODERP. O `auth.js` **pré-aquece** esse cache de
-   qualquer tela (consultas de rede dos 4 bimestres em segundo plano), então
-   abrir Avaliações é rápido mesmo na primeira vez.
+4. mantém **cache em memória de 10 min** (gzip; inclui o nível aluno) — a
+   permissão é checada por requisição ANTES do cache, que guarda só a
+   resposta do CODERP. O `auth.js` **pré-aquece** de qualquer tela (rede dos
+   4 bimestres + fichas por escola do 1º/2º) e guarda as respostas num
+   **cache local do navegador** (`window.MapaFichaCache`, IndexedDB + gzip,
+   TTL 10 min): a tela de Avaliações lê dali sem rede — é o que a torna
+   instantânea. As três camadas (IndexedDB, memória da função, CODERP) têm o
+   mesmo TTL de propósito.
 
 Secrets: `CODERP_TOKEN` (obrigatório) e `CODERP_URL` (opcional; o padrão é o
 ambiente `dsv`).
