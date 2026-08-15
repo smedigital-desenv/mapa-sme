@@ -5176,6 +5176,40 @@ function selecionarUnidade(unidade, ui) {
   renderHierarquia(_hierArvore);
   _atualizarBreadcrumb();
   aplicarFiltrosAvaliacao();
+  if (!ja) _detalharUnidadeFicha(unidade);
+}
+
+// ── Detalhe de turmas sob demanda (fonte CODERP) ──────────────────────────
+// O pacote de rede vem da API sem rótulo de turma ('—'). Ao ativar uma
+// unidade, busca as fichas dela no nível Aluno (que rotula ano e turma) e
+// troca as linhas '—' daquela unidade pelas detalhadas — a árvore passa a
+// mostrar as turmas reais e o recorte por turma funciona.
+let _fichaDetalhePedido = null;
+function _detalharUnidadeFicha(unidade) {
+  const pac = pacoteBimestreAtual;
+  if (!pac || !Array.isArray(pac.linhas)) return;
+  const pendente = pac.linhas.some(l => l[0] === unidade && l[2] === '—');
+  if (!pendente) return;
+
+  const pedido = bimestreAtualKey + '||' + unidade;
+  if (_fichaDetalhePedido === pedido) return;
+  _fichaDetalhePedido = pedido;
+
+  google.script.run.withSuccessHandler(det => {
+    if (_fichaDetalhePedido === pedido) _fichaDetalhePedido = null;
+    if (!det || !det.ok || !Array.isArray(det.linhas)) return;
+    const atual = pacoteBimestreAtual;
+    // O pacote pode ter trocado (outro bimestre/ano) enquanto o detalhe vinha.
+    if (!atual || atual !== pac) return;
+    atual.linhas = atual.linhas.filter(l => !(l[0] === det.unidade && l[2] === '—')).concat(det.linhas);
+    atual.hierLinhas = (atual.hierLinhas || []).filter(h => !(h[0] === det.unidade && h[2] === '—')).concat(det.hierLinhas);
+    // Se a pessoa tinha clicado no marcador '—', ele deixa de existir agora.
+    if (_hierTurmaAtiva === '—' && _hierUnidadeAtiva === det.unidade) _hierTurmaAtiva = 'TODAS';
+    renderBimestrePacoteLocal();
+  }).withFailureHandler(err => {
+    if (_fichaDetalhePedido === pedido) _fichaDetalhePedido = null;
+    console.warn('[MAPA CODERP] detalhe de turmas indisponível para', unidade, err);
+  }).getDetalheUnidadeFicha(bimestreAtualKey, unidade);
 }
 
 function selecionarTurma(unidade, turma, ev) {
@@ -7509,6 +7543,59 @@ function _renderTabelaTotal(linhas) {
     return contagem;
   }
 
+  // Detalhe de UMA unidade com ano e turma reais, para quando a pessoa clica
+  // na árvore: o nível agregado da API não rotula turma, mas o nível Aluno
+  // rotula (per_cod/tur_cod). Conta LINHAS por combinação — a soma agregada
+  // (qtd_alunos) equivale à contagem de linhas do nível aluno, conferido nos
+  // testes. Alunos por ano/turma = REMAs distintos (contagem exata).
+  const _fichaEscolaMemo = new Map();
+  function fichaFichasEscola(bimestre, codEscola) {
+    const k = bimestre + '|' + codEscola;
+    if (!_fichaEscolaMemo.has(k)) {
+      _fichaEscolaMemo.set(k,
+        chamarFichaApi('aluno', { anoLetivo: fichaAnoLetivo(), bimestre: bimestre, escola: codEscola })
+          .then(r => r.fichasAvaliacoes || [])
+          .catch(err => { _fichaEscolaMemo.delete(k); throw err; }));
+    }
+    return _fichaEscolaMemo.get(k);
+  }
+
+  async function fichaDetalheUnidade(bimestre, nomeUnidade) {
+    const catalogo = await fichaCatalogo();
+    const alvo = normalizar(cleanUnit(nomeUnidade));
+    let cod = null;
+    catalogo.forEach((nome, codigo) => {
+      if (cod === null && normalizar(cleanUnit(nome)) === alvo) cod = codigo;
+    });
+    if (cod === null) throw new Error('unidade sem código no catálogo: ' + nomeUnidade);
+
+    const fichas = await fichaFichasEscola(bimestre, cod);
+    const u = cleanUnit(catalogo.get(cod) || nomeUnidade);
+    const ag = new Map();
+    const alunosPorAT = new Map();
+    fichas.forEach(r => {
+      const a = normalizar(r.per_cod || '') || 'TODOS';
+      const t = String(r.tur_cod || '—').trim().toUpperCase() || '—';
+      const d = normalizarDisciplina(corrigirTextoLegivel(r.fnc_des || '') || 'Sem disciplina');
+      const e = corrigirTextoLegivel(r.fne_des || 'Sem eixo');
+      const rot = labelRespostaPainel(r.fne_des || '', r.fqr_vl, r.fqr_txt_resp || '');
+      const kk = [u, a, t, d, e, rot].join('||');
+      ag.set(kk, (ag.get(kk) || 0) + 1);
+      const kh = a + '||' + t;
+      if (!alunosPorAT.has(kh)) alunosPorAT.set(kh, new Set());
+      alunosPorAT.get(kh).add(r.alu_rema);
+    });
+    return {
+      ok: true,
+      unidade: u,
+      linhas: Array.from(ag.entries()).map(([kk, q]) => kk.split('||').concat([q])),
+      hierLinhas: Array.from(alunosPorAT.entries()).map(([kh, s]) => {
+        const p = kh.split('||');
+        return [u, p[0], p[1], s.size];
+      })
+    };
+  }
+
   // Fichas ALUNO A ALUNO de um bimestre, para a Análise de Consistência.
   // Descobre as unidades com lançamento (1 chamada de escola) e baixa cada uma
   // pela Edge Function, em lotes, devolvendo linhas no formato da antiga
@@ -7824,6 +7911,14 @@ function _renderTabelaTotal(linhas) {
         else if (fne.includes('PRODUCAO')) dict[key].p = label;
       });
       return Object.values(dict);
+    },
+
+    // Detalhe de uma unidade (ano/turma reais) para enriquecer o pacote do
+    // bimestre quando a pessoa clica na árvore. Só existe no caminho da API.
+    async getDetalheUnidadeFicha(key, unidade) {
+      if (!fichaApiAtiva()) return { ok: false };
+      const bimestre = BIM_KEY_TO_NUM[key] || 1;
+      return fichaDetalheUnidade(bimestre, unidade);
     },
 
     async getPacoteBimestreRapido(key, filtros) {
@@ -8261,6 +8356,7 @@ function _renderTabelaTotal(linhas) {
       getDashboardData() { return this._exec(api.getDashboardData()); },
       getDashboardAlunos() { return this._exec(api.getDashboardAlunos()); },
       getPacoteBimestreRapido(key, filtros) { return this._exec(api.getPacoteBimestreRapido(key, filtros)); },
+      getDetalheUnidadeFicha(key, unidade) { return this._exec(api.getDetalheUnidadeFicha(key, unidade)); },
       getAvaliacaoBimestreRapida(key, filtros) { return this._exec(api.getAvaliacaoBimestreRapida(key, filtros)); },
       getHierarquiaBimestre(key, filtros) { return this._exec(api.getHierarquiaBimestre(key, filtros)); },
       getDetalheEixo(key, filtros) { return this._exec(api.getDetalheEixo(key, filtros)); },
