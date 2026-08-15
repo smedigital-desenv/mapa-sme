@@ -2976,11 +2976,11 @@ function _chaveBimestre(key, filtros) {
 function _chavePacoteBimestre(key, filtrosBase) {
   filtrosBase = filtrosBase || {};
   // v8: fonte CODERP ao vivo — invalida os pacotes v7 (banco) já em cache.
-  return ['pacote_bim_supa_v8_coderp', key, filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacote_bim_supa_v9_coderp', key, filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _chaveTotal(filtros) {
-  return ['total_supa_v8_coderp', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
+  return ['total_supa_v9_coderp', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
 }
 
 function _chaveDetalhe(key, filtros) {
@@ -2996,7 +2996,7 @@ function _chaveBimestreCompleto(key) {
 }
 
 function _chaveHierarquiaTotal(ano) {
-  return ['hier_total_supa_v8_coderp', ano || 'TODOS'].join('|');
+  return ['hier_total_supa_v9_coderp', ano || 'TODOS'].join('|');
 }
 
 // ===========================================================
@@ -7076,8 +7076,48 @@ function _renderTabelaTotal(linhas) {
     return normalizar(txt).replace(/[^A-Z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
+  // ── Grafia canônica de unidade ────────────────────────────────────────────
+  // A mesma unidade chega com grafias diferentes conforme a fonte: a oficial
+  // do MAPA ("EMEF ALFEU LUIZ GASPARINI"), a do CODERP ("ALFEU LUIZ
+  // GASPARINI, PROF°., EMEF") e variantes com caractere corrompido ("PROF�").
+  // Sem unificação, a mesma escola aparece 2-3 vezes na árvore e os dados se
+  // repartem entre as cópias. O casamento é por CONJUNTO EXATO de palavras
+  // (ordem, pontuação e caracteres inválidos ignorados): só traduz quando as
+  // palavras batem todas, para nunca fundir unidades diferentes. Sem
+  // casamento, mantém a grafia original — visível e corrigível, nunca
+  // silencioso.
+  function tokensUnidade(nome) {
+    return normalizar(String(nome || ''))
+      .replace(/[^A-Z0-9 ]/g, ' ')
+      .split(/\s+/).filter(Boolean)
+      .sort().join(' ');
+  }
+
+  // Índice tokens -> grafia oficial (catálogo `escolas`). Carrega quando a
+  // sessão fica pronta; antes disso o cleanUnit devolve a grafia original.
+  let _unidadeOficialIdx = null;
+  function _carregarIndiceOficial() {
+    supa.from('escolas').select('nome').eq('ativo', true)
+      .then(({ data, error }) => {
+        if (error || !data || !data.length) return;
+        const idx = new Map();
+        data.forEach(e => {
+          const t = tokensUnidade(e.nome);
+          if (!t) return;
+          // Duas oficiais com o mesmo conjunto de palavras: ambíguo, não traduz.
+          idx.set(t, idx.has(t) ? null : String(e.nome).trim().replace(/\s+/g, ' '));
+        });
+        _unidadeOficialIdx = idx;
+      })
+      .catch(() => { /* sem catálogo, segue com as grafias originais */ });
+  }
+  document.addEventListener('mapa-auth-pronto', _carregarIndiceOficial, { once: true });
+  _carregarIndiceOficial();
+
   function cleanUnit(txt) {
-    return String(txt || '').trim().replace(/\s+/g, ' ');
+    const bruto = String(txt || '').trim().replace(/\s+/g, ' ');
+    if (!bruto || !_unidadeOficialIdx) return bruto;
+    return _unidadeOficialIdx.get(tokensUnidade(bruto)) || bruto;
   }
 
   function periodoDesc(valor) {
@@ -7465,7 +7505,8 @@ function _renderTabelaTotal(linhas) {
     return resp || {};
   }
 
-  // Catálogo código CODERP -> nome oficial da unidade (uma busca por sessão).
+  // Catálogo código CODERP -> nome da unidade (uma busca por sessão). A
+  // tradução para a grafia oficial acontece no cleanUnit, para TODAS as fontes.
   let _fichaCatalogoPromise = null;
   function fichaCatalogo() {
     if (!_fichaCatalogoPromise) {
@@ -7509,8 +7550,14 @@ function _renderTabelaTotal(linhas) {
 
     const [catalogo, ...respostas] = await Promise.all([
       fichaCatalogo(),
-      ...anos.map(a => fichaRedeTurma(bimestre, a).then(rows => ({ fichasAvaliacoesTurma: rows })))
+      ...anos.map(a => fichaRedeTurma(bimestre, a)
+        .then(rows => ({ fichasAvaliacoesTurma: rows }))
+        .catch(err => {
+          console.warn(`[MAPA CODERP] pacote: falhou bim ${bimestre} / ${a}:`, err);
+          return null;
+        }))
     ]);
+    if (!respostas.some(Boolean)) throw new Error('todas as consultas ao CODERP falharam');
 
     const ag = new Map();
     const disciplinas = new Set();
@@ -7519,7 +7566,7 @@ function _renderTabelaTotal(linhas) {
 
     respostas.forEach((resp, i) => {
       const anoEsc = anos[i];
-      (resp.fichasAvaliacoesTurma || []).forEach(r => {
+      ((resp && resp.fichasAvaliacoesTurma) || []).forEach(r => {
         const qtd = Number(r.qtd_alunos || 0);   // a API devolve como texto
         if (!qtd) return;
         const u = cleanUnit(catalogo.get(Number(r.uni_cod)) || ('UNIDADE ' + r.uni_cod));
@@ -7570,9 +7617,19 @@ function _renderTabelaTotal(linhas) {
   async function fichaGruposTotal() {
     const catalogo = await fichaCatalogo();
     const grupos = [];
+    let falhas = 0, total = 0;
     for (const b of [1, 2, 3, 4]) {
-      const porAno = await Promise.all(FICHA_ANOS_ESCOLARES.map(a => fichaRedeTurma(b, a)));
-      porAno.forEach((rows, i) => rows.forEach(r => {
+      // Falha pontual não derruba o Total inteiro para o banco (que pode nem
+      // ter o bimestre): registra, segue com o que veio e só desiste se TUDO
+      // falhar.
+      const porAno = await Promise.all(FICHA_ANOS_ESCOLARES.map(a =>
+        fichaRedeTurma(b, a).catch(err => {
+          console.warn(`[MAPA CODERP] Total: falhou bim ${b} / ${a}:`, err);
+          falhas++;
+          return null;
+        })));
+      total += porAno.length;
+      porAno.forEach((rows, i) => (rows || []).forEach(r => {
         const qtd = Number(r.qtd_alunos || 0);
         if (!qtd) return;
         const u = catalogo.get(Number(r.uni_cod)) || ('UNIDADE ' + r.uni_cod);
@@ -7581,6 +7638,7 @@ function _renderTabelaTotal(linhas) {
                      r.fqr_vl, r.fqr_vl, qtd]);
       }));
     }
+    if (falhas && falhas === total) throw new Error('todas as consultas ao CODERP falharam');
     return grupos;
   }
 
@@ -8332,7 +8390,8 @@ function _renderTabelaTotal(linhas) {
           const anos = (anoFiltro !== 'TODOS') ? [anoFiltro] : FICHA_ANOS_ESCOLARES;
           const porUniAno = new Map();   // uni_cod||ano -> max entre bimestres
           for (const b of [1, 2, 3, 4]) {
-            const porAno = await Promise.all(anos.map(a => fichaRedeTurma(b, a)));
+            const porAno = await Promise.all(anos.map(a =>
+              fichaRedeTurma(b, a).catch(() => [])));
             porAno.forEach((rows, i) => {
               fichaContagemPorUnidade(rows).forEach((n, u) => {
                 const k = u + '||' + anos[i];
