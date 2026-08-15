@@ -61,6 +61,9 @@ function doPost(e) {
       case 'excluirDevolutiva':
         resultado = excluirDevolutiva(e.parameter.id);
         break;
+      case 'chat':
+        resultado = chat(e.parameter.pergunta, e.parameter.contexto, e.parameter.historico);
+        break;
       default:
         resultado = { ok: false, erro: 'Ação não reconhecida' };
     }
@@ -382,6 +385,88 @@ function _chamarGemini(prompt, maxOutputTokens) {
 
   // Garante que nunca retorna undefined silenciosamente
   throw new Error("Todas as chaves de API estouraram a cota ou falharam.");
+}
+
+// ════════════════════════════════════════════════════════════════
+//  CHATBOT (assistente) — usa a MESMA chave central (GEMINI_KEYS).
+//  O contexto vem pronto do navegador (dados que o usuário pode ver, montados
+//  pelas RPCs que já filtram por permissão). A chave nunca sai do servidor.
+// ════════════════════════════════════════════════════════════════
+
+// Variante do _chamarGemini para respostas em TEXTO (não JSON). Mesmo pool de
+// chaves, rotação em caso de cota (429). Retorna o texto puro do modelo.
+function _chamarGeminiTexto(prompt, maxOutputTokens) {
+  const chavesRaw = PropertiesService.getScriptProperties().getProperty("GEMINI_KEYS");
+  if (!chavesRaw) throw new Error("Nenhuma chave de API configurada na propriedade 'GEMINI_KEYS'.");
+  const pool = chavesRaw.split(",").map(k => k.trim()).filter(Boolean);
+  const cache = CacheService.getScriptCache();
+  const idxIni = (parseInt(cache.get("gemini_key_idx") || "0", 10) || 0) % pool.length;
+
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.4, maxOutputTokens: maxOutputTokens || 2000 }
+  };
+
+  let ultimoErro = "";
+  for (let i = 0; i < pool.length; i++) {
+    const idx = (idxIni + i) % pool.length;
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" + pool[idx];
+    try {
+      const resp = UrlFetchApp.fetch(url, {
+        method: "post", contentType: "application/json",
+        payload: JSON.stringify(payload), muteHttpExceptions: true
+      });
+      const code = resp.getResponseCode();
+      const j = JSON.parse(resp.getContentText());
+      if (j.error) {
+        const msg = j.error.message || "";
+        if (code === 429 || j.error.code === 429 || /quota/i.test(msg)) {
+          cache.put("gemini_key_idx", String((idx + 1) % pool.length), 3600);
+          ultimoErro = "cota esgotada"; continue;
+        }
+        throw new Error("Erro API Gemini [" + code + "]: " + msg);
+      }
+      const texto = j.candidates && j.candidates[0] && j.candidates[0].content
+        && j.candidates[0].content.parts && j.candidates[0].content.parts[0]
+        && j.candidates[0].content.parts[0].text;
+      return (texto || "").trim();
+    } catch (e) {
+      if (String(e.message).indexOf("Erro API Gemini") === 0) throw e;
+      ultimoErro = e.message;
+    }
+  }
+  throw new Error("Falha ao chamar o Gemini: " + ultimoErro);
+}
+
+// Responde perguntas SOMENTE com base no contexto recebido do navegador.
+function chat(pergunta, contexto, historicoJson) {
+  try {
+    if (!pergunta || !String(pergunta).trim()) return { ok: false, erro: "Pergunta vazia." };
+    let historico = [];
+    try { historico = JSON.parse(historicoJson || "[]"); } catch (e) { historico = []; }
+    const prompt = _promptChat(String(pergunta), String(contexto || ""), historico);
+    const resposta = _chamarGeminiTexto(prompt, 2000);
+    return { ok: true, resposta: resposta };
+  } catch (e) {
+    return { ok: false, erro: "Erro no assistente: " + e.message };
+  }
+}
+
+function _promptChat(pergunta, contexto, historico) {
+  const hist = (historico || []).slice(-6).map(function (m) {
+    return (m.role === 'user' ? 'Usuário' : 'Assistente') + ': ' + m.texto;
+  }).join('\n');
+  return 'Você é o assistente do MAPA, sistema de acompanhamento pedagógico da Secretaria Municipal da Educação de Ribeirão Preto. Você responde a gestores e técnicos com base EXCLUSIVAMENTE nos dados de visitas e devolutivas fornecidos abaixo.\n\n' +
+    'REGRAS:\n' +
+    '- Responda somente com base nos DADOS fornecidos. Não invente escolas, números, datas ou fatos.\n' +
+    '- Se a informação não estiver nos dados, diga claramente que não consta nos registros disponíveis.\n' +
+    '- Ao citar uma escola, use o nome exato; ao citar números (cobertura, risco, quantidades), use os valores do resumo.\n' +
+    '- Seja objetivo e institucional. Pode usar listas e negrito (markdown simples).\n' +
+    '- Não repita o contexto inteiro; responda direto à pergunta.\n\n' +
+    'DADOS DISPONÍVEIS:\n' + contexto + '\n' +
+    (hist ? '\nCONVERSA ATÉ AGORA:\n' + hist + '\n' : '') +
+    '\nPERGUNTA DO USUÁRIO:\n' + pergunta + '\n\n' +
+    'Responda em português, de forma direta e fundamentada nos dados.';
 }
 
 // ════════════════════════════════════════════════════════════════

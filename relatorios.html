@@ -174,6 +174,31 @@
     .bk-badge { background:#f59e0b; color:#fff; font-weight:900; border-radius:999px; padding:1px 10px; font-size:.78rem; margin-left:.4rem; }
     .bk-badge.clic { cursor:pointer; } .bk-badge.clic:hover { background:#d97706; }
     .backlog-vazio { font-size:.8rem; font-weight:700; color:#047857; background:#ecfdf5; border-radius:10px; padding:.7rem .9rem; }
+    /* ── Assistente (chatbot) ── */
+    .chat-wrap { display:flex; flex-direction:column; height:calc(100vh - 190px); min-height:420px; background:#fff; border-radius:16px; box-shadow:0 4px 18px rgba(0,0,0,.06); overflow:hidden; }
+    .chat-top { padding:.85rem 1.15rem; border-bottom:1px solid #eef2f7; display:flex; align-items:center; gap:.6rem; }
+    .chat-top .tit { font-weight:900; color:var(--primary); font-size:.98rem; }
+    .chat-top .sub { font-size:.68rem; color:#94a3b8; font-weight:600; }
+    .chat-msgs { flex:1; overflow-y:auto; padding:1.1rem 1.15rem; display:flex; flex-direction:column; gap:.75rem; background:#f8fafc; }
+    .chat-b { max-width:82%; padding:.7rem .95rem; border-radius:14px; font-size:.86rem; line-height:1.5; white-space:normal; word-wrap:break-word; }
+    .chat-b.user { align-self:flex-end; background:var(--primary); color:#fff; border-bottom-right-radius:4px; }
+    .chat-b.bot  { align-self:flex-start; background:#fff; color:#1e293b; border:1px solid #e8eef5; border-bottom-left-radius:4px; }
+    .chat-b.bot strong { color:var(--primary); }
+    .chat-vazio { margin:auto; text-align:center; color:#94a3b8; max-width:460px; }
+    .chat-vazio i { font-size:2.4rem; color:#cbd5e1; }
+    .chat-vazio p { font-size:.85rem; font-weight:600; margin-top:.5rem; }
+    .chat-typing { align-self:flex-start; display:flex; gap:4px; padding:.7rem .95rem; }
+    .chat-typing span { width:7px; height:7px; border-radius:50%; background:#cbd5e1; animation:chatpulse 1.2s infinite; }
+    .chat-typing span:nth-child(2){ animation-delay:.2s; } .chat-typing span:nth-child(3){ animation-delay:.4s; }
+    @keyframes chatpulse { 0%,60%,100%{opacity:.3;transform:translateY(0);} 30%{opacity:1;transform:translateY(-3px);} }
+    .chat-chips { display:flex; flex-wrap:wrap; gap:.45rem; padding:.7rem 1.15rem 0; }
+    .chat-chip { border:1.5px solid #cbd5e1; background:#fff; color:#334155; font-weight:700; font-size:.74rem; padding:5px 12px; border-radius:999px; cursor:pointer; transition:.15s; }
+    .chat-chip:hover { border-color:var(--primary); background:#f1f6ff; }
+    .chat-input { display:flex; gap:.6rem; padding:.85rem 1.15rem; border-top:1px solid #eef2f7; align-items:flex-end; }
+    .chat-input textarea { flex:1; resize:none; border:1.5px solid #cbd5e1; border-radius:12px; padding:.6rem .85rem; font-family:inherit; font-size:.86rem; max-height:120px; }
+    .chat-input textarea:focus { outline:none; border-color:var(--primary); }
+    .chat-send { border:0; background:var(--primary); color:#fff; width:44px; height:44px; border-radius:12px; cursor:pointer; flex-shrink:0; font-size:1.1rem; }
+    .chat-send:disabled { opacity:.5; cursor:not-allowed; }
     /* ── Área de impressão / PDF ── */
     #print-area { display: none; }
     .pdf-cab { display:flex; align-items:baseline; gap:12px; border-bottom:3px solid var(--primary); padding-bottom:10px; margin-bottom:20px; flex-wrap:wrap; }
@@ -245,6 +270,7 @@
       <button class="btn btn-toggle"        id="tab-infantil"     onclick="mudarSecao('infantil')"><i class="bi bi-balloon-fill me-2"></i> Infantil</button>
       <button class="btn btn-toggle"        id="tab-devolutivas"  onclick="mudarSecao('devolutivas')"><i class="bi bi-robot me-2"></i> Devolutivas <span class="tab-badge" id="badge-dev" style="display:none">0</span></button>
       <button class="btn btn-toggle"        id="tab-estatisticas" onclick="mudarSecao('estatisticas')"><i class="bi bi-bar-chart-fill me-2"></i> Estatísticas</button>
+      <button class="btn btn-toggle"        id="tab-assistente"   onclick="mudarSecao('assistente')"><i class="bi bi-chat-dots-fill me-2"></i> Assistente</button>
     </div>
   </div>
   <div class="d-flex align-items-center gap-3">
@@ -496,7 +522,7 @@ function mostrarEstado(msg, icone) {
 // ── Navegação ──
 function mudarSecao(sec) {
   secaoAtual = sec;
-  ['fundamental','infantil','devolutivas','estatisticas'].forEach(t => {
+  ['fundamental','infantil','devolutivas','estatisticas','assistente'].forEach(t => {
     const b = document.getElementById('tab-'+t);
     if (b) b.classList.toggle('active', t === sec);
   });
@@ -509,6 +535,8 @@ function mudarSecao(sec) {
     aD.style.display = 'flex'; carregarDevolutivas();
   } else if (sec === 'estatisticas') {
     aE.style.display = 'flex'; renderEstatisticas();
+  } else if (sec === 'assistente') {
+    renderAssistente();                 // sem barra lateral: o chat ocupa a área toda
   } else {
     aP.style.display = 'flex'; mudarSegmento(sec);
   }
@@ -2416,6 +2444,167 @@ function exportarCoberturaCSV() {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
   mostrarToast('CSV exportado!');
+}
+
+// ════════════════════════════════════════════════
+//  Assistente (chatbot) — chave central no Apps Script (GEMINI_KEYS).
+//  O contexto é montado aqui, a partir dos dados JÁ carregados (que as RPCs
+//  filtram por permissão), e enviado ao Apps Script, que chama o Gemini.
+// ════════════════════════════════════════════════
+let _chatHistorico = [];
+let _chatEnviando = false;
+const _CHAT_SUGESTOES = [
+  'Quais os principais desafios da rede?',
+  'Quais escolas estão em risco alto?',
+  'Como está a cobertura por regional?',
+  'O que devo priorizar na próxima etapa?'
+];
+
+function renderAssistente() {
+  const main = document.getElementById('main');
+  const montar = () => {
+    const chips = _CHAT_SUGESTOES.map(q =>
+      `<button class="chat-chip" onclick="enviarPergunta(this.textContent)">${escapar(q)}</button>`).join('');
+    main.innerHTML = `
+      <div class="chat-wrap">
+        <div class="chat-top">
+          <i class="bi bi-robot" style="font-size:1.4rem;color:var(--neon-blue);"></i>
+          <div>
+            <div class="tit">Assistente do MAPA</div>
+            <div class="sub">Responde com base nas visitas e devolutivas às quais você tem acesso.</div>
+          </div>
+        </div>
+        <div class="chat-msgs" id="chatMsgs"></div>
+        <div class="chat-chips" id="chatChips">${chips}</div>
+        <div class="chat-input">
+          <textarea id="chatInput" rows="1" placeholder="Pergunte sobre escolas, regionais, riscos, prioridades…"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarPergunta();}"
+            oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px';"></textarea>
+          <button class="chat-send" id="chatSend" onclick="enviarPergunta()" title="Enviar"><i class="bi bi-send-fill"></i></button>
+        </div>
+      </div>`;
+    _renderChatMsgs();
+    const inp = document.getElementById('chatInput'); if (inp) inp.focus();
+  };
+  if (!devolutivasCarregadas) {
+    main.innerHTML = '<div class="spinner-wrapper"><div class="spinner-border text-primary" role="status"></div></div>';
+    carregarDevolutivas(montar, false);
+  } else montar();
+}
+
+function _renderChatMsgs() {
+  const box = document.getElementById('chatMsgs');
+  if (!box) return;
+  let html;
+  if (!_chatHistorico.length && !_chatEnviando) {
+    html = `<div class="chat-vazio"><i class="bi bi-chat-square-heart"></i>
+      <p>Faça uma pergunta sobre a rede. Ex.: “quais escolas estão em risco alto?” ou “resuma a situação da Regional 3”.</p></div>`;
+  } else {
+    html = _chatHistorico.map(m =>
+      `<div class="chat-b ${m.role==='user'?'user':'bot'}">${m.role==='user'?escapar(m.texto):_mdSimples(m.texto)}</div>`).join('');
+    if (_chatEnviando) html += `<div class="chat-typing"><span></span><span></span><span></span></div>`;
+  }
+  box.innerHTML = html;
+  box.scrollTop = box.scrollHeight;
+  const send = document.getElementById('chatSend'); if (send) send.disabled = _chatEnviando;
+  const chips = document.getElementById('chatChips'); if (chips) chips.style.display = _chatHistorico.length ? 'none' : 'flex';
+}
+
+// markdown mínimo e seguro (escapa antes; só negrito e bullets)
+function _mdSimples(t) {
+  let s = escapar(t);
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/^\s*[-*]\s+(.+)$/gm, '• $1');
+  return s.replace(/\n/g, '<br>');
+}
+
+async function enviarPergunta(texto) {
+  if (_chatEnviando) return;
+  const inp = document.getElementById('chatInput');
+  const pergunta = String(texto || (inp && inp.value) || '').trim();
+  if (!pergunta) return;
+  if (inp) { inp.value = ''; inp.style.height = 'auto'; }
+  const histPrev = _chatHistorico.filter(m => m.texto).slice(-6);
+  _chatHistorico.push({ role: 'user', texto: pergunta });
+  _chatEnviando = true;
+  _renderChatMsgs();
+  try {
+    const res = await chamarAPI('chat', {
+      pergunta: pergunta,
+      contexto: _contextoChat(),
+      historico: JSON.stringify(histPrev)
+    });
+    _chatHistorico.push({ role: 'assistant',
+      texto: (res && res.ok) ? (res.resposta || '(sem resposta)')
+                             : ('⚠️ ' + ((res && res.erro) || 'Não foi possível responder agora.')) });
+  } catch (e) {
+    _chatHistorico.push({ role: 'assistant', texto: '⚠️ Erro de conexão com o assistente: ' + (e.message || e) });
+  } finally {
+    _chatEnviando = false;
+    _renderChatMsgs();
+  }
+}
+
+// Monta o contexto (resumo + devolutivas) a partir dos dados em memória.
+// Como esses dados vieram das RPCs (que filtram por permissão), o contexto já
+// contém apenas o que o usuário logado pode ver.
+function _contextoChat() {
+  const linhas = _construirCobertura(['fundamental','infantil']);
+  const total = linhas.length, vis = linhas.filter(l => l.nVisitas > 0).length;
+  const cob = total ? Math.round(vis / total * 100) : 0;
+
+  const porReg = {};
+  linhas.forEach(l => {
+    const r = (l.regional && l.regional !== '—') ? l.regional : 'Sem regional';
+    const o = porReg[r] || (porReg[r] = { t:0, v:0 }); o.t++; if (l.nVisitas > 0) o.v++;
+  });
+  const regTxt = Object.entries(porReg).sort((a,b) => a[0].localeCompare(b[0]))
+    .map(([r,o]) => `${r}: ${o.v}/${o.t} (${o.t?Math.round(o.v/o.t*100):0}%)`).join('; ');
+
+  const risc = { alto:0, medio:0, baixo:0 };
+  linhas.forEach(l => { const n = _nivelRisco(l); if (risc[n] !== undefined) risc[n]++; });
+
+  const cont = {}; _TEMAS.forEach(t => cont[t.key] = 0);
+  linhas.forEach(l => _temasDaLinha(l).forEach(k => cont[k]++));
+  const temasTxt = _TEMAS.filter(t => cont[t.key] > 0).sort((a,b) => cont[b.key]-cont[a.key])
+    .map(t => `${t.lbl} (${cont[t.key]})`).join('; ');
+
+  let ctx = 'RESUMO DA REDE (apenas escolas que você pode ver):\n';
+  ctx += `- Escolas: ${total} | Visitadas: ${vis} (${cob}%) | Sem visita: ${total - vis}\n`;
+  ctx += `- Cobertura por regional: ${regTxt || '—'}\n`;
+  ctx += `- Risco pedagógico: alto ${risc.alto}, médio ${risc.medio}, baixo ${risc.baixo}\n`;
+  ctx += `- Temas mais frequentes: ${temasTxt || '—'}\n`;
+
+  const rede = todasDevolutivas.filter(d => d._tipo === 'sintese_global');
+  if (rede.length) {
+    ctx += '\nDEVOLUTIVAS DE REDE:\n';
+    rede.forEach(d => { const x = d._dados || {};
+      ctx += `• Rede ${_rotuloSegmento(d["Segmento"]) || ''}: ${x.sintese_executiva || ''}\n`;
+      if ((x.desafios_comuns || []).length) ctx += `  Desafios comuns: ${x.desafios_comuns.join('; ')}\n`;
+      if ((x.alertas_para_gestao || []).length) ctx += `  Alertas: ${x.alertas_para_gestao.join('; ')}\n`;
+    });
+  }
+  const regionais = todasDevolutivas.filter(d => d._tipo === 'regional');
+  if (regionais.length) {
+    ctx += '\nDEVOLUTIVAS REGIONAIS:\n';
+    regionais.forEach(d => { const x = d._dados || {};
+      ctx += `• ${d["Regional"] || 'Regional'} (${_rotuloSegmento(d["Segmento"]) || ''}): ${(x.desafios_comuns || []).slice(0,4).join('; ')}\n`;
+    });
+  }
+
+  const inds = linhas.filter(l => l.dev);
+  if (inds.length) {
+    ctx += `\nDEVOLUTIVAS POR ESCOLA (${inds.length}):\n`;
+    inds.forEach(l => { const d = l.dev;
+      ctx += `• ${l.escola} [${l.regional}] ${l.segmento} — prioridade ${d.prioridade || '?'}, risco ${(d.risco_pedagogico||{}).nivel || '?'}. ${d.sintese_executiva || ''}`;
+      const fr = (d.pontos_fracos || []).slice(0,3).join('; '); if (fr) ctx += ` Pontos fracos: ${fr}.`;
+      ctx += '\n';
+    });
+  }
+
+  const MAX = 60000;   // trava de segurança (tokens / tamanho do POST)
+  if (ctx.length > MAX) ctx = ctx.slice(0, MAX) + '\n[... contexto truncado por tamanho ...]';
+  return ctx;
 }
 
 // ── Inicialização ──
