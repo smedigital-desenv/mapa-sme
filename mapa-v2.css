@@ -479,6 +479,7 @@ hr{ border-color:var(--borda) !important; opacity:1; }
   *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
 }
 
+/* >>> INÍCIO DO BLOCO GERADO POR tools/extrair-claros.py — NÃO EDITAR À MÃO >>> */
 /* ─── 11. CORES CRAVADAS NAS PÁGINAS ────────────────────── */
 /* Gerado por tools/extrair-claros.py. As telas foram escritas para tema
    claro, com a cor fixada em dezenas de classes próprias de cada uma.
@@ -919,6 +920,7 @@ th{
 [style*="color:#ef4444"]{
   color:var(--texto) !important;
 }
+/* <<< FIM DO BLOCO GERADO <<< */
 
 /* ─── 12. FUNDOS CLAROS EM style= ───────────────────────── */
 /* Dezenas de elementos trazem a cor no atributo style, que vence qualquer

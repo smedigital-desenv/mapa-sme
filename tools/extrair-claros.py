@@ -8,7 +8,12 @@ classes próprias de cada tela. A pele mapa-v2.css não tem como adivinhar
 esses nomes, então este script os extrai e emite o bloco de override que
 vai colado no fim da pele.
 
-Uso:  python3 tools/extrair-claros.py > /tmp/bloco.css
+Uso:  python3 tools/extrair-claros.py              (mostra o bloco na tela)
+      python3 tools/extrair-claros.py --aplicar   (grava direto na pele)
+
+Com --aplicar, o bloco é escrito dentro dos marcadores que existem em
+mapa-v2.css. Só o miolo entre eles é trocado; o resto da folha, escrito à
+mão, fica intacto. É essa forma que o workflow de deploy usa.
 """
 
 import os
@@ -16,6 +21,10 @@ import re
 import sys
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PELE = os.path.join(RAIZ, "mapa-v2.css")
+
+MARCA_INI = "/* >>> INÍCIO DO BLOCO GERADO POR tools/extrair-claros.py — NÃO EDITAR À MÃO >>> */"
+MARCA_FIM = "/* <<< FIM DO BLOCO GERADO <<< */"
 
 # seletores que a pele já trata à mão — não repetir
 JA_TRATADOS = {
@@ -171,11 +180,40 @@ def main():
         saida.append("  color:var(--texto) !important;")
         saida.append("}")
 
-    print("\n".join(saida))
-    print(f"\n/* {len(fundos)} fundos, {len(textos)} textos, {len(bordas)} bordas */",
-          file=sys.stderr)
-    print(f"{len(fundos)} fundos, {len(textos)} textos, {len(bordas)} bordas",
-          file=sys.stderr)
+    bloco = "\n".join(saida)
+    resumo = f"{len(fundos)} fundos, {len(textos)} textos, {len(bordas)} bordas"
+
+    if "--aplicar" in sys.argv:
+        aplicar(bloco, resumo)
+    else:
+        print(bloco)
+        print(f"\n/* {resumo} */", file=sys.stderr)
+
+    print(resumo, file=sys.stderr)
+
+
+def aplicar(bloco, resumo):
+    """Troca o miolo entre os marcadores de mapa-v2.css."""
+    with open(PELE, encoding="utf-8") as fh:
+        pele = fh.read()
+
+    i = pele.find(MARCA_INI)
+    j = pele.find(MARCA_FIM)
+    if i == -1 or j == -1 or j < i:
+        sys.exit(
+            "mapa-v2.css sem os marcadores do bloco gerado.\n"
+            "Sem eles não dá para saber o que pode ser trocado e o que foi\n"
+            "escrito à mão, e reescrever a folha inteira apagaria o trabalho\n"
+            "manual. Recoloque as duas linhas e rode de novo:\n"
+            f"  {MARCA_INI}\n  {MARCA_FIM}")
+
+    novo = pele[:i] + MARCA_INI + "\n" + bloco + "\n" + pele[j:]
+    if novo == pele:
+        print("mapa-v2.css já estava em dia", file=sys.stderr)
+        return
+    with open(PELE, "w", encoding="utf-8") as fh:
+        fh.write(novo)
+    print(f"mapa-v2.css atualizado ({resumo})", file=sys.stderr)
 
 
 if __name__ == "__main__":

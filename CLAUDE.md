@@ -246,6 +246,35 @@ workflow `deploy-pages.yml` manualmente pela aba Actions depois de publicar.
 git fetch origin -q && git rev-parse --short origin/main
 ```
 
+### As páginas `-v2` (homologação)
+
+A `develop` carrega uma cópia de cada tela com o sufixo `-v2`, para avaliar o
+visual novo sem tocar nas telas em uso. Elas são **geradas**, não escritas:
+`tools/gerar-v2.py` copia cada página da raiz e acrescenta os atributos de
+tema, o `mapa-v2.css`, o fundo e os defaults do Chart.js. O mesmo comando
+atualiza, dentro de `mapa-v2.css`, o bloco entre os marcadores
+`>>> INÍCIO DO BLOCO GERADO ... >>>` e `<<< FIM DO BLOCO GERADO <<<`, que
+devolve ao tema escuro as cores claras cravadas no CSS embutido das telas.
+
+**Isso roda sozinho no deploy**, dentro de `_src/develop`, antes da montagem
+do site — não é preciso lembrar de rodar nada ao alterar uma tela. Para ver o
+resultado antes de publicar, rode localmente:
+
+```bash
+python3 tools/gerar-v2.py          # regenera as -v2 e o bloco do CSS
+python3 tools/gerar-v2.py --limpar # apaga as -v2
+```
+
+⚠️ **Não edite `*-v2.html` nem o bloco entre os marcadores de `mapa-v2.css`.**
+A próxima publicação reescreve os dois. Ajuste na tela original, ou no CSS
+escrito à mão fora dos marcadores.
+
+⚠️ Se os marcadores sumirem do `mapa-v2.css`, o gerador **para com erro** em
+vez de reescrever a folha inteira — o restante dela é trabalho manual. O passo
+do workflow tem `continue-on-error`, para que uma falha na geração não impeça
+a publicação da produção; quando isso acontece, o resumo da execução avisa e
+o `/teste` sai com as cópias antigas.
+
 ⚠️ **As Edge Functions não vão junto no deploy.** Alterar
 `supabase/functions/central-bridge/index.ts` exige republicar pelo painel do
 Supabase ou pela CLI, **com Verify JWT desligado**; a `coderp-ficha` republica

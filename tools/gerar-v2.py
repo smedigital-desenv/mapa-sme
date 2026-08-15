@@ -14,12 +14,19 @@ uma cópia <nome>-v2.html idêntica, com quatro acréscimos:
 Os links internos passam a apontar para as versões -v2, para a
 navegação não cair na página em uso no meio do teste.
 
+Antes de gerar, roda tools/extrair-claros.py --aplicar, que atualiza o
+bloco de cores cravadas dentro de mapa-v2.css. São duas etapas do mesmo
+serviço: quem mexe no CSS embutido de uma tela precisa das duas, e separá-las
+só cria a chance de rodar uma e esquecer a outra.
+
 Uso:   python3 tools/gerar-v2.py
+       python3 tools/gerar-v2.py --sem-css    (não mexe em mapa-v2.css)
        python3 tools/gerar-v2.py --limpar     (apaga as -v2)
 """
 
 import os
 import re
+import subprocess
 import sys
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -150,10 +157,22 @@ def converter(nome, todas):
     return os.path.basename(destino), None
 
 
+def atualizar_css():
+    script = os.path.join(RAIZ, "tools", "extrair-claros.py")
+    if not os.path.exists(script):
+        return
+    r = subprocess.run([sys.executable, script, "--aplicar"])
+    if r.returncode:
+        sys.exit("extrair-claros.py falhou; as -v2 não foram geradas "
+                 "para não sair CSS e página em versões diferentes.")
+
+
 def main():
     if "--limpar" in sys.argv:
         limpar()
         return
+    if "--sem-css" not in sys.argv:
+        atualizar_css()
     todas = paginas()
     print(f"{len(todas)} páginas encontradas\n")
     ok = falhas = 0
