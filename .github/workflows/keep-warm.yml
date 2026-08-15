@@ -3,6 +3,12 @@ name: Keep Supabase warm
 # Mantém o projeto Supabase (free tier) ativo, evitando a pausa por
 # inatividade que causa o atraso de "acordar o banco" no primeiro acesso.
 # A chave usada é a anon (pública) — a mesma já presente no avaliacao.html.
+#
+# ⚠️ O papel `anon` NÃO tem permissão em nenhuma tabela — de propósito (ver
+# CLAUDE.md, seção 3). Por isso a consulta abaixo responde 401/403, e isso é
+# SUCESSO para este ping: a instância respondeu, logo está acordada. Não
+# "conserte" isso com grant ao anon; só falha de conectividade (5xx/timeout)
+# deve alarmar.
 
 on:
   schedule:
@@ -23,7 +29,10 @@ jobs:
             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
             "${SUPABASE_URL}/rest/v1/base_mapa?select=id&limit=1")
           echo "Supabase respondeu HTTP ${code}"
-          if [ "${code}" != "200" ]; then
-            echo "::error::Supabase nao respondeu 200 (foi ${code})"
-            exit 1
-          fi
+          case "${code}" in
+            200|401|403|404|406)
+              echo "Instancia acordada (qualquer resposta do PostgREST serve)." ;;
+            *)
+              echo "::error::Supabase nao respondeu (HTTP ${code})"
+              exit 1 ;;
+          esac
