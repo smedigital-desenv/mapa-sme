@@ -5184,6 +5184,13 @@ function selecionarUnidade(unidade, ui) {
 // unidade, busca as fichas dela no nível Aluno (que rotula ano e turma) e
 // troca as linhas '—' daquela unidade pelas detalhadas — a árvore passa a
 // mostrar as turmas reais e o recorte por turma funciona.
+function _aplicarDetalheUnidade(det, pac) {
+  pac.linhas = pac.linhas.filter(l => !(l[0] === det.unidade && l[2] === '—')).concat(det.linhas);
+  pac.hierLinhas = (pac.hierLinhas || []).filter(h => !(h[0] === det.unidade && h[2] === '—')).concat(det.hierLinhas);
+  // Se a pessoa tinha clicado no marcador '—', ele deixa de existir agora.
+  if (_hierTurmaAtiva === '—' && _hierUnidadeAtiva === det.unidade) _hierTurmaAtiva = 'TODAS';
+}
+
 let _fichaDetalhePedido = null;
 function _detalharUnidadeFicha(unidade) {
   const pac = pacoteBimestreAtual;
@@ -5198,13 +5205,9 @@ function _detalharUnidadeFicha(unidade) {
   google.script.run.withSuccessHandler(det => {
     if (_fichaDetalhePedido === pedido) _fichaDetalhePedido = null;
     if (!det || !det.ok || !Array.isArray(det.linhas)) return;
-    const atual = pacoteBimestreAtual;
     // O pacote pode ter trocado (outro bimestre/ano) enquanto o detalhe vinha.
-    if (!atual || atual !== pac) return;
-    atual.linhas = atual.linhas.filter(l => !(l[0] === det.unidade && l[2] === '—')).concat(det.linhas);
-    atual.hierLinhas = (atual.hierLinhas || []).filter(h => !(h[0] === det.unidade && h[2] === '—')).concat(det.hierLinhas);
-    // Se a pessoa tinha clicado no marcador '—', ele deixa de existir agora.
-    if (_hierTurmaAtiva === '—' && _hierUnidadeAtiva === det.unidade) _hierTurmaAtiva = 'TODAS';
+    if (pacoteBimestreAtual !== pac) return;
+    _aplicarDetalheUnidade(det, pac);
     renderBimestrePacoteLocal();
   }).withFailureHandler(err => {
     if (_fichaDetalhePedido === pedido) _fichaDetalhePedido = null;
@@ -5412,6 +5415,62 @@ function carregarResumoBimestreRapido() {
 function _usarPacoteBimestre(pacote) {
   _montarSelectAno(pacote.anos || pacote.anosDisponiveis || []);
   renderBimestrePacoteLocal();
+  _prefetchTurmasFicha();
+}
+
+// ── Pré-carregamento das turmas (fonte CODERP) ────────────────────────────
+// Assim que o pacote de rede abre, o detalhe de cada unidade desce em
+// segundo plano (4 por vez): a árvore vai ganhando as turmas reais sem
+// nenhum clique, e clicar numa unidade já detalhada é instantâneo.
+let _fichaPrefetchPacote = null;
+function _prefetchTurmasFicha() {
+  const pac = pacoteBimestreAtual;
+  if (!pac || !Array.isArray(pac.linhas)) return;
+  if (_fichaPrefetchPacote === pac) return;
+  _fichaPrefetchPacote = pac;
+
+  const chaveBim = bimestreAtualKey;
+  const fila = [...new Set(pac.linhas.filter(l => l[2] === '—').map(l => l[0]))];
+  if (!fila.length) return;
+  // A unidade ativa (se houver) vai na frente da fila.
+  if (_hierUnidadeAtiva && _hierUnidadeAtiva !== 'TODAS') {
+    const i = fila.indexOf(_hierUnidadeAtiva);
+    if (i > 0) fila.unshift(fila.splice(i, 1)[0]);
+  }
+
+  let vivos = 0;
+  function proximo() {
+    if (pacoteBimestreAtual !== pac || bimestreAtualKey !== chaveBim) return;
+    if (!fila.length) {
+      if (vivos === 0) {
+        renderBimestrePacoteLocal();
+        // Persiste o pacote já detalhado: recarregar a página não refaz nada.
+        try {
+          _cacheSet(_chavePacoteBimestre(chaveBim, { ano: pacoteBimestreAnoAtual || 'TODOS' }), pac);
+        } catch (e) { /* cache cheio não é erro funcional */ }
+      }
+      return;
+    }
+    const unidade = fila.shift();
+    vivos++;
+    google.script.run.withSuccessHandler(det => {
+      vivos--;
+      if (pacoteBimestreAtual === pac && det && det.ok && Array.isArray(det.linhas)) {
+        _aplicarDetalheUnidade(det, pac);
+        // Atualização leve: só a árvore — o painel inteiro redesenha no fim
+        // (ou na hora, se a unidade detalhada é a que está selecionada).
+        if (_hierUnidadeAtiva === det.unidade) renderBimestrePacoteLocal();
+        else renderHierarquia(_arvoreLocalDoPacote());
+      }
+      proximo();
+    }).withFailureHandler(err => {
+      vivos--;
+      console.warn('[MAPA CODERP] prefetch de turmas falhou para', unidade, err);
+      proximo();
+    }).getDetalheUnidadeFicha(chaveBim, unidade);
+  }
+  const SIMULTANEAS = 4;
+  for (let i = 0; i < SIMULTANEAS; i++) proximo();
 }
 
 function renderBimestrePacoteLocal() {
@@ -7571,6 +7630,10 @@ function _renderTabelaTotal(linhas) {
 
     const fichas = await fichaFichasEscola(bimestre, cod);
     const u = cleanUnit(catalogo.get(cod) || nomeUnidade);
+    // Conta ALUNOS DISTINTOS (REMA) por resposta, não linhas: um item pode ter
+    // mais de uma pergunta por aluno, e contar linhas inflava (ex.: 241
+    // respostas de Música numa turma de 140 alunos). Aluno com respostas
+    // diferentes no mesmo item conta em cada uma — inevitável neste recorte.
     const ag = new Map();
     const alunosPorAT = new Map();
     fichas.forEach(r => {
@@ -7580,7 +7643,8 @@ function _renderTabelaTotal(linhas) {
       const e = corrigirTextoLegivel(r.fne_des || 'Sem eixo');
       const rot = labelRespostaPainel(r.fne_des || '', r.fqr_vl, r.fqr_txt_resp || '');
       const kk = [u, a, t, d, e, rot].join('||');
-      ag.set(kk, (ag.get(kk) || 0) + 1);
+      if (!ag.has(kk)) ag.set(kk, new Set());
+      ag.get(kk).add(r.alu_rema);
       const kh = a + '||' + t;
       if (!alunosPorAT.has(kh)) alunosPorAT.set(kh, new Set());
       alunosPorAT.get(kh).add(r.alu_rema);
@@ -7588,12 +7652,91 @@ function _renderTabelaTotal(linhas) {
     return {
       ok: true,
       unidade: u,
-      linhas: Array.from(ag.entries()).map(([kk, q]) => kk.split('||').concat([q])),
+      linhas: Array.from(ag.entries()).map(([kk, s]) => kk.split('||').concat([s.size])),
       hierLinhas: Array.from(alunosPorAT.entries()).map(([kh, s]) => {
         const p = kh.split('||');
         return [u, p[0], p[1], s.size];
       })
     };
+  }
+
+  // Nomes dos alunos: a API só fornece o REMA; o nome vem da tabela `alunos`
+  // do MAPA (diagnóstica, RLS normal). Sem correspondência, mostra o REMA.
+  let _fichaNomesPromise = null;
+  function fichaNomesAlunos() {
+    if (!_fichaNomesPromise) {
+      _fichaNomesPromise = fetchAll('alunos', 'rema_aluno,nome_aluno')
+        .then(rows => {
+          const m = new Map();
+          (rows || []).forEach(r => {
+            const k = String(r.rema_aluno || '').trim();
+            if (k && r.nome_aluno) m.set(k, String(r.nome_aluno).trim());
+          });
+          return m;
+        })
+        .catch(() => new Map());
+    }
+    return _fichaNomesPromise;
+  }
+
+  // Lista nominal de alunos por resposta (modal do gráfico), via API ao vivo.
+  // Com unidade selecionada é uma chamada (memoizada); com 'TODAS' baixa as
+  // unidades com lançamento do bimestre — pesado na primeira vez, instantâneo
+  // depois que o pré-carregamento das turmas já passou por elas.
+  async function fichaAlunosPorResposta(bimestre, filtros) {
+    const catalogo = await fichaCatalogo();
+    const anoLetivo = fichaAnoLetivo();
+
+    let unis;
+    if (filtros.unidade && filtros.unidade !== 'TODAS') {
+      const alvo = normalizar(cleanUnit(filtros.unidade));
+      unis = [];
+      catalogo.forEach((nome, codigo) => {
+        if (!unis.length && normalizar(cleanUnit(nome)) === alvo) unis.push(codigo);
+      });
+      if (!unis.length) throw new Error('unidade sem código no catálogo: ' + filtros.unidade);
+    } else {
+      const esc = await chamarFichaApi('escola', { anoLetivo: anoLetivo, bimestre: bimestre });
+      unis = Array.from(new Set((esc.fichasAvaliacoesEscola || []).map(r => Number(r.uni_cod))));
+    }
+
+    const nomes = await fichaNomesAlunos();
+    const discFiltro = filtros.disciplina ? String(normalizarDisciplina(filtros.disciplina)).toUpperCase() : '';
+    const eixoFiltro = filtros.tipo ? normalizar(filtros.tipo) : '';
+    const respFiltro = filtros.resposta ? normalizar(filtros.resposta) : '';
+    const anoFiltro = filtros.ano && normalizar(filtros.ano) !== 'TODOS' ? normalizar(filtros.ano) : '';
+    const turmaFiltro = filtros.turma && filtros.turma !== 'TODAS' ? String(filtros.turma).toUpperCase() : '';
+
+    const vistos = new Set();
+    const alunos = [];
+    const LOTE = 5;
+    for (let i = 0; i < unis.length; i += LOTE) {
+      const lote = unis.slice(i, i + LOTE);
+      const partes = await Promise.all(lote.map(u => fichaFichasEscola(bimestre, u)));
+      partes.forEach((fichas, j) => {
+        const u = cleanUnit(catalogo.get(lote[j]) || ('UNIDADE ' + lote[j]));
+        fichas.forEach(r => {
+          const a = normalizar(r.per_cod || '');
+          const t = String(r.tur_cod || '').trim().toUpperCase();
+          if (anoFiltro && a !== anoFiltro) return;
+          if (turmaFiltro && t !== turmaFiltro) return;
+          const d = String(normalizarDisciplina(corrigirTextoLegivel(r.fnc_des || ''))).toUpperCase();
+          if (discFiltro && d !== discFiltro) return;
+          const e = corrigirTextoLegivel(r.fne_des || '');
+          if (eixoFiltro && normalizar(e) !== eixoFiltro) return;
+          const rot = labelRespostaPainel(r.fne_des || '', r.fqr_vl, r.fqr_txt_resp || '');
+          if (respFiltro && normalizar(rot) !== respFiltro) return;
+          const ra = String(r.alu_rema || '').trim();
+          const kv = ra + '||' + u + '||' + a + '||' + t + '||' + normalizar(rot);
+          if (vistos.has(kv)) return;
+          vistos.add(kv);
+          alunos.push({ n: nomes.get(ra) || ('REMA ' + ra), u: u, a: a, t: t, resposta: rot, ra: ra });
+        });
+      });
+    }
+
+    alunos.sort((x, y) => x.u.localeCompare(y.u) || x.a.localeCompare(y.a) || x.t.localeCompare(y.t) || x.n.localeCompare(y.n));
+    return { ok: true, alunos: alunos };
   }
 
   // Fichas ALUNO A ALUNO de um bimestre, para a Análise de Consistência.
@@ -7610,9 +7753,7 @@ function _renderTabelaTotal(linhas) {
     const LOTE = 5;
     for (let i = 0; i < unis.length; i += LOTE) {
       const lote = unis.slice(i, i + LOTE);
-      const partes = await Promise.all(lote.map(u =>
-        chamarFichaApi('aluno', { anoLetivo: anoLetivo, bimestre: bimestre, escola: u })
-          .then(r => r.fichasAvaliacoes || [])));
+      const partes = await Promise.all(lote.map(u => fichaFichasEscola(bimestre, u)));
       partes.forEach((lista, j) => {
         const nome = catalogo.get(lote[j]) || ('UNIDADE ' + lote[j]);
         lista.forEach(r => rows.push({
@@ -8034,6 +8175,15 @@ function _renderTabelaTotal(linhas) {
     async getAlunosPorRespostaBimestre(key, filtros) {
       filtros = filtros || {};
       const bimestre = BIM_KEY_TO_NUM[key] || 1;
+
+      // Caminho principal: fichas aluno a aluno da API, nome via tabela `alunos`.
+      if (fichaApiAtiva()) {
+        try {
+          return await fichaAlunosPorResposta(bimestre, filtros);
+        } catch (err) {
+          console.warn('[MAPA CODERP] lista de alunos: API indisponível, tentando o banco:', err);
+        }
+      }
       const disciplinaFiltro = filtros.disciplina ? String(normalizarDisciplina(filtros.disciplina)).toUpperCase() : '';
       const eixoFiltro = filtros.tipo ? normalizar(filtros.tipo) : '';
       const respostaFiltro = filtros.resposta ? normalizar(filtros.resposta) : '';
