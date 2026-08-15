@@ -2828,7 +2828,10 @@ function _cacheSet(chave, valor) {
 }
 
 function _cacheGet(chave) {
-  if (_cache[chave] && _cache[chave] !== 'loading') return _cache[chave];
+  // Fetch em voo: NÃO servir dado velho do sessionStorage nem sobrescrever o
+  // sentinel 'loading' — quem chamou aguarda o callback da requisição atual.
+  if (_cache[chave] === 'loading') return null;
+  if (_cache[chave]) return _cache[chave];
 
   try {
     const raw = sessionStorage.getItem(_cacheStorageKey(chave));
@@ -2855,11 +2858,22 @@ function _cacheIsFresh(chave) {
   return !!(st && st.loadedAt && Date.now() - st.loadedAt <= _cacheTTL);
 }
 
+// Só resposta com conteúdo real entra no cache: erro ({ok:false}) e pacote
+// vazio são EXIBIDOS, mas não persistidos — senão um timeout ou uma corrida
+// deixa a tela "colada" em vazio/erro pelo TTL inteiro (45 min).
+function _cacheavelResposta(data) {
+  if (!data) return false;
+  if (data.ok === false) return false;
+  if (Array.isArray(data) && !data.length) return false;
+  if (Array.isArray(data.linhas) && !data.linhas.length) return false;
+  return true;
+}
+
 function _withCache(chave, fetchFn, cb, options) {
   options = options || {};
 
   const cached = _cacheGet(chave);
-  if (cached && !options.force) {
+  if (cached && cached.ok !== false && !options.force) {
     cb(cached);
     if (!options.refreshBackground || _cacheIsFresh(chave)) return;
   }
@@ -2871,7 +2885,8 @@ function _withCache(chave, fetchFn, cb, options) {
   _cache[chave] = 'loading';
 
   fetchFn(data => {
-    _cacheSet(chave, data);
+    if (_cacheavelResposta(data)) _cacheSet(chave, data);
+    else delete _cache[chave];   // libera o sentinel sem gravar lixo
     (_cacheCallbacks[chave] || []).forEach(fn => {
       try { fn(data); } catch (e) { console.error('Erro em callback de cache:', e); }
     });
@@ -2913,7 +2928,8 @@ function _rodarFilaPreload() {
 
   try {
     job.fetchFn(data => {
-      _cacheSet(job.chave, data);
+      if (_cacheavelResposta(data)) _cacheSet(job.chave, data);
+      else delete _cache[job.chave];
 
       // IMPORTANTE: quando uma tela chama _withCache enquanto o preload já está
       // carregando a mesma chave, o callback fica em _cacheCallbacks.
@@ -3420,6 +3436,12 @@ function _prefetchHierarquiaBimestre(key, prioridade) {
 }
 
 function _prefetchTotalFiltro(filtros, prioridade) {
+  // Com o pacote do Total já em memória, unidade/turma filtram localmente:
+  // pré-aquecer por hover só desperdiçaria uma reagregação completa da rede.
+  try {
+    if (typeof pacoteTotalAtual !== 'undefined' && typeof _isPacoteTotalValido === 'function'
+        && _isPacoteTotalValido(pacoteTotalAtual)) return;
+  } catch (e) {}
   _preload(
     _chaveTotal(filtros),
     cb => google.script.run
@@ -3521,7 +3543,7 @@ function _setAnoFiltroAtualSeguro(ano, btn) {
 
 function _chavePacoteTotal(filtrosBase) {
   filtrosBase = filtrosBase || {};
-  return ['pacoteTotal_supa_v7_config', filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacoteTotal_supa_v9_coderp', filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _backendTemPacoteTotal() {
@@ -5071,6 +5093,9 @@ function abrirModalAlunos(tipo, labelFiltro) {
 
 let pacoteBimestreAtual = null;
 let pacoteBimestreAnoAtual = 'TODOS';
+// Token de geração: cada carregamento invalida os anteriores. Resposta que
+// chega atrasada (de outra aba/filtro) é descartada em vez de pintar a tela.
+let _bimGen = 0;
 
 const PKG = {
   U: 0,
@@ -5327,9 +5352,14 @@ function iniciarBimestreGenerico(key, label) {
 }
 
 function carregarResumoBimestreRapido() {
+  const gen = ++_bimGen;                 // invalida qualquer resposta em voo
+  const keyReq = bimestreAtualKey;
   const filtrosBase = _filtrosBasePacoteBimestre();
-  const chave = _chavePacoteBimestre(bimestreAtualKey, filtrosBase);
+  const chave = _chavePacoteBimestre(keyReq, filtrosBase);
   const pills = document.getElementById('pillsDisciplinasContainer');
+  // A resposta só pode pintar a tela se este carregamento ainda for o vigente
+  // E a pessoa ainda estiver na MESMA aba de bimestre.
+  const vivo = () => (gen === _bimGen && bimestreAtualKey === keyReq && avaliacaoAtual === keyReq);
 
   const cached = _cacheGet(chave);
   if (cached && cached.ok) {
@@ -5346,13 +5376,17 @@ function carregarResumoBimestreRapido() {
             console.error('Erro ao atualizar pacote do bimestre em segundo plano:', err);
             cb(cached);
           })
-          .getPacoteBimestreRapido(bimestreAtualKey, filtrosBase),
+          .getPacoteBimestreRapido(keyReq, filtrosBase),
         res => {
-          if (res && res.ok) {
-            pacoteBimestreAtual = res;
-            pacoteBimestreAnoAtual = filtrosBase.ano || 'TODOS';
-            _usarPacoteBimestre(res);
-          }
+          if (!vivo()) return;
+          if (!(res && res.ok)) return;
+          // Sem "pisca": só re-renderiza se o conteúdo realmente mudou.
+          const mesmo = Array.isArray(cached.linhas) && Array.isArray(res.linhas)
+            && cached.linhas.length === res.linhas.length
+            && JSON.stringify(cached.disciplinas || []) === JSON.stringify(res.disciplinas || []);
+          pacoteBimestreAtual = res;
+          pacoteBimestreAnoAtual = filtrosBase.ano || 'TODOS';
+          if (!mesmo) _usarPacoteBimestre(res);
         },
         { force: true }
       );
@@ -5380,7 +5414,7 @@ function carregarResumoBimestreRapido() {
             console.warn('Pacote específico do ano falhou; mantendo pacote mestre:', err);
             cb(cachedTodos);
           })
-          .getPacoteBimestreRapido(bimestreAtualKey, filtrosBase),
+          .getPacoteBimestreRapido(keyReq, filtrosBase),
         () => {},
         { refreshBackground: true }
       );
@@ -5404,8 +5438,9 @@ function carregarResumoBimestreRapido() {
         console.error('Erro ao carregar pacote do bimestre:', err);
         cb({ ok: false, message: 'Erro ao carregar pacote do bimestre.', linhas: [], arvore: {}, disciplinas: [] });
       })
-      .getPacoteBimestreRapido(bimestreAtualKey, filtrosBase),
+      .getPacoteBimestreRapido(keyReq, filtrosBase),
     res => {
+      if (!vivo()) return;   // resposta atrasada de outra aba/filtro: descarta
       if (!res || !res.ok) {
         if (pills) pills.innerHTML = `<div class="alert alert-warning w-100 m-0">${escapeHtml(res?.message || 'Erro ao carregar.')}</div>`;
         return;
@@ -5428,6 +5463,16 @@ function _usarPacoteBimestre(pacote) {
 // segundo plano (4 por vez): a árvore vai ganhando as turmas reais sem
 // nenhum clique, e clicar numa unidade já detalhada é instantâneo.
 let _fichaPrefetchPacote = null;
+let _arvRenderTimer = null;
+// A árvore ganha as turmas em segundo plano; redesenhar 1x a cada ~300ms
+// (e não 1x por escola, até 112x) evita travar a interface.
+function _agendarRenderArvore() {
+  if (_arvRenderTimer) return;
+  _arvRenderTimer = setTimeout(() => {
+    _arvRenderTimer = null;
+    try { renderHierarquia(_arvoreLocalDoPacote()); } catch (e) {}
+  }, 300);
+}
 function _prefetchTurmasFicha() {
   const pac = pacoteBimestreAtual;
   if (!pac || !Array.isArray(pac.linhas)) return;
@@ -5435,6 +5480,7 @@ function _prefetchTurmasFicha() {
   _fichaPrefetchPacote = pac;
 
   const chaveBim = bimestreAtualKey;
+  const anoReq = pacoteBimestreAnoAtual || 'TODOS';   // capturado JÁ: o fim da fila não pode ler o ano de outra aba
   const fila = [...new Set(pac.linhas.filter(l => l[2] === '—').map(l => l[0]))];
   if (!fila.length) return;
   // A unidade ativa (se houver) vai na frente da fila.
@@ -5451,7 +5497,7 @@ function _prefetchTurmasFicha() {
         renderBimestrePacoteLocal();
         // Persiste o pacote já detalhado: recarregar a página não refaz nada.
         try {
-          _cacheSet(_chavePacoteBimestre(chaveBim, { ano: pacoteBimestreAnoAtual || 'TODOS' }), pac);
+          _cacheSet(_chavePacoteBimestre(chaveBim, { ano: anoReq }), pac);
         } catch (e) { /* cache cheio não é erro funcional */ }
       }
       return;
@@ -5465,7 +5511,7 @@ function _prefetchTurmasFicha() {
         // Atualização leve: só a árvore — o painel inteiro redesenha no fim
         // (ou na hora, se a unidade detalhada é a que está selecionada).
         if (_hierUnidadeAtiva === det.unidade) renderBimestrePacoteLocal();
-        else renderHierarquia(_arvoreLocalDoPacote());
+        else _agendarRenderArvore();
       }
       proximo();
     }).withFailureHandler(err => {
@@ -5925,6 +5971,9 @@ function abrirModalBimestreRapido(disciplina, tipo, resposta) {
 let _totalPrefetchArvoreKey = '';
 let pacoteTotalAtual = null;
 let pacoteTotalAnoAtual = 'TODOS';
+// Token de geração do Total: resposta atrasada de uma visita anterior à aba
+// não pode sobrescrever a atual (nem pintar a tela de outra aba).
+let _totalGen = 0;
 let _totalPacoteIndex = null;
 let _totalPacoteIndexPkgRef = null;
 const TPKG = { U:0, A:1, T:2, D:3, E:4, P:5, S:6, Q:7 };
@@ -5998,6 +6047,20 @@ function _garantirIndicePacoteTotal(pkg) {
   const arvores = {};
   const vistosArvore = {};
   const linhas = pkg.linhas || [];
+
+  // Turma sem nenhuma resposta pontuável não gera linha de agregado, mas
+  // EXISTE: o pacote traz a lista completa em arvoreLinhas e é ela que
+  // alimenta a árvore primeiro (o dedup em _addArvoreTotalIndex evita
+  // dupla contagem com o laço das linhas logo abaixo).
+  (Array.isArray(pkg.arvoreLinhas) ? pkg.arvoreLinhas : []).forEach(al => {
+    if (!al) return;
+    const unidade = al[0] || 'Sem unidade';
+    const ano = normalizarAnoFiltroFront(al[1] || 'TODOS');
+    const turma = String(al[2] || 'Sem turma').trim().toUpperCase();
+    if (typeof _unidadeMatchFiltro === 'function' && !_unidadeMatchFiltro(unidade)) return;
+    _addArvoreTotalIndex(arvores, vistosArvore, 'TODOS', unidade, turma);
+    if (ano && ano !== 'TODOS') _addArvoreTotalIndex(arvores, vistosArvore, ano, unidade, turma);
+  });
 
   linhas.forEach(row => {
     if (!row) return;
@@ -6220,6 +6283,7 @@ function prepararLayoutTotalSeNecessario() {
 }
 
 function iniciarTotalAvaliacoes() {
+  ++_totalGen;                       // invalida respostas em voo da visita anterior
   prepararLayoutTotalSeNecessario();
 
   totalDisciplinaSelecionada = '';
@@ -6286,6 +6350,8 @@ function _aplicarPacoteTotalCache(pkg, ano) {
 function carregarHierarquiaTotal() {
   prepararLayoutTotalSeNecessario();
 
+  const gen = _totalGen;
+  const vivo = () => (gen === _totalGen && avaliacaoAtual === 'Total');
   const container = document.getElementById('hierarquiaContainerTotal');
   const ano = _filtrosTotal().ano || 'TODOS';
 
@@ -6320,6 +6386,7 @@ function carregarHierarquiaTotal() {
       })
       .getTotalAvaliacoesRapido({ __pacote: true, ano }),
     res => {
+      if (!vivo()) return;   // resposta de uma visita anterior à aba: descarta
       if (_isPacoteTotalValido(res)) {
         _aplicarPacoteTotalCache(res, ano);
       } else {
@@ -6334,6 +6401,7 @@ function carregarHierarquiaTotal() {
             })
             .getHierarquiaTotal({ ano }),
           hres => {
+            if (!vivo()) return;
             if (hres && hres.ok) {
               _hierArvoreTotal = hres.arvore || {};
               renderHierarquiaTotal(_hierArvoreTotal);
@@ -6508,6 +6576,8 @@ function _buscarTotalBackend(filtros, chave, pills) {
 function carregarTotalRapido(forcarAtualizar) {
   prepararLayoutTotalSeNecessario();
 
+  const gen = _totalGen;
+  const vivo = () => (gen === _totalGen && avaliacaoAtual === 'Total');
   const filtros = _filtrosTotal();
   const ano = filtros.ano || 'TODOS';
   const chaveAno = _chavePacoteTotal({ ano });
@@ -6543,6 +6613,7 @@ function carregarTotalRapido(forcarAtualizar) {
       })
       .getTotalAvaliacoesRapido({ __pacote: true, ano }),
     res => {
+      if (!vivo()) return;   // resposta de visita anterior: descarta
       if (_isPacoteTotalValido(res)) {
         _aplicarPacoteTotalCache(res, ano);
         renderTotalPacoteLocal();
@@ -7515,9 +7586,14 @@ function _renderTabelaTotal(linhas) {
     let resp = null;
     try { resp = JSON.parse(texto); } catch (e) { /* resposta não-JSON tratada abaixo */ }
     if (!r.ok) throw new Error('coderp-ficha ' + r.status + ' ' + ((resp && resp.erro) || ''));
-    if (window.MapaFichaCache && resp) window.MapaFichaCache.gravar(corpo, texto);
-    const avisos = ((resp && resp.Messages) || []).filter(m => m && m.Description);
-    if (avisos.length) console.warn('[MAPA CODERP] Messages da API:', avisos);
+    // Só entra no cache local resposta com dado real, ou vazio SEM Messages
+    // (bimestre sem lançamento é legítimo; vazio COM aviso é suspeito e não
+    // pode ficar "colado" por 10 min).
+    const temDado = !!resp && Object.keys(resp).some(k =>
+      k.indexOf('fichasAvaliacoes') === 0 && Array.isArray(resp[k]) && resp[k].length);
+    const msgs = ((resp && resp.Messages) || []).filter(m => m && m.Description);
+    if (window.MapaFichaCache && resp && (temDado || !msgs.length)) window.MapaFichaCache.gravar(corpo, texto);
+    if (msgs.length) console.warn('[MAPA CODERP] Messages da API:', msgs);
     return resp || {};
   }
 
@@ -7543,6 +7619,8 @@ function _renderTabelaTotal(linhas) {
   // Memo das consultas de rede por (bimestre, ano escolar): bimestres, Total e
   // árvore compartilham as mesmas respostas sem repetir chamadas à API.
   const _fichaTurmaMemo = new Map();
+  // Memo do pacote do Total por filtro (TTL 10 min, alinhado às outras camadas).
+  const _totalPacoteMemo = new Map();
   function fichaRedeTurma(bimestre, anoEsc) {
     const k = bimestre + '|' + anoEsc;
     if (!_fichaTurmaMemo.has(k)) {
@@ -7639,9 +7717,12 @@ function _renderTabelaTotal(linhas) {
       try {
         const rows = await fichaAlunosBimestre(b);
         algumaFonte = true;
+        // r[9] = texto da resposta: sem ele, resposta que só existe como texto
+        // vira null no score e a turma inteira some do Total.
         rows.forEach(r => grupos.push([
           b, r.nome_unidade, r.ano_escolar || 'TODOS', String(r.turma || '—'),
-          r.fnc_disciplina, r.descricao_fne, r.valor_resposta, r.valor_resposta, 1
+          r.fnc_disciplina, r.descricao_fne, r.valor_resposta, r.valor_resposta, 1,
+          r.texto_resposta || ''
         ]));
       } catch (err) {
         console.warn(`[MAPA CODERP] Total: nível aluno indisponível no bim ${b}, usando agregado:`, err);
@@ -7654,7 +7735,7 @@ function _renderTabelaTotal(linhas) {
             const u = catalogo.get(Number(r.uni_cod)) || ('UNIDADE ' + r.uni_cod);
             grupos.push([b, u, FICHA_ANOS_ESCOLARES[i], '—',
                          corrigirTextoLegivel(r.fnc_des || ''), corrigirTextoLegivel(r.fne_des || ''),
-                         r.fqr_vl, r.fqr_vl, qtd]);
+                         r.fqr_vl, r.fqr_vl, qtd, r.fqr_txt_resp || '']);
             algumaFonte = true;
           }));
         } catch (e2) {
@@ -7807,7 +7888,22 @@ function _renderTabelaTotal(linhas) {
   // Descobre as unidades com lançamento (1 chamada de escola) e baixa cada uma
   // pela Edge Function, em lotes, devolvendo linhas no formato da antiga
   // tabela `bimestres` (a API não fornece nome do aluno — só o REMA).
-  async function fichaAlunosBimestre(bimestre, aoProgresso) {
+  // Memo por bimestre: montar essas linhas percorre a rede inteira (milhões de
+  // objetos) — sem memo, Total + árvore + auditoria repetiam o trabalho todo,
+  // travando a interface por longos períodos.
+  const _fichaAlunosBimMemo = new Map();
+  function fichaAlunosBimestre(bimestre, aoProgresso) {
+    if (_fichaAlunosBimMemo.has(bimestre)) {
+      const p = _fichaAlunosBimMemo.get(bimestre);
+      if (aoProgresso) p.then(() => aoProgresso(1, 1)).catch(() => {});
+      return p;
+    }
+    const p = _fichaAlunosBimestreImpl(bimestre, aoProgresso)
+      .catch(err => { _fichaAlunosBimMemo.delete(bimestre); throw err; });
+    _fichaAlunosBimMemo.set(bimestre, p);
+    return p;
+  }
+  async function _fichaAlunosBimestreImpl(bimestre, aoProgresso) {
     const catalogo = await fichaCatalogo();
     const anoLetivo = fichaAnoLetivo();
     const esc = await chamarFichaApi('escola', { anoLetivo: anoLetivo, bimestre: bimestre });
@@ -8288,6 +8384,14 @@ function _renderTabelaTotal(linhas) {
       const unidadeFiltro = filtros.unidade || 'TODAS';
       const turmaFiltro = filtros.turma || 'TODAS';
 
+      // Memo do pacote por filtro (10 min): dois carregadores concorrentes
+      // (hierarquia + painel) e os hovers não refazem a agregação da rede.
+      const memoK = pacote ? ['pac', anoFiltro, unidadeFiltro, turmaFiltro].join('|') : null;
+      if (memoK) {
+        const m = _totalPacoteMemo.get(memoK);
+        if (m && Date.now() - m.ts < 600000) return m.valor;
+      }
+
       // Bimestres: caminho principal é a API do CODERP ao vivo (mesmo formato
       // de grupos da RPC). Se falhar, cai para a agregação no servidor.
       let bimestreGrupos = null;
@@ -8315,6 +8419,7 @@ function _renderTabelaTotal(linhas) {
       ]);
 
       const ag = new Map();
+      const hierSet = new Set();   // unidade||ano||turma — TODAS as turmas vistas
 
       function passaFiltros(u, a, t) {
         if (anoFiltro && anoFiltro !== 'TODOS' && a !== anoFiltro) return false;
@@ -8331,6 +8436,10 @@ function _renderTabelaTotal(linhas) {
         const a = normalizar(r.ano_escolar || 'TODOS') || 'TODOS';
         const t = String(r.turma || 'Sem turma').trim().toUpperCase();
         if (!passaFiltros(u, a, t)) return;
+
+        // Árvore lateral: toda turma vista ENTRA, avaliada ou não. Sem isto,
+        // turma 100% "Não Avaliado" (score null) sumia da lista do Total.
+        hierSet.add(u + '||' + a + '||' + t);
 
         const d = disciplinaFixa || normalizarDisciplina(r[disciplinaCampo] || 'Sem disciplina');
         const e = normalizarEixoTotal(r.descricao_fne || 'Sem eixo');
@@ -8355,7 +8464,7 @@ function _renderTabelaTotal(linhas) {
         bimestreGrupos.forEach(r => {
           const arr = Array.isArray(r);
           addTotal(
-            arr ? { nome_unidade: r[1], ano_escolar: r[2], turma: r[3], fnc_disciplina: r[4], descricao_fne: r[5], valor_resposta: r[6], codigo_resposta: r[7] } : r,
+            arr ? { nome_unidade: r[1], ano_escolar: r[2], turma: r[3], fnc_disciplina: r[4], descricao_fne: r[5], valor_resposta: r[6], codigo_resposta: r[7], texto_resposta: r[9] || '' } : r,
             campoBim(Number((arr ? r[0] : r.bimestre) || 1)), 'fnc_disciplina', null, (arr ? r[8] : r.qtd)
           );
         });
@@ -8368,7 +8477,12 @@ function _renderTabelaTotal(linhas) {
           const parts = k.split('||');
           return [parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], v.soma, v.qtd];
         });
-        return { ok: true, linhas, generatedAt: new Date().toISOString() };
+        // arvoreLinhas = lista COMPLETA de turmas vistas (com ou sem score):
+        // é dela que a árvore lateral do Total nasce.
+        const arvoreLinhas = Array.from(hierSet, s => s.split('||'));
+        const out = { ok: true, linhas, arvoreLinhas, generatedAt: new Date().toISOString() };
+        if (memoK) _totalPacoteMemo.set(memoK, { ts: Date.now(), valor: out });
+        return out;
       }
 
       const obj = {};

@@ -445,7 +445,17 @@
               }).then(function (r) {
                 if (!r || !r.ok) return r;
                 return r.text().then(function (texto) {
-                  MapaFichaCache.gravar(chave, texto);
+                  // Só grava resposta com dado real, ou vazio sem Messages —
+                  // erro "HTTP 200" da API não pode envenenar o cache por 10 min.
+                  var resp = null; try { resp = JSON.parse(texto); } catch (e) {}
+                  var temDado = false, temMsg = false;
+                  if (resp) {
+                    for (var k in resp) {
+                      if (k.indexOf('fichasAvaliacoes') === 0 && resp[k] && resp[k].length) { temDado = true; break; }
+                    }
+                    temMsg = !!(resp.Messages && resp.Messages.length);
+                  }
+                  if (resp && (temDado || !temMsg)) MapaFichaCache.gravar(chave, texto);
                   return { json: function () { return Promise.resolve(JSON.parse(texto)) } };
                 });
               });
