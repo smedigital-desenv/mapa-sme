@@ -125,8 +125,11 @@ caminho. Peculiaridades já tratadas no código — não "simplificar":
 
 - `qtd_alunos` chega como **texto**; "não avaliado" chega em **4 grafias**
   (a rotulagem por `fqr_vl` via `labelRespostaPainel` resolve);
-- o nível agregado **não rotula turma** (`per_cod`/`tur_cod` vazios) — a turma
-  aparece como `—` no pacote;
+- o nível agregado **não rotula turma** (`per_cod`/`tur_cod` vazios, mesmo
+  filtrando por turma) e não há endpoint que liste as turmas existentes — a
+  turma entra como `—` no pacote de rede e, ao clicar numa unidade, o detalhe
+  real (ano/turma por aluno) vem de UMA chamada `IndicadorAluno` da escola e
+  substitui as linhas `—` daquela unidade (`getDetalheUnidadeFicha`);
 - um item pode ter **mais de uma pergunta por aluno**: o total de alunos por
   unidade×ano é o **mínimo** das somas por item (validado contra o nível
   aluno: 231×235 na escola de teste), não o máximo nem a média;
