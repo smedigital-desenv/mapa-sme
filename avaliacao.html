@@ -1235,12 +1235,14 @@
     <div id="subNavAvaliacoes" class="d-flex flex-wrap gap-2 align-items-center">
       <button type="button" class="btn-toggle active" data-sub="Rede" onclick="abrirSubRede(this)"><i class="bi bi-people-fill me-1"></i>Rede</button>
       <button type="button" class="btn-toggle" data-avaliacao="AnoEscolar" onclick="abrirAvaliacao('AnoEscolar', this)">Diagnóstica</button>
-      <button type="button" class="btn-toggle" data-avaliacao="primeiroBimestre" onclick="abrirAvaliacao('primeiroBimestre', this)">1º Bim.</button>
+      <!-- Abas ocultas temporariamente (apresentação): 1º bim removido do banco; 3º/4º sem dados;
+           Total/Auditoria dependem do 1º bim. Para reexibir, remova o style="display:none". -->
+      <button type="button" class="btn-toggle" data-avaliacao="primeiroBimestre" onclick="abrirAvaliacao('primeiroBimestre', this)" style="display:none">1º Bim.</button>
       <button type="button" class="btn-toggle" data-avaliacao="segundoBimestre" onclick="abrirAvaliacao('segundoBimestre', this)">2º Bim.</button>
-      <button type="button" class="btn-toggle" data-avaliacao="terceiroBimestre" onclick="abrirAvaliacao('terceiroBimestre', this)">3º Bim.</button>
-      <button type="button" class="btn-toggle" data-avaliacao="quartoBimestre" onclick="abrirAvaliacao('quartoBimestre', this)">4º Bim.</button>
-      <button type="button" class="btn-toggle" data-avaliacao="Total" onclick="abrirAvaliacao('Total', this)">Total</button>
-      <button type="button" class="btn-toggle" data-avaliacao="Auditoria" onclick="abrirAvaliacao('Auditoria', this)"><i class="bi bi-shield-check me-1"></i>Análise de Consistência</button>
+      <button type="button" class="btn-toggle" data-avaliacao="terceiroBimestre" onclick="abrirAvaliacao('terceiroBimestre', this)" style="display:none">3º Bim.</button>
+      <button type="button" class="btn-toggle" data-avaliacao="quartoBimestre" onclick="abrirAvaliacao('quartoBimestre', this)" style="display:none">4º Bim.</button>
+      <button type="button" class="btn-toggle" data-avaliacao="Total" onclick="abrirAvaliacao('Total', this)" style="display:none">Total</button>
+      <button type="button" class="btn-toggle" data-avaliacao="Auditoria" onclick="abrirAvaliacao('Auditoria', this)" style="display:none"><i class="bi bi-shield-check me-1"></i>Análise de Consistência</button>
     </div>
   </div>
 
@@ -2975,7 +2977,8 @@ function _chaveBimestre(key, filtros) {
 
 function _chavePacoteBimestre(key, filtrosBase) {
   filtrosBase = filtrosBase || {};
-  return ['pacote_bim_supa_v7_config', key, filtrosBase.ano || 'TODOS'].join('|');
+  // v8: fonte CODERP ao vivo — invalida os pacotes v7 (banco) já em cache.
+  return ['pacote_bim_supa_v8_coderp', key, filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _chaveTotal(filtros) {
@@ -5659,7 +5662,9 @@ function abrirDetalheEixo(disciplina, eixo) {
   filtros.eixo = eixo;
 
   _withCache(_chaveDetalhe(bimestreAtualKey, filtros),
-    cb => google.script.run.withSuccessHandler(r => cb(r)).getDetalheEixo(bimestreAtualKey, filtros),
+    cb => google.script.run.withSuccessHandler(r => cb(r))
+      .withFailureHandler(err => { console.error('[MAPA] detalhe do eixo indisponível:', err); cb(null); })
+      .getDetalheEixo(bimestreAtualKey, filtros),
     res => {
       if (!res?.ok || !Object.keys(res.perguntas || {}).length) {
         area.innerHTML = `<div class="col-12"><div class="alert alert-info m-0">Não há perguntas detalhadas para este eixo.</div></div>`;
@@ -5791,7 +5796,7 @@ function abrirModalBimestreRapido(disciplina, tipo, resposta) {
   new bootstrap.Modal(document.getElementById('modalChartDetails')).show();
 
   google.script.run.withSuccessHandler(res => {
-    const alunos = res.alunos || [];
+    const alunos = (res && res.alunos) || [];
     const tituloR = resposta ? ` → ${escapeHtml(resposta)}` : ' (todos)';
     document.getElementById('modalChartTitle').innerHTML =
       `<i class="bi bi-pie-chart-fill me-2"></i>${escapeHtml(disciplina)} — ${escapeHtml(tipo)}${tituloR}
@@ -5811,6 +5816,12 @@ function abrirModalBimestreRapido(disciplina, tipo, resposta) {
         <td class="text-center"><span class="badge-avaliacao" style="background:${cor};color:${getTextColor(cor)};">${escapeHtml(al.resposta)}</span></td>
       </tr>`;
     }).join('') || `<tr><td colspan="5" class="text-center p-3">Nenhum aluno encontrado.</td></tr>`;
+  }).withFailureHandler(err => {
+    console.error('[MAPA] lista de alunos indisponível:', err);
+    document.getElementById('modalChartTitle').innerHTML =
+      `<i class="bi bi-exclamation-triangle me-2"></i>Lista de alunos indisponível`;
+    document.getElementById('tbodyChartDetails').innerHTML =
+      `<tr><td class="text-center p-4 text-muted">A relação nominal por resposta não está disponível nesta fonte de dados.</td></tr>`;
   }).getAlunosPorRespostaBimestre(bimestreAtualKey, filtros);
 }
 </script>
@@ -7333,6 +7344,119 @@ function _renderTabelaTotal(linhas) {
     };
   }
 
+  // ── Fonte CODERP — API ObterFichaAvaliacao, consumida AO VIVO ─────────────
+  // Os bimestres vêm da API do CODERP pela Edge Function `coderp-ficha`, que
+  // guarda o token e refaz a checagem de permissão no banco. NADA é gravado
+  // no banco do MAPA: a API existe para não inflar o consumo da instância.
+  // `?coderp=0` desliga e volta para a RPC do banco (dados importados).
+  const FICHA_FN_URL = supabaseUrl + '/functions/v1/coderp-ficha';
+  const FICHA_ANOS_ESCOLARES = ['1 ANO', '2 ANO', '3 ANO', '4 ANO', '5 ANO'];
+
+  function fichaApiAtiva() {
+    try {
+      if (new URLSearchParams(location.search).get('coderp') === '0') return false;
+    } catch (e) { /* URLSearchParams sempre existe nos navegadores atendidos */ }
+    return true;
+  }
+
+  async function chamarFichaApi(nivel, parms) {
+    const tok = window.MapaAuth && window.MapaAuth.token ? await window.MapaAuth.token() : null;
+    if (!tok) throw new Error('sessão do MAPA indisponível');
+    const r = await fetch(FICHA_FN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+      body: JSON.stringify({ nivel, parms })
+    });
+    const resp = await r.json().catch(() => null);
+    if (!r.ok) throw new Error('coderp-ficha ' + r.status + ' ' + ((resp && resp.erro) || ''));
+    const avisos = ((resp && resp.Messages) || []).filter(m => m && m.Description);
+    if (avisos.length) console.warn('[MAPA CODERP] Messages da API:', avisos);
+    return resp || {};
+  }
+
+  // Catálogo código CODERP -> nome oficial da unidade (uma busca por sessão).
+  let _fichaCatalogoPromise = null;
+  function fichaCatalogo() {
+    if (!_fichaCatalogoPromise) {
+      _fichaCatalogoPromise = supa.from('escolas_catalogo').select('codigo,nome')
+        .then(({ data, error }) => {
+          if (error) throw error;
+          const m = new Map();
+          (data || []).forEach(e => m.set(Number(e.codigo), String(e.nome || '').trim()));
+          return m;
+        })
+        .catch(err => { _fichaCatalogoPromise = null; throw err; });
+    }
+    return _fichaCatalogoPromise;
+  }
+
+  // Monta, a partir da API ao vivo, o MESMO pacote que pacoteDeGrupos() monta
+  // a partir do banco — o restante da tela não muda.
+  //
+  // Granularidade: unidade × ano escolar. O nível agregado da API não rotula
+  // a turma (per_cod/tur_cod voltam vazios), então a turma aparece como '—'.
+  // Uma chamada por ano escolar: IndicadorTurma sem `escola` devolve a rede
+  // inteira aberta por unidade, filtrada pelo `anoescolar`.
+  async function pacoteViaFichaApi(bimestre, anoFiltro) {
+    const anoLetivo = new Date().getFullYear();
+    const anos = (anoFiltro && anoFiltro !== 'TODOS') ? [normalizar(anoFiltro)] : FICHA_ANOS_ESCOLARES;
+
+    const [catalogo, ...respostas] = await Promise.all([
+      fichaCatalogo(),
+      ...anos.map(a => chamarFichaApi('turma', { anoLetivo: anoLetivo, bimestre: bimestre, anoescolar: a }))
+    ]);
+
+    const ag = new Map();
+    const disciplinas = new Set();
+    const anosSet = new Set();
+    const porItem = new Map(); // unidade||ano -> (disciplina||eixo -> total de alunos)
+
+    respostas.forEach((resp, i) => {
+      const anoEsc = anos[i];
+      (resp.fichasAvaliacoesTurma || []).forEach(r => {
+        const qtd = Number(r.qtd_alunos || 0);   // a API devolve como texto
+        if (!qtd) return;
+        const u = cleanUnit(catalogo.get(Number(r.uni_cod)) || ('UNIDADE ' + r.uni_cod));
+        const a = normalizar(anoEsc);
+        const d = normalizarDisciplina(corrigirTextoLegivel(r.fnc_des || '') || 'Sem disciplina');
+        const e = corrigirTextoLegivel(r.fne_des || 'Sem eixo');
+        // Mesma rotulagem do caminho do banco: fqr_vl é o código, fqr_txt_resp
+        // o texto (que a normVl/labelRespostaPainel também usa para "Não
+        // Avaliado" nas quatro grafias que a API devolve).
+        const rot = labelRespostaPainel(r.fne_des || '', r.fqr_vl, r.fqr_txt_resp || '');
+        const k = [u, a, '—', d, e, rot].join('||');
+        ag.set(k, (ag.get(k) || 0) + qtd);
+        disciplinas.add(d);
+        anosSet.add(a);
+
+        const kh = u + '||' + a;
+        const ki = d + '||' + e;
+        if (!porItem.has(kh)) porItem.set(kh, new Map());
+        const itens = porItem.get(kh);
+        itens.set(ki, (itens.get(ki) || 0) + qtd);
+      });
+    });
+
+    // Alunos por unidade/ano: todo aluno tem resposta em todo item (inclusive
+    // "Não Avaliado"), mas um item pode ter MAIS DE UMA pergunta por aluno
+    // (ex.: Ciências/Matéria e Energia tem 3). A soma de um item é, portanto,
+    // alunos × nº de perguntas — e o MÍNIMO entre os itens (os de pergunta
+    // única) é o total de alunos. Conferido contra o nível aluno da API.
+    const hierLinhas = Array.from(porItem.entries()).map(([kh, itens]) => {
+      const partes = kh.split('||');
+      return [partes[0], partes[1], '—', Math.min.apply(null, Array.from(itens.values()))];
+    });
+
+    return {
+      ok: true,
+      linhas: Array.from(ag.entries()).map(([k, qtd]) => k.split('||').concat([qtd])),
+      hierLinhas: hierLinhas,
+      disciplinas: Array.from(disciplinas).sort(),
+      anos: Array.from(anosSet).sort(),
+      generatedAt: new Date().toISOString()
+    };
+  }
+
   // ── Agregação server-side (RPC) — evita baixar a tabela bimestres inteira ──
   // Chama a função SQL agrupar_bimestres; lança erro se a RPC não existir.
   async function rpcAgruparBimestres({ bimestre = null, anoLike = null, unidade = null, turma = null, incluirHier = true } = {}) {
@@ -7617,9 +7741,20 @@ function _renderTabelaTotal(linhas) {
     async getPacoteBimestreRapido(key, filtros) {
       const bimestre = BIM_KEY_TO_NUM[key] || 1;
       const ano = normalizar((filtros && filtros.ano) || 'TODOS');
+
+      // Caminho principal: API do CODERP ao vivo. Se falhar (permissão, rede,
+      // função fora do ar), cai para a RPC do banco — que aplica o RLS normal.
+      if (fichaApiAtiva()) {
+        try {
+          return await pacoteViaFichaApi(bimestre, ano);
+        } catch (err) {
+          console.warn('[MAPA CODERP] API da ficha indisponível, usando o banco:', err);
+        }
+      }
+
       const anoLike = (ano && ano !== 'TODOS') ? `%${ano.replace(' ANO', '')}%` : null;
 
-      // Caminho rápido: agregação no servidor (poucos KB)
+      // Caminho reserva: agregação no servidor (poucos KB)
       try {
         const { grupos, hier } = await rpcAgruparBimestres({ bimestre, anoLike });
         return pacoteDeGrupos(grupos, hier);
