@@ -105,7 +105,12 @@ e **nunca vai para o navegador nem para este repositório**. A função:
    aluno) exigem visão de rede. Abrir o recorte por unidade exige antes mapear
    o código CODERP (`uni_cod`) para o catálogo `escolas`;
 3. injeta o token e repassa a consulta (níveis: `/IndicadorRede`, `/IndicadorEscola`,
-   `/IndicadorTurma`, `/IndicadorAluno`), devolvendo a resposta como veio.
+   `/IndicadorTurma`, `/IndicadorAluno`), devolvendo a resposta como veio;
+4. mantém **cache em memória de 10 min** das respostas pequenas (níveis
+   agregados) — a permissão é checada por requisição ANTES do cache, que
+   guarda só a resposta do CODERP. O `auth.js` **pré-aquece** esse cache de
+   qualquer tela (consultas de rede dos 4 bimestres em segundo plano), então
+   abrir Avaliações é rápido mesmo na primeira vez.
 
 Secrets: `CODERP_TOKEN` (obrigatório) e `CODERP_URL` (opcional; o padrão é o
 ambiente `dsv`).

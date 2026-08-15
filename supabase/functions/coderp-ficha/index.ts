@@ -61,6 +61,36 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+// ── Cache em memória das respostas do CODERP ────────────────────────────────
+// A mesma consulta de rede é repetida por todo usuário que abre a tela; o
+// CODERP leva segundos para responder e o dado bimestral não muda minuto a
+// minuto. Respostas pequenas (níveis agregados) ficam 10 minutos em memória:
+// o primeiro acesso aquece para todos e os demais respondem na hora, sem
+// tocar o CODERP. A PERMISSÃO É CHECADA ANTES do cache, por requisição — o
+// cache guarda só a resposta do CODERP, nunca decide quem pode ver.
+// Respostas grandes (nível aluno) ficam de fora para não estourar a memória
+// do isolate. O cache morre com o isolate — é otimização, não fonte.
+const CACHE_TTL_MS = 10 * 60 * 1000;
+const CACHE_MAX_BYTES = 400_000;      // só respostas até ~400 kB entram
+const CACHE_MAX_ITENS = 60;
+const _cache = new Map<string, { t: number; corpo: string }>();
+
+function cacheLe(chave: string): string | null {
+  const hit = _cache.get(chave);
+  if (!hit) return null;
+  if (Date.now() - hit.t > CACHE_TTL_MS) { _cache.delete(chave); return null; }
+  return hit.corpo;
+}
+
+function cacheGrava(chave: string, corpo: string) {
+  if (corpo.length > CACHE_MAX_BYTES) return;
+  if (_cache.size >= CACHE_MAX_ITENS) {
+    const primeira = _cache.keys().next().value;
+    if (primeira !== undefined) _cache.delete(primeira);
+  }
+  _cache.set(chave, { t: Date.now(), corpo });
+}
+
 function json(body: unknown, status = 200) {
   if (status >= 400) console.error(`[coderp-ficha] ${status}`, JSON.stringify(body));
   return new Response(JSON.stringify(body), {
@@ -139,6 +169,16 @@ Deno.serve(async (req) => {
     }
     const urlBase = (Deno.env.get('CODERP_URL') || URL_BASE_PADRAO).replace(/\/+$/, '');
 
+    // Cache: a chave é a consulta inteira (nível + parâmetros), nunca o
+    // usuário — a permissão já foi decidida acima, por requisição.
+    const chaveCache = chaveNivel + '|' + JSON.stringify(parms);
+    const emCache = cacheLe(chaveCache);
+    if (emCache !== null) {
+      return new Response(emCache, {
+        headers: { ...CORS, 'Content-Type': 'application/json', 'X-Cache': 'hit' },
+      });
+    }
+
     console.log(`[coderp-ficha] ${quem.user.email} -> ${nivel.endpoint}`
       + ` ano=${parms.anoLetivo} bim=${parms.bimestre}`);
 
@@ -167,6 +207,7 @@ Deno.serve(async (req) => {
     }
     if (!r.ok) return json({ erro: 'coderp_recusou', status: r.status, resposta }, 502);
 
+    cacheGrava(chaveCache, texto);
     return json(resposta);
   } catch (e) {
     console.error('[coderp-ficha] excecao', e instanceof Error ? e.stack : String(e));

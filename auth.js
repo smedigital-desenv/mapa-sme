@@ -346,5 +346,38 @@
 
     gateOff();
     document.dispatchEvent(new CustomEvent('mapa-auth-pronto', { detail: api }));
+
+    // ── Pré-aquecimento da Ficha CODERP ────────────────────────────────────
+    // De QUALQUER tela do MAPA (menos a própria Avaliações, que faz as suas
+    // consultas), dispara em segundo plano as consultas de rede dos 4
+    // bimestres. Elas enchem o cache de 10 min da Edge Function coderp-ficha:
+    // quando a pessoa abrir Avaliações, as respostas saem na hora, sem
+    // esperar o CODERP. Fire-and-forget — falha aqui não afeta tela nenhuma.
+    if (!/avaliacao\.html/i.test(location.pathname)) {
+      setTimeout(function () {
+        var fila = [];
+        [1, 2, 3, 4].forEach(function (b) {
+          ['1 ANO', '2 ANO', '3 ANO', '4 ANO', '5 ANO'].forEach(function (a) {
+            fila.push({ bimestre: b, anoescolar: a });
+          });
+        });
+        var anoLetivo = new Date().getFullYear();
+        function proxima() {
+          var p = fila.shift();
+          if (!p) return;
+          api.token().then(function (tok) {
+            if (!tok) return null;
+            return fetchOriginal(MAPA_CFG.url + '/functions/v1/coderp-ficha', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+              body: JSON.stringify({ nivel: 'turma',
+                parms: { anoLetivo: anoLetivo, bimestre: p.bimestre, anoescolar: p.anoescolar } })
+            });
+          }).catch(function () {}).then(function () { proxima(); });
+        }
+        // 3 consultas simultâneas: aquece rápido sem disputar rede com a tela.
+        proxima(); proxima(); proxima();
+      }, 2500);
+    }
   })();
 })();
