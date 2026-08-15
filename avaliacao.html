@@ -5144,7 +5144,12 @@ function renderHierarquia(arvore) {
   }
 
   container.innerHTML = unidades.map((u, ui) => {
-    const turmas = Object.keys(_hierArvore[u] || {}).sort();
+    const todasTurmas = Object.keys(_hierArvore[u] || {}).sort();
+    // '—' marca contagem ESTIMADA (fonte CODERP, detalhe ainda não chegou).
+    // Para não dar a impressão de "números subindo", a unidade mostra '…' até
+    // o número exato chegar — ele aparece uma vez só, já correto.
+    const detalhada = !(todasTurmas.length === 1 && todasTurmas[0] === '—');
+    const turmas = todasTurmas.filter(t => t !== '—');
     const totalU = Object.values(_hierArvore[u] || {}).reduce((a, b) => a + Number(b || 0), 0);
     const ativaU = _hierUnidadeAtiva === u;
 
@@ -5155,7 +5160,7 @@ function renderHierarquia(arvore) {
         <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(u)}">
           ${escapeHtml(u)}
         </span>
-        <span class="hier-count ms-2">${totalU}</span>
+        <span class="hier-count ms-2">${detalhada ? totalU : '…'}</span>
       </div>
       <div class="hier-turmas" style="${ativaU ? 'display:block' : 'display:none'}">
         ${turmas.map(t => `
