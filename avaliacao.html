@@ -2980,7 +2980,7 @@ function _chavePacoteBimestre(key, filtrosBase) {
 }
 
 function _chaveTotal(filtros) {
-  return ['total_supa_v7_config', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
+  return ['total_supa_v8_coderp', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
 }
 
 function _chaveDetalhe(key, filtros) {
@@ -2996,7 +2996,7 @@ function _chaveBimestreCompleto(key) {
 }
 
 function _chaveHierarquiaTotal(ano) {
-  return ['hier_total_supa_v7_config', ano || 'TODOS'].join('|');
+  return ['hier_total_supa_v8_coderp', ano || 'TODOS'].join('|');
 }
 
 // ===========================================================
@@ -7388,6 +7388,22 @@ function _renderTabelaTotal(linhas) {
     return _fichaCatalogoPromise;
   }
 
+  function fichaAnoLetivo() { return new Date().getFullYear(); }
+
+  // Memo das consultas de rede por (bimestre, ano escolar): bimestres, Total e
+  // árvore compartilham as mesmas respostas sem repetir chamadas à API.
+  const _fichaTurmaMemo = new Map();
+  function fichaRedeTurma(bimestre, anoEsc) {
+    const k = bimestre + '|' + anoEsc;
+    if (!_fichaTurmaMemo.has(k)) {
+      _fichaTurmaMemo.set(k,
+        chamarFichaApi('turma', { anoLetivo: fichaAnoLetivo(), bimestre: bimestre, anoescolar: anoEsc })
+          .then(r => r.fichasAvaliacoesTurma || [])
+          .catch(err => { _fichaTurmaMemo.delete(k); throw err; }));
+    }
+    return _fichaTurmaMemo.get(k);
+  }
+
   // Monta, a partir da API ao vivo, o MESMO pacote que pacoteDeGrupos() monta
   // a partir do banco — o restante da tela não muda.
   //
@@ -7396,12 +7412,11 @@ function _renderTabelaTotal(linhas) {
   // Uma chamada por ano escolar: IndicadorTurma sem `escola` devolve a rede
   // inteira aberta por unidade, filtrada pelo `anoescolar`.
   async function pacoteViaFichaApi(bimestre, anoFiltro) {
-    const anoLetivo = new Date().getFullYear();
     const anos = (anoFiltro && anoFiltro !== 'TODOS') ? [normalizar(anoFiltro)] : FICHA_ANOS_ESCOLARES;
 
     const [catalogo, ...respostas] = await Promise.all([
       fichaCatalogo(),
-      ...anos.map(a => chamarFichaApi('turma', { anoLetivo: anoLetivo, bimestre: bimestre, anoescolar: a }))
+      ...anos.map(a => fichaRedeTurma(bimestre, a).then(rows => ({ fichasAvaliacoesTurma: rows })))
     ]);
 
     const ag = new Map();
@@ -7453,6 +7468,81 @@ function _renderTabelaTotal(linhas) {
       anos: Array.from(anosSet).sort(),
       generatedAt: new Date().toISOString()
     };
+  }
+
+  // Grupos dos 4 bimestres no MESMO formato da RPC agrupar_bimestres:
+  // [bimestre, unidade, ano, turma, disciplina, eixo, valor, codigo, qtd].
+  // É o que o Total consome. Um bimestre por vez (5 chamadas simultâneas cada)
+  // para não sobrecarregar a API do CODERP; bimestre sem lançamento volta vazio.
+  async function fichaGruposTotal() {
+    const catalogo = await fichaCatalogo();
+    const grupos = [];
+    for (const b of [1, 2, 3, 4]) {
+      const porAno = await Promise.all(FICHA_ANOS_ESCOLARES.map(a => fichaRedeTurma(b, a)));
+      porAno.forEach((rows, i) => rows.forEach(r => {
+        const qtd = Number(r.qtd_alunos || 0);
+        if (!qtd) return;
+        const u = catalogo.get(Number(r.uni_cod)) || ('UNIDADE ' + r.uni_cod);
+        grupos.push([b, u, FICHA_ANOS_ESCOLARES[i], '—',
+                     corrigirTextoLegivel(r.fnc_des || ''), corrigirTextoLegivel(r.fne_des || ''),
+                     r.fqr_vl, r.fqr_vl, qtd]);
+      }));
+    }
+    return grupos;
+  }
+
+  // Alunos por unidade num conjunto de linhas de um (bimestre, ano): mínimo
+  // das somas por item — mesma regra (e validação) do pacote de bimestre.
+  function fichaContagemPorUnidade(rows) {
+    const porU = new Map();
+    rows.forEach(r => {
+      const qtd = Number(r.qtd_alunos || 0);
+      if (!qtd) return;
+      const u = Number(r.uni_cod);
+      const ki = (r.fnc_des || '') + '||' + (r.fne_des || '');
+      if (!porU.has(u)) porU.set(u, new Map());
+      const itens = porU.get(u);
+      itens.set(ki, (itens.get(ki) || 0) + qtd);
+    });
+    const contagem = new Map();
+    porU.forEach((itens, u) => contagem.set(u, Math.min.apply(null, Array.from(itens.values()))));
+    return contagem;
+  }
+
+  // Fichas ALUNO A ALUNO de um bimestre, para a Análise de Consistência.
+  // Descobre as unidades com lançamento (1 chamada de escola) e baixa cada uma
+  // pela Edge Function, em lotes, devolvendo linhas no formato da antiga
+  // tabela `bimestres` (a API não fornece nome do aluno — só o REMA).
+  async function fichaAlunosBimestre(bimestre, aoProgresso) {
+    const catalogo = await fichaCatalogo();
+    const anoLetivo = fichaAnoLetivo();
+    const esc = await chamarFichaApi('escola', { anoLetivo: anoLetivo, bimestre: bimestre });
+    const unis = Array.from(new Set((esc.fichasAvaliacoesEscola || []).map(r => Number(r.uni_cod))));
+
+    const rows = [];
+    const LOTE = 5;
+    for (let i = 0; i < unis.length; i += LOTE) {
+      const lote = unis.slice(i, i + LOTE);
+      const partes = await Promise.all(lote.map(u =>
+        chamarFichaApi('aluno', { anoLetivo: anoLetivo, bimestre: bimestre, escola: u })
+          .then(r => r.fichasAvaliacoes || [])));
+      partes.forEach((lista, j) => {
+        const nome = catalogo.get(lote[j]) || ('UNIDADE ' + lote[j]);
+        lista.forEach(r => rows.push({
+          nome_unidade: nome,
+          ano_escolar: r.per_cod,
+          turma: r.tur_cod,
+          rema_aluno: r.alu_rema,
+          bimestre: r.nro_bim,
+          fnc_disciplina: corrigirTextoLegivel(r.fnc_des || ''),
+          descricao_fne: corrigirTextoLegivel(r.fne_des || ''),
+          valor_resposta: r.fqr_vl,
+          texto_resposta: r.fqr_txt_resp || ''
+        }));
+      });
+      if (aoProgresso) aoProgresso(Math.min(i + LOTE, unis.length), unis.length);
+    }
+    return rows;
   }
 
   // ── Agregação server-side (RPC) — evita baixar a tabela bimestres inteira ──
@@ -7889,13 +7979,23 @@ function _renderTabelaTotal(linhas) {
       const unidadeFiltro = filtros.unidade || 'TODAS';
       const turmaFiltro = filtros.turma || 'TODAS';
 
-      // Bimestres: tenta agregação no servidor (grupos com contagem); senão, baixa cru.
+      // Bimestres: caminho principal é a API do CODERP ao vivo (mesmo formato
+      // de grupos da RPC). Se falhar, cai para a agregação no servidor.
       let bimestreGrupos = null;
-      try {
-        bimestreGrupos = (await rpcAgruparBimestres({ incluirHier: false })).grupos;
-      } catch (err) {
-        console.error('[MAPA Supabase] RPC agrupar_bimestres falhou no Total:', err);
-        throw err;
+      if (fichaApiAtiva()) {
+        try {
+          bimestreGrupos = await fichaGruposTotal();
+        } catch (err) {
+          console.warn('[MAPA CODERP] Total: API indisponível, usando o banco:', err);
+        }
+      }
+      if (!bimestreGrupos) {
+        try {
+          bimestreGrupos = (await rpcAgruparBimestres({ incluirHier: false })).grupos;
+        } catch (err) {
+          console.error('[MAPA Supabase] RPC agrupar_bimestres falhou no Total:', err);
+          throw err;
+        }
       }
 
       const [bimestresRows, alunosRows] = await Promise.all([
@@ -7978,7 +8078,37 @@ function _renderTabelaTotal(linhas) {
       filtros = filtros || {};
       const anoFiltro = normalizar(filtros.ano || 'TODOS') || 'TODOS';
 
-      // Caminho rápido: alunos distintos por unidade/ano/turma já contados no servidor.
+      // Caminho principal: API ao vivo. Alunos por unidade = máximo entre os
+      // bimestres (aluno avaliado no 2º conta mesmo sem lançamento no 1º),
+      // com a regra do mínimo por item dentro de cada bimestre.
+      if (fichaApiAtiva()) {
+        try {
+          const catalogo = await fichaCatalogo();
+          const anos = (anoFiltro !== 'TODOS') ? [anoFiltro] : FICHA_ANOS_ESCOLARES;
+          const porUniAno = new Map();   // uni_cod||ano -> max entre bimestres
+          for (const b of [1, 2, 3, 4]) {
+            const porAno = await Promise.all(anos.map(a => fichaRedeTurma(b, a)));
+            porAno.forEach((rows, i) => {
+              fichaContagemPorUnidade(rows).forEach((n, u) => {
+                const k = u + '||' + anos[i];
+                porUniAno.set(k, Math.max(porUniAno.get(k) || 0, n));
+              });
+            });
+          }
+          const arvore = {};
+          porUniAno.forEach((n, k) => {
+            const uni = Number(k.split('||')[0]);
+            const u = cleanUnit(catalogo.get(uni) || ('UNIDADE ' + uni));
+            if (!arvore[u]) arvore[u] = {};
+            arvore[u]['—'] = (arvore[u]['—'] || 0) + n;
+          });
+          return { ok: true, arvore };
+        } catch (err) {
+          console.warn('[MAPA CODERP] Árvore do Total: API indisponível, usando o banco:', err);
+        }
+      }
+
+      // Caminho reserva: alunos distintos por unidade/ano/turma contados no servidor.
       try {
         const { data, error } = await supa.rpc('arvore_total');
         if (error) throw error;
@@ -8154,7 +8284,8 @@ function _renderTabelaTotal(linhas) {
   window.MAPA_AUDIT = {
     fetchAll, respostaLabel, respostaScore,
     normalizar, normalizarDisciplina, corrigirTextoLegivel, cleanUnit,
-    BIM_KEY_TO_NUM
+    BIM_KEY_TO_NUM,
+    fichaAlunosBimestre, fichaApiAtiva
   };
   window.google = window.google || {};
   window.google.script = window.google.script || {};
@@ -8674,7 +8805,8 @@ const {
   fetchAll: _audFetchAll, respostaLabel: _audRespLabel, respostaScore: _audRespScore,
   normalizar: _audNorm, normalizarDisciplina: _audNormDisc,
   corrigirTextoLegivel: _audCorrigir, cleanUnit: _audCleanUnit,
-  BIM_KEY_TO_NUM: _AUD_BIM_NUM
+  BIM_KEY_TO_NUM: _AUD_BIM_NUM,
+  fichaAlunosBimestre: _audFichaAlunos, fichaApiAtiva: _audFichaAtiva
 } = (window.MAPA_AUDIT || {});
 
 const _AUD_RESP_VAZIA = new Set(['', 'NAO AVALIADO', 'NAO AVAL', 'X']);
@@ -8734,7 +8866,22 @@ async function iniciarAuditoria() {
       rows = await _audFetchAll('alunos', cols);
     } else {
       const bimestre = (_AUD_BIM_NUM && _AUD_BIM_NUM[avaliacao]) || 1;
-      rows = await _audFetchAll('bimestres', '*', q => q.eq('bimestre', bimestre));
+      // Caminho principal: fichas aluno a aluno da API do CODERP (a API não
+      // fornece o nome do aluno — as listas identificam pelo REMA). Se a API
+      // falhar, tenta a antiga tabela `bimestres` (hoje inacessível pelo REST,
+      // mas o try/catch externo transforma isso em aviso legível).
+      if (typeof _audFichaAlunos === 'function' && typeof _audFichaAtiva === 'function' && _audFichaAtiva()) {
+        try {
+          rows = await _audFichaAlunos(bimestre, (feitas, total) => {
+            if (conteudo) conteudo.innerHTML = `<div class="text-center text-muted p-4"><div class="spinner-border spinner-border-sm mb-2"></div><br>Baixando fichas da API (${feitas}/${total} unidades)…</div>`;
+          });
+        } catch (errApi) {
+          console.warn('[MAPA CODERP] Auditoria: API indisponível, tentando o banco:', errApi);
+          rows = await _audFetchAll('bimestres', '*', q => q.eq('bimestre', bimestre));
+        }
+      } else {
+        rows = await _audFetchAll('bimestres', '*', q => q.eq('bimestre', bimestre));
+      }
     }
 
     if (anoNum) rows = rows.filter(r => _audNorm(r.ano_escolar).replace(' ANO', '').trim() === anoNum);

@@ -110,9 +110,13 @@ e **nunca vai para o navegador nem para este repositório**. A função:
 Secrets: `CODERP_TOKEN` (obrigatório) e `CODERP_URL` (opcional; o padrão é o
 ambiente `dsv`).
 
-**Quem consome em produção são as abas de bimestre da `avaliacao.html`**
-(`pacoteViaFichaApi`): uma chamada `IndicadorTurma` por ano escolar, sem
-`escola`, devolve a rede aberta por unidade. O código CODERP (`uni_cod`) vira
+**Quem consome em produção é a `avaliacao.html`**: as abas de bimestre
+(`pacoteViaFichaApi`), o **Total** (`fichaGruposTotal`, 4 bimestres × 5 anos,
+com memo compartilhado `fichaRedeTurma`) e a **Análise de Consistência**
+(`fichaAlunosBimestre`: descobre as unidades com lançamento e baixa as fichas
+aluno a aluno, por lotes — a API não fornece nome de aluno, só REMA). Uma
+chamada `IndicadorTurma` por ano escolar, sem `escola`, devolve a rede aberta
+por unidade. O código CODERP (`uni_cod`) vira
 nome pela tabela **`escolas_catalogo`** (código, nome, tipo, setor, geoloc —
 fonte CODERP/SAE; separada do catálogo `escolas` do RLS, de propósito). Se a
 API falhar ou o perfil não tiver permissão, a tela cai sozinha para a RPC
