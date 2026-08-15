@@ -128,6 +128,7 @@
   <select id="beSel"><option>Carregando…</option></select>
   <span class="be-chip" id="beCod">Cód. —</span>
   <span class="be-chip" id="beSeg">—</span>
+  <span class="be-chip" id="beSetor">Setor —</span>
 </div>
 
 <div class="be-page">
@@ -308,6 +309,29 @@ function perfilEmail(){ try{ return (window.MapaAuth&&MapaAuth.perfil&&MapaAuth.
 function ehSuper(){ try{ return !!(window.MapaAuth&&MapaAuth.perfil&&MapaAuth.perfil.is_super_admin); }catch(e){ return false; } }
 function ehFluxo(){ return perfilEmail()===PERFIL_FLUXO || ehSuper(); }
 
+/* ── tabela de referência das unidades (catálogo CODERP) ──
+   Fonte única para código, tipo e setor. O boletim consulta a tabela
+   'escolas' por nome normalizado. */
+let ESCOLAS_REF={};   // nomeNorm -> {codigo,nome,tipo,setor}
+function _normNome(s){
+  s=(s==null?'':String(s)).normalize('NFKD').replace(/[̀-ͯ]/g,'').toUpperCase();
+  return s.replace(/[^A-Z0-9]+/g,' ').trim();
+}
+/* pontes de grafia divergente entre o dado do boletim e o catálogo CODERP */
+const ALIAS_REF={ 'MARIA REGINA CAVALCANTE PROFA CEI':'MARIA REGINA CAVALCANTI PROFA CEI' };
+function _refDe(nome){
+  let k=_normNome(nome); if(ALIAS_REF[k]) k=ALIAS_REF[k];
+  return ESCOLAS_REF[k]||null;
+}
+async function fetchEscolas(){
+  try{
+    const r=await sb().from('escolas').select('codigo,nome,tipo,setor');
+    if(r.error) throw r.error;
+    ESCOLAS_REF={};
+    (r.data||[]).forEach(e=>{ ESCOLAS_REF[_normNome(e.nome)]=e; });
+  }catch(e){ console.warn('Catálogo de escolas indisponível:',e.message||e); ESCOLAS_REF={}; }
+}
+
 function aguardarAuth(){
   return new Promise(res=>{
     if(window.MapaAuth&&window.MapaAuth.perfil) return res();
@@ -319,6 +343,7 @@ function aguardarAuth(){
 async function carregar(){
   await aguardarAuth();
   aplicarPerfil();
+  await fetchEscolas();   // catálogo de referência (código, setor)
   let rows=[];
   try{
     // MAPA_SB carrega a sessão do usuário: RLS aplica o recorte por unidade.
@@ -336,7 +361,10 @@ async function carregar(){
   DADOS={}; NOMES=[];
   rows.forEach(x=>{
     const o=(x.dados&&typeof x.dados==='object')?x.dados:{};
-    o.nome=o.nome||x.nome; o.seg=o.seg||x.segmento; o.cod=x.codigo!=null?x.codigo:o.cod;
+    o.nome=o.nome||x.nome; o.seg=o.seg||x.segmento;
+    const ref=_refDe(o.nome);                       // tabela escolas manda no código/setor
+    o.cod=ref&&ref.codigo!=null?ref.codigo:(x.codigo!=null?x.codigo:o.cod);
+    o.setor=ref&&ref.setor?ref.setor:(o.setor||null);
     DADOS[x.nome]=o; NOMES.push(x.nome);
   });
 
@@ -373,6 +401,7 @@ function render(){
   document.getElementById('beNome').textContent=e.nome;
   document.getElementById('beCod').textContent='Cód. '+(e.cod!=null?e.cod:'—');
   document.getElementById('beSeg').textContent=e.seg||'—';
+  document.getElementById('beSetor').textContent='Setor '+(e.setor||'—');
   const temHist = e.hist && Object.keys(e.hist).length>0;
   const temHP = e.histPend && Object.values(e.histPend).some(b=>Object.values(b).some(row=>(row||[]).some(x=>x!=null&&x!=='-')));
   document.getElementById('beBtnHist').style.display=(temHist||temHP)?'inline-flex':'none';
@@ -544,10 +573,12 @@ async function processar(){
   res.style.color='#334155'; res.textContent='Lendo planilha…';
   try{
     const tipo=detectarTipo(_wb);
+    await fetchEscolas();   // garante o catálogo atualizado para resolver o código
     const agora=new Date().toISOString(), quem=perfilEmail();
+    const codDe=n=>{ const r=_refDe(n); return r&&r.codigo!=null?r.codigo:null; };
     let registros=[];
     if(tipo==='dadosgeral'){
-      registros=parseDadosGeral(_wb).map(u=>({nome:u.nome,codigo:null,segmento:u.seg,dados:u.dados,atualizado_em:agora,atualizado_por:quem}));
+      registros=parseDadosGeral(_wb).map(u=>({nome:u.nome,codigo:codDe(u.nome),segmento:u.seg,dados:u.dados,atualizado_em:agora,atualizado_por:quem}));
       if(!registros.length){ res.style.color='#9f1239'; res.textContent='Nenhuma escola encontrada no DADOS_GERAL.'; btn.disabled=false; return; }
       await gravar(registros,res);
       res.style.color='#166534'; res.innerHTML='✓ '+registros.length+' unidades gravadas do DADOS_GERAL (boletim completo). Recarregando…';
@@ -569,7 +600,8 @@ async function processar(){
           histAnos: base.histAnos||['2018','2019','2020','2021','2022','2023','2024','2025'],
           pendAnos: base.pendAnos||['2022','2023','2024','2025']
         });
-        return {nome:u.nome, codigo:prev.codigo!=null?prev.codigo:null, segmento:u.seg, dados:dados, atualizado_em:agora, atualizado_por:quem};
+        const cod=codDe(u.nome);
+        return {nome:u.nome, codigo:cod!=null?cod:(prev.codigo!=null?prev.codigo:null), segmento:u.seg, dados:dados, atualizado_em:agora, atualizado_por:quem};
       });
       if(!registros.length){ res.style.color='#9f1239'; res.textContent='Nenhuma escola encontrada nas abas de 2026.'; btn.disabled=false; return; }
       await gravar(registros,res);
