@@ -119,10 +119,10 @@ Secrets: `CODERP_TOKEN` (obrigatório) e `CODERP_URL` (opcional; o padrão é o
 ambiente `dsv`).
 
 **Quem consome em produção é a `avaliacao.html`**: as abas de bimestre
-(`pacoteViaFichaApi`), o **Total** (`fichaGruposTotal`, 4 bimestres × 5 anos,
-com memo compartilhado `fichaRedeTurma`) e a **Análise de Consistência**
-(`fichaAlunosBimestre`: descobre as unidades com lançamento e baixa as fichas
-aluno a aluno, por lotes — a API não fornece nome de aluno, só REMA). Uma
+(`pacoteViaFichaApi`), o **Total** e a **Análise de Consistência** (ambos via
+`fichaAlunosBimestre`: descobre as unidades com lançamento e baixa as fichas
+aluno a aluno, por lotes — único nível que rotula ano/turma; a API não fornece
+nome de aluno, só REMA). Uma
 chamada `IndicadorTurma` por ano escolar, sem `escola`, devolve a rede aberta
 por unidade. O código CODERP (`uni_cod`) vira
 nome pela tabela **`escolas_catalogo`** (código, nome, tipo, setor, geoloc —

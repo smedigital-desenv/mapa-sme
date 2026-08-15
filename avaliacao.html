@@ -7628,52 +7628,42 @@ function _renderTabelaTotal(linhas) {
 
   // Grupos dos 4 bimestres no MESMO formato da RPC agrupar_bimestres:
   // [bimestre, unidade, ano, turma, disciplina, eixo, valor, codigo, qtd].
-  // É o que o Total consome. Um bimestre por vez (5 chamadas simultâneas cada)
-  // para não sobrecarregar a API do CODERP; bimestre sem lançamento volta vazio.
+  // É o que o Total consome. Usa o nível ALUNO (o único que rotula ano e
+  // turma — o agregado devolvia tudo num nó 'Turma —'); com o pré-aquecimento
+  // e o cache local isso é barato, e bimestre sem lançamento volta vazio numa
+  // chamada. Se o nível aluno falhar num bimestre, cai para o agregado ('—').
   async function fichaGruposTotal() {
-    const catalogo = await fichaCatalogo();
     const grupos = [];
-    let falhas = 0, total = 0;
+    let algumaFonte = false;
     for (const b of [1, 2, 3, 4]) {
-      // Falha pontual não derruba o Total inteiro para o banco (que pode nem
-      // ter o bimestre): registra, segue com o que veio e só desiste se TUDO
-      // falhar.
-      const porAno = await Promise.all(FICHA_ANOS_ESCOLARES.map(a =>
-        fichaRedeTurma(b, a).catch(err => {
-          console.warn(`[MAPA CODERP] Total: falhou bim ${b} / ${a}:`, err);
-          falhas++;
-          return null;
-        })));
-      total += porAno.length;
-      porAno.forEach((rows, i) => (rows || []).forEach(r => {
-        const qtd = Number(r.qtd_alunos || 0);
-        if (!qtd) return;
-        const u = catalogo.get(Number(r.uni_cod)) || ('UNIDADE ' + r.uni_cod);
-        grupos.push([b, u, FICHA_ANOS_ESCOLARES[i], '—',
-                     corrigirTextoLegivel(r.fnc_des || ''), corrigirTextoLegivel(r.fne_des || ''),
-                     r.fqr_vl, r.fqr_vl, qtd]);
-      }));
+      try {
+        const rows = await fichaAlunosBimestre(b);
+        algumaFonte = true;
+        rows.forEach(r => grupos.push([
+          b, r.nome_unidade, r.ano_escolar || 'TODOS', String(r.turma || '—'),
+          r.fnc_disciplina, r.descricao_fne, r.valor_resposta, r.valor_resposta, 1
+        ]));
+      } catch (err) {
+        console.warn(`[MAPA CODERP] Total: nível aluno indisponível no bim ${b}, usando agregado:`, err);
+        try {
+          const catalogo = await fichaCatalogo();
+          const porAno = await Promise.all(FICHA_ANOS_ESCOLARES.map(a => fichaRedeTurma(b, a).catch(() => null)));
+          porAno.forEach((rows, i) => (rows || []).forEach(r => {
+            const qtd = Number(r.qtd_alunos || 0);
+            if (!qtd) return;
+            const u = catalogo.get(Number(r.uni_cod)) || ('UNIDADE ' + r.uni_cod);
+            grupos.push([b, u, FICHA_ANOS_ESCOLARES[i], '—',
+                         corrigirTextoLegivel(r.fnc_des || ''), corrigirTextoLegivel(r.fne_des || ''),
+                         r.fqr_vl, r.fqr_vl, qtd]);
+            algumaFonte = true;
+          }));
+        } catch (e2) {
+          console.warn(`[MAPA CODERP] Total: bim ${b} sem nenhuma fonte:`, e2);
+        }
+      }
     }
-    if (falhas && falhas === total) throw new Error('todas as consultas ao CODERP falharam');
+    if (!algumaFonte) throw new Error('todas as consultas ao CODERP falharam');
     return grupos;
-  }
-
-  // Alunos por unidade num conjunto de linhas de um (bimestre, ano): mínimo
-  // das somas por item — mesma regra (e validação) do pacote de bimestre.
-  function fichaContagemPorUnidade(rows) {
-    const porU = new Map();
-    rows.forEach(r => {
-      const qtd = Number(r.qtd_alunos || 0);
-      if (!qtd) return;
-      const u = Number(r.uni_cod);
-      const ki = (r.fnc_des || '') + '||' + (r.fne_des || '');
-      if (!porU.has(u)) porU.set(u, new Map());
-      const itens = porU.get(u);
-      itens.set(ki, (itens.get(ki) || 0) + qtd);
-    });
-    const contagem = new Map();
-    porU.forEach((itens, u) => contagem.set(u, Math.min.apply(null, Array.from(itens.values()))));
-    return contagem;
   }
 
   // Detalhe de UMA unidade com ano e turma reais, para quando a pessoa clica
@@ -8397,32 +8387,33 @@ function _renderTabelaTotal(linhas) {
       filtros = filtros || {};
       const anoFiltro = normalizar(filtros.ano || 'TODOS') || 'TODOS';
 
-      // Caminho principal: API ao vivo. Alunos por unidade = máximo entre os
-      // bimestres (aluno avaliado no 2º conta mesmo sem lançamento no 1º),
-      // com a regra do mínimo por item dentro de cada bimestre.
+      // Caminho principal: API ao vivo, nível ALUNO — turmas reais e contagem
+      // exata (REMAs distintos; aluno avaliado em qualquer bimestre conta).
       if (fichaApiAtiva()) {
         try {
-          const catalogo = await fichaCatalogo();
-          const anos = (anoFiltro !== 'TODOS') ? [anoFiltro] : FICHA_ANOS_ESCOLARES;
-          const porUniAno = new Map();   // uni_cod||ano -> max entre bimestres
+          const alunosPorUT = new Map();   // unidade||turma -> Set de REMAs
           for (const b of [1, 2, 3, 4]) {
-            const porAno = await Promise.all(anos.map(a =>
-              fichaRedeTurma(b, a).catch(() => [])));
-            porAno.forEach((rows, i) => {
-              fichaContagemPorUnidade(rows).forEach((n, u) => {
-                const k = u + '||' + anos[i];
-                porUniAno.set(k, Math.max(porUniAno.get(k) || 0, n));
-              });
+            let rows = null;
+            try { rows = await fichaAlunosBimestre(b); } catch (e) { continue; }
+            rows.forEach(r => {
+              const a = normalizar(r.ano_escolar || '') || 'TODOS';
+              if (anoFiltro !== 'TODOS' && a !== anoFiltro) return;
+              const u = cleanUnit(r.nome_unidade);
+              const t = String(r.turma || '—').trim().toUpperCase() || '—';
+              const k = u + '||' + t;
+              if (!alunosPorUT.has(k)) alunosPorUT.set(k, new Set());
+              alunosPorUT.get(k).add(r.rema_aluno);
             });
           }
-          const arvore = {};
-          porUniAno.forEach((n, k) => {
-            const uni = Number(k.split('||')[0]);
-            const u = cleanUnit(catalogo.get(uni) || ('UNIDADE ' + uni));
-            if (!arvore[u]) arvore[u] = {};
-            arvore[u]['—'] = (arvore[u]['—'] || 0) + n;
-          });
-          return { ok: true, arvore };
+          if (alunosPorUT.size) {
+            const arvore = {};
+            alunosPorUT.forEach((remas, k) => {
+              const partes = k.split('||');
+              if (!arvore[partes[0]]) arvore[partes[0]] = {};
+              arvore[partes[0]][partes[1]] = (arvore[partes[0]][partes[1]] || 0) + remas.size;
+            });
+            return { ok: true, arvore };
+          }
         } catch (err) {
           console.warn('[MAPA CODERP] Árvore do Total: API indisponível, usando o banco:', err);
         }
