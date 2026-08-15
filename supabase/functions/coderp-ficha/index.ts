@@ -16,12 +16,14 @@
    -------------
    1. Exige uma sessão válida DESTE projeto (o token do MAPA, o mesmo que o
       banco valida). Sem sessão, 401.
-   2. Confere no banco, com a identidade de quem chamou, se a pessoa enxerga a
-      rede toda (`vejo_a_rede_toda()`). Por ora TODOS os níveis exigem isso —
-      inclusive o consolidado de rede. Abrir o recorte por unidade para perfil
-      de escola exige antes mapear o código CODERP da unidade (`uni_cod`) para
-      o catálogo `escolas`; enquanto esse mapa não existe, errar para o lado de
-      esconder é o padrão seguro.
+   2. Confere no banco, com a identidade de quem chamou, o recorte por unidade:
+      quem enxerga a rede toda (`vejo_a_rede_toda()`) consulta qualquer nível.
+      Perfil de escola só consulta os níveis escola/turma/aluno COM o código
+      da própria unidade: o código vira nome pela `escolas_catalogo` e o nome
+      passa por `posso_ver_unidade()` — que nega por padrão. Casar a grafia do
+      CODERP com o catálogo é papel da `escola_alias` (curadoria humana);
+      enquanto o apelido não existe, o perfil de escola recebe 403, que é o
+      lado seguro do erro.
    3. Injeta o CODERP_TOKEN no corpo e chama o endpoint correspondente ao nível
       pedido, devolvendo a resposta como veio (Messages + fichas).
 
@@ -86,23 +88,10 @@ Deno.serve(async (req) => {
     const { data: quem, error: eUser } = await sb.auth.getUser();
     if (eUser || !quem?.user) return json({ erro: 'token_invalido' }, 401);
 
-    // ── 2) Permissão: por ora, só quem enxerga a rede toda ─────────────────
-    // A checagem roda NO BANCO com a identidade de quem chamou — o gate do
-    // navegador é conforto, não segurança. `vejo_a_rede_toda()` nega por
-    // padrão: quem o banco não reconhece não passa.
-    const { data: redeToda, error: ePerm } = await sb.rpc('vejo_a_rede_toda');
-    if (ePerm) return json({ erro: 'falha_ao_verificar_permissao', detalhe: ePerm.message }, 500);
-    if (!redeToda) return json({ erro: 'sem_permissao' }, 403);
-
-    // ── 3) Monta e repassa a consulta ao CODERP ────────────────────────────
-    const tokenCoderp = Deno.env.get('CODERP_TOKEN') || '';
-    if (!tokenCoderp) {
-      return json({ erro: 'ambiente_incompleto', detalhe: 'secret CODERP_TOKEN ausente' }, 500);
-    }
-    const urlBase = (Deno.env.get('CODERP_URL') || URL_BASE_PADRAO).replace(/\/+$/, '');
-
+    // ── 2) Valida o pedido ─────────────────────────────────────────────────
     const corpo = await req.json().catch(() => null);
-    const nivel = NIVEIS[String(corpo?.nivel || '').toLowerCase()];
+    const chaveNivel = String(corpo?.nivel || '').toLowerCase();
+    const nivel = NIVEIS[chaveNivel];
     if (!nivel) return json({ erro: 'nivel_invalido', aceitos: Object.keys(NIVEIS) }, 400);
 
     const parms = corpo?.parms;
@@ -113,6 +102,42 @@ Deno.serve(async (req) => {
     if (parms.bimestre < 1 || parms.bimestre > 4) {
       return json({ erro: 'bimestre_invalido', detalhe: 'bimestre aceita 1 a 4' }, 400);
     }
+
+    // ── 3) Permissão: recorte por unidade, decidido NO BANCO ───────────────
+    // A checagem roda com a identidade de quem chamou — o gate do navegador é
+    // conforto, não segurança. `vejo_a_rede_toda()` e `posso_ver_unidade()`
+    // negam por padrão: quem o banco não reconhece não passa.
+    const { data: redeToda, error: ePerm } = await sb.rpc('vejo_a_rede_toda');
+    if (ePerm) return json({ erro: 'falha_ao_verificar_permissao', detalhe: ePerm.message }, 500);
+
+    if (!redeToda) {
+      // Perfil de escola: nível de rede não; os demais só com o código da
+      // PRÓPRIA unidade informado. Sem código, a API devolveria a rede toda —
+      // inclusive aluno a aluno — e é exatamente isso que não pode.
+      if (chaveNivel === 'rede') return json({ erro: 'sem_permissao' }, 403);
+      if (!Number.isInteger(parms.escola)) {
+        return json({ erro: 'escola_obrigatoria',
+                      detalhe: 'seu perfil exige informar o código da unidade' }, 403);
+      }
+      // Código CODERP -> grafia oficial do catálogo de referência.
+      const { data: cat, error: eCat } = await sb
+        .from('escolas_catalogo').select('nome').eq('codigo', parms.escola).maybeSingle();
+      if (eCat) return json({ erro: 'falha_ao_verificar_permissao', detalhe: eCat.message }, 500);
+      if (!cat?.nome) return json({ erro: 'sem_permissao' }, 403);
+
+      // A grafia do CODERP casa com a unidade da pessoa? Quem responde é o
+      // banco (escola_alias + mapa_norm), e a resposta padrão é NÃO.
+      const { data: podeVer, error: eVer } = await sb.rpc('posso_ver_unidade', { nome: cat.nome });
+      if (eVer) return json({ erro: 'falha_ao_verificar_permissao', detalhe: eVer.message }, 500);
+      if (!podeVer) return json({ erro: 'sem_permissao' }, 403);
+    }
+
+    // ── 4) Monta e repassa a consulta ao CODERP ────────────────────────────
+    const tokenCoderp = Deno.env.get('CODERP_TOKEN') || '';
+    if (!tokenCoderp) {
+      return json({ erro: 'ambiente_incompleto', detalhe: 'secret CODERP_TOKEN ausente' }, 500);
+    }
+    const urlBase = (Deno.env.get('CODERP_URL') || URL_BASE_PADRAO).replace(/\/+$/, '');
 
     console.log(`[coderp-ficha] ${quem.user.email} -> ${nivel.endpoint}`
       + ` ano=${parms.anoLetivo} bim=${parms.bimestre}`);

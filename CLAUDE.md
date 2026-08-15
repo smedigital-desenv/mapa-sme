@@ -110,6 +110,27 @@ e **nunca vai para o navegador nem para este repositório**. A função:
 Secrets: `CODERP_TOKEN` (obrigatório) e `CODERP_URL` (opcional; o padrão é o
 ambiente `dsv`). A tela `teste-api-ficha.html` consome a função para validação.
 
+**Quem consome em produção são as abas de bimestre da `avaliacao.html`**
+(`pacoteViaFichaApi`): uma chamada `IndicadorTurma` por ano escolar, sem
+`escola`, devolve a rede aberta por unidade. O código CODERP (`uni_cod`) vira
+nome pela tabela **`escolas_catalogo`** (código, nome, tipo, setor, geoloc —
+fonte CODERP/SAE; separada do catálogo `escolas` do RLS, de propósito). Se a
+API falhar ou o perfil não tiver permissão, a tela cai sozinha para a RPC
+`agrupar_bimestres` (dados importados, RLS normal); `?coderp=0` força esse
+caminho. Peculiaridades já tratadas no código — não "simplificar":
+
+- `qtd_alunos` chega como **texto**; "não avaliado" chega em **4 grafias**
+  (a rotulagem por `fqr_vl` via `labelRespostaPainel` resolve);
+- o nível agregado **não rotula turma** (`per_cod`/`tur_cod` vazios) — a turma
+  aparece como `—` no pacote;
+- um item pode ter **mais de uma pergunta por aluno**: o total de alunos por
+  unidade×ano é o **mínimo** das somas por item (validado contra o nível
+  aluno: 231×235 na escola de teste), não o máximo nem a média;
+- `IndicadorAluno` sem `rema` devolve a escola inteira aluno a aluno — por
+  isso a função exige recorte: perfil de escola só consulta com o código da
+  própria unidade (`escolas_catalogo` → `posso_ver_unidade()`), e nível de
+  rede exige `vejo_a_rede_toda()`.
+
 ---
 
 ## 3. Modelo de segurança do banco
