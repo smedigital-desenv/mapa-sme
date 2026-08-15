@@ -346,5 +346,144 @@
 
     gateOff();
     document.dispatchEvent(new CustomEvent('mapa-auth-pronto', { detail: api }));
+
+    // ── Cache local das respostas da Ficha CODERP ──────────────────────────
+    // IndexedDB + gzip, compartilhado entre TODAS as telas do MAPA. O
+    // pré-aquecimento grava aqui; a tela de Avaliações lê daqui SEM REDE —
+    // é o que torna a abertura instantânea. TTL de 10 min, o mesmo do cache
+    // da Edge Function: o dado continua "ao vivo", só não é rebuscado a cada
+    // clique. Falha de IndexedDB nunca quebra nada — vira cache-miss.
+    var MapaFichaCache = (function () {
+      var TTL = 10 * 60 * 1000;
+      var abrir = null;
+      function db() {
+        if (!abrir) {
+          abrir = new Promise(function (res, rej) {
+            var r = indexedDB.open('mapa_ficha_cache', 1);
+            r.onupgradeneeded = function () { r.result.createObjectStore('resp'); };
+            r.onsuccess = function () { res(r.result); };
+            r.onerror = function () { rej(r.error); };
+          });
+        }
+        return abrir;
+      }
+      function gzip(texto) {
+        if (typeof CompressionStream === 'undefined') return Promise.resolve(texto);
+        var s = new Blob([texto]).stream().pipeThrough(new CompressionStream('gzip'));
+        return new Response(s).blob();
+      }
+      function gunzip(v) {
+        if (typeof v === 'string') return Promise.resolve(v);
+        var s = v.stream().pipeThrough(new DecompressionStream('gzip'));
+        return new Response(s).text();
+      }
+      function ler(chave) {
+        return db().then(function (d) {
+          return new Promise(function (res) {
+            var t = d.transaction('resp').objectStore('resp').get(chave);
+            t.onsuccess = function () { res(t.result || null); };
+            t.onerror = function () { res(null); };
+          });
+        }).then(function (hit) {
+          if (!hit || (Date.now() - hit.t) > TTL) return null;
+          return gunzip(hit.v);
+        }).catch(function () { return null; });
+      }
+      function gravar(chave, texto) {
+        return gzip(texto).then(function (v) {
+          return db().then(function (d) {
+            d.transaction('resp', 'readwrite').objectStore('resp').put({ t: Date.now(), v: v }, chave);
+          });
+        }).catch(function () {});
+      }
+      function limparVencidos() {
+        db().then(function (d) {
+          var st = d.transaction('resp', 'readwrite').objectStore('resp');
+          var cur = st.openCursor();
+          cur.onsuccess = function () {
+            var c = cur.result;
+            if (!c) return;
+            if (c.value && (Date.now() - c.value.t) > TTL) c.delete();
+            c.continue();
+          };
+        }).catch(function () {});
+      }
+      setTimeout(limparVencidos, 10000);
+      return { ler: ler, gravar: gravar };
+    })();
+    window.MapaFichaCache = MapaFichaCache;
+
+    // ── Pré-aquecimento da Ficha CODERP ────────────────────────────────────
+    // De QUALQUER tela do MAPA (menos a própria Avaliações, que faz as suas
+    // consultas), dispara em segundo plano as consultas da Ficha: rede dos 4
+    // bimestres e, na sequência, as fichas aluno a aluno das escolas com
+    // lançamento no 1º/2º bimestre. Tudo entra no cache de 10 min da Edge
+    // Function coderp-ficha: quando a pessoa abrir Avaliações, até o detalhe
+    // por turma sai na hora, sem esperar o CODERP e sem "números subindo".
+    // Fire-and-forget — falha aqui não afeta tela nenhuma.
+    if (!/avaliacao\.html/i.test(location.pathname) && !api.restritoEscola) {
+      setTimeout(function () {
+        var anoLetivo = new Date().getFullYear();
+        var fila = [];
+        [1, 2, 3, 4].forEach(function (b) {
+          ['1 ANO', '2 ANO', '3 ANO', '4 ANO', '5 ANO'].forEach(function (a) {
+            fila.push({ nivel: 'turma', parms: { anoLetivo: anoLetivo, bimestre: b, anoescolar: a } });
+          });
+        });
+
+        // Busca e GRAVA no cache local; se já está fresco, nem sai para a rede.
+        function chamar(corpo) {
+          var chave = JSON.stringify(corpo);
+          return MapaFichaCache.ler(chave).then(function (pronto) {
+            if (pronto !== null) return { json: function () { return Promise.resolve(JSON.parse(pronto)); } };
+            return api.token().then(function (tok) {
+              if (!tok) return null;
+              return fetchOriginal(MAPA_CFG.url + '/functions/v1/coderp-ficha', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+                body: JSON.stringify(corpo)
+              }).then(function (r) {
+                if (!r || !r.ok) return r;
+                return r.text().then(function (texto) {
+                  MapaFichaCache.gravar(chave, texto);
+                  return { json: function () { return Promise.resolve(JSON.parse(texto)) } };
+                });
+              });
+            });
+          });
+        }
+
+        // Depois da rede, enfileira as fichas por escola dos bimestres atuais.
+        function enfileirarEscolas(b) {
+          return chamar({ nivel: 'escola', parms: { anoLetivo: anoLetivo, bimestre: b } })
+            .then(function (r) { return r ? r.json() : null; })
+            .then(function (d) {
+              var vistos = {};
+              ((d && d.fichasAvaliacoesEscola) || []).forEach(function (e) {
+                if (vistos[e.uni_cod]) return;
+                vistos[e.uni_cod] = true;
+                fila.push({ nivel: 'aluno', parms: { anoLetivo: anoLetivo, bimestre: b, escola: Number(e.uni_cod) } });
+              });
+            })
+            .catch(function () {});
+        }
+
+        var preparo = null;
+        function proxima() {
+          var p = fila.shift();
+          if (!p) {
+            // Fila da rede acabou: prepara a fila do detalhe (uma vez só).
+            if (!preparo) {
+              preparo = Promise.all([enfileirarEscolas(1), enfileirarEscolas(2)])
+                .then(function () { proxima(); proxima(); proxima(); });
+            }
+            return;
+          }
+          chamar(p).catch(function () {}).then(function () { proxima(); });
+        }
+        // 3 consultas simultâneas: aquece rápido sem disputar rede com a tela.
+        proxima(); proxima(); proxima();
+      }, 2500);
+    }
   })();
 })();

@@ -162,12 +162,29 @@ Deno.serve(async (req) => {
     const otp = link.data?.properties?.email_otp;
     if (!hash && !otp) return json({ erro: 'sem_token_de_sessao' }, 500);
 
-    // Vincula o perfil do MAPA ao usuário de auth, se ainda não estiver.
-    // É o que faz `perfis.auth_user_id` continuar casando com `auth.uid()`.
+    // ── Garante o perfil no MAPA, sincronizado do central ──────────────────
+    // Sem isto, quem existe no central mas nao tem linha em `perfis` aqui entra
+    // e nao ve NADA — porque `meu_perfil_id()` devolve nulo e a regra nega por
+    // padrao. Era o caso de varias pessoas antes desta mudanca.
+    //
+    // O central e a fonte da verdade da identidade: nome, tipo e super admin
+    // vem de la a cada acesso, o que tambem impede os dois bancos de divergirem
+    // com o tempo. O vinculo de escola (perfil_escola) NAO e tocado — ele e
+    // curado aqui e alimenta o recorte por unidade.
     const uid = link.data?.user?.id;
-    if (uid) {
-      await admin.from('perfis').update({ auth_user_id: uid })
-        .eq('email', alvo).is('auth_user_id', null);
+    const perfilCentral = perms?.perfil || {};
+    const ups = await admin.from('perfis').upsert({
+      email: alvo,
+      nome: perfilCentral.nome ?? null,
+      tipo: perfilCentral.tipo ?? null,
+      is_super_admin: !!perfilCentral.is_super_admin,
+      ativo: true,
+      ...(uid ? { auth_user_id: uid } : {}),
+    }, { onConflict: 'email' });
+    if (ups.error) {
+      // Nao aborta: a sessao ja e valida e o app pode funcionar. Mas registra,
+      // porque sem perfil a pessoa vai ver telas vazias e ninguem saberia por que.
+      console.error('[central-bridge] falha ao sincronizar perfil', ups.error.message);
     }
 
     // ── 4) Abre a sessao SEM depender de OTP ───────────────────────────────
