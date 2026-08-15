@@ -311,7 +311,8 @@ function ehFluxo(){ return perfilEmail()===PERFIL_FLUXO || ehSuper(); }
 
 /* ── tabela de referência das unidades (catálogo CODERP) ──
    Fonte única para código, tipo e setor. O boletim consulta a tabela
-   'escolas' por nome normalizado. */
+   'escolas_catalogo' por nome normalizado. (Tabela SEPARADA da 'escolas'
+   de isolamento do RLS — esta última não é tocada.) */
 let ESCOLAS_REF={};   // nomeNorm -> {codigo,nome,tipo,setor}
 function _normNome(s){
   s=(s==null?'':String(s)).normalize('NFKD').replace(/[̀-ͯ]/g,'').toUpperCase();
@@ -325,7 +326,7 @@ function _refDe(nome){
 }
 async function fetchEscolas(){
   try{
-    const r=await sb().from('escolas').select('codigo,nome,tipo,setor');
+    const r=await sb().from('escolas_catalogo').select('codigo,nome,tipo,setor');
     if(r.error) throw r.error;
     ESCOLAS_REF={};
     (r.data||[]).forEach(e=>{ ESCOLAS_REF[_normNome(e.nome)]=e; });
