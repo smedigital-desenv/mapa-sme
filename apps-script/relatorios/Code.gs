@@ -459,10 +459,10 @@ function _chamarGeminiTexto(prompt, maxOutputTokens) {
 
 // Teto de perguntas por usuário por dia (guarda-custo do pool compartilhado).
 // Contagem persistida por usuário em ScriptProperties, com carimbo de data.
-// O limite é ajustável pela propriedade CHAT_LIMITE_DIARIO (padrão 30).
+// O limite é ajustável pela propriedade CHAT_LIMITE_DIARIO (padrão 40).
 // Observação: o e-mail vem do navegador — é guarda de custo entre usuários
 // confiáveis (a tela já é restrita à secretaria), não uma barreira de segurança.
-var CHAT_LIMITE_PADRAO = 30;
+var CHAT_LIMITE_PADRAO = 40;
 function _limiteChatOk(usuario) {
   const props = PropertiesService.getScriptProperties();
   let limite = parseInt(props.getProperty("CHAT_LIMITE_DIARIO") || "", 10);
