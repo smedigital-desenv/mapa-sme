@@ -2626,6 +2626,12 @@ function _carregarAux(){
   return _auxPromise;
 }
 
+// Primeiro campo de uma visita cujo NOME casa com o padrão (ex.: responsável, período, e-mail).
+function _visCampo(v, re) {
+  for (const k in v) { if (re.test(k)) { const val = String(v[k] == null ? '' : v[k]).trim(); if (val) return val; } }
+  return '';
+}
+
 // Formata uma devolutiva individual COMPLETA (todos os campos) para o contexto do chat.
 function _devTxtCompleto(d) {
   const L = a => (a || []).filter(Boolean).join('; ');
@@ -2682,6 +2688,25 @@ function _contextoChat() {
   ctx += `- Cobertura por regional: ${regTxt || '—'}\n`;
   ctx += `- Risco pedagógico: alto ${risc.alto}, médio ${risc.medio}, baixo ${risc.baixo}\n`;
   ctx += `- Temas mais frequentes: ${temasTxt || '—'}\n`;
+
+  // Visitas realizadas (quem e quando) — extraído dos registros do formulário e
+  // mantido no ESSENCIAL para nunca truncar (o modelo precisa disso p/ "quem visitou").
+  const _visitas = [];
+  ['fundamental','infantil'].forEach(seg => (dadosPorSegmento[seg] || []).forEach(v => {
+    const escola = v['_ESCOLA_'] || '';
+    const dataStr = v['Data da Visita:'] || v['Data da visita:'] || v['Carimbo de data/hora'] || '';
+    _visitas.push({
+      escola, reg: _regDe(escola), dataStr, d: _parseData(dataStr),
+      resp: _visCampo(v, /respons/i), periodo: _visCampo(v, /per[ií]odo/i), email: _visCampo(v, /e-?mail/i)
+    });
+  }));
+  _visitas.sort((a,b) => (b.d ? b.d.getTime() : 0) - (a.d ? a.d.getTime() : 0));
+  if (_visitas.length) {
+    ctx += `\nVISITAS REALIZADAS (${_visitas.length}) — quem e quando, da mais recente para a mais antiga:\n`;
+    _visitas.forEach(x => {
+      ctx += `• ${x.escola}${x.reg ? ` [${x.reg}]` : ''} — ${x.dataStr || '?'}${x.periodo ? ` (período: ${x.periodo})` : ''} — responsável: ${x.resp || 'não informado'}${x.email ? ` <${x.email}>` : ''}\n`;
+    });
+  }
 
   // Fluência Leitora (por escola, com regional resolvida pelo cadastro dos relatórios).
   if (_fluPorEscola && Object.keys(_fluPorEscola).length) {
