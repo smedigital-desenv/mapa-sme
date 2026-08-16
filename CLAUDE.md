@@ -142,6 +142,16 @@ códigos saem da tabela `turmas` do MAPA (`letra_turma`); a varredura para
 depois de 2 códigos vazios seguidos, porque a cauda é rarefeita (a turma F já
 só existe em 6 unidades).
 
+⚠️ **O CODERP responde `404`, e não lista vazia, quando não há dado** — turma
+que não existe naquele ano, bimestre sem lançamento. Isso é RESPOSTA, não
+avaria: o front trata 404 como vazio (e memoiza, senão cada abertura repetiria
+a consulta). Tratar 404 como falha fazia a varredura abortar no primeiro código
+inexistente. O erro carrega `err.coderpStatus` justamente para essa distinção.
+
+⚠️ **Ano que falha de verdade (não 404) marca o pacote como `incompleto`, e
+pacote incompleto NÃO entra em cache.** Sem isso, um bimestre em que 4 dos 5
+anos falharam ficaria 45 min na tela mostrando um quinto da rede sem avisar.
+
 ⚠️ **NADA é aplicado sem conferência.** Esta rota rotula pelo que foi pedido,
 então um código faltando na lista sumiria com alunos **em silêncio**. Por isso
 o pacote agregado carrega `bruto` (soma crua por unidade/ano) e o detalhe só

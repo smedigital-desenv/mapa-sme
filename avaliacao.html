@@ -2866,6 +2866,9 @@ function _cacheavelResposta(data) {
   if (data.ok === false) return false;
   if (Array.isArray(data) && !data.length) return false;
   if (Array.isArray(data.linhas) && !data.linhas.length) return false;
+  // Pacote montado com anos que a fonte não entregou: serve para a tela agora,
+  // mas guardá-lo por 45 min mostraria uma rede pela metade sem nenhum aviso.
+  if (data.incompleto) return false;
   return true;
 }
 
@@ -7683,9 +7686,12 @@ function _renderTabelaTotal(linhas) {
     try { resp = JSON.parse(texto); } catch (e) { /* resposta não-JSON tratada abaixo */ }
     if (!r.ok) {
       // O status DO CODERP vai junto: sem ele, "502 coderp_recusou" não
-      // distingue bimestre ainda sem lançamento de indisponibilidade real.
+      // distingue "não existe / sem lançamento" (404) de indisponibilidade.
       const dentro = resp && resp.status ? ' (CODERP ' + resp.status + ')' : '';
-      throw new Error('coderp-ficha ' + r.status + ' ' + ((resp && resp.erro) || '') + dentro);
+      const erro = new Error('coderp-ficha ' + r.status + ' ' + ((resp && resp.erro) || '') + dentro);
+      // Exposto para quem chama poder tratar 404 como "vazio", e não como falha.
+      erro.coderpStatus = (resp && resp.status) || 0;
+      throw erro;
     }
     // Só entra no cache local resposta com dado real, ou vazio SEM Messages
     // (bimestre sem lançamento é legítimo; vazio COM aviso é suspeito e não
@@ -7762,7 +7768,15 @@ function _renderTabelaTotal(linhas) {
       _turmaCodMemo.set(k,
         chamarFichaApi('turma', { anoLetivo: fichaAnoLetivo(), bimestre, anoescolar: anoEsc, turma })
           .then(r => r.fichasAvaliacoesTurma || [])
-          .catch(err => { _turmaCodMemo.delete(k); throw err; }));
+          .catch(err => {
+            // MEDIDO: o CODERP responde 404 — não lista vazia — quando a turma
+            // não existe naquele ano/bimestre. Isso é uma RESPOSTA, não uma
+            // falha: vale como "não há turma com esse código". Fica memoizada
+            // como vazia, senão cada abertura da tela repetiria a consulta.
+            if (err && err.coderpStatus === 404) return [];
+            _turmaCodMemo.delete(k);
+            throw err;
+          }));
     }
     return _turmaCodMemo.get(k);
   }
@@ -7925,11 +7939,21 @@ function _renderTabelaTotal(linhas) {
       ...anos.map(a => fichaRedeTurma(bimestre, a)
         .then(rows => ({ fichasAvaliacoesTurma: rows }))
         .catch(err => {
-          console.warn(`[MAPA CODERP] pacote: falhou bim ${bimestre} / ${a}:`, err);
-          return null;
+          // 404 do CODERP = bimestre/ano sem lançamento. É resposta, não avaria:
+          // não polui o console e conta como ano vazio, não como ano perdido.
+          if (!(err && err.coderpStatus === 404)) {
+            console.warn(`[MAPA CODERP] pacote: falhou bim ${bimestre} / ${a}:`, err);
+            return null;
+          }
+          return { fichasAvaliacoesTurma: [], semLancamento: true };
         }))
     ]);
     if (!respostas.some(Boolean)) throw new Error('todas as consultas ao CODERP falharam');
+
+    // Ano que FALHOU (erro de verdade, não 404) deixa o pacote incompleto: ele
+    // ainda é útil na tela, mas não pode ser guardado em cache como se fosse a
+    // rede inteira — seriam 45 min mostrando um quinto dela sem avisar.
+    const anosPerdidos = respostas.filter(r => r === null).length;
 
     const ag = new Map();
     const disciplinas = new Set();
@@ -8005,6 +8029,7 @@ function _renderTabelaTotal(linhas) {
       disciplinas: Array.from(disciplinas).sort(),
       anos: Array.from(anosSet).sort(),
       bruto: bruto,
+      incompleto: anosPerdidos > 0,
       generatedAt: new Date().toISOString()
     };
   }
