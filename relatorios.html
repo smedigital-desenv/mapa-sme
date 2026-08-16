@@ -2668,12 +2668,39 @@ function _contextoChat() {
   const temasTxt = _TEMAS.filter(t => cont[t.key] > 0).sort((a,b) => cont[b.key]-cont[a.key])
     .map(t => `${t.lbl} (${cont[t.key]})`).join('; ');
 
+  // Regional por escola (chave = nome normalizado) — permite agrupar Fluência/
+  // Elefante por regional, já que aquelas fontes não trazem a regional.
+  const _regByNorm = {};
+  linhas.forEach(l => { if (l.regional && l.regional !== '—') _regByNorm[_auxNormEscola(l.escola)] = l.regional; });
+  const _regDe = nome => _regByNorm[_auxNormEscola(nome)] || '';
+
+  // ═══ ESSENCIAL — montado PRIMEIRO e nunca truncado (resumo, fluência,
+  //     elefante, devolutivas de rede/regional e por escola) ═══
   let ctx = 'RESUMO DA REDE (apenas escolas que você pode ver):\n';
   ctx += `- Escolas: ${total} | Visitadas: ${vis} (${cob}%) | Sem visita: ${total - vis}\n`;
   if (maisRecente) ctx += `- Visita mais recente da rede: ${maisRecente.escola} em ${_fmtData(maisRecente.ultima)}\n`;
   ctx += `- Cobertura por regional: ${regTxt || '—'}\n`;
   ctx += `- Risco pedagógico: alto ${risc.alto}, médio ${risc.medio}, baixo ${risc.baixo}\n`;
   ctx += `- Temas mais frequentes: ${temasTxt || '—'}\n`;
+
+  // Fluência Leitora (por escola, com regional resolvida pelo cadastro dos relatórios).
+  if (_fluPorEscola && Object.keys(_fluPorEscola).length) {
+    ctx += '\nFLUÊNCIA LEITORA (por escola, avaliação mais recente; níveis do menos ao mais avançado: N1, N2, N3, N4, iniciante, fluente):\n';
+    Object.keys(_fluPorEscola).sort().forEach(e => { const f = _fluPorEscola[e]; const reg = _regDe(e);
+      const pct = f.aval > 0 ? Math.round(f.flu / f.aval * 100) : 0;
+      ctx += `• ${e}${reg ? ` [${reg}]` : ''} — ${f.avaliacao || ''}: ${f.aval} avaliados, ${f.flu} fluentes (${pct}%), iniciantes ${f.ini}, N1 ${f.n1}, N2 ${f.n2}, N3 ${f.n3}, N4 ${f.n4}, ausentes ${f.aus}\n`;
+    });
+  } else {
+    ctx += '\n(Fluência Leitora: dados indisponíveis nesta sessão.)\n';
+  }
+  // Elefante Letrado (por escola, com regional).
+  if (_elePorEscola && Object.keys(_elePorEscola).length) {
+    ctx += '\nELEFANTE LETRADO (por escola, mês mais recente; engajamento = leitores/estudantes):\n';
+    Object.keys(_elePorEscola).sort().forEach(e => { const g = _elePorEscola[e]; const reg = _regDe(e);
+      const eng = g.est > 0 ? Math.round(g.lei / g.est * 100) : 0;
+      ctx += `• ${e}${reg ? ` [${reg}]` : ''} — ${g.est} estudantes, ${g.lei} leitores (${eng}% engajamento), ${g.liv} livros lidos${g.leit != null ? `, ${g.leit} leituras concluídas` : ''}\n`;
+    });
+  }
 
   const rede = todasDevolutivas.filter(d => d._tipo === 'sintese_global');
   if (rede.length) {
@@ -2705,48 +2732,30 @@ function _contextoChat() {
     ctx += `\nESCOLAS SEM VISITA (${semVisita.length}): ${semVisita.join('; ')}\n`;
   }
 
-  // Regional por escola (chave = nome normalizado) — permite ao modelo agrupar
-  // Fluência/Elefante por regional, já que aquelas fontes não trazem a regional.
-  const _regByNorm = {};
-  linhas.forEach(l => { if (l.regional && l.regional !== '—') _regByNorm[_auxNormEscola(l.escola)] = l.regional; });
-  const _regDe = nome => _regByNorm[_auxNormEscola(nome)] || '';
-
-  // Fluência Leitora (por escola, avaliação mais recente).
-  if (_fluPorEscola && Object.keys(_fluPorEscola).length) {
-    ctx += '\nFLUÊNCIA LEITORA (por escola, avaliação mais recente; níveis do menos ao mais avançado: N1, N2, N3, N4, iniciante, fluente):\n';
-    Object.keys(_fluPorEscola).sort().forEach(e => { const f = _fluPorEscola[e]; const reg = _regDe(e);
-      const pct = f.aval > 0 ? Math.round(f.flu / f.aval * 100) : 0;
-      ctx += `• ${e}${reg ? ` [${reg}]` : ''} — ${f.avaliacao || ''}: ${f.aval} avaliados, ${f.flu} fluentes (${pct}%), iniciantes ${f.ini}, N1 ${f.n1}, N2 ${f.n2}, N3 ${f.n3}, N4 ${f.n4}, ausentes ${f.aus}\n`;
-    });
-  }
-  // Elefante Letrado (por escola, mês mais recente).
-  if (_elePorEscola && Object.keys(_elePorEscola).length) {
-    ctx += '\nELEFANTE LETRADO (por escola, mês mais recente; engajamento = leitores/estudantes):\n';
-    Object.keys(_elePorEscola).sort().forEach(e => { const g = _elePorEscola[e]; const reg = _regDe(e);
-      const eng = g.est > 0 ? Math.round(g.lei / g.est * 100) : 0;
-      ctx += `• ${e}${reg ? ` [${reg}]` : ''} — ${g.est} estudantes, ${g.lei} leitores (${eng}% engajamento), ${g.liv} livros lidos${g.leit != null ? `, ${g.leit} leituras concluídas` : ''}\n`;
-    });
-  }
-
-  // Registros brutos (respostas do formulário) — vão por ÚLTIMO de propósito: se o
-  // contexto estourar o teto, é esta parte (a mais volumosa, e já resumida nas
-  // devolutivas) que é cortada, preservando o resumo e as análises acima.
-  ctx += '\n\nREGISTROS DETALHADOS DAS VISITAS (respostas do formulário):\n';
+  // ═══ REGISTROS BRUTOS — preenchem só o espaço que sobrar até o teto. Nunca
+  //     empurram o essencial acima para fora; truncam-se sozinhos se faltar espaço. ═══
+  let raw = '\n\nREGISTROS DETALHADOS DAS VISITAS (respostas do formulário):\n';
   ['fundamental','infantil'].forEach(seg => {
     (dadosPorSegmento[seg] || []).forEach(v => {
       const escola = v['_ESCOLA_'] || '';
       const data = v['Data da Visita:'] || v['Data da visita:'] || v['Carimbo de data/hora'] || '';
-      ctx += `\n[${escola} — ${data}]\n`;
+      raw += `\n[${escola} — ${data}]\n`;
       Object.keys(v).forEach(k => {
         if (!k || k.charAt(0) === '_' || k === 'Carimbo de data/hora' || k === 'Endereço de e-mail') return;
         const val = String(v[k] == null ? '' : v[k]).trim();
-        if (val) ctx += `  ${k}: ${val}\n`;
+        if (val) raw += `  ${k}: ${val}\n`;
       });
     });
   });
 
-  const MAX = 180000;   // teto de tamanho (~45k tokens); corta os registros brutos primeiro
-  if (ctx.length > MAX) ctx = ctx.slice(0, MAX) + '\n[... registros truncados por tamanho; o resumo e as devolutivas acima estão completos ...]';
+  const MAX = 200000;                      // teto total (~50k tokens); o essencial acima nunca é cortado
+  const restante = MAX - ctx.length;
+  if (restante > 3000) {
+    ctx += raw.length <= restante ? raw
+         : (raw.slice(0, restante) + '\n[... registros brutos truncados por tamanho; resumo, fluência, elefante e devolutivas acima estão COMPLETOS ...]');
+  } else {
+    ctx += '\n\n(Registros brutos das visitas omitidos por tamanho; resumo, fluência, elefante e devolutivas acima estão completos.)';
+  }
   return ctx;
 }
 
