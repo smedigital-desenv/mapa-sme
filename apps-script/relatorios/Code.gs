@@ -400,14 +400,14 @@ function _chamarGeminiTexto(prompt, maxOutputTokens) {
   const chavesRaw = props.getProperty("GEMINI_KEYS");
   if (!chavesRaw) throw new Error("Nenhuma chave de API configurada na propriedade 'GEMINI_KEYS'.");
   const pool = chavesRaw.split(",").map(k => k.trim()).filter(Boolean);
-  // Lista de modelos em ORDEM DE PREFERÊNCIA. Cada modelo tem cota SEPARADA no
-  // Gemini, então, quando um estoura (429), caímos para o próximo — isso multiplica
-  // a capacidade, sobretudo o limite por minuto (TPM). O 1º é o Flash Lite (500
-  // req/dia no gratuito). Ajustável por GEMINI_MODELOS_CHAT (lista separada por
-  // vírgula) ou, para um único modelo, GEMINI_MODELO_CHAT.
+  // Modelo(s) do chat. Por padrão, SÓ o Flash Lite (mais barato/rápido, 500 req/dia
+  // no gratuito). O mecanismo aceita uma LISTA (fallback entre modelos, cada um com
+  // cota separada) via GEMINI_MODELOS_CHAT — mas, por decisão, o padrão é Lite puro,
+  // sem cair para o Flash normal. Para trocar/estender: GEMINI_MODELOS_CHAT (lista)
+  // ou GEMINI_MODELO_CHAT (um só).
   const modelosRaw = props.getProperty("GEMINI_MODELOS_CHAT")
                   || props.getProperty("GEMINI_MODELO_CHAT")
-                  || "gemini-flash-lite-latest,gemini-flash-latest";
+                  || "gemini-flash-lite-latest";
   const modelos = modelosRaw.split(",").map(m => m.trim()).filter(Boolean);
   const cache = CacheService.getScriptCache();
   const idxIni = (parseInt(cache.get("gemini_key_idx") || "0", 10) || 0) % pool.length;
