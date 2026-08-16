@@ -86,6 +86,9 @@
       border:solid var(--primary);border-width:0 2px 2px 0;transform:rotate(45deg);}
     .ad-up{background:#fff;border-radius:14px;box-shadow:0 4px 16px rgba(2,16,38,.06);padding:1rem 1.15rem;margin-top:1.2rem;}
     .ad-obs{font-size:.74rem;color:var(--muted);border-left:3px solid var(--line);padding-left:.6rem;margin-top:.6rem;}
+    td.cod{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:800;color:var(--primary);white-space:nowrap;}
+    td.des{text-align:left;font-weight:600;color:#334155;}
+    td.des.sem{color:#94a3b8;font-weight:600;font-style:italic;}
     .selrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 .2rem .5rem;}
     .selrow select{border:1px solid #cdd7e3;border-radius:9px;padding:.3rem .6rem;font-weight:700;font-size:.78rem;}
     .sub2{font-size:.72rem;color:var(--muted);}
@@ -178,20 +181,21 @@
 
   <div class="secLabel">Desempenho por habilidade</div>
   <div class="card2"><table class="ad"><thead><tr>
-    <th style="width:16%">Habilidade</th><th style="width:44%">% de acerto (escola)</th>
-    <th style="width:12%">Escola</th>
-    <th class="colRede" style="width:12%">Rede</th><th class="colRede" style="width:12%">Dif.</th>
+    <th style="width:9%">Código</th><th style="width:37%">O que a habilidade avalia</th>
+    <th style="width:26%">% de acerto (escola)</th><th style="width:10%">Escola</th>
+    <th class="colRede" style="width:9%">Rede</th><th class="colRede" style="width:9%">Dif.</th>
   </tr></thead><tbody id="habB"></tbody></table></div>
-  <div class="leg">Da habilidade mais frágil para a mais forte. Ligue “Comparar com a rede”
+  <div class="leg" id="legHab">Da habilidade mais frágil para a mais forte. Ligue “Comparar com a rede”
     para ver a marca da rede sobre a barra.</div>
 
   <div class="secLabel">Desempenho por item</div>
   <div class="card2"><table class="ad"><thead><tr>
-    <th style="width:16%">Item</th><th style="width:44%">% de acerto (escola)</th>
-    <th style="width:12%">Escola</th>
-    <th class="colRede" style="width:12%">Rede</th><th class="colRede" style="width:12%">Dif.</th>
+    <th style="width:6%">Item</th><th style="width:10%">Habilidade</th>
+    <th style="width:30%">O que o item avalia</th>
+    <th style="width:26%">% de acerto (escola)</th><th style="width:10%">Escola</th>
+    <th class="colRede" style="width:9%">Rede</th><th class="colRede" style="width:9%">Dif.</th>
   </tr></thead><tbody id="itemB"></tbody></table></div>
-  <div class="leg">Uma linha por item da prova, na ordem de aplicação.</div>
+  <div class="leg" id="legItem">Uma linha por item da prova, na ordem de aplicação.</div>
 
 </div>
 
@@ -221,7 +225,7 @@ const faixaAcerto = v => faixa(v, [.80,.65,.50,.35]);
 const faixaPart   = v => faixa(v, [.95,.90,.80,.70]);
 
 let ESCOLAS=[], atual=null;
-let PART=null, PART_REDE=null, TURMAS=[], METRICAS=[], METRICAS_REDE=new Map();
+let PART=null, PART_REDE=null, TURMAS=[], METRICAS=[], METRICAS_REDE=new Map(), CATALOGO=new Map();
 
 /* A lista de unidades sai do nível 'escola'; a linha da rede é separada e
    visível a todos os perfis (é agregada, não identifica ninguém). */
@@ -240,13 +244,20 @@ async function carregarEscolas(){
 }
 
 async function carregarRede(){
-  const [{data:p}, {data:m}] = await Promise.all([
+  const [{data:p}, {data:m}, cat] = await Promise.all([
     sb().from('av_oral').select('previstos,avaliados').eq('nivel','rede').limit(1),
     sb().from('av_oral_metrica').select('tipo,chave,pct').eq('nivel','rede'),
+    sb().from('av_oral_catalogo').select('tipo,chave,descritor,cod_habilidade,ordem'),
   ]);
   PART_REDE=(p&&p[0])||null;
   METRICAS_REDE=new Map((m||[]).map(r=>[r.tipo+'|'+r.chave, r.pct]));
+  // O catálogo pode não existir ainda (tabela nova). A tela funciona sem ele —
+  // mostra o código e avisa que o descritor não foi cadastrado. O que ela NÃO
+  // faz é inventar o texto: um descritor errado é pior que nenhum, porque a
+  // rede inteira leria como se fosse o oficial.
+  CATALOGO=new Map(((cat&&cat.data)||[]).map(r=>[r.tipo+'|'+r.chave, r]));
 }
+const doCatalogo = (tipo,chave) => CATALOGO.get(tipo+'|'+chave) || {};
 
 async function selecionar(nome){
   atual=ESCOLAS.find(e=>e.escola===nome)||{escola:nome};
@@ -305,14 +316,28 @@ function corpoMetrica(tipo, alvo){
   linhas.sort((a,b)=> tipo==='habilidade'
     ? (a.pct??9) - (b.pct??9)
     : String(a.chave).localeCompare(String(b.chave),'pt-BR',{numeric:true}));
+  const nCols = tipo==='habilidade' ? 6 : 7;
   const el=document.getElementById(alvo);
-  if(!linhas.length){ el.innerHTML='<tr><td colspan="5" style="color:#64748b">Sem dados para esta unidade.</td></tr>'; return; }
+  if(!linhas.length){
+    el.innerHTML='<tr><td colspan="'+nCols+'" style="color:#64748b">Sem dados para esta unidade.</td></tr>';
+    return;
+  }
+  let semDescritor=0;
   el.innerHTML=linhas.map(m=>{
     const v=m.pct, rd=METRICAS_REDE.get(tipo+'|'+m.chave);
     const f=faixaAcerto(v);
     const pp=(v!=null&&rd!=null)?Math.round((v-rd)*100):null;
     const larg=v==null?0:Math.max(0,Math.min(100,v*100));
-    return '<tr><td class="lbl">'+esc(m.chave)+'</td>'
+    const c=doCatalogo(tipo, m.chave);
+    if(!c.descritor) semDescritor++;
+    const desc = c.descritor
+      ? '<td class="des">'+esc(c.descritor)+'</td>'
+      : '<td class="des sem">descritor não cadastrado</td>';
+    // No item, mostrar a habilidade que ele mede é o que permite ler
+    // "o item foi mal, e ele mede a D006_J".
+    const colHab = tipo==='item'
+      ? '<td class="cod">'+esc(c.cod_habilidade||'—')+'</td>' : '';
+    return '<tr><td class="cod">'+esc(m.chave)+'</td>'+colHab+desc
       + '<td><div class="barwrap"><div class="barfill" style="width:'+larg+'%;background:'+f.bg+'"></div>'
       + (rd!=null?'<div class="tick" style="left:'+Math.max(0,Math.min(100,rd*100))+'%"></div>':'')
       + '</div></td>'
@@ -321,6 +346,22 @@ function corpoMetrica(tipo, alvo){
       + '<td class="colRede" style="font-weight:800;color:'+(pp==null?'#94a3b8':(pp>=0?'#166534':'#b91c1c'))+'">'
       + (pp==null?'—':(pp>=0?'▲ ':'▼ ')+Math.abs(pp)+'pp')+'</td></tr>';
   }).join('');
+  avisarDescritor(tipo, semDescritor, linhas.length);
+}
+
+/* O aviso é deliberado e visível: sem ele a tela mostraria "D007_J" e a pessoa
+   ficaria sem saber se o código é o nome oficial da habilidade ou uma falha de
+   carga. Some sozinho quando o catálogo é preenchido. */
+function avisarDescritor(tipo, sem, total){
+  const el=document.getElementById(tipo==='habilidade'?'legHab':'legItem');
+  if(!el) return;
+  const base = tipo==='habilidade'
+    ? 'Da habilidade mais frágil para a mais forte. Ligue “Comparar com a rede” para ver a marca da rede sobre a barra.'
+    : 'Uma linha por item da prova, na ordem de aplicação.';
+  el.innerHTML = base + (sem
+    ? ' <b style="color:#b45309">'+sem+' de '+total+' sem descritor cadastrado</b> — '
+      + 'os códigos aparecem sozinhos até que o catálogo seja preenchido.'
+    : '');
 }
 
 (function(){

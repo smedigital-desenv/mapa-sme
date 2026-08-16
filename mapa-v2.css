@@ -789,6 +789,7 @@ table.matriz td .big,
 table.matriz thead th,
 table.mtx td .big,
 table.mtx thead th,
+td.des,
 td.lbl{
   color:var(--texto) !important;
 }
