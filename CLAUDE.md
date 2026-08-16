@@ -167,6 +167,12 @@ exatamente** esse número, em TODOS os anos daquela unidade. Quem não fecha
 continua com `'—'` e sai no console. Se você mexer aqui, não remova a
 conferência: sem ela o erro é invisível.
 
+A aba **Total** usa a MESMA rota e a MESMA conferência, com uma diferença: ela
+pontua pelo `fqr_vl` CRU, não pelo rótulo normalizado — rótulos diferentes
+colapsam no mesmo texto e o `respostaScore` precisa do código para dar a nota
+certa. Por isso a varredura devolve duas agregações (`ag` normalizada para as
+abas de bimestre, `agCru` para o Total).
+
 O nível `detalherede` (leque por escola dentro da Edge Function) continua
 escrito e é a reserva para o dia em que o filtro `turma` deixar de funcionar —
 aí a turma só existiria no nível Aluno, e cobrir a rede custaria **~300 MB de

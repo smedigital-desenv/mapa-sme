@@ -7865,6 +7865,11 @@ function _renderTabelaTotal(linhas) {
     const ag = new Map();          // u||ano||turma||disc||eixo||resp -> qtd
     const porItem = new Map();     // u||ano||turma -> (item -> soma)
     const brutoTurma = new Map();  // u||ano -> soma crua (para conferir)
+    // O Total pontua a resposta pelo CÓDIGO cru (fqr_vl), não pelo rótulo já
+    // normalizado: rótulos diferentes podem colapsar no mesmo texto, e o
+    // respostaScore precisa do código para dar a nota certa. Por isso uma
+    // segunda agregação, que preserva os campos como vieram.
+    const agCru = new Map();       // u||ano||turma||fnc||fne||vl||txt -> qtd
 
     porAno.forEach((achadas, i) => {
       const anoEsc = anos[i];
@@ -7887,11 +7892,15 @@ function _renderTabelaTotal(linhas) {
 
           const kb = u + '||' + a;
           brutoTurma.set(kb, (brutoTurma.get(kb) || 0) + qtd);
+
+          const kc = [u, a, turma, r.fnc_des || '', r.fne_des || '',
+                      r.fqr_vl == null ? '' : r.fqr_vl, r.fqr_txt_resp || ''].join('||');
+          agCru.set(kc, (agCru.get(kc) || 0) + qtd);
         });
       });
     });
 
-    return { ag, porItem, brutoTurma };
+    return { ag, agCru, porItem, brutoTurma };
   }
 
   // ── Sonda: a API RESPEITA o filtro `turma`? ───────────────────────────────
@@ -8292,53 +8301,81 @@ function _renderTabelaTotal(linhas) {
   // unidade contava linhas, o que dava peso extra a itens com mais de uma
   // pergunta por aluno.
   async function fichaDetalheRedeTotal() {
-    const [catalogo, ...respostas] = await Promise.all([
-      fichaCatalogo(),
-      ...[1, 2, 3, 4].map(b => fichaDetalheRede(b).catch(err => {
-        console.warn('[MAPA CODERP] Total: detalhe da rede falhou no bim ' + b + ':', err);
-        return null;
-      }))
-    ]);
-    if (!respostas.some(r => r && r.ok && Array.isArray(r.linhas) && r.linhas.length)) {
-      throw new Error('detalherede sem resposta utilizável para o Total');
+    const catalogo = await fichaCatalogo();
+
+    const ag = new Map();       // u||ano||turma||disc||eixo||campo -> {soma, qtd}
+    const arvore = new Set();   // u||ano||turma
+    const reprovados = [];
+    let algum = false;
+
+    for (const b of [1, 2, 3, 4]) {
+      // Base de conferência: o MESMO agregado que o Total já consome
+      // (memoizado — não custa consulta nova).
+      const bruto = new Map();  // u||ano -> soma crua
+      const porAnoAgg = await Promise.all(
+        FICHA_ANOS_ESCOLARES.map(a => fichaRedeTurma(b, a).catch(() => null)));
+      porAnoAgg.forEach((rows, i) => {
+        const a = normalizar(FICHA_ANOS_ESCOLARES[i]);
+        (rows || []).forEach(r => {
+          const qtd = Number(r.qtd_alunos || 0);
+          if (!qtd) return;
+          const u = cleanUnit(catalogo.get(Number(r.uni_cod)) || ('UNIDADE ' + r.uni_cod));
+          const kb = u + '||' + a;
+          bruto.set(kb, (bruto.get(kb) || 0) + qtd);
+        });
+      });
+      if (!bruto.size) continue;   // bimestre sem lançamento: nada a detalhar
+
+      let detalhe;
+      try { detalhe = await fichaDetalheRedePorTurma(b, 'TODOS'); }
+      catch (e) { console.warn('[MAPA CODERP] Total: varredura por turma falhou no bim ' + b + ':', e.message); continue; }
+
+      // Mesma conferência das abas de bimestre: a soma das turmas tem que
+      // reproduzir o agregado, por unidade E ano. Sem isso o Total mostraria
+      // turmas incompletas com aparência de completas.
+      const okUA = new Set();
+      bruto.forEach((esperado, kb) => {
+        if (esperado > 0 && (detalhe.brutoTurma.get(kb) || 0) === esperado) okUA.add(kb);
+        else reprovados.push('bim ' + b + ' — ' + kb.replace('||', ' / '));
+      });
+      if (!okUA.size) continue;
+
+      const campo = 'b' + b;
+      // Usa a agregação CRUA: o score depende do código da resposta (fqr_vl),
+      // que o rótulo normalizado não carrega.
+      detalhe.agCru.forEach((qtd, k) => {
+        const p = k.split('||');   // u, ano, turma, fnc_des, fne_des, fqr_vl, fqr_txt
+        if (!okUA.has(p[0] + '||' + p[1])) return;
+        const d = normalizarDisciplina(corrigirTextoLegivel(p[3]) || 'Sem disciplina');
+        const e = normalizarEixoTotal(corrigirTextoLegivel(p[4]) || 'Sem eixo');
+        if (!d || !e) return;
+        const score = respostaScore({ descricao_fne: p[4] || '', valor_resposta: p[5], texto_resposta: p[6] || '' });
+        if (score === null || Number.isNaN(score)) return;
+        arvore.add(p[0] + '||' + p[1] + '||' + p[2]);
+        const kk = [p[0], p[1], p[2], d, e, campo].join('||');
+        if (!ag.has(kk)) ag.set(kk, { soma: 0, qtd: 0 });
+        const alvo = ag.get(kk);
+        // Ponderação por ALUNOS, igual ao caminho agregado do Total.
+        alvo.soma += score * qtd;
+        alvo.qtd += qtd;
+        algum = true;
+      });
     }
 
-    const ag = new Map();       // u||a||t||d||e||campo -> {soma, qtd}
-    const arvore = new Set();   // u||a||t
-    let parcial = false;
-
-    respostas.forEach((resp, i) => {
-      if (!resp || !resp.ok) { parcial = true; return; }
-      if (resp.parcial) parcial = true;
-      const campo = 'b' + (i + 1);
-      (resp.linhas || []).forEach(l => {
-        const u = cleanUnit(catalogo.get(Number(l[0])) || ('UNIDADE ' + l[0]));
-        const a = normalizar(l[1] || '') || 'TODOS';
-        const t = String(l[2] || '—').trim().toUpperCase() || '—';
-        arvore.add(u + '||' + a + '||' + t);
-        const d = normalizarDisciplina(corrigirTextoLegivel(l[3] || '') || 'Sem disciplina');
-        const e = normalizarEixoTotal(corrigirTextoLegivel(l[4] || '') || 'Sem eixo');
-        if (!d || !e) return;
-        const score = respostaScore({ descricao_fne: l[4] || '', valor_resposta: l[5], texto_resposta: l[6] || '' });
-        if (score === null || Number.isNaN(score)) return;
-        const peso = Number(l[7] || 0);
-        if (!peso) return;
-        const k = [u, a, t, d, e, campo].join('||');
-        if (!ag.has(k)) ag.set(k, { soma: 0, qtd: 0 });
-        const alvo = ag.get(k);
-        alvo.soma += score * peso;
-        alvo.qtd += peso;
-      });
-    });
-
+    if (!algum) throw new Error('nenhum bimestre fechou a conferência por turma');
+    if (reprovados.length) {
+      console.warn('[MAPA CODERP] Total: ' + reprovados.length
+        + ' unidade/ano/bimestre sem detalhe por turma (o total continua correto):',
+        reprovados.slice(0, 10));
+    }
     return {
       ok: true,
-      parcial: parcial,
+      parcial: reprovados.length > 0,
       linhas: Array.from(ag.entries()).map(([k, v]) => {
         const p = k.split('||');
         return [p[0], p[1], p[2], p[3], p[4], p[5], v.soma, v.qtd];
       }),
-      arvoreLinhas: Array.from(arvore, s => s.split('||'))
+      arvoreLinhas: Array.from(arvore, x => x.split('||'))
     };
   }
 
