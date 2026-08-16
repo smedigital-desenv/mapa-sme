@@ -64,6 +64,7 @@
     table.ad th{background:#f6f8fb;color:var(--muted);font-weight:800;font-size:.64rem;text-transform:uppercase;}
     td.lbl{text-align:left;font-weight:800;color:#334155;background:#fafbfc;white-space:nowrap;}
     .val{font-weight:900;} .rd{font-size:.62rem;font-weight:800;color:var(--muted);margin-top:1px;display:none;}
+    td.c{font-weight:900;} td.c .rd{color:inherit;opacity:.85;}
     body.op-rede .rd{display:block;}
     .leg{font-size:.68rem;color:var(--muted);margin-top:.4rem;}
     .ops{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:0 .2rem .9rem;}
@@ -153,7 +154,7 @@
   </div>
   <div class="secLabel">Proficiência média por ano escolar e componente</div>
   <div class="card2"><table class="ad" id="tab"></table></div>
-  <div class="leg" id="legenda">Verde = acima da média da rede naquele ano; vermelho = abaixo. Ligue o botão para ver a média da rede.</div>
+  <div class="leg" id="legenda">A cor mede a distância da <b>média da rede</b> naquele ano, ano escolar e componente: verde-escuro 10% ou mais acima · verde 3% acima · amarelo na média · laranja até 10% abaixo · vermelho abaixo disso. Ligue “Comparar com a rede” para ver o número da média.</div>
 
   <div class="ad-up" id="adUpload" style="display:none">
     <div class="secLabel" style="margin-top:0">Atualizar dados</div>
@@ -187,6 +188,29 @@ function numero(v){
 const CAMPOS='ano,ano_escolar,componente,proficiencia';
 const ANOS_ESC=['2º','5º'], COMPS=[['LP','Língua Portuguesa'],['Mat','Matemática']];
 const chavesRede = r => [[r.ano+'|'+r.ano_escolar+'|'+r.componente, r.proficiencia]];
+/* ── Escala de 5 faixas, a mesma da Diagnóstica ─────────────────────────────
+   O SARESP não tem régua absoluta comparável à da Diagnóstica (a proficiência
+   anda por volta de 120–230 e o corte oficial muda por ano e componente), então
+   a cor mede a DISTÂNCIA RELATIVA da média da rede naquele mesmo recorte — que
+   é a referência que esta tela já mostrava. Estar na média é o centro da
+   escala: amarelo, não verde.
+
+   A tinta acompanha a faixa: sobre os três tons do meio o texto branco fica
+   abaixo de 4,5:1; com tinta escura sobe para 5,0–6,1:1. A paleta é a mesma —
+   o que muda é a cor do número. Não devolva o texto para branco. */
+const FAIXAS=[
+  {min: .10, bg:'#15803d', fg:'#ffffff'},   // 10% ou mais acima
+  {min: .03, bg:'#65a30d', fg:'#132000'},
+  {min:-.03, bg:'#ca8a04', fg:'#231700'},   // na média
+  {min:-.10, bg:'#ea580c', fg:'#2b0d00'},
+  {min:-Infinity, bg:'#b91c1c', fg:'#ffffff'},
+];
+const SEM_COR={bg:'#cbd5e1', fg:'#0f172a'};
+function faixaRel(v, ref){
+  if(v==null||isNaN(v)||ref==null||isNaN(ref)||!ref) return SEM_COR;
+  const d=(v-ref)/Math.abs(ref);
+  return FAIXAS.find(f=>d>=f.min) || SEM_COR;
+}
 function render(){
   const anos=Array.from(new Set(DADOS.map(r=>r.ano))).sort();
   const idx=new Map(DADOS.map(r=>[r.ano+'|'+r.ano_escolar+'|'+r.componente, r.proficiencia]));
@@ -194,8 +218,9 @@ function render(){
   ANOS_ESC.forEach(ae=>COMPS.forEach(([sig,nome])=>{
     h+='<tr><td class="lbl">'+ae+' ano · '+nome+'</td>'+anos.map(a=>{
       const v=idx.get(a+'|'+ae+'|'+sig), rd=REDE.get(a+'|'+ae+'|'+sig);
-      const cor=v==null?'#94a3b8':(rd!=null&&v>=rd?'#166534':'#b91c1c');
-      return '<td><span class="val" style="color:'+cor+'">'+nf(v)+'</span><div class="rd">rede '+nf(rd)+'</div></td>';
+      const f=faixaRel(v,rd);
+      return '<td class="c" style="background:'+f.bg+';color:'+f.fg+'"><span class="val">'+nf(v)+'</span>'
+           + '<div class="rd">rede '+nf(rd)+'</div></td>';
     }).join('')+'</tr>';
   }));
   document.getElementById('tab').innerHTML=h;

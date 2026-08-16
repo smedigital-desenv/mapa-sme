@@ -64,6 +64,7 @@
     table.ad th{background:#f6f8fb;color:var(--muted);font-weight:800;font-size:.64rem;text-transform:uppercase;}
     td.lbl{text-align:left;font-weight:800;color:#334155;background:#fafbfc;white-space:nowrap;}
     .val{font-weight:900;} .rd{font-size:.62rem;font-weight:800;color:var(--muted);margin-top:1px;display:none;}
+    td.c{font-weight:900;} td.c .rd{color:inherit;opacity:.85;}
     body.op-rede .rd{display:block;}
     .leg{font-size:.68rem;color:var(--muted);margin-top:.4rem;}
     .ops{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:0 .2rem .9rem;}
@@ -153,7 +154,7 @@
   </div>
   <div class="secLabel">IEE, meta, cumprimento e prêmio</div>
   <div class="card2"><table class="ad" id="tab"></table></div>
-  <div class="leg" id="legenda">Verde = IEE igual ou acima da meta do ano. O ICM indica o cumprimento da meta.</div>
+  <div class="leg" id="legenda">A cor da linha do IEE mede a distância da <b>meta do ano</b>: verde-escuro superou em 5% ou mais · verde alcançou · amarelo até 5% abaixo · laranja até 15% abaixo · vermelho abaixo disso. Meta, ICM e prêmio não recebem faixa — não são desempenho. O ICM indica o cumprimento da meta.</div>
 
   <div class="ad-up" id="adUpload" style="display:none">
     <div class="secLabel" style="margin-top:0">Atualizar dados</div>
@@ -187,12 +188,33 @@ function numero(v){
 const CAMPOS='ano,iee,meta,icm,premio';
 const chavesRede = r => [[String(r.ano), r.iee]];
 const brl = v => (v==null||isNaN(v)) ? '—' : Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
+/* ── Escala de 5 faixas, a mesma paleta da Diagnóstica ──────────────────────
+   A referência é a META do ano, como no IDEB, e pela mesma razão a escala é
+   assimétrica: alcançar a meta já é verde. Só a linha do IEE recebe faixa —
+   Meta, ICM e prêmio não são desempenho, e colori-los sugeriria uma leitura
+   que eles não têm.
+
+   A tinta acompanha a faixa: sobre os três tons do meio o texto branco fica
+   abaixo de 4,5:1; com tinta escura sobe para 5,0–6,1:1. Não devolva o texto
+   para branco. */
+const FAIXAS=[
+  {min: .05, bg:'#15803d', fg:'#ffffff'},
+  {min: 0,   bg:'#65a30d', fg:'#132000'},
+  {min:-.05, bg:'#ca8a04', fg:'#231700'},
+  {min:-.15, bg:'#ea580c', fg:'#2b0d00'},
+  {min:-Infinity, bg:'#b91c1c', fg:'#ffffff'},
+];
+const SEM_COR={bg:'#cbd5e1', fg:'#0f172a'};
+function faixaRel(v, ref){
+  if(v==null||isNaN(v)||ref==null||isNaN(ref)||!ref) return SEM_COR;
+  const d=(v-ref)/Math.abs(ref);
+  return FAIXAS.find(f=>d>=f.min) || SEM_COR;
+}
 function render(){
   const anos=Array.from(new Set(DADOS.map(r=>r.ano))).sort();
   const idx=new Map(DADOS.map(r=>[String(r.ano),r]));
   const linhas=[
-    ['IEE', r=>r?r.iee:null, (v,r)=>{ const m=r?r.meta:null;
-        return '<span class="val" style="color:'+(v==null?'#94a3b8':(m==null?'#0f172a':(v>=m?'#166534':'#b91c1c')))+'">'+nf(v,2)+'</span>'; }],
+    ['IEE', r=>r?r.iee:null, (v,r)=>'<span class="val">'+nf(v,2)+'</span>'],
     ['Meta', r=>r?r.meta:null, v=>'<span style="color:#475569;font-weight:700">'+nf(v,2)+'</span>'],
     ['ICM (cumpriu a meta)', r=>r?r.icm:null,
         v=>v==null?'—':'<span style="font-weight:800;color:'+(v>=1?'#166534':'#b91c1c')+'">'+(v>=1?'Sim':'Não')+'</span>'],
@@ -202,8 +224,10 @@ function render(){
   linhas.forEach(([nome,get,fmt])=>{
     h+='<tr><td class="lbl">'+nome+'</td>'+anos.map(a=>{
       const r=idx.get(String(a)), v=get(r);
-      const extra=(nome==='IEE')?'<div class="rd">rede '+nf(REDE.get(String(a)),2)+'</div>':'';
-      return '<td>'+fmt(v,r)+extra+'</td>';
+      if(nome!=='IEE') return '<td>'+fmt(v,r)+'</td>';
+      const f=faixaRel(v, r?r.meta:null);
+      return '<td class="c" style="background:'+f.bg+';color:'+f.fg+'">'+fmt(v,r)
+           + '<div class="rd">rede '+nf(REDE.get(String(a)),2)+'</div></td>';
     }).join('')+'</tr>';
   });
   document.getElementById('tab').innerHTML=h;

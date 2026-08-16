@@ -64,6 +64,7 @@
     table.ad th{background:#f6f8fb;color:var(--muted);font-weight:800;font-size:.64rem;text-transform:uppercase;}
     td.lbl{text-align:left;font-weight:800;color:#334155;background:#fafbfc;white-space:nowrap;}
     .val{font-weight:900;} .rd{font-size:.62rem;font-weight:800;color:var(--muted);margin-top:1px;display:none;}
+    td.c{font-weight:900;} td.c .rd{color:inherit;opacity:.85;}
     body.op-rede .rd{display:block;}
     .leg{font-size:.68rem;color:var(--muted);margin-top:.4rem;}
     .ops{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:0 .2rem .9rem;}
@@ -153,7 +154,7 @@
   </div>
   <div class="secLabel">IDEB por etapa e ano</div>
   <div class="card2"><table class="ad" id="tab"></table></div>
-  <div class="leg" id="legenda">Verde = a escola alcançou a meta daquele ano; vermelho = ficou abaixo. O IDEB é avaliado contra a META da própria escola, não contra a rede.</div>
+  <div class="leg" id="legenda">A cor mede a distância da <b>meta da própria escola</b> — não da rede: verde-escuro superou a meta em 5% ou mais · verde alcançou a meta · amarelo até 5% abaixo · laranja até 15% abaixo · vermelho abaixo disso. Ligue “Comparar com a rede” para ver a média da rede ao lado.</div>
 
   <div class="ad-up" id="adUpload" style="display:none">
     <div class="secLabel" style="margin-top:0">Atualizar dados</div>
@@ -187,6 +188,28 @@ function numero(v){
 const CAMPOS='ano,etapa,ideb,meta';
 const ETAPAS=[['AI','Anos Iniciais'],['AF','Anos Finais']];
 const chavesRede = r => [[r.ano+'|'+r.etapa, r.ideb]];
+/* ── Escala de 5 faixas, a mesma paleta da Diagnóstica ──────────────────────
+   A referência aqui é a META da própria escola, não a rede: o IDEB é avaliado
+   contra a meta que a escola recebeu. Por isso a escala é ASSIMÉTRICA —
+   alcançar a meta já é verde, não amarelo, ao contrário do SARESP, onde estar
+   na média da rede é o centro neutro.
+
+   A tinta acompanha a faixa: sobre os três tons do meio o texto branco fica
+   abaixo de 4,5:1; com tinta escura sobe para 5,0–6,1:1. A paleta é a mesma —
+   o que muda é a cor do número. Não devolva o texto para branco. */
+const FAIXAS=[
+  {min: .05, bg:'#15803d', fg:'#ffffff'},   // superou a meta com folga
+  {min: 0,   bg:'#65a30d', fg:'#132000'},   // alcançou a meta
+  {min:-.05, bg:'#ca8a04', fg:'#231700'},   // perto
+  {min:-.15, bg:'#ea580c', fg:'#2b0d00'},
+  {min:-Infinity, bg:'#b91c1c', fg:'#ffffff'},
+];
+const SEM_COR={bg:'#cbd5e1', fg:'#0f172a'};
+function faixaRel(v, ref){
+  if(v==null||isNaN(v)||ref==null||isNaN(ref)||!ref) return SEM_COR;
+  const d=(v-ref)/Math.abs(ref);
+  return FAIXAS.find(f=>d>=f.min) || SEM_COR;
+}
 function render(){
   const anos=Array.from(new Set(DADOS.map(r=>r.ano))).sort();
   const idx=new Map(DADOS.map(r=>[r.ano+'|'+r.etapa, r]));
@@ -194,11 +217,9 @@ function render(){
   ETAPAS.forEach(([sig,nome])=>{
     h+='<tr><td class="lbl">'+nome+'</td>'+anos.map(a=>{
       const r=idx.get(a+'|'+sig), v=r?r.ideb:null, meta=r?r.meta:null, rd=REDE.get(a+'|'+sig);
-      // Verde/vermelho aqui compara com a META da própria escola, não com a
-      // rede: o IDEB é avaliado contra a meta que a escola recebeu.
-      const cor=v==null?'#94a3b8':(meta==null?'#0f172a':(v>=meta?'#166534':'#b91c1c'));
-      return '<td><span class="val" style="color:'+cor+'">'+nf(v)+'</span>'
-           + (meta!=null?'<div style="font-size:.6rem;color:#64748b">meta '+nf(meta)+'</div>':'')
+      const f=faixaRel(v,meta);
+      return '<td class="c" style="background:'+f.bg+';color:'+f.fg+'"><span class="val">'+nf(v)+'</span>'
+           + (meta!=null?'<div style="font-size:.6rem;opacity:.85">meta '+nf(meta)+'</div>':'')
            + '<div class="rd">rede '+nf(rd)+'</div></td>';
     }).join('')+'</tr>';
   });
