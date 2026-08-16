@@ -187,9 +187,16 @@
     .chat-b.user { align-self:flex-end; background:var(--primary); color:#fff; border-bottom-right-radius:4px; }
     .chat-b.bot  { align-self:flex-start; background:#fff; color:#1e293b; border:1px solid #e8eef5; border-bottom-left-radius:4px; }
     .chat-b.bot strong { color:var(--primary); }
-    .chat-vazio { margin:auto; text-align:center; color:#94a3b8; max-width:460px; }
-    .chat-vazio i { font-size:2.4rem; color:#cbd5e1; }
+    .chat-vazio { margin:auto; text-align:center; color:#94a3b8; max-width:540px; padding:1rem; }
+    .chat-vazio > i { font-size:2.4rem; color:#cbd5e1; }
     .chat-vazio p { font-size:.85rem; font-weight:600; margin-top:.5rem; }
+    .iago-ola { font-size:1.2rem; font-weight:900; color:var(--primary); margin-top:.1rem; }
+    .iago-desc { font-size:.86rem; color:#475569; font-weight:600; margin:.5rem auto .9rem; max-width:470px; }
+    .iago-caps { list-style:none; margin:0 auto; padding:0; max-width:440px; text-align:left; display:flex; flex-direction:column; gap:.55rem; }
+    .iago-caps li { display:flex; align-items:flex-start; gap:.6rem; font-size:.82rem; color:#334155; line-height:1.35; }
+    .iago-caps li i { color:var(--neon-blue); font-size:1.05rem; margin-top:.05rem; flex-shrink:0; }
+    .iago-caps li b { color:#1e293b; }
+    .iago-cta { font-size:.8rem; font-weight:800; color:#64748b; margin-top:1.1rem; }
     .chat-typing { align-self:flex-start; display:flex; gap:4px; padding:.7rem .95rem; }
     .chat-typing span { width:7px; height:7px; border-radius:50%; background:#cbd5e1; animation:chatpulse 1.2s infinite; }
     .chat-typing span:nth-child(2){ animation-delay:.2s; } .chat-typing span:nth-child(3){ animation-delay:.4s; }
@@ -2457,10 +2464,10 @@ function exportarCoberturaCSV() {
 let _chatHistorico = [];
 let _chatEnviando = false;
 const _CHAT_SUGESTOES = [
-  'Quais os principais desafios da rede?',
   'Quais escolas estão em risco alto?',
-  'Como está a cobertura por regional?',
-  'O que devo priorizar na próxima etapa?'
+  'Qual regional está pior na fluência?',
+  'Quem visitou por último e o que observou?',
+  'Cruze o risco das visitas com o engajamento no Elefante'
 ];
 
 function renderAssistente() {
@@ -2476,8 +2483,8 @@ function renderAssistente() {
             <i class="bi bi-robot" style="font-size:1.4rem;color:var(--neon-blue);display:none;"></i>
           </span>
           <div>
-            <div class="tit">Assistente do MAPA</div>
-            <div class="sub">Responde com base nas visitas e devolutivas às quais você tem acesso.</div>
+            <div class="tit">Iago</div>
+            <div class="sub">Assistente do MAPA · responde com base nos dados que você pode ver.</div>
           </div>
         </div>
         <div class="chat-msgs" id="chatMsgs"></div>
@@ -2505,9 +2512,19 @@ function _renderChatMsgs() {
   let html;
   if (!_chatHistorico.length && !_chatEnviando) {
     html = `<div class="chat-vazio">
-      <img src="iago.png" alt="Assistente do MAPA" class="chat-mascote" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+      <img src="iago-ola.png" alt="Iago, assistente do MAPA" class="chat-mascote" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
       <i class="bi bi-chat-square-heart" style="display:none;"></i>
-      <p>Olá! Sou o assistente do MAPA. Pergunte sobre a rede — ex.: “quais escolas estão em risco alto?” ou “resuma a situação da Regional 3”.</p></div>`;
+      <div class="iago-ola">Olá! Eu sou o <b>Iago</b> 👋</div>
+      <div class="iago-desc">Seu assistente do MAPA. Consigo analisar e <b>cruzar</b> os dados aos quais você tem acesso:</div>
+      <ul class="iago-caps">
+        <li><i class="bi bi-clipboard2-check-fill"></i><span><b>Visitas de acompanhamento</b> — quem visitou, quando e o responsável</span></li>
+        <li><i class="bi bi-robot"></i><span><b>Devolutivas pedagógicas</b> — prioridade, risco, pontos fortes e fracos</span></li>
+        <li><i class="bi bi-book-half"></i><span><b>Fluência Leitora</b> — níveis N1–N4 e % de fluentes</span></li>
+        <li><i class="bi bi-book-fill"></i><span><b>Elefante Letrado</b> — engajamento e leituras</span></li>
+        <li><i class="bi bi-map-fill"></i><span><b>Cobertura, regionais, riscos e temas</b> da rede</span></li>
+      </ul>
+      <div class="iago-cta">Pergunte à vontade — ou toque numa sugestão abaixo 👇</div>
+    </div>`;
   } else {
     html = _chatHistorico.map(m =>
       `<div class="chat-b ${m.role==='user'?'user':'bot'}">${m.role==='user'?escapar(m.texto):_mdSimples(m.texto)}</div>`).join('');
@@ -2569,8 +2586,9 @@ function _contextoBase() {
 }
 
 function _sistemaChat() {
-  return 'Você é o assistente do MAPA (Secretaria Municipal da Educação de Ribeirão Preto), '
-    + 'que responde a gestores e técnicos sobre visitas de acompanhamento, devolutivas, Fluência Leitora e Elefante Letrado.\n\n'
+  return 'Você é o Iago, o assistente virtual do MAPA (Secretaria Municipal da Educação de Ribeirão Preto), '
+    + 'que responde a gestores e técnicos sobre visitas de acompanhamento, devolutivas, Fluência Leitora e Elefante Letrado. '
+    + 'Se perguntarem quem é você, apresente-se como Iago, de forma breve e cordial.\n\n'
     + 'REGRAS:\n'
     + '- Use as FUNÇÕES para buscar os dados que precisar (escolas, detalhe_da_escola, visitas, indicadores, buscar). Chame quantas precisar antes de responder.\n'
     + '- Você PODE e DEVE calcular, somar, contar, agrupar, ordenar, tirar médias/percentuais, ranquear e CRUZAR os resultados (ex.: qual regional está pior na fluência, cruzar risco da visita com engajamento). Isso NÃO é inventar.\n'
