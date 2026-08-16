@@ -7674,7 +7674,12 @@ function _renderTabelaTotal(linhas) {
     const texto = await r.text();
     let resp = null;
     try { resp = JSON.parse(texto); } catch (e) { /* resposta não-JSON tratada abaixo */ }
-    if (!r.ok) throw new Error('coderp-ficha ' + r.status + ' ' + ((resp && resp.erro) || ''));
+    if (!r.ok) {
+      // O status DO CODERP vai junto: sem ele, "502 coderp_recusou" não
+      // distingue bimestre ainda sem lançamento de indisponibilidade real.
+      const dentro = resp && resp.status ? ' (CODERP ' + resp.status + ')' : '';
+      throw new Error('coderp-ficha ' + r.status + ' ' + ((resp && resp.erro) || '') + dentro);
+    }
     // Só entra no cache local resposta com dado real, ou vazio SEM Messages
     // (bimestre sem lançamento é legítimo; vazio COM aviso é suspeito e não
     // pode ficar "colado" por 10 min).
@@ -7728,6 +7733,59 @@ function _renderTabelaTotal(linhas) {
     }
     return _fichaTurmaMemo.get(k);
   }
+
+  // ── Sonda: a API RESPEITA o filtro `turma`? ───────────────────────────────
+  // O `IndicadorTurma` aceita `turma` na requisição mas NÃO devolve `tur_cod`
+  // (medido: 28.141 linhas, zero rotuladas). Se ele de fato filtrar, dá para
+  // pedir a rede turma a turma e rotular pelo que foi PEDIDO — ~40 consultas
+  // leves em vez do leque de 112 fichas por escola.
+  //
+  // Isso não pode ser suposto. Se a API IGNORAR o filtro, cada chamada devolve
+  // a rede inteira e nós rotularíamos tudo como a primeira turma — dado errado
+  // e silencioso, que é pior do que lento. Esta sonda decide com número:
+  //
+  //     MapaDiagTurma()                       // 1º bim, 1 ANO, turmas A..F
+  //     MapaDiagTurma(2, '3 ANO', ['A','B'])  // outro recorte
+  //
+  // Veredicto:
+  //   · filtradas somam ≈ o total sem filtro  → o filtro FUNCIONA
+  //   · cada filtrada = o total sem filtro    → o filtro é IGNORADO
+  //   · filtradas vazias                      → exige `escola`, ou outro código
+  window.MapaDiagTurma = async function (bimestre, anoEsc, codigos) {
+    bimestre = bimestre || 1;
+    anoEsc = anoEsc || '1 ANO';
+    codigos = codigos || ['A', 'B', 'C', 'D', 'E', 'F'];
+    const anoLetivo = fichaAnoLetivo();
+    const soma = rows => (rows || []).reduce((s, r) => s + Number(r.qtd_alunos || 0), 0);
+    const unidades = rows => new Set((rows || []).map(r => String(r.uni_cod))).size;
+
+    console.log(`[sonda] ${anoLetivo} bim ${bimestre}, ${anoEsc} — consultando…`);
+    const base = await chamarFichaApi('turma', { anoLetivo, bimestre, anoescolar: anoEsc })
+      .then(r => r.fichasAvaliacoesTurma || []);
+    const somaBase = soma(base);
+    console.log(`[sonda] SEM filtro: ${base.length} linhas, ${somaBase} alunos-resposta, ${unidades(base)} unidades`);
+
+    let somaFiltradas = 0, iguaisAoTotal = 0, vazias = 0;
+    for (const t of codigos) {
+      const rows = await chamarFichaApi('turma', { anoLetivo, bimestre, anoescolar: anoEsc, turma: t })
+        .then(r => r.fichasAvaliacoesTurma || [])
+        .catch(e => { console.log(`[sonda] turma ${t}: ERRO ${e.message}`); return null; });
+      if (rows === null) continue;
+      const s = soma(rows);
+      somaFiltradas += s;
+      if (!rows.length) vazias++;
+      if (s === somaBase && somaBase > 0) iguaisAoTotal++;
+      console.log(`[sonda] turma ${t}: ${rows.length} linhas, ${s} alunos-resposta, ${unidades(rows)} unidades`);
+    }
+
+    let veredicto;
+    if (iguaisAoTotal >= 2) veredicto = 'FILTRO IGNORADO — toda consulta devolve a rede inteira. NÃO dá para rotular pelo pedido.';
+    else if (vazias === codigos.length) veredicto = 'TODAS VAZIAS — o filtro provavelmente exige `escola`, ou os códigos são outros.';
+    else if (somaBase && Math.abs(somaFiltradas - somaBase) / somaBase <= 0.05) veredicto = 'FILTRO FUNCIONA — as partes somam o todo. Dá para montar a rede turma a turma.';
+    else veredicto = `INCONCLUSIVO — filtradas somam ${somaFiltradas} contra ${somaBase} sem filtro (faltam turmas na lista, ou o filtro é parcial).`;
+    console.log('[sonda] VEREDICTO:', veredicto);
+    return { somaBase, somaFiltradas, veredicto };
+  };
 
   // Monta, a partir da API ao vivo, o MESMO pacote que pacoteDeGrupos() monta
   // a partir do banco — o restante da tela não muda.

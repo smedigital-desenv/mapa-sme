@@ -121,12 +121,33 @@ e **nunca vai para o navegador nem para este repositório**. A função:
 números das abas de bimestre e do Total — não confunda "a API não tem endpoint
 de turma" (falso) com "a resposta não rotula a turma".
 
-O `pacoteViaFichaApi` **lê `tur_cod`** da resposta do `IndicadorTurma`. Quando
-ele vem preenchido, as turmas aparecem de graça, sem nenhuma consulta extra, e
-o leque abaixo nem chega a ser disparado. O console registra qual é a
-realidade (`X linhas COM tur_cod, Y sem`). Durante muito tempo o código cravava
-`'—'` e **nunca lia o campo** — ou seja, a afirmação "vem vazio" não estava
-sendo testada por ninguém. Se for mexer aqui, olhe o contador antes de supor.
+O `pacoteViaFichaApi` **lê `tur_cod`** da resposta do `IndicadorTurma` e o
+console registra o resultado (`X linhas COM tur_cod, Y sem`). Durante muito
+tempo o código cravava `'—'` e **nunca lia o campo** — a afirmação "vem vazio"
+não estava sendo testada por ninguém.
+
+**Medição de 2026-08, 2º bimestre: 28.141 linhas, ZERO com `tur_cod`.** A
+afirmação se confirmou, mas agora com evidência. Se o CODERP passar a rotular,
+as turmas aparecem sozinhas e o leque abaixo nem é disparado (há um guarda
+para isso) — o contador avisa.
+
+⚠️ **`turma` é aceito na REQUISIÇÃO, mas não volta na resposta.** Isso abre uma
+rota tentadora: pedir a rede turma a turma (`anoescolar` + `turma`, sem
+`escola`) e rotular pelo que foi PEDIDO — ~40 consultas leves em vez do leque
+de 112. Só que ninguém verificou se a API respeita esse filtro. Se ela o
+ignorar, cada chamada devolve a rede inteira e tudo seria rotulado como a
+primeira turma: dado errado e silencioso, pior que lento. Antes de construir
+isso, rode a sonda no console da tela de Avaliações:
+
+```js
+MapaDiagTurma()                       // 1º bim, 1 ANO, turmas A..F
+MapaDiagTurma(2, '3 ANO', ['A','B'])  // outro recorte
+```
+
+Ela compara as consultas filtradas com a consulta sem filtro e responde
+FUNCIONA / IGNORADO / VAZIAS. Os códigos de turma já existem no banco do MAPA
+(a tela carrega ~12 mil), então não há nada a descobrir — falta só saber se o
+filtro vale.
 
 O leque por escola só existe para o caso em que `tur_cod` de fato vem vazio.
 Nesse caso a turma só aparece no nível Aluno, e cobrir a rede exige buscar as
