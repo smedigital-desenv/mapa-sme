@@ -179,6 +179,9 @@
     .chat-top { padding:.85rem 1.15rem; border-bottom:1px solid #eef2f7; display:flex; align-items:center; gap:.6rem; }
     .chat-top .tit { font-weight:900; color:var(--primary); font-size:.98rem; }
     .chat-top .sub { font-size:.68rem; color:#94a3b8; font-weight:600; }
+    .chat-avatar-wrap { flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; }
+    .chat-avatar { width:44px; height:44px; object-fit:contain; }
+    .chat-mascote { width:130px; height:auto; margin:0 auto .6rem; display:block; filter:drop-shadow(0 6px 14px rgba(0,43,94,.18)); }
     .chat-msgs { flex:1; overflow-y:auto; padding:1.1rem 1.15rem; display:flex; flex-direction:column; gap:.75rem; background:#f8fafc; }
     .chat-b { max-width:82%; padding:.7rem .95rem; border-radius:14px; font-size:.86rem; line-height:1.5; white-space:normal; word-wrap:break-word; }
     .chat-b.user { align-self:flex-end; background:var(--primary); color:#fff; border-bottom-right-radius:4px; }
@@ -2468,7 +2471,10 @@ function renderAssistente() {
     main.innerHTML = `
       <div class="chat-wrap">
         <div class="chat-top">
-          <i class="bi bi-robot" style="font-size:1.4rem;color:var(--neon-blue);"></i>
+          <span class="chat-avatar-wrap">
+            <img src="assistente-robo.png" alt="Assistente do MAPA" class="chat-avatar" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block';">
+            <i class="bi bi-robot" style="font-size:1.4rem;color:var(--neon-blue);display:none;"></i>
+          </span>
           <div>
             <div class="tit">Assistente do MAPA</div>
             <div class="sub">Responde com base nas visitas e devolutivas às quais você tem acesso.</div>
@@ -2498,8 +2504,10 @@ function _renderChatMsgs() {
   if (!box) return;
   let html;
   if (!_chatHistorico.length && !_chatEnviando) {
-    html = `<div class="chat-vazio"><i class="bi bi-chat-square-heart"></i>
-      <p>Faça uma pergunta sobre a rede. Ex.: “quais escolas estão em risco alto?” ou “resuma a situação da Regional 3”.</p></div>`;
+    html = `<div class="chat-vazio">
+      <img src="assistente-robo.png" alt="Assistente do MAPA" class="chat-mascote" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+      <i class="bi bi-chat-square-heart" style="display:none;"></i>
+      <p>Olá! Sou o assistente do MAPA. Pergunte sobre a rede — ex.: “quais escolas estão em risco alto?” ou “resuma a situação da Regional 3”.</p></div>`;
   } else {
     html = _chatHistorico.map(m =>
       `<div class="chat-b ${m.role==='user'?'user':'bot'}">${m.role==='user'?escapar(m.texto):_mdSimples(m.texto)}</div>`).join('');
