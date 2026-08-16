@@ -62,7 +62,7 @@ function doPost(e) {
         resultado = excluirDevolutiva(e.parameter.id);
         break;
       case 'chat':
-        resultado = chat(e.parameter.pergunta, e.parameter.contexto, e.parameter.historico);
+        resultado = chat(e.parameter.pergunta, e.parameter.contexto, e.parameter.historico, e.parameter.usuario);
         break;
       default:
         resultado = { ok: false, erro: 'Ação não reconhecida' };
@@ -396,9 +396,13 @@ function _chamarGemini(prompt, maxOutputTokens) {
 // Variante do _chamarGemini para respostas em TEXTO (não JSON). Mesmo pool de
 // chaves, rotação em caso de cota (429). Retorna o texto puro do modelo.
 function _chamarGeminiTexto(prompt, maxOutputTokens) {
-  const chavesRaw = PropertiesService.getScriptProperties().getProperty("GEMINI_KEYS");
+  const props = PropertiesService.getScriptProperties();
+  const chavesRaw = props.getProperty("GEMINI_KEYS");
   if (!chavesRaw) throw new Error("Nenhuma chave de API configurada na propriedade 'GEMINI_KEYS'.");
   const pool = chavesRaw.split(",").map(k => k.trim()).filter(Boolean);
+  // Chatbot usa Flash Lite: 500 req/dia no gratuito (vs 20 do Flash normal) e
+  // é mais rápido/barato. Ajustável pela propriedade GEMINI_MODELO_CHAT.
+  const modelo = (props.getProperty("GEMINI_MODELO_CHAT") || "gemini-flash-lite-latest").trim();
   const cache = CacheService.getScriptCache();
   const idxIni = (parseInt(cache.get("gemini_key_idx") || "0", 10) || 0) % pool.length;
 
@@ -410,7 +414,7 @@ function _chamarGeminiTexto(prompt, maxOutputTokens) {
   let ultimoErro = "";
   for (let i = 0; i < pool.length; i++) {
     const idx = (idxIni + i) % pool.length;
-    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" + pool[idx];
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelo + ":generateContent?key=" + pool[idx];
     try {
       const resp = UrlFetchApp.fetch(url, {
         method: "post", contentType: "application/json",
@@ -438,10 +442,40 @@ function _chamarGeminiTexto(prompt, maxOutputTokens) {
   throw new Error("Falha ao chamar o Gemini: " + ultimoErro);
 }
 
+// Teto de perguntas por usuário por dia (guarda-custo do pool compartilhado).
+// Contagem persistida por usuário em ScriptProperties, com carimbo de data.
+// O limite é ajustável pela propriedade CHAT_LIMITE_DIARIO (padrão 30).
+// Observação: o e-mail vem do navegador — é guarda de custo entre usuários
+// confiáveis (a tela já é restrita à secretaria), não uma barreira de segurança.
+var CHAT_LIMITE_PADRAO = 30;
+function _limiteChatOk(usuario) {
+  const props = PropertiesService.getScriptProperties();
+  let limite = parseInt(props.getProperty("CHAT_LIMITE_DIARIO") || "", 10);
+  if (isNaN(limite) || limite <= 0) limite = CHAT_LIMITE_PADRAO;
+  const quem = String(usuario || "").trim().toLowerCase() || "anonimo";
+  const hoje = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd");
+  const chave = "chatlim_" + quem;
+  const lock = LockService.getScriptLock();
+  try { lock.waitLock(5000); } catch (e) { return { ok: true }; }   // sem lock: não trava o uso
+  try {
+    const parts = String(props.getProperty(chave) || "").split(":");
+    const count = (parts[0] === hoje) ? (parseInt(parts[1], 10) || 0) : 0;
+    if (count >= limite) {
+      return { ok: false, erro: "Você atingiu o limite de " + limite + " perguntas hoje. Tente novamente amanhã." };
+    }
+    props.setProperty(chave, hoje + ":" + (count + 1));
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 // Responde perguntas SOMENTE com base no contexto recebido do navegador.
-function chat(pergunta, contexto, historicoJson) {
+function chat(pergunta, contexto, historicoJson, usuario) {
   try {
     if (!pergunta || !String(pergunta).trim()) return { ok: false, erro: "Pergunta vazia." };
+    const lim = _limiteChatOk(usuario);
+    if (!lim.ok) return lim;
     let historico = [];
     try { historico = JSON.parse(historicoJson || "[]"); } catch (e) { historico = []; }
     const prompt = _promptChat(String(pergunta), String(contexto || ""), historico);

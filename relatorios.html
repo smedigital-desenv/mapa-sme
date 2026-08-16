@@ -2532,7 +2532,8 @@ async function enviarPergunta(texto) {
     const res = await chamarAPI('chat', {
       pergunta: pergunta,
       contexto: _contextoChat(),
-      historico: JSON.stringify(histPrev)
+      historico: JSON.stringify(histPrev),
+      usuario: emailUsuario || ''
     });
     _chatHistorico.push({ role: 'assistant',
       texto: (res && res.ok) ? (res.resposta || '(sem resposta)')
