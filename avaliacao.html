@@ -5170,10 +5170,11 @@ function renderHierarquia(arvore) {
 
   container.innerHTML = unidades.map((u, ui) => {
     const todasTurmas = Object.keys(_hierArvore[u] || {}).sort();
-    // '—' marca contagem ESTIMADA (fonte CODERP, detalhe ainda não chegou).
-    // Para não dar a impressão de "números subindo", a unidade mostra '…' até
-    // o número exato chegar — ele aparece uma vez só, já correto.
-    const detalhada = !(todasTurmas.length === 1 && todasTurmas[0] === '—');
+    // '—' é o marcador do nível agregado. A contagem dele é o total real de
+    // alunos da unidade (mínimo entre itens, conferido contra o nível aluno),
+    // então o número aparece JÁ CERTO e não muda quando o detalhe desce —
+    // o que troca é só o aparecimento das turmas ao clicar.
+    const detalhada = true;
     const turmas = todasTurmas.filter(t => t !== '—');
     const totalU = Object.values(_hierArvore[u] || {}).reduce((a, b) => a + Number(b || 0), 0);
     const ativaU = _hierUnidadeAtiva === u;
@@ -5188,6 +5189,7 @@ function renderHierarquia(arvore) {
         <span class="hier-count ms-2">${detalhada ? totalU : '…'}</span>
       </div>
       <div class="hier-turmas" style="${ativaU ? 'display:block' : 'display:none'}">
+        ${(ativaU && !turmas.length) ? `<div class="text-muted px-3 py-2" style="font-size:.7rem;"><span class="spinner-border spinner-border-sm me-2" style="width:.7rem;height:.7rem;"></span>carregando turmas…</div>` : ''}
         ${turmas.map(t => `
           <div class="hier-turma${(_hierTurmaAtiva === t && ativaU) ? ' ativa' : ''}"
                onmouseenter="preAquecerFiltroBimestre('${escapeJs(u)}','${escapeJs(t)}')"
@@ -5462,6 +5464,11 @@ function _usarPacoteBimestre(pacote) {
 // Assim que o pacote de rede abre, o detalhe de cada unidade desce em
 // segundo plano (4 por vez): a árvore vai ganhando as turmas reais sem
 // nenhum clique, e clicar numa unidade já detalhada é instantâneo.
+// ⚠️ NÃO reativar o download em massa das 112 unidades. Ele baixava e
+// descompactava ~1 MB por escola em segundo plano assim que a aba abria:
+// era a causa da lentidão e do "carrega uma coisa e depois troca". A árvore
+// já nasce com o número certo (nível agregado) e o detalhe de turmas desce
+// SÓ da unidade clicada (_detalharUnidadeFicha), em ~1 s.
 let _fichaPrefetchPacote = null;
 let _arvRenderTimer = null;
 // A árvore ganha as turmas em segundo plano; redesenhar 1x a cada ~300ms
@@ -5479,49 +5486,11 @@ function _prefetchTurmasFicha() {
   if (_fichaPrefetchPacote === pac) return;
   _fichaPrefetchPacote = pac;
 
-  const chaveBim = bimestreAtualKey;
-  const anoReq = pacoteBimestreAnoAtual || 'TODOS';   // capturado JÁ: o fim da fila não pode ler o ano de outra aba
-  const fila = [...new Set(pac.linhas.filter(l => l[2] === '—').map(l => l[0]))];
-  if (!fila.length) return;
-  // A unidade ativa (se houver) vai na frente da fila.
+  // Detalha APENAS a unidade que já está selecionada (se houver). As demais
+  // descem quando a pessoa clicar nelas — nada de varrer a rede inteira.
   if (_hierUnidadeAtiva && _hierUnidadeAtiva !== 'TODAS') {
-    const i = fila.indexOf(_hierUnidadeAtiva);
-    if (i > 0) fila.unshift(fila.splice(i, 1)[0]);
+    _detalharUnidadeFicha(_hierUnidadeAtiva);
   }
-
-  let vivos = 0;
-  function proximo() {
-    if (pacoteBimestreAtual !== pac || bimestreAtualKey !== chaveBim) return;
-    if (!fila.length) {
-      if (vivos === 0) {
-        renderBimestrePacoteLocal();
-        // Persiste o pacote já detalhado: recarregar a página não refaz nada.
-        try {
-          _cacheSet(_chavePacoteBimestre(chaveBim, { ano: anoReq }), pac);
-        } catch (e) { /* cache cheio não é erro funcional */ }
-      }
-      return;
-    }
-    const unidade = fila.shift();
-    vivos++;
-    google.script.run.withSuccessHandler(det => {
-      vivos--;
-      if (pacoteBimestreAtual === pac && det && det.ok && Array.isArray(det.linhas)) {
-        _aplicarDetalheUnidade(det, pac);
-        // Atualização leve: só a árvore — o painel inteiro redesenha no fim
-        // (ou na hora, se a unidade detalhada é a que está selecionada).
-        if (_hierUnidadeAtiva === det.unidade) renderBimestrePacoteLocal();
-        else _agendarRenderArvore();
-      }
-      proximo();
-    }).withFailureHandler(err => {
-      vivos--;
-      console.warn('[MAPA CODERP] prefetch de turmas falhou para', unidade, err);
-      proximo();
-    }).getDetalheUnidadeFicha(chaveBim, unidade);
-  }
-  const SIMULTANEAS = 4;
-  for (let i = 0; i < SIMULTANEAS; i++) proximo();
 }
 
 function renderBimestrePacoteLocal() {
@@ -6427,18 +6396,21 @@ function renderHierarquiaTotal(arvore) {
   }
 
   container.innerHTML = unidades.map(u => {
-    const turmas = Object.keys(_hierArvoreTotal[u]).sort();
-    const totalU = Object.values(_hierArvoreTotal[u]).reduce((a, b) => a + b, 0);
+    // '—' é o marcador do nível agregado (turmas reais chegam ao clicar).
+    // Ele NUNCA vira um item na lista: some para não dar a impressão de que
+    // a tela "trocou de informação" quando o detalhe desce.
+    const turmas = Object.keys(_hierArvoreTotal[u]).filter(t => t !== '—').sort();
+    const totalU = Object.values(_hierArvoreTotal[u]).reduce((a, b) => a + Number(b || 0), 0);
     const ativaU = _hierUnidadeAtiva === u;
 
     return `
       <div class="hier-unidade${ativaU ? ' ativa' : ''}"
-           onmouseenter="preAquecerFiltroTotal('${escapeJs(u)}','TODAS')"
            onclick="selecionarUnidadeTotal('${escapeJs(u)}')">
         <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(u)}">${escapeHtml(u)}</span>
         <span class="hier-count ms-2">${totalU}</span>
       </div>
       <div class="hier-turmas" style="${ativaU ? 'display:block' : 'display:none'}">
+        ${(ativaU && !turmas.length) ? `<div class="text-muted px-3 py-2" style="font-size:.7rem;"><span class="spinner-border spinner-border-sm me-2" style="width:.7rem;height:.7rem;"></span>carregando turmas…</div>` : ''}
         ${turmas.map(t => `
           <div class="hier-turma${(_hierTurmaAtiva === t && ativaU) ? ' ativa' : ''}"
                onmouseenter="preAquecerFiltroTotal('${escapeJs(u)}','${escapeJs(t)}')"
@@ -7757,11 +7729,15 @@ function _renderTabelaTotal(linhas) {
     const catalogo = await fichaCatalogo();
     const grupos = [];
     let algumaFonte = false;
-    for (const b of [1, 2, 3, 4]) {
-      const porAno = await Promise.all(FICHA_ANOS_ESCOLARES.map(a => fichaRedeTurma(b, a).catch(err => {
+    // Os 4 bimestres em PARALELO (20 consultas de uma vez): o tempo total é o
+    // da consulta mais lenta, não a soma das quatro rodadas.
+    const porBim = await Promise.all([1, 2, 3, 4].map(b =>
+      Promise.all(FICHA_ANOS_ESCOLARES.map(a => fichaRedeTurma(b, a).catch(err => {
         console.warn(`[MAPA CODERP] Total: falhou bim ${b} / ${a}:`, err);
         return null;
-      })));
+      })))));
+    porBim.forEach((porAno, bi) => {
+      const b = bi + 1;
       porAno.forEach((rows, i) => (rows || []).forEach(r => {
         const qtd = Number(r.qtd_alunos || 0);   // a API devolve como texto
         if (!qtd) return;
@@ -7771,7 +7747,7 @@ function _renderTabelaTotal(linhas) {
                      r.fqr_vl, r.fqr_vl, qtd, r.fqr_txt_resp || '']);
         algumaFonte = true;
       }));
-    }
+    });
     if (!algumaFonte) throw new Error('todas as consultas ao CODERP falharam');
     return grupos;
   }
@@ -8588,8 +8564,10 @@ function _renderTabelaTotal(linhas) {
         try {
           const catalogo = await fichaCatalogo();
           const porUA = new Map();   // unidade||ano -> Map(item -> soma qtd) por bimestre
-          for (const b of [1, 2, 3, 4]) {
-            const porAno = await Promise.all(FICHA_ANOS_ESCOLARES.map(a => fichaRedeTurma(b, a).catch(() => null)));
+          const porBimArv = await Promise.all([1, 2, 3, 4].map(b =>
+            Promise.all(FICHA_ANOS_ESCOLARES.map(a => fichaRedeTurma(b, a).catch(() => null)))));
+          porBimArv.forEach((porAno, bi) => {
+            const b = bi + 1;
             porAno.forEach((rows, i) => {
               const a = normalizar(FICHA_ANOS_ESCOLARES[i]);
               if (anoFiltro !== 'TODOS' && a !== anoFiltro) return;
@@ -8604,7 +8582,7 @@ function _renderTabelaTotal(linhas) {
                 itens.set(ki, (itens.get(ki) || 0) + qtd);
               });
             });
-          }
+          });
           if (porUA.size) {
             // alunos por unidade/ano/bimestre = mínimo entre itens; por
             // unidade fica o MAIOR bimestre (aluno conta uma vez, não 4).
