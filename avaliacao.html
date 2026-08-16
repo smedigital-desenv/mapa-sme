@@ -2998,11 +2998,11 @@ function _chavePacoteBimestre(key, filtrosBase) {
   // sobrevive até ao recarregamento forçado, então mudar o FORMATO do pacote
   // sem mudar a versão faz a tela ler um pacote velho e sem os campos novos.
   // v10: o pacote passou a carregar `bruto` (base da conferência por turma).
-  return ['pacote_bim_supa_v10_turma', key, filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacote_bim_supa_v11_semturma', key, filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _chaveTotal(filtros) {
-  return ['total_supa_v9_coderp', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
+  return ['total_supa_v10_semturma', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
 }
 
 function _chaveDetalhe(key, filtros) {
@@ -3549,7 +3549,7 @@ function _setAnoFiltroAtualSeguro(ano, btn) {
 
 function _chavePacoteTotal(filtrosBase) {
   filtrosBase = filtrosBase || {};
-  return ['pacoteTotal_supa_v9_coderp', filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacoteTotal_supa_v10_semturma', filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _backendTemPacoteTotal() {
@@ -5509,6 +5509,28 @@ function _prefetchTurmasFicha() {
   // quando o pacote veio do banco (que já traz turma real) — nada a fazer.
   if (!pac.bruto) return;
 
+  // ⚠️ VARREDURA POR TURMA DESLIGADA POR PADRÃO — ela CORROMPE a contagem.
+  //
+  // A conferência aprova a unidade quando a soma CRUA (alunos-resposta) das
+  // turmas reproduz a do agregado, e isso fecha. Mas a contagem de ALUNOS de
+  // cada turma é calculada como o MÍNIMO entre os itens, e essa regra assume
+  // que todo aluno responde todo item — o que é FALSO para itens que só valem
+  // para parte da turma (Atendimento Educacional Especializado, Educação
+  // Especial, presentes no 1º bim). Medido em produção: ALCINA passou de 236
+  // (correto) para 68 no 1º bim e 466 no 2º.
+  //
+  // A conferência não pega isso porque confere a soma crua, não a contagem de
+  // alunos — são grandezas diferentes. Enquanto a contagem por turma não for
+  // derivada de forma confiável, o detalhe NÃO é aplicado: o número agregado
+  // está certo e as turmas continuam descendo por clique (nível aluno, que
+  // conta REMA distinto e é exato). `?turmas=1` liga para testar.
+  let _ligaVarreduraTurma = false;
+  try { _ligaVarreduraTurma = new URLSearchParams(location.search).get('turmas') === '1'; } catch (e) {}
+  if (!_ligaVarreduraTurma) {
+    if (_hierUnidadeAtiva && _hierUnidadeAtiva !== 'TODAS') _detalharUnidadeFicha(_hierUnidadeAtiva);
+    return;
+  }
+
   // UMA chamada traz o detalhe de todas as unidades (a Edge Function faz o
   // leque por escola do lado do servidor e devolve só o agregado). Enquanto
   // ela não chega — ou se o nível ainda não estiver publicado — a unidade
@@ -6387,6 +6409,12 @@ function _prefetchTotalTurmasRede() {
   if (!pac || !Array.isArray(pac.linhas)) return;
   if (_totalDetalheRedePedido === pac) return;
   if (!pac.linhas.some(l => l[TPKG.T] === '—')) return;   // já detalhado
+  // Mesma trava das abas de bimestre: a contagem por turma derivada do nível
+  // agregado (mínimo entre itens) não é confiável quando há item que não vale
+  // para todos os alunos. Ver o comentário em _prefetchTurmasFicha.
+  let _ligaTurmaTotal = false;
+  try { _ligaTurmaTotal = new URLSearchParams(location.search).get('turmas') === '1'; } catch (e) {}
+  if (!_ligaTurmaTotal) return;
   _totalDetalheRedePedido = pac;
 
   google.script.run.withSuccessHandler(det => {

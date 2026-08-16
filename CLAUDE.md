@@ -131,6 +131,18 @@ afirmação se confirmou, mas agora com evidência. Se o CODERP passar a rotular
 as turmas aparecem sozinhas e o leque abaixo nem é disparado (há um guarda
 para isso) — o contador avisa.
 
+🚫 **A VARREDURA POR TURMA ESTÁ DESLIGADA (`?turmas=1` liga) — ela corrompe a
+contagem de alunos.** Medido em produção: ALCINA passou de 236 (correto) para
+68 no 1º bim e 466 no 2º. A causa NÃO é o filtro da API (esse funciona), é a
+forma de contar: alunos por turma sai do **mínimo entre os itens**, regra que
+assume que todo aluno responde todo item. Isso é FALSO para itens que só valem
+para parte da turma — Atendimento Educacional Especializado e Educação
+Especial aparecem no 1º bimestre. ⚠️ A conferência não pega esse erro porque
+ela confere a **soma crua** (alunos-resposta), e a soma crua fecha; o que está
+errado é a **contagem de alunos**, outra grandeza. Antes de religar, é preciso
+uma forma confiável de contar aluno por turma a partir do nível agregado — ou
+usar o nível aluno, que conta REMA distinto e é exato.
+
 ✅ **MEDIDO: o filtro `turma` FUNCIONA.** A sonda `MapaDiagTurma(2)` comparou
 as consultas filtradas com a sem filtro (2026, 2º bim, 1 ANO): 92.756
 alunos-resposta sem filtro contra 92.360 somando A–F — as partes reproduzem o
