@@ -2519,27 +2519,201 @@ function _mdSimples(t) {
   return s.replace(/\n/g, '<br>');
 }
 
+// ════════════════════════════════════════════════
+//  FUNCTION CALLING — panorama pequeno + 5 funções chamadas sob demanda.
+//  As funções rodam AQUI (dados já filtrados por permissão). O Apps Script só
+//  repassa ao Gemini (chave lá) e devolve texto ou pedido de função.
+// ════════════════════════════════════════════════
+
+// cobertura + resolvedor de regional por nome (base de todas as funções)
+function _chatLinhas() {
+  const linhas = _construirCobertura(['fundamental','infantil']);
+  const regByNorm = {};
+  linhas.forEach(l => { if (l.regional && l.regional !== '—') regByNorm[_auxNormEscola(l.escola)] = l.regional; });
+  const regDe = nome => regByNorm[_auxNormEscola(nome)] || '';
+  const casaReg = (reg, alvo) => !alvo || _auxNorm(reg) === _auxNorm(alvo) || (reg || '').toLowerCase().includes(String(alvo).toLowerCase());
+  return { linhas, regDe, casaReg };
+}
+
+// PANORAMA fixo (pequeno) — sempre no contexto, diz o que existe.
+function _contextoBase() {
+  const { linhas } = _chatLinhas();
+  const total = linhas.length, vis = linhas.filter(l => l.nVisitas > 0).length;
+  const cob = total ? Math.round(vis / total * 100) : 0;
+  const porReg = {};
+  linhas.forEach(l => { const r = (l.regional && l.regional !== '—') ? l.regional : 'Sem regional';
+    const o = porReg[r] || (porReg[r] = { t:0, v:0 }); o.t++; if (l.nVisitas > 0) o.v++; });
+  const regTxt = Object.entries(porReg).sort((a,b) => a[0].localeCompare(b[0])).map(([r,o]) => `${r}: ${o.v}/${o.t}`).join('; ');
+  const risc = { alto:0, medio:0, baixo:0 };
+  linhas.forEach(l => { const n = _nivelRisco(l); if (risc[n] !== undefined) risc[n]++; });
+  const cont = {}; _TEMAS.forEach(t => cont[t.key] = 0);
+  linhas.forEach(l => _temasDaLinha(l).forEach(k => cont[k]++));
+  const temasTxt = _TEMAS.filter(t => cont[t.key] > 0).sort((a,b) => cont[b.key]-cont[a.key]).slice(0,8).map(t => `${t.lbl} (${cont[t.key]})`).join('; ');
+  const comV = linhas.filter(l => l.ultima).sort((a,b) => b.ultima.getTime() - a.ultima.getTime());
+  const mr = comV[0];
+  let s = 'PANORAMA DA REDE (apenas o que você pode ver):\n';
+  s += `- Escolas: ${total} | Visitadas: ${vis} (${cob}%) | Sem visita: ${total - vis}\n`;
+  if (mr) s += `- Visita mais recente: ${mr.escola} em ${_fmtData(mr.ultima)}\n`;
+  s += `- Cobertura por regional (visitadas/total): ${regTxt || '—'}\n`;
+  s += `- Risco pedagógico: alto ${risc.alto}, médio ${risc.medio}, baixo ${risc.baixo}\n`;
+  s += `- Temas recorrentes: ${temasTxt || '—'}\n`;
+  return s;
+}
+
+function _sistemaChat() {
+  return 'Você é o assistente do MAPA (Secretaria Municipal da Educação de Ribeirão Preto), '
+    + 'que responde a gestores e técnicos sobre visitas de acompanhamento, devolutivas, Fluência Leitora e Elefante Letrado.\n\n'
+    + 'REGRAS:\n'
+    + '- Use as FUNÇÕES para buscar os dados que precisar (escolas, detalhe_da_escola, visitas, indicadores, buscar). Chame quantas precisar antes de responder.\n'
+    + '- Você PODE e DEVE calcular, somar, contar, agrupar, ordenar, tirar médias/percentuais, ranquear e CRUZAR os resultados (ex.: qual regional está pior na fluência, cruzar risco da visita com engajamento). Isso NÃO é inventar.\n'
+    + '- Baseie-se só no panorama e nos resultados das funções. Não invente escolas, números, datas ou nomes. Se o dado não existir, diga que não consta.\n'
+    + '- Cada escola tem uma regional; use-a para agrupar/comparar por regional. Ao ranquear ou tirar média, mostre os números.\n'
+    + '- Seja objetivo e institucional; pode usar listas e negrito (markdown simples).\n\n'
+    + 'PANORAMA ATUAL:\n' + _contextoBase();
+}
+
+// Declaração das funções para o Gemini
+const CHAT_TOOLS = [{ functionDeclarations: [
+  { name: 'escolas', description: 'Lista escolas com nº de visitas, data da última visita, prioridade e risco. Use filtros para recortar.',
+    parameters: { type: 'object', properties: {
+      regional: { type: 'string', description: 'nome da regional, ex.: "Regional 3"' },
+      status: { type: 'string', description: 'filtro opcional: visitada | sem_visita | com_devolutiva | risco_alto' } } } },
+  { name: 'detalhe_da_escola', description: 'TODOS os dados de UMA escola: visitas (quem/quando/responsável), devolutiva completa, fluência e elefante.',
+    parameters: { type: 'object', properties: { escola: { type: 'string', description: 'nome da escola' } }, required: ['escola'] } },
+  { name: 'visitas', description: 'Lista as visitas realizadas (quem visitou, quando, período, responsável). Filtros opcionais.',
+    parameters: { type: 'object', properties: {
+      regional: { type: 'string' }, escola: { type: 'string' }, responsavel: { type: 'string' },
+      de: { type: 'string', description: 'data inicial dd/mm/aaaa' }, ate: { type: 'string', description: 'data final dd/mm/aaaa' } } } },
+  { name: 'indicadores', description: 'Fluência Leitora (avaliados, fluentes, % e níveis N1–N4) e Elefante Letrado (engajamento, livros, leituras) por escola/regional.',
+    parameters: { type: 'object', properties: { regional: { type: 'string' }, escola: { type: 'string' } } } },
+  { name: 'buscar', description: 'Procura um termo nas devolutivas e nas respostas das visitas; devolve as escolas que citam o termo (ex.: coordenação, PPA, acervo).',
+    parameters: { type: 'object', properties: { termo: { type: 'string' } }, required: ['termo'] } }
+]}];
+
+// Executor das funções (roda no navegador, sobre os dados em memória)
+function _execTool(name, args) {
+  try {
+    args = args || {};
+    if (name === 'escolas')           return _toolEscolas(args);
+    if (name === 'detalhe_da_escola') return _toolDetalhe(args);
+    if (name === 'visitas')           return _toolVisitas(args);
+    if (name === 'indicadores')       return _toolIndicadores(args);
+    if (name === 'buscar')            return _toolBuscar(args);
+    return { erro: 'função desconhecida: ' + name };
+  } catch (e) { return { erro: String((e && e.message) || e) }; }
+}
+function _toolEscolas(args) {
+  const { linhas, casaReg } = _chatLinhas();
+  let ls = linhas.filter(l => casaReg(l.regional, args.regional));
+  const st = String(args.status || '').toLowerCase();
+  if (st === 'sem_visita')     ls = ls.filter(l => l.nVisitas === 0);
+  else if (st === 'visitada')  ls = ls.filter(l => l.nVisitas > 0);
+  else if (st === 'com_devolutiva') ls = ls.filter(l => l.temDev);
+  else if (st === 'risco_alto') ls = ls.filter(l => _nivelRisco(l) === 'alto');
+  return { total: ls.length, escolas: ls.map(l => ({
+    escola: l.escola, regional: l.regional, segmento: l.segmento, visitas: l.nVisitas,
+    ultima_visita: _fmtData(l.ultima),
+    prioridade: l.dev ? (l.dev.prioridade || null) : null,
+    risco: _nivelRisco(l) === 'sem' ? null : _nivelRisco(l) })) };
+}
+function _toolDetalhe(args) {
+  const alvo = _auxNormEscola(args.escola || '');
+  const { linhas } = _chatLinhas();
+  const l = linhas.find(x => _auxNormEscola(x.escola) === alvo)
+        || linhas.find(x => { const n = _auxNormEscola(x.escola); return n && (n.includes(alvo) || alvo.includes(n)); });
+  if (!l) return { erro: 'escola não encontrada: ' + (args.escola || '') };
+  const vis = [];
+  ['fundamental','infantil'].forEach(seg => (dadosPorSegmento[seg] || []).forEach(v => {
+    if (_auxNormEscola(v['_ESCOLA_'] || '') !== _auxNormEscola(l.escola)) return;
+    vis.push({ data: v['Data da Visita:'] || v['Data da visita:'] || v['Carimbo de data/hora'] || '',
+      periodo: _visCampo(v, /per[ií]odo/i), responsavel: _visCampo(v, /respons/i) || null, email: _visCampo(v, /e-?mail/i) || null });
+  }));
+  return { escola: l.escola, regional: l.regional, segmento: l.segmento, visitas: l.nVisitas,
+    ultima_visita: _fmtData(l.ultima), registros_visitas: vis,
+    devolutiva: l.dev ? _devTxtCompleto(l.dev) : null,
+    fluencia: (_fluPorEscola && _fluPorEscola[l.escola]) || null,
+    elefante: (_elePorEscola && _elePorEscola[l.escola]) || null };
+}
+function _toolVisitas(args) {
+  const { regDe, casaReg } = _chatLinhas();
+  const de = _parseData(args.de), ate = _parseData(args.ate);
+  const out = [];
+  ['fundamental','infantil'].forEach(seg => (dadosPorSegmento[seg] || []).forEach(v => {
+    const escola = v['_ESCOLA_'] || '', reg = regDe(escola);
+    const dataStr = v['Data da Visita:'] || v['Data da visita:'] || v['Carimbo de data/hora'] || '';
+    const d = _parseData(dataStr), resp = _visCampo(v, /respons/i);
+    if (!casaReg(reg, args.regional)) return;
+    if (args.escola && _auxNormEscola(escola) !== _auxNormEscola(args.escola)) return;
+    if (args.responsavel && !resp.toLowerCase().includes(String(args.responsavel).toLowerCase())) return;
+    if (de && d && d < de) return;
+    if (ate && d && d > ate) return;
+    out.push({ escola, regional: reg, data: dataStr, periodo: _visCampo(v, /per[ií]odo/i),
+      responsavel: resp || null, email: _visCampo(v, /e-?mail/i) || null, _t: d ? d.getTime() : 0 });
+  }));
+  out.sort((a,b) => b._t - a._t).forEach(o => delete o._t);
+  return { total: out.length, visitas: out };
+}
+function _toolIndicadores(args) {
+  const { regDe, casaReg } = _chatLinhas();
+  const ok = nome => (!args.escola || _auxNormEscola(nome) === _auxNormEscola(args.escola)) && casaReg(regDe(nome), args.regional);
+  const flu = [], ele = [];
+  if (_fluPorEscola) Object.keys(_fluPorEscola).forEach(e => { if (!ok(e)) return; const f = _fluPorEscola[e];
+    flu.push({ escola: e, regional: regDe(e), avaliacao: f.avaliacao, avaliados: f.aval, fluentes: f.flu,
+      pct_fluentes: f.aval ? Math.round(f.flu / f.aval * 100) : 0, n1: f.n1, n2: f.n2, n3: f.n3, n4: f.n4, iniciantes: f.ini, ausentes: f.aus }); });
+  if (_elePorEscola) Object.keys(_elePorEscola).forEach(e => { if (!ok(e)) return; const g = _elePorEscola[e];
+    ele.push({ escola: e, regional: regDe(e), estudantes: g.est, leitores: g.lei,
+      pct_engajamento: g.est ? Math.round(g.lei / g.est * 100) : 0, livros_lidos: g.liv, leituras_concluidas: g.leit }); });
+  return { fluencia: flu, elefante: ele };
+}
+function _toolBuscar(args) {
+  const termo = _auxNorm(args.termo || '');
+  if (!termo) return { erro: 'termo vazio' };
+  const { linhas, regDe } = _chatLinhas();
+  const seen = new Set(), out = [];
+  const add = (escola, regional, onde) => { const k = escola + '|' + onde; if (!seen.has(k)) { seen.add(k); out.push({ escola, regional, onde }); } };
+  linhas.forEach(l => { if (l.dev && _auxNorm(_devTxtCompleto(l.dev)).includes(termo)) add(l.escola, l.regional, 'devolutiva'); });
+  ['fundamental','infantil'].forEach(seg => (dadosPorSegmento[seg] || []).forEach(v => {
+    const escola = v['_ESCOLA_'] || ''; let hit = false;
+    for (const k in v) { if (k.charAt(0) === '_') continue; if (_auxNorm(v[k]).includes(termo)) { hit = true; break; } }
+    if (hit) add(escola, regDe(escola), 'visita');
+  }));
+  return { termo: args.termo, total: out.length, resultados: out.slice(0, 60) };
+}
+
+// Laço de conversa com function calling.
 async function enviarPergunta(texto) {
   if (_chatEnviando) return;
   const inp = document.getElementById('chatInput');
   const pergunta = String(texto || (inp && inp.value) || '').trim();
   if (!pergunta) return;
   if (inp) { inp.value = ''; inp.style.height = 'auto'; }
-  const histPrev = _chatHistorico.filter(m => m.texto).slice(-6);
   _chatHistorico.push({ role: 'user', texto: pergunta });
   _chatEnviando = true;
   _renderChatMsgs();
   try {
-    await _carregarAux();   // garante Fluência/Elefante no contexto (cacheado)
-    const res = await chamarAPI('chat', {
-      pergunta: pergunta,
-      contexto: _contextoChat(),
-      historico: JSON.stringify(histPrev),
-      usuario: emailUsuario || ''
-    });
-    _chatHistorico.push({ role: 'assistant',
-      texto: (res && res.ok) ? (res.resposta || '(sem resposta)')
-                             : ('⚠️ ' + ((res && res.erro) || 'Não foi possível responder agora.')) });
+    await _carregarAux();   // Fluência/Elefante prontos p/ as funções (cacheado)
+    const systemInstruction = { parts: [{ text: _sistemaChat() }] };
+    const contents = _chatHistorico.filter(m => m.texto)
+      .map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.texto }] }));
+    let final = '';
+    for (let step = 0; step < 6; step++) {
+      const res = await chamarAPI('chatfn', {
+        payload: JSON.stringify({ contents, systemInstruction, tools: CHAT_TOOLS }),
+        usuario: emailUsuario || '',
+        contar: step === 0 ? 'true' : 'false'
+      });
+      if (!res || !res.ok) { final = '⚠️ ' + ((res && res.erro) || 'Não foi possível responder agora.'); break; }
+      const parts = res.parts || [];
+      const fcs = parts.filter(p => p.functionCall).map(p => p.functionCall);
+      if (fcs.length) {
+        contents.push({ role: 'model', parts: fcs.map(fc => ({ functionCall: fc })) });
+        contents.push({ role: 'user', parts: fcs.map(fc => ({ functionResponse: { name: fc.name, response: _execTool(fc.name, fc.args) } })) });
+        continue;   // devolve o resultado ao modelo
+      }
+      final = parts.filter(p => p.text).map(p => p.text).join('\n').trim() || '(sem resposta)';
+      break;
+    }
+    _chatHistorico.push({ role: 'assistant', texto: final || '(sem resposta)' });
   } catch (e) {
     _chatHistorico.push({ role: 'assistant', texto: '⚠️ Erro de conexão com o assistente: ' + (e.message || e) });
   } finally {

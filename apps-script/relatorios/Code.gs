@@ -64,6 +64,9 @@ function doPost(e) {
       case 'chat':
         resultado = chat(e.parameter.pergunta, e.parameter.contexto, e.parameter.historico, e.parameter.usuario);
         break;
+      case 'chatfn':
+        resultado = chatFn(e.parameter.payload, e.parameter.usuario, e.parameter.contar);
+        break;
       default:
         resultado = { ok: false, erro: 'Ação não reconhecida' };
     }
@@ -496,6 +499,79 @@ function chat(pergunta, contexto, historicoJson, usuario) {
   } catch (e) {
     return { ok: false, erro: "Erro no assistente: " + e.message };
   }
+}
+
+// ── Chatbot com FUNCTION CALLING ─────────────────────────────────────────────
+// O navegador conduz o laço: manda `contents` (conversa, incluindo chamadas e
+// respostas de função) + `tools` (declaração das funções). Esta função é um proxy
+// sem estado: repassa ao Gemini e devolve as `parts` do candidato (texto e/ou
+// functionCall). As funções em si rodam NO NAVEGADOR (onde estão os dados filtrados
+// por permissão). A chave nunca sai daqui. `contar` só é 'true' na 1ª rodada de cada
+// pergunta, para o teto diário contar 1 por pergunta (não por rodada de ferramenta).
+function chatFn(payloadJson, usuario, contar) {
+  try {
+    if (String(contar) === 'true') {
+      const lim = _limiteChatOk(usuario);
+      if (!lim.ok) return lim;
+    }
+    const reqBody = JSON.parse(payloadJson || '{}');
+    if (!reqBody.contents || !reqBody.contents.length) return { ok: false, erro: 'Sem conteúdo.' };
+    const parts = _chamarGeminiRaw(reqBody);
+    return { ok: true, parts: parts };
+  } catch (e) {
+    return { ok: false, erro: "Erro no assistente: " + e.message };
+  }
+}
+
+// Chamada "crua" ao Gemini: envia contents + (opcional) tools/systemInstruction e
+// devolve as parts do 1º candidato. Mesmo pool de chaves e fallback de modelo.
+function _chamarGeminiRaw(reqBody) {
+  const props = PropertiesService.getScriptProperties();
+  const chavesRaw = props.getProperty("GEMINI_KEYS");
+  if (!chavesRaw) throw new Error("Nenhuma chave de API configurada na propriedade 'GEMINI_KEYS'.");
+  const pool = chavesRaw.split(",").map(k => k.trim()).filter(Boolean);
+  const modelos = (props.getProperty("GEMINI_MODELOS_CHAT")
+                || props.getProperty("GEMINI_MODELO_CHAT")
+                || "gemini-flash-lite-latest").split(",").map(m => m.trim()).filter(Boolean);
+  const cache = CacheService.getScriptCache();
+  const idxIni = (parseInt(cache.get("gemini_key_idx") || "0", 10) || 0) % pool.length;
+
+  const payload = {
+    contents: reqBody.contents,
+    generationConfig: { temperature: 0.3, maxOutputTokens: 2000 }
+  };
+  if (reqBody.systemInstruction) payload.systemInstruction = reqBody.systemInstruction;
+  if (reqBody.tools) payload.tools = reqBody.tools;
+
+  let ultimoErro = "";
+  for (let m = 0; m < modelos.length; m++) {
+    const modelo = modelos[m];
+    for (let i = 0; i < pool.length; i++) {
+      const idx = (idxIni + i) % pool.length;
+      const url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelo + ":generateContent?key=" + pool[idx];
+      try {
+        const resp = UrlFetchApp.fetch(url, {
+          method: "post", contentType: "application/json",
+          payload: JSON.stringify(payload), muteHttpExceptions: true
+        });
+        const code = resp.getResponseCode();
+        const j = JSON.parse(resp.getContentText());
+        if (j.error) {
+          const msg = j.error.message || "";
+          if (code === 429 || j.error.code === 429 || /quota/i.test(msg)) {
+            cache.put("gemini_key_idx", String((idx + 1) % pool.length), 3600);
+            ultimoErro = "cota esgotada (" + modelo + ")"; continue;
+          }
+          ultimoErro = "Erro API Gemini [" + code + "] em " + modelo + ": " + msg; break;
+        }
+        const cand = j.candidates && j.candidates[0];
+        return (cand && cand.content && cand.content.parts) || [];
+      } catch (e) {
+        ultimoErro = e.message; break;
+      }
+    }
+  }
+  throw new Error("Falha ao chamar o Gemini (todos os modelos/chaves): " + ultimoErro);
 }
 
 function _promptChat(pergunta, contexto, historico) {
