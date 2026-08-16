@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <script src="auth-guard.js"></script>
+  <script>window.MAPA_SISTEMA = 'mapa';</script>
+  <script src="auth.js" defer></script>
+  <script src="config-central.js" defer></script>
+  <script src="demo-mode.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IDEB | SME Ribeirão Preto</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏅</text></svg>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root{--primary:#002b5e;--pri2:#075f82;--neon-blue:#00e5ff;--neon:#00b8d4;
+          --line:#e4e9f0;--ink:#0f172a;--muted:#64748b;}
+    body{background:#eef2f7;font-family:'Segoe UI',sans-serif;padding-bottom:40px;color:var(--ink);}
+    .mg-header{background:var(--primary);color:#fff;border-bottom:5px solid var(--neon-blue);
+      padding:.95rem 1.6rem;display:flex;align-items:center;justify-content:space-between;
+      gap:1rem;flex-wrap:wrap;position:sticky;top:0;z-index:1050;box-shadow:0 6px 18px rgba(0,43,94,.18);}
+    .mg-brand{display:flex;align-items:center;gap:.6rem;min-width:180px;}
+    .mg-brand-icon{width:34px;height:34px;display:grid;place-items:center;color:var(--neon-blue);
+      font-size:1.4rem;filter:drop-shadow(0 0 6px rgba(0,229,255,.55));}
+    .mg-brand h4{margin:0;font-weight:900;letter-spacing:.03em;font-size:1.4rem;line-height:1;}
+    .mg-brand-sub{font-size:.63rem;color:rgba(255,255,255,.68);font-weight:800;
+      letter-spacing:.08em;text-transform:uppercase;margin-top:2px;}
+    .mg-nav{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;flex:1;min-width:280px;}
+    .mg-nav-btn{display:inline-flex;align-items:center;gap:.4rem;justify-content:center;min-width:130px;
+      padding:8px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.06);color:#fff;font-weight:800;font-size:.82rem;text-decoration:none;transition:.15s;}
+    .mg-nav-btn:hover{border-color:rgba(255,255,255,.4);color:#fff;}
+    .mg-nav-btn.active{background:#fff;color:var(--primary);box-shadow:0 2px 10px rgba(0,0,0,.18);}
+    .mg-dd{position:relative;}
+    .mg-dd-menu{position:absolute;top:calc(100% + 6px);left:0;background:#fff;border-radius:12px;
+      box-shadow:0 12px 30px rgba(2,16,38,.22);padding:6px;min-width:230px;display:none;z-index:1100;}
+    .mg-dd:hover .mg-dd-menu{display:block;}
+    .mg-dd-item{display:flex;align-items:center;gap:.5rem;padding:8px 12px;border-radius:9px;
+      color:#1e293b;font-weight:700;font-size:.82rem;text-decoration:none;}
+    .mg-dd-item:hover{background:#eef2f7;color:var(--primary);}
+    .mg-dd-item.active{background:var(--primary);color:#fff;}
+    .mg-actions{display:flex;gap:.5rem;}
+    .mg-action-btn{display:inline-flex;align-items:center;gap:.4rem;padding:8px 14px;border-radius:12px;
+      border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;font-weight:800;font-size:.82rem;}
+    @media (max-width:992px){.mg-nav-btn{min-width:auto;}}
+    .ad-bar{background:#013a7a;padding:.55rem 1.6rem;display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+    .ad-bar label{color:#cfe3ff;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;}
+    .ad-bar select{border:0;border-radius:9px;padding:.4rem .7rem;font-weight:700;max-width:420px;}
+    .ad-chip{background:rgba(255,255,255,.16);color:#fff;border-radius:999px;padding:3px 12px;font-weight:800;font-size:.72rem;}
+    .page{max-width:1240px;margin:0 auto;padding:1.1rem 1rem;}
+    .titbar{background:linear-gradient(135deg,var(--primary),var(--pri2));color:#fff;border-radius:14px;
+      padding:.85rem 1.2rem;margin-bottom:.9rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+    .titbar .t{font-weight:900;font-size:1.12rem;} .titbar .meta{font-size:.78rem;opacity:.92;font-weight:700;}
+    .secLabel{font-weight:900;color:var(--primary);font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;
+      margin:1.1rem .2rem .5rem;display:flex;align-items:center;gap:8px;}
+    .secLabel::before{content:"";width:5px;height:16px;background:var(--neon);border-radius:3px;}
+    .card2{background:#fff;border-radius:14px;box-shadow:0 4px 16px rgba(2,16,38,.06);overflow:auto;}
+    table.ad{border-collapse:collapse;width:100%;font-size:.8rem;}
+    table.ad th,table.ad td{padding:.5rem;border:1px solid var(--line);text-align:center;vertical-align:middle;}
+    table.ad th{background:#f6f8fb;color:var(--muted);font-weight:800;font-size:.64rem;text-transform:uppercase;}
+    td.lbl{text-align:left;font-weight:800;color:#334155;background:#fafbfc;white-space:nowrap;}
+    .val{font-weight:900;} .rd{font-size:.62rem;font-weight:800;color:var(--muted);margin-top:1px;display:none;}
+    body.op-rede .rd{display:block;}
+    .leg{font-size:.68rem;color:var(--muted);margin-top:.4rem;}
+    .ops{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:0 .2rem .9rem;}
+    .ops .rot{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:800;}
+    .tg{border:1px solid #cdd7e3;background:#fff;color:#475569;border-radius:999px;padding:.36rem .8rem;
+      font-size:.76rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;font-family:inherit;}
+    .tg:hover{border-color:#94aec9;}
+    .tg .mk{width:13px;height:13px;border-radius:3px;border:1.5px solid #b9c6d6;background:#fff;position:relative;flex:none;}
+    .tg[aria-pressed="true"]{background:var(--primary);border-color:var(--primary);color:#fff;}
+    .tg[aria-pressed="true"] .mk{background:#fff;border-color:#fff;}
+    .tg[aria-pressed="true"] .mk::after{content:"";position:absolute;left:3.5px;top:.5px;width:4px;height:8px;
+      border:solid var(--primary);border-width:0 2px 2px 0;transform:rotate(45deg);}
+    .ad-up{background:#fff;border-radius:14px;box-shadow:0 4px 16px rgba(2,16,38,.06);padding:1rem 1.15rem;margin-top:1.2rem;}
+    .ad-obs{font-size:.74rem;color:var(--muted);border-left:3px solid var(--line);padding-left:.6rem;margin-top:.6rem;}
+    .spark{height:38px;width:100%;display:block;}
+  </style>
+</head>
+<body>
+
+<header class="mg-header">
+  <div class="mg-brand" style="cursor:pointer;" onclick="location.href='index.html'">
+    <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div>
+    <div><h4>MAPA</h4><div class="mg-brand-sub">SME Ribeirão Preto</div></div>
+  </div>
+  <nav class="mg-nav">
+    <div class="mg-dd">
+      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="avaliacao.html"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item__A_ATIVO" href="avaliacao-diagnostica.html"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+        <a class="mg-dd-item__O_ATIVO" href="av-oral-matematica.html"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+        <a class="mg-dd-item__S_ATIVO" href="saresp.html"><i class="bi bi-graph-up"></i>SARESP</a>
+        <a class="mg-dd-item__I_ATIVO" href="ideb.html"><i class="bi bi-award-fill"></i>IDEB</a>
+        <a class="mg-dd-item__E_ATIVO" href="iee.html"><i class="bi bi-trophy-fill"></i>IEE</a>
+        <a class="mg-dd-item" href="elefante.html"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+        <a class="mg-dd-item" href="fluencia.html"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn" href="atribuicao.html"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="educacao_especial.html"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <div class="mg-dd"><a class="mg-nav-btn mg-dd-toggle" href="frequencia.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="frequencia.html"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+        <a class="mg-dd-item" href="boletim-estatistico.html"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+      </div></div>
+    <a class="mg-nav-btn" href="relatorios.html"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+  </nav>
+  <div class="mg-actions">
+    <button class="mg-action-btn" onclick="location.reload()"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button>
+  </div>
+</header>
+
+<div class="ad-bar">
+  <label>Unidade</label>
+  <select id="adSel"><option>Carregando…</option></select>
+  <span class="ad-chip" id="adCod">Cód. —</span>
+  <span class="ad-chip" id="adInep">INEP —</span>
+</div>
+
+<div class="page">
+  <div class="titbar"><div class="t" id="adNome">—</div><div class="meta">Série histórica · 2005–2025</div></div>
+  <div class="ops">
+    <span class="rot">Mostrar</span>
+    <button class="tg" id="bRede" aria-pressed="false"><i class="mk"></i>Comparar com a rede</button>
+  </div>
+  <div class="secLabel">IDEB por etapa e ano</div>
+  <div class="card2"><table class="ad" id="tab"></table></div>
+  <div class="leg" id="legenda">Verde = a escola alcançou a meta daquele ano; vermelho = ficou abaixo. O IDEB é avaliado contra a META da própria escola, não contra a rede.</div>
+
+  <div class="ad-up" id="adUpload" style="display:none">
+    <div class="secLabel" style="margin-top:0">Atualizar dados</div>
+    <div class="ad-obs" style="margin-top:0;margin-bottom:.7rem">Envie a planilha <b>IDEB — Série Histórica</b>.</div>
+    <input type="file" id="adArq" accept=".xlsx" class="form-control form-control-sm" style="max-width:520px">
+    <div id="adRes" class="ad-obs" style="margin-top:.7rem"></div>
+  </div>
+</div>
+
+<script>
+const PERFIL_FLUXO = 's.fluxoescolar@educacao.pmrp.sp.gov.br';
+const TABELA = 'av_ideb';
+function sb(){ return window.MAPA_SB; }
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nf = (v,d) => (v==null||isNaN(v)) ? '—' : Number(v).toFixed(d==null?1:d).replace('.',',');
+
+let DADOS=[], REDE=new Map(), ESCOLAS=[], atual=null;
+
+// Converte célula de planilha em número. Devolve null para QUALQUER coisa que
+// não seja número finito — não só para os marcadores que já vimos. O arquivo do
+// IDEB usa '-' E 'ND'; tratar só '-' fazia Number('ND') virar NaN e 55 linhas
+// de NaN irem para o banco. Marcador novo num arquivo futuro vira null sozinho.
+function numero(v){
+  if(v==null) return null;
+  if(typeof v==='number') return isFinite(v) ? v : null;
+  const s=String(v).replace(/\u00a0/g,' ').replace(/R\$/g,'').trim().replace(/\.(?=\d{3}\b)/g,'').replace(',','.');
+  if(!s || s==='-' || /^[a-zA-Z]/.test(s)) return null;
+  const n=Number(s);
+  return isFinite(n) ? n : null;
+}
+const CAMPOS='ano,etapa,ideb,meta';
+const ETAPAS=[['AI','Anos Iniciais'],['AF','Anos Finais']];
+const chavesRede = r => [[r.ano+'|'+r.etapa, r.ideb]];
+function render(){
+  const anos=Array.from(new Set(DADOS.map(r=>r.ano))).sort();
+  const idx=new Map(DADOS.map(r=>[r.ano+'|'+r.etapa, r]));
+  let h='<tr><th style="text-align:left">Etapa</th>'+anos.map(a=>'<th>'+a+'</th>').join('')+'</tr>';
+  ETAPAS.forEach(([sig,nome])=>{
+    h+='<tr><td class="lbl">'+nome+'</td>'+anos.map(a=>{
+      const r=idx.get(a+'|'+sig), v=r?r.ideb:null, meta=r?r.meta:null, rd=REDE.get(a+'|'+sig);
+      // Verde/vermelho aqui compara com a META da própria escola, não com a
+      // rede: o IDEB é avaliado contra a meta que a escola recebeu.
+      const cor=v==null?'#94a3b8':(meta==null?'#0f172a':(v>=meta?'#166534':'#b91c1c'));
+      return '<td><span class="val" style="color:'+cor+'">'+nf(v)+'</span>'
+           + (meta!=null?'<div style="font-size:.6rem;color:#64748b">meta '+nf(meta)+'</div>':'')
+           + '<div class="rd">rede '+nf(rd)+'</div></td>';
+    }).join('')+'</tr>';
+  });
+  document.getElementById('tab').innerHTML=h;
+}
+function parsePlanilha(wb){
+  const L=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null});
+  const hdr=L[2]||[]; const cols=[];
+  for(let j=3;j<hdr.length;j++){
+    const m=String(hdr[j]||'').match(/^\s*(META\s+)?IDEB\s+(AI|AF)\s+(\d{4})/i);
+    if(m) cols.push({j,etapa:m[2].toUpperCase(),ano:Number(m[3]),meta:!!m[1]});
+  }
+  if(!cols.length) return null;
+  const out=[];
+  for(let i=3;i<L.length;i++){
+    const r=L[i]; if(!r) continue;
+    const nome=String(r[2]||'').trim(); if(!nome) continue;
+    const agg=new Map();
+    cols.forEach(c=>{
+      const k=c.etapa+'|'+c.ano;
+      if(!agg.has(k)) agg.set(k,{ideb:null,meta:null});
+      const v=r[c.j];
+      agg.get(k)[c.meta?'meta':'ideb']=numero(v);
+    });
+    agg.forEach((v,k)=>{
+      if(v.ideb==null&&v.meta==null) return;
+      const p=k.split('|');
+      out.push({escola:nome,ano:Number(p[1]),etapa:p[0],ideb:v.ideb,meta:v.meta,
+                codigo_escola:numero(r[0]), codigo_inep:numero(r[1])});
+    });
+  }
+  return out;
+}
+
+
+async function carregarEscolas(){
+  const { data, error } = await sb().from(TABELA).select('escola,codigo_escola,codigo_inep');
+  if(error) throw error;
+  const m=new Map();
+  (data||[]).forEach(r=>{ if(r.escola && r.escola!=='REDE' && !m.has(r.escola)) m.set(r.escola,r); });
+  ESCOLAS=Array.from(m.values()).sort((a,b)=>a.escola.localeCompare(b.escola,'pt-BR'));
+  const sel=document.getElementById('adSel');
+  if(!ESCOLAS.length){ sel.innerHTML='<option>— sem dados importados —</option>'; document.getElementById('tab').innerHTML=''; return; }
+  sel.innerHTML=ESCOLAS.map(e=>'<option value="'+esc(e.escola)+'">'+esc(e.escola)+'</option>').join('');
+  sel.onchange=()=>selecionar(sel.value);
+  selecionar(ESCOLAS[0].escola);
+}
+
+async function selecionar(nome){
+  atual=ESCOLAS.find(e=>e.escola===nome)||{escola:nome};
+  document.getElementById('adNome').textContent=nome;
+  document.getElementById('adCod').textContent='Cód. '+(atual.codigo_escola??'—');
+  document.getElementById('adInep').textContent='INEP '+(atual.codigo_inep??'—');
+  const { data, error } = await sb().from(TABELA).select(CAMPOS).eq('escola',nome);
+  if(error) throw error;
+  DADOS=data||[];
+  render();
+}
+
+// A média da rede não vem nas planilhas de série histórica: é calculada sobre
+// as escolas com dado naquele recorte. Uma consulta só, na abertura.
+async function carregarRede(){
+  const { data, error } = await sb().from(TABELA).select(CAMPOS);
+  if(error) throw error;
+  const soma=new Map();
+  (data||[]).forEach(r=>{
+    chavesRede(r).forEach(([k,v])=>{
+      if(v==null) return;
+      const s=soma.get(k)||{t:0,n:0}; s.t+=Number(v); s.n++; soma.set(k,s);
+    });
+  });
+  REDE=new Map(Array.from(soma.entries()).map(([k,s])=>[k,s.t/s.n]));
+}
+
+async function gravar(linhas,res){
+  const LOTE=500;
+  for(let i=0;i<linhas.length;i+=LOTE){
+    const { error } = await sb().from(TABELA).upsert(linhas.slice(i,i+LOTE));
+    if(error) throw error;
+    res.textContent='Gravando… '+Math.min(i+LOTE,linhas.length)+' de '+linhas.length;
+  }
+}
+
+function ligarUpload(){
+  const inp=document.getElementById('adArq'), res=document.getElementById('adRes');
+  inp.addEventListener('change', async ()=>{
+    const f=inp.files&&inp.files[0]; if(!f) return;
+    res.textContent='Lendo a planilha…';
+    try{
+      const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+      const linhas=parsePlanilha(wb);
+      if(!linhas||!linhas.length){ res.innerHTML='Planilha não reconhecida. Envie a <b>IDEB — Série Histórica</b>.'; return; }
+      await gravar(linhas,res);
+      res.innerHTML='<b>Pronto.</b> '+linhas.length+' linhas atualizadas.';
+      await carregarRede(); await carregarEscolas();
+    }catch(e){ console.error(e); res.innerHTML='Falhou: '+esc(e.message||e); }
+    finally{ inp.value=''; }
+  });
+}
+
+/* Gate do upload — conforto, não segurança: quem decide é a policy de escrita. */
+async function aplicarGate(){
+  try{
+    const { data } = await sb().auth.getUser();
+    const email=((data&&data.user&&data.user.email)||'').toLowerCase();
+    let redeToda=false;
+    try{ redeToda=!!(await sb().rpc('vejo_a_rede_toda')).data; }catch(e){}
+    if(email===PERFIL_FLUXO||redeToda) document.getElementById('adUpload').style.display='';
+  }catch(e){}
+}
+
+(function(){
+  const b=document.getElementById('bRede');
+  b.addEventListener('click',()=>{
+    const on=b.getAttribute('aria-pressed')==='true';
+    b.setAttribute('aria-pressed',String(!on));
+    document.body.classList.toggle('op-rede',!on);
+    try{ localStorage.setItem('hist_rede',String(!on)); }catch(e){}
+  });
+  try{ if(localStorage.getItem('hist_rede')==='true') b.click(); }catch(e){}
+})();
+
+(async function(){
+  // window.MAPA_SB nasce no auth.js quando a sessão abre. Criar cliente próprio
+  // aqui geraria requisição sem identidade, que o banco recusa.
+  for(let i=0;i<160 && !window.MAPA_SB;i++) await new Promise(r=>setTimeout(r,100));
+  if(!window.MAPA_SB){ document.getElementById('adNome').textContent='Sessão indisponível'; return; }
+  try{ ligarUpload(); aplicarGate(); await carregarRede(); await carregarEscolas(); }
+  catch(e){ console.error(e); document.getElementById('adNome').textContent='Erro ao carregar: '+(e.message||e); }
+})();
+</script>
+</body>
+</html>

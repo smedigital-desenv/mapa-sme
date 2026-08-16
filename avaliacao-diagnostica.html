@@ -219,6 +219,18 @@ const fmtTRI = v => (v==null||isNaN(v)) ? '—' : Number(v).toFixed(2).replace('
 const fmtPct = v => (v==null||isNaN(v)) ? '—' : Math.round(Number(v)*100)+'%';
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+// Converte célula de planilha em número. Devolve null para QUALQUER coisa que
+// não seja número finito — não só para os marcadores que já vimos. O arquivo do
+// IDEB usa '-' E 'ND'; tratar só '-' fazia Number('ND') virar NaN e 55 linhas
+// de NaN irem para o banco. Marcador novo num arquivo futuro vira null sozinho.
+function numero(v){
+  if(v==null) return null;
+  if(typeof v==='number') return isFinite(v) ? v : null;
+  const s=String(v).replace(/\u00a0/g,' ').replace(/R\$/g,'').trim().replace(/\.(?=\d{3}\b)/g,'').replace(',','.');
+  if(!s || s==='-' || /^[a-zA-Z]/.test(s)) return null;
+  const n=Number(s);
+  return isFinite(n) ? n : null;
+}
 const ANOS = ['2º','3º','4º','5º','6º','7º','8º','9º'];
 const COMPS = ['Língua Portuguesa','Matemática','Ciências','Inglês'];
 
@@ -387,9 +399,9 @@ function parseTRI(wb){
     cols.forEach(c => {
       const v = r[c.j];
       linhas.push({ escola:nome, ano_escolar:c.ano, componente:c.comp,
-                    proficiencia: (v==null||v==='-'||v==='') ? null : Number(v),
-                    codigo_escola: r[0]==null?null:Number(r[0]),
-                    codigo_inep: r[1]==null?null:Number(r[1]) });
+                    proficiencia: numero(v),
+                    codigo_escola: numero(r[0]),
+                    codigo_inep: numero(r[1]) });
     });
   }
   return { tabela:'av_diag_tri', linhas, rotulo:'proficiência (TRI)' };
@@ -426,9 +438,9 @@ function parseItens(wb){
       const v = r[c.j];
       linhas.push({ escola:nome, ano_escolar:c.ano, componente:c.comp, item:c.item,
                     cod_habilidade:c.hab, descritor:c.des,
-                    pct_acerto: (v==null||v==='-'||v==='') ? null : Number(v),
-                    codigo_escola: (r[0]==null||r[0]==='-')?null:Number(r[0]),
-                    codigo_inep: (r[1]==null||r[1]==='-')?null:Number(r[1]) });
+                    pct_acerto: numero(v),
+                    codigo_escola: numero(r[0]),
+                    codigo_inep: numero(r[1]) });
     });
   }
   return { tabela:'av_diag_item', linhas, rotulo:'desempenho por item' };
