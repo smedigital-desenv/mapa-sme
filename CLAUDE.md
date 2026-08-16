@@ -27,10 +27,28 @@ Site estático (HTML/JS puro, sem framework nem build) publicado no GitHub Pages
 sob `smedigital.com.br/mapa-sme/`. Os dados ficam num projeto Supabase próprio.
 
 **Telas:** Avaliações (Diagnóstica, 1º a 4º Bimestre, Total, Análise de
-Consistência), Atribuição, Retrato Quantitativo de Atribuições, Análise de
-Jornada, Educação Especial, Gerência de Liminares, Frequência × Distância,
-Fluência Leitora, Elefante Letrado, Boletim da Escola, Relatórios,
-Relatório Executivo.
+Consistência), Av. Diagnóstica SME/Vunesp, Atribuição, Retrato Quantitativo de
+Atribuições, Análise de Jornada, Educação Especial, Gerência de Liminares,
+Frequência × Distância, Fluência Leitora, Elefante Letrado, Boletim da Escola,
+Boletim Estatístico, Relatórios, Relatório Executivo.
+
+### Telas de avaliação externa (tabelas `av_*`)
+
+Alimentadas por **upload de planilha** na própria tela (gated), não por API.
+As tabelas seguem o RLS padrão: `anon` sem nada, recorte por escola com as
+chamadas dentro de `(select ...)`, escrita exigindo `posso_editar()`.
+
+⚠️ **`av_diag_item` guarda uma linha por ITEM da prova, não por habilidade.**
+Metade das habilidades é medida por mais de um item e a dispersão entre itens
+da MESMA habilidade é de 13 p.p. em média (chega a 73 p.p. na rede — medido em
+2026-06). Agregar por habilidade transformaria "uma questão todos acertam,
+outra quase ninguém" num meio-termo que não descreve nenhuma das duas. Não
+"simplifique" isso somando por habilidade.
+
+⚠️ **A escala TRI muda a cor do TEXTO junto com a faixa.** Sobre os três tons
+médios (`#65a30d`, `#ca8a04`, `#ea580c`) o texto branco fica em 2,94–3,56:1,
+abaixo do mínimo de 4,5:1; com tinta escura sobe para 5,0–6,1:1. A paleta é a
+mesma — não volte o texto para branco "para uniformizar".
 
 ---
 

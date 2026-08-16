@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <script src="auth-guard.js"></script>
+  <script>window.MAPA_SISTEMA = 'mapa';</script>
+  <script src="auth.js" defer></script>
+  <script src="config-central.js" defer></script>
+  <script src="demo-mode.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Av. Diagnóstica SME/Vunesp | SME Ribeirão Preto</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root{--primary:#002b5e;--pri2:#075f82;--neon-blue:#00e5ff;--neon:#00b8d4;
+          --line:#e4e9f0;--ink:#0f172a;--muted:#64748b;}
+    body{background:#eef2f7;font-family:'Segoe UI',sans-serif;padding-bottom:40px;color:var(--ink);}
+
+    /* ═══ HEADER GLOBAL MAPA ═══ */
+    .mg-header{background:var(--primary);color:#fff;border-bottom:5px solid var(--neon-blue);
+      padding:.95rem 1.6rem;display:flex;align-items:center;justify-content:space-between;
+      gap:1rem;flex-wrap:wrap;position:sticky;top:0;z-index:1050;box-shadow:0 6px 18px rgba(0,43,94,.18);}
+    .mg-brand{display:flex;align-items:center;gap:.6rem;min-width:180px;}
+    .mg-brand-icon{width:34px;height:34px;display:grid;place-items:center;color:var(--neon-blue);
+      font-size:1.4rem;filter:drop-shadow(0 0 6px rgba(0,229,255,.55));}
+    .mg-brand h4{margin:0;font-weight:900;letter-spacing:.03em;font-size:1.4rem;line-height:1;}
+    .mg-brand-sub{font-size:.63rem;color:rgba(255,255,255,.68);font-weight:800;
+      letter-spacing:.08em;text-transform:uppercase;margin-top:2px;}
+    .mg-nav{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;flex:1;min-width:280px;}
+    .mg-nav-btn{display:inline-flex;align-items:center;gap:.4rem;justify-content:center;min-width:130px;
+      padding:8px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.06);color:#fff;font-weight:800;font-size:.82rem;
+      text-decoration:none;transition:.15s;}
+    .mg-nav-btn:hover{border-color:rgba(255,255,255,.4);color:#fff;}
+    .mg-nav-btn.active{background:#fff;color:var(--primary);box-shadow:0 2px 10px rgba(0,0,0,.18);}
+    .mg-dd{position:relative;}
+    .mg-dd-menu{position:absolute;top:calc(100% + 6px);left:0;background:#fff;border-radius:12px;
+      box-shadow:0 12px 30px rgba(2,16,38,.22);padding:6px;min-width:210px;display:none;z-index:1100;}
+    .mg-dd:hover .mg-dd-menu{display:block;}
+    .mg-dd-item{display:flex;align-items:center;gap:.5rem;padding:8px 12px;border-radius:9px;
+      color:#1e293b;font-weight:700;font-size:.82rem;text-decoration:none;}
+    .mg-dd-item:hover{background:#eef2f7;color:var(--primary);}
+    .mg-dd-item.active{background:var(--primary);color:#fff;}
+    .mg-actions{display:flex;gap:.5rem;}
+    .mg-action-btn{display:inline-flex;align-items:center;gap:.4rem;padding:8px 14px;border-radius:12px;
+      border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;font-weight:800;font-size:.82rem;}
+    @media (max-width:992px){.mg-nav-btn{min-width:auto;}}
+
+    /* ═══ BARRA DE UNIDADE ═══ */
+    .ad-bar{background:#013a7a;padding:.55rem 1.6rem;display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+    .ad-bar label{color:#cfe3ff;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;}
+    .ad-bar select{border:0;border-radius:9px;padding:.4rem .7rem;font-weight:700;max-width:420px;}
+    .ad-chip{background:rgba(255,255,255,.16);color:#fff;border-radius:999px;padding:3px 12px;font-weight:800;font-size:.72rem;}
+
+    .page{max-width:1240px;margin:0 auto;padding:1.1rem 1rem;}
+    .titbar{background:linear-gradient(135deg,var(--primary),var(--pri2));color:#fff;border-radius:14px;
+      padding:.85rem 1.2rem;margin-bottom:.9rem;display:flex;align-items:center;justify-content:space-between;
+      flex-wrap:wrap;gap:8px;}
+    .titbar .t{font-weight:900;font-size:1.12rem;}
+    .titbar .meta{font-size:.78rem;opacity:.92;font-weight:700;}
+    .secLabel{font-weight:900;color:var(--primary);font-size:.82rem;text-transform:uppercase;
+      letter-spacing:.05em;margin:1.1rem .2rem .5rem;display:flex;align-items:center;gap:8px;}
+    .secLabel::before{content:"";width:5px;height:16px;background:var(--neon);border-radius:3px;}
+    .card2{background:#fff;border-radius:14px;box-shadow:0 4px 16px rgba(2,16,38,.06);overflow:auto;}
+    table.ad{border-collapse:collapse;width:100%;font-size:.8rem;}
+    table.ad th,table.ad td{padding:.5rem;border:1px solid var(--line);text-align:center;vertical-align:middle;}
+    table.ad th{background:#f6f8fb;color:var(--muted);font-weight:800;font-size:.64rem;text-transform:uppercase;}
+    .tri td.c{font-weight:900;}
+    .tri td.c .rd{display:none;font-size:.62rem;font-weight:800;opacity:.85;margin-top:1px;}
+    body.op-rede .tri td.c .rd{display:block;}
+    td.lbl{text-align:left;font-weight:800;color:#334155;background:#fafbfc;white-space:nowrap;}
+    .leg{font-size:.68rem;color:var(--muted);margin-top:.4rem;}
+    .hab td.des{text-align:left;font-weight:600;color:#334155;}
+    .hab td.cod{font-weight:800;color:var(--primary);white-space:nowrap;font-size:.72rem;}
+    .barwrap{background:#eef1f6;border-radius:6px;height:16px;position:relative;overflow:hidden;min-width:90px;}
+    .barfill{height:100%;border-radius:6px;}
+    .pill{font-weight:900;font-size:.74rem;}
+    .selrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:.2rem 0 .6rem;}
+    .selrow select{border:1px solid var(--line);border-radius:9px;padding:.35rem .6rem;font-weight:700;}
+    .sub2{font-size:.72rem;color:var(--muted);}
+    .colRede{display:none;}
+    body.op-rede .colRede{display:table-cell;}
+    #crit{display:none;}
+    body.op-crit #crit{display:block;}
+    .ops{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:0 .2rem .9rem;}
+    .ops .rot{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:800;}
+    .tg{border:1px solid #cdd7e3;background:#fff;color:#475569;border-radius:999px;padding:.36rem .8rem;
+      font-size:.76rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;font-family:inherit;}
+    .tg:hover{border-color:#94aec9;}
+    .tg .mk{width:13px;height:13px;border-radius:3px;border:1.5px solid #b9c6d6;background:#fff;position:relative;flex:none;}
+    .tg[aria-pressed="true"]{background:var(--primary);border-color:var(--primary);color:#fff;}
+    .tg[aria-pressed="true"] .mk{background:#fff;border-color:#fff;}
+    .tg[aria-pressed="true"] .mk::after{content:"";position:absolute;left:3.5px;top:.5px;width:4px;height:8px;
+      border:solid var(--primary);border-width:0 2px 2px 0;transform:rotate(45deg);}
+    /* upload */
+    .ad-up{background:#fff;border-radius:14px;box-shadow:0 4px 16px rgba(2,16,38,.06);padding:1rem 1.15rem;margin-top:1.2rem;}
+    .ad-obs{font-size:.74rem;color:var(--muted);border-left:3px solid var(--line);padding-left:.6rem;margin-top:.6rem;}
+    .aviso{background:#fff6e5;border:1px solid #ffd08a;border-radius:10px;padding:.6rem .8rem;
+      font-size:.76rem;color:#7a4b00;margin-bottom:.8rem;}
+  </style>
+</head>
+<body>
+
+<header class="mg-header">
+  <div class="mg-brand" style="cursor:pointer;" onclick="location.href='index.html'" title="Página inicial do MAPA">
+    <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div>
+    <div><h4>MAPA</h4><div class="mg-brand-sub">SME Ribeirão Preto</div></div>
+  </div>
+  <nav class="mg-nav">
+    <div class="mg-dd" data-tela-any="avaliacao,elefante,fluencia">
+      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item active" href="avaliacao-diagnostica.html"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+        <a class="mg-dd-item" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+        <a class="mg-dd-item" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn" href="atribuicao.html"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="educacao_especial.html"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <div class="mg-dd"><a class="mg-nav-btn mg-dd-toggle" href="frequencia.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+        <a class="mg-dd-item" href="boletim-estatistico.html"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+      </div></div>
+    <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+  </nav>
+  <div class="mg-actions">
+    <button class="mg-action-btn" onclick="location.reload()" title="Atualizar"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button>
+  </div>
+</header>
+
+<div class="ad-bar">
+  <label>Unidade</label>
+  <select id="adSel"><option>Carregando…</option></select>
+  <span class="ad-chip" id="adCod">Cód. —</span>
+  <span class="ad-chip" id="adInep">INEP —</span>
+</div>
+
+<div class="page">
+  <div class="titbar">
+    <div class="t" id="adNome">—</div>
+    <div class="meta">Prova SME/Vunesp — Entrada · Junho 2026</div>
+  </div>
+
+  <div class="ops">
+    <span class="rot">Mostrar</span>
+    <button class="tg" id="bRede" aria-pressed="false"><i class="mk"></i>Comparar com a rede</button>
+    <button class="tg" id="bCrit" aria-pressed="false"><i class="mk"></i>Habilidades críticas</button>
+  </div>
+
+  <div id="crit">
+    <div class="secLabel">Onde a escola mais precisa de atenção</div>
+    <div class="card2"><table class="ad hab"><thead><tr>
+      <th style="width:5%">#</th><th style="width:13%">Habilidade</th><th style="width:40%">Descritor</th>
+      <th style="width:8%">Item</th><th style="width:14%">Ano · Comp.</th>
+      <th style="width:10%">Escola</th><th style="width:10%">Dif.</th>
+    </tr></thead><tbody id="critB"></tbody></table></div>
+    <div class="leg">As 10 maiores quedas em relação à rede, de todos os componentes e anos.</div>
+  </div>
+
+  <div class="secLabel">Proficiência (TRI) — escola por ano e componente</div>
+  <div class="card2"><table class="ad tri" id="triT"></table></div>
+  <div class="leg">Escala de proficiência (TRI). Cores:
+    <b style="color:#166534">≥6 bom</b> · 5–6 · 4–5 · 3–4 · <b style="color:#9f1239">&lt;3 crítico</b>.</div>
+
+  <div class="secLabel">Desempenho por item — escola × rede</div>
+  <div class="selrow">
+    <label class="sub2" style="font-weight:800">Ano</label><select id="selAno"></select>
+    <label class="sub2" style="font-weight:800">Componente</label><select id="selComp"></select>
+    <span class="sub2" id="selInfo"></span>
+  </div>
+  <div class="card2"><table class="ad hab"><thead><tr>
+    <th style="width:12%">Habilidade</th><th style="width:6%">Item</th><th style="width:40%">Descritor</th>
+    <th style="width:22%">% acerto (escola)</th>
+    <th class="colRede" style="width:10%">Rede</th><th class="colRede" style="width:10%">Dif.</th>
+  </tr></thead><tbody id="habB"></tbody></table></div>
+  <div class="leg">Uma linha por <b>item da prova</b>, do mais frágil para o mais forte.
+    Metade das habilidades é medida por mais de um item, e itens da mesma habilidade
+    podem ter desempenhos bem diferentes — por isso não são somados.</div>
+
+  <!-- Atualização (gated) -->
+  <div class="ad-up" id="adUpload" style="display:none">
+    <div class="secLabel" style="margin-top:0">Atualizar dados</div>
+    <div class="ad-obs" style="margin-top:0;margin-bottom:.7rem">
+      Envie um dos dois arquivos da Av. Diagnóstica. A tela reconhece qual é pelo conteúdo:<br>
+      • <b>Prof TRI Média</b> → atualiza a matriz de proficiência.<br>
+      • <b>Acertos Habilidade</b> → atualiza o desempenho por item (inclui a linha da rede).
+    </div>
+    <input type="file" id="adArq" accept=".xlsx" class="form-control form-control-sm" style="max-width:520px">
+    <div id="adRes" class="ad-obs" style="margin-top:.7rem"></div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
+const PERFIL_FLUXO = 's.fluxoescolar@educacao.pmrp.sp.gov.br';
+
+function sb(){ return window.MAPA_SB; }
+
+/* ── Escala TRI ────────────────────────────────────────────────────────────
+   A cor da faixa e a TINTA que fica legível sobre ela andam juntas. Medido:
+   nos três tons do meio o texto branco fica em 2,94–3,56:1, abaixo do mínimo
+   de 4,5:1 para texto pequeno; com tinta escura sobe para 5,0–6,1:1.
+   A PALETA é a mesma de sempre — o que muda é a cor do número.            */
+function faixaTRI(v){
+  if(v==null || isNaN(v)) return {bg:'#cbd5e1', fg:'#0f172a'};
+  if(v>=6) return {bg:'#15803d', fg:'#ffffff'};
+  if(v>=5) return {bg:'#65a30d', fg:'#132000'};
+  if(v>=4) return {bg:'#ca8a04', fg:'#231700'};
+  if(v>=3) return {bg:'#ea580c', fg:'#2b0d00'};
+  return     {bg:'#b91c1c', fg:'#ffffff'};
+}
+function corPct(v){ if(v==null)return '#94a3b8'; if(v>=.7)return '#15803d'; if(v>=.5)return '#ca8a04'; return '#b91c1c'; }
+const fmtTRI = v => (v==null||isNaN(v)) ? '—' : Number(v).toFixed(2).replace('.',',');
+const fmtPct = v => (v==null||isNaN(v)) ? '—' : Math.round(Number(v)*100)+'%';
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const ANOS = ['2º','3º','4º','5º','6º','7º','8º','9º'];
+const COMPS = ['Língua Portuguesa','Matemática','Ciências','Inglês'];
+
+let TRI = [];      // av_diag_tri
+let ITENS = [];    // av_diag_item (escola atual + REDE)
+let ESCOLAS = [];  // [{escola, codigo_escola, codigo_inep}]
+let escolaAtual = null;
+
+/* Diferença arredondada ANTES de escolher o símbolo: 0 é empate, não alta nem
+   queda. Sem isso, +0,4 p.p. sai "▲ 0pp" em verde e −0,4 sai "▼ 0pp" em
+   vermelho — dois empates pintados de coisas opostas. */
+function celDif(escV, redeV){
+  if(escV==null || redeV==null) return '<td class="colRede" style="color:#94a3b8">—</td>';
+  const pp = Math.round((escV - redeV)*100);
+  if(pp === 0) return '<td class="colRede" style="font-weight:800;color:#64748b">= 0pp</td>';
+  const cor = pp > 0 ? '#166534' : '#b91c1c';
+  return '<td class="colRede" style="font-weight:800;color:'+cor+'">'+(pp>0?'▲':'▼')+' '+Math.abs(pp)+'pp</td>';
+}
+
+async function carregarEscolas(){
+  const { data, error } = await sb().from('av_diag_tri')
+    .select('escola,codigo_escola,codigo_inep');
+  if(error) throw error;
+  const m = new Map();
+  (data||[]).forEach(r => { if(r.escola && r.escola!=='REDE' && !m.has(r.escola)) m.set(r.escola, r); });
+  ESCOLAS = Array.from(m.values()).sort((a,b)=>a.escola.localeCompare(b.escola,'pt-BR'));
+  const sel = document.getElementById('adSel');
+  if(!ESCOLAS.length){ sel.innerHTML = '<option>— sem dados importados —</option>'; return; }
+  sel.innerHTML = ESCOLAS.map(e=>'<option value="'+esc(e.escola)+'">'+esc(e.escola)+'</option>').join('');
+  sel.onchange = () => selecionar(sel.value);
+  selecionar(ESCOLAS[0].escola);
+}
+
+async function selecionar(nome){
+  escolaAtual = ESCOLAS.find(e => e.escola === nome) || {escola:nome};
+  document.getElementById('adNome').textContent = nome;
+  document.getElementById('adCod').textContent = 'Cód. ' + (escolaAtual.codigo_escola ?? '—');
+  document.getElementById('adInep').textContent = 'INEP ' + (escolaAtual.codigo_inep ?? '—');
+
+  const [t, i] = await Promise.all([
+    sb().from('av_diag_tri').select('ano_escolar,componente,proficiencia').eq('escola', nome),
+    sb().from('av_diag_item')
+        .select('escola,ano_escolar,componente,item,cod_habilidade,descritor,pct_acerto')
+        .in('escola', [nome, 'REDE'])
+  ]);
+  if(t.error) throw t.error;
+  if(i.error) throw i.error;
+  TRI = t.data || [];
+  ITENS = i.data || [];
+  renderTRI(); montarSelects(); renderItens(); renderCriticas();
+}
+
+function renderTRI(){
+  const idx = new Map();
+  TRI.forEach(r => idx.set(r.ano_escolar+'||'+r.componente, r.proficiencia));
+  // média da rede por ano/componente: calculada sobre todas as escolas
+  let h = '<tr><th style="text-align:left">Componente</th>'+ANOS.map(a=>'<th>'+a+' ano</th>').join('')+'</tr>';
+  COMPS.forEach(cp => {
+    h += '<tr><td class="lbl">'+esc(cp)+'</td>' + ANOS.map(a => {
+      const v = idx.get(a+'||'+cp);
+      const f = faixaTRI(v);
+      const r = REDE_TRI.get(a+'||'+cp);
+      return '<td class="c" style="background:'+f.bg+';color:'+f.fg+'">'+fmtTRI(v)
+           + '<div class="rd">rede '+fmtTRI(r)+'</div></td>';
+    }).join('') + '</tr>';
+  });
+  document.getElementById('triT').innerHTML = h;
+}
+
+// Média da rede na matriz TRI: o arquivo de proficiência não traz linha de
+// rede, então ela é a média das escolas com dado naquele ano/componente.
+let REDE_TRI = new Map();
+async function carregarRedeTRI(){
+  const { data, error } = await sb().from('av_diag_tri').select('ano_escolar,componente,proficiencia');
+  if(error) throw error;
+  const soma = new Map();
+  (data||[]).forEach(r => {
+    if(r.proficiencia == null) return;
+    const k = r.ano_escolar+'||'+r.componente;
+    const s = soma.get(k) || {t:0,n:0};
+    s.t += Number(r.proficiencia); s.n++; soma.set(k, s);
+  });
+  REDE_TRI = new Map(Array.from(soma.entries()).map(([k,s]) => [k, s.t/s.n]));
+}
+
+function montarSelects(){
+  const sa = document.getElementById('selAno'), sc = document.getElementById('selComp');
+  const anos = Array.from(new Set(ITENS.map(r=>r.ano_escolar))).sort((a,b)=>ANOS.indexOf(a)-ANOS.indexOf(b));
+  const antesA = sa.value;
+  sa.innerHTML = anos.map(a=>'<option>'+a+'</option>').join('');
+  if(anos.includes(antesA)) sa.value = antesA;
+  function comps(){
+    const cs = Array.from(new Set(ITENS.filter(r=>r.ano_escolar===sa.value).map(r=>r.componente)))
+                    .sort((a,b)=>COMPS.indexOf(a)-COMPS.indexOf(b));
+    const antesC = sc.value;
+    sc.innerHTML = cs.map(c=>'<option>'+esc(c)+'</option>').join('');
+    if(cs.includes(antesC)) sc.value = antesC;
+  }
+  comps();
+  sa.onchange = () => { comps(); renderItens(); };
+  sc.onchange = renderItens;
+}
+
+function renderItens(){
+  const a = document.getElementById('selAno').value, c = document.getElementById('selComp').value;
+  const rede = new Map();
+  ITENS.filter(r=>r.escola==='REDE' && r.ano_escolar===a && r.componente===c)
+       .forEach(r => rede.set(r.item, r.pct_acerto));
+  const linhas = ITENS.filter(r=>r.escola===escolaAtual.escola && r.ano_escolar===a && r.componente===c)
+                      .sort((x,y)=>(x.pct_acerto??9)-(y.pct_acerto??9));
+  document.getElementById('selInfo').textContent = linhas.length ? linhas.length+' itens' : '';
+  document.getElementById('habB').innerHTML = linhas.map(r => {
+    const cor = corPct(r.pct_acerto), rv = rede.get(r.item);
+    return '<tr><td class="cod">'+esc(r.cod_habilidade)+'</td><td>'+r.item+'</td>'
+      + '<td class="des">'+esc(r.descritor)+'</td>'
+      + '<td><div style="display:flex;align-items:center;gap:8px">'
+      + '<div class="barwrap"><div class="barfill" style="width:'+Math.round((r.pct_acerto||0)*100)+'%;background:'+cor+'"></div></div>'
+      + '<span class="pill" style="color:'+cor+'">'+fmtPct(r.pct_acerto)+'</span></div></td>'
+      + '<td class="colRede">'+fmtPct(rv)+'</td>' + celDif(r.pct_acerto, rv) + '</tr>';
+  }).join('') || '<tr><td colspan="6" class="text-muted p-3">Sem itens para este recorte.</td></tr>';
+}
+
+function renderCriticas(){
+  const rede = new Map();
+  ITENS.filter(r=>r.escola==='REDE')
+       .forEach(r => rede.set(r.ano_escolar+'|'+r.componente+'|'+r.item, r.pct_acerto));
+  const lista = ITENS.filter(r=>r.escola===escolaAtual.escola && r.pct_acerto!=null)
+    .map(r => {
+      const rv = rede.get(r.ano_escolar+'|'+r.componente+'|'+r.item);
+      return rv==null ? null : Object.assign({}, r, {dif: Math.round((r.pct_acerto-rv)*100)});
+    })
+    .filter(x => x && x.dif < 0)
+    .sort((x,y) => x.dif - y.dif).slice(0,10);
+  document.getElementById('critB').innerHTML = lista.map((x,i) =>
+    '<tr><td style="font-weight:900;color:#b91c1c">'+(i+1)+'</td>'
+    + '<td class="cod">'+esc(x.cod_habilidade)+'</td><td class="des">'+esc(x.descritor)+'</td>'
+    + '<td>'+x.item+'</td>'
+    + '<td style="font-size:.72rem;font-weight:700;color:#475569">'+esc(x.ano_escolar)+' · '+esc(x.componente)+'</td>'
+    + '<td style="font-weight:900;color:'+corPct(x.pct_acerto)+'">'+fmtPct(x.pct_acerto)+'</td>'
+    + '<td style="font-weight:800;color:#b91c1c">▼ '+Math.abs(x.dif)+'pp</td></tr>'
+  ).join('') || '<tr><td colspan="7" class="text-muted p-3">Nenhum item abaixo da rede.</td></tr>';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   UPLOAD — os dois arquivos da Av. Diagnóstica
+   ═══════════════════════════════════════════════════════════════════════ */
+const norm = s => String(s==null?'':s).replace(/\s+/g,' ').trim();
+// "2º Ano CIE" e "2ª Ano ING" convivem no mesmo arquivo (ordinal masculino e
+// feminino). O ordinal entra na expressão para os dois casos casarem.
+const SUFIXO_COMP = { CIE:'Ciências', ING:'Inglês', LPT:'Língua Portuguesa', MAT:'Matemática' };
+
+function parseTRI(wb){
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const L = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+  const hdr = L[1] || [];
+  const cols = [];
+  for(let j=3;j<hdr.length;j++){
+    const m = norm(hdr[j]).match(/^(\d)\s*[ºª]\s*Ano\s+(\w+)$/i);
+    if(m && SUFIXO_COMP[m[2].toUpperCase()]) cols.push({j, ano:m[1]+'º', comp:SUFIXO_COMP[m[2].toUpperCase()]});
+  }
+  if(!cols.length) return null;
+  const linhas = [];
+  for(let i=2;i<L.length;i++){
+    const r = L[i]; if(!r) continue;
+    const nome = norm(r[2]); if(!nome || nome==='REDE') continue;
+    cols.forEach(c => {
+      const v = r[c.j];
+      linhas.push({ escola:nome, ano_escolar:c.ano, componente:c.comp,
+                    proficiencia: (v==null||v==='-'||v==='') ? null : Number(v),
+                    codigo_escola: r[0]==null?null:Number(r[0]),
+                    codigo_inep: r[1]==null?null:Number(r[1]) });
+    });
+  }
+  return { tabela:'av_diag_tri', linhas, rotulo:'proficiência (TRI)' };
+}
+
+function parseItens(wb){
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const L = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+  // L1 = "2º ANO - LÍNGUA PORTUGUESA" (só na 1ª coluna do bloco)
+  // L2 = nº do item · L3 = código da habilidade · L4 = descritor
+  if(!L[2] || norm(L[2][2]).toLowerCase().indexOf('item') < 0) return null;
+  const COMP_ARQ = {'LÍNGUA PORTUGUESA':'Língua Portuguesa','MATEMÁTICA':'Matemática',
+                    'CIÊNCIAS DA NATUREZA':'Ciências','LÍNGUA INGLESA':'Inglês'};
+  const cols = []; let bloco = null;
+  for(let j=3;j<(L[1]||[]).length || j<(L[3]||[]).length;j++){
+    if(L[1] && L[1][j]) bloco = norm(L[1][j]);
+    const hab = L[3] && L[3][j] ? norm(L[3][j]) : null;
+    if(!bloco || !hab) continue;
+    const m = bloco.match(/^(\d)\s*[ºª]\s*ANO\s*-\s*(.+)$/i);
+    if(!m) continue;
+    const comp = COMP_ARQ[norm(m[2]).toUpperCase()];
+    if(!comp) continue;
+    cols.push({ j, ano:m[1]+'º', comp, item:Number(L[2][j]), hab, des: L[4] ? norm(L[4][j]) : '' });
+  }
+  if(!cols.length) return null;
+  // as linhas de dados começam depois do cabeçalho "ESCOLA / REDE"
+  let ini = 0;
+  for(let i=0;i<L.length;i++){ if(L[i] && norm(L[i][2]).toUpperCase().indexOf('ESCOLA') === 0){ ini = i+1; break; } }
+  const linhas = [];
+  for(let i=ini;i<L.length;i++){
+    const r = L[i]; if(!r) continue;
+    const nome = norm(r[2]); if(!nome) continue;
+    cols.forEach(c => {
+      const v = r[c.j];
+      linhas.push({ escola:nome, ano_escolar:c.ano, componente:c.comp, item:c.item,
+                    cod_habilidade:c.hab, descritor:c.des,
+                    pct_acerto: (v==null||v==='-'||v==='') ? null : Number(v),
+                    codigo_escola: (r[0]==null||r[0]==='-')?null:Number(r[0]),
+                    codigo_inep: (r[1]==null||r[1]==='-')?null:Number(r[1]) });
+    });
+  }
+  return { tabela:'av_diag_item', linhas, rotulo:'desempenho por item' };
+}
+
+async function gravar(tabela, linhas, res){
+  // Lotes: 30 mil linhas de uma vez estouram o limite da requisição.
+  const LOTE = 500;
+  for(let i=0;i<linhas.length;i+=LOTE){
+    const { error } = await sb().from(tabela).upsert(linhas.slice(i,i+LOTE));
+    if(error) throw error;
+    res.innerHTML = 'Gravando… ' + Math.min(i+LOTE, linhas.length) + ' de ' + linhas.length;
+  }
+}
+
+function ligarUpload(){
+  const inp = document.getElementById('adArq'), res = document.getElementById('adRes');
+  inp.addEventListener('change', async () => {
+    const f = inp.files && inp.files[0]; if(!f) return;
+    res.textContent = 'Lendo a planilha…';
+    try{
+      const wb = XLSX.read(await f.arrayBuffer(), {type:'array'});
+      const r = parseItens(wb) || parseTRI(wb);
+      if(!r || !r.linhas.length){
+        res.innerHTML = 'Planilha não reconhecida. Envie o <b>Prof TRI Média</b> ou o <b>Acertos Habilidade</b> da Av. Diagnóstica.';
+        return;
+      }
+      await gravar(r.tabela, r.linhas, res);
+      res.innerHTML = '<b>Pronto.</b> ' + r.linhas.length + ' linhas de ' + r.rotulo + ' atualizadas.';
+      await carregarRedeTRI(); await carregarEscolas();
+    }catch(e){
+      console.error(e);
+      res.innerHTML = 'Falhou: ' + esc(e.message || e);
+    }finally{ inp.value = ''; }
+  });
+}
+
+/* ── Gate do upload — conforto, não segurança ──────────────────────────────
+   Quem decide de verdade é a policy de escrita no Postgres (posso_editar).
+   Esconder o botão evita que alguém sem permissão tente e receba um erro. */
+async function aplicarGate(){
+  try{
+    const { data } = await sb().auth.getUser();
+    const email = ((data && data.user && data.user.email) || '').toLowerCase();
+    let superAdmin = false;
+    try{
+      const r = await sb().rpc('vejo_a_rede_toda');
+      superAdmin = !!r.data;
+    }catch(e){ /* sem a função, fica só o e-mail */ }
+    if(email === PERFIL_FLUXO || superAdmin) document.getElementById('adUpload').style.display = '';
+  }catch(e){ /* sem sessão: o guard já redirecionou */ }
+}
+
+[['bRede','op-rede'],['bCrit','op-crit']].forEach(([id,cls]) => {
+  const b = document.getElementById(id);
+  b.addEventListener('click', () => {
+    const on = b.getAttribute('aria-pressed') === 'true';
+    b.setAttribute('aria-pressed', String(!on));
+    document.body.classList.toggle(cls, !on);
+    try{ localStorage.setItem('avdiag_'+cls, String(!on)); }catch(e){}
+  });
+  try{ if(localStorage.getItem('avdiag_'+cls) === 'true') b.click(); }catch(e){}
+});
+
+(async function iniciar(){
+  // window.MAPA_SB é criado pelo auth.js depois que a sessão abre. Criar um
+  // cliente próprio aqui produziria requisição sem identidade, que o banco
+  // recusa — por isso a espera.
+  for(let i=0;i<160 && !window.MAPA_SB;i++) await new Promise(r=>setTimeout(r,100));
+  if(!window.MAPA_SB){ document.getElementById('adNome').textContent = 'Sessão indisponível'; return; }
+  try{
+    ligarUpload(); aplicarGate();
+    await carregarRedeTRI();
+    await carregarEscolas();
+  }catch(e){
+    console.error(e);
+    document.getElementById('adNome').textContent = 'Erro ao carregar: ' + (e.message||e);
+  }
+})();
+</script>
+</body>
+</html>
