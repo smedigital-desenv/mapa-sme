@@ -2991,8 +2991,11 @@ function _chaveBimestre(key, filtros) {
 
 function _chavePacoteBimestre(key, filtrosBase) {
   filtrosBase = filtrosBase || {};
-  // v8: fonte CODERP ao vivo — invalida os pacotes v7 (banco) já em cache.
-  return ['pacote_bim_supa_v9_coderp', key, filtrosBase.ano || 'TODOS'].join('|');
+  // A versão na chave descarta pacotes de builds anteriores. O sessionStorage
+  // sobrevive até ao recarregamento forçado, então mudar o FORMATO do pacote
+  // sem mudar a versão faz a tela ler um pacote velho e sem os campos novos.
+  // v10: o pacote passou a carregar `bruto` (base da conferência por turma).
+  return ['pacote_bim_supa_v10_turma', key, filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _chaveTotal(filtros) {
@@ -5488,9 +5491,13 @@ function _prefetchTurmasFicha() {
 
   const chaveBim = bimestreAtualKey;
 
-  // Se o próprio IndicadorTurma já rotulou as turmas, não há nada a detalhar:
-  // o leque por escola (caro, mesmo no servidor) fica de fora.
+  // Se o próprio IndicadorTurma já rotulou as turmas, não há nada a detalhar.
   if (!pac.linhas.some(l => l[2] === '—')) return;
+
+  // Sem a soma crua por unidade/ano não há como conferir o detalhe por turma,
+  // e detalhe sem conferência pode sumir com alunos em silêncio. Acontece
+  // quando o pacote veio do banco (que já traz turma real) — nada a fazer.
+  if (!pac.bruto) return;
 
   // UMA chamada traz o detalhe de todas as unidades (a Edge Function faz o
   // leque por escola do lado do servidor e devolve só o agregado). Enquanto
@@ -7789,12 +7796,21 @@ function _renderTabelaTotal(linhas) {
   async function _varrerTurmasDoAno(bimestre, anoEsc, codigos) {
     const achadas = [];
     let vazios = 0;
+    let achouAlgum = false;
     for (const t of codigos) {
       let rows;
       try { rows = await fichaRedeTurmaFiltrada(bimestre, anoEsc, t); }
       catch (e) { console.warn(`[MAPA CODERP] turma ${t} / ${anoEsc}:`, e.message); break; }
-      if (!rows.length) { if (++vazios >= MAX_VAZIOS_SEGUIDOS) break; continue; }
+      if (!rows.length) {
+        // A parada antecipada só vale DEPOIS de ter achado alguma turma. Se a
+        // lista do banco começar com códigos que a API não conhece (numéricos,
+        // resíduo de importação), sair no primeiro vazio abortaria a varredura
+        // antes de chegar em 'A' — e a unidade inteira ficaria sem detalhe.
+        if (achouAlgum && ++vazios >= MAX_VAZIOS_SEGUIDOS) break;
+        continue;
+      }
       vazios = 0;
+      achouAlgum = true;
       achadas.push([t, rows]);
     }
     return achadas;
