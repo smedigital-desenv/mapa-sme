@@ -27,10 +27,11 @@ Site estático (HTML/JS puro, sem framework nem build) publicado no GitHub Pages
 sob `smedigital.com.br/mapa-sme/`. Os dados ficam num projeto Supabase próprio.
 
 **Telas:** Avaliações (Diagnóstica, 1º a 4º Bimestre, Total, Análise de
-Consistência), Av. Diagnóstica SME/Vunesp, Atribuição, Retrato Quantitativo de
-Atribuições, Análise de Jornada, Educação Especial, Gerência de Liminares,
-Frequência × Distância, Fluência Leitora, Elefante Letrado, Boletim da Escola,
-Boletim Estatístico, Relatórios, Relatório Executivo.
+Consistência), Av. Diagnóstica SME/Vunesp, Av. Oral de Matemática, SARESP,
+IDEB, IEE, Atribuição, Retrato Quantitativo de Atribuições, Análise de Jornada,
+Educação Especial, Gerência de Liminares, Frequência × Distância, Fluência
+Leitora, Elefante Letrado, Boletim da Escola, Boletim Estatístico, Relatórios,
+Relatório Executivo.
 
 ### Telas de avaliação externa (tabelas `av_*`)
 
@@ -457,6 +458,24 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
 - `?demo=0` desliga o modo demonstração, que também intercepta `fetch` e
   atrapalha diagnóstico de autenticação.
 
+### O cabeçalho é copiado em cada tela — e isso tem consequência
+
+Não há include: o `<header class="mg-header">` está escrito por extenso em cada
+`.html`. **Item novo no menu precisa entrar nas ~17 telas que o têm**, senão o
+usuário perde a navegação ao mudar de tela. Já aconteceu de o submenu ficar em
+três estados diferentes ao mesmo tempo.
+
+⚠️ **O CSS do submenu vem do `auth-guard.js`**, injetado antes do primeiro
+render para não haver flash. Seis telas redeclaram `.mg-dd-menu` na própria
+folha e, por especificidade, **vencem a regra compartilhada** — mexer só no
+`auth-guard.js` conserta 11 telas e deixa 6 para trás. Mexa nos dois lugares.
+
+⚠️ **Classe de item é `mg-dd-item`, e só.** Uma variação inventada
+(`mg-dd-item__ATIVO`) não casa com o seletor, o item perde o `display:flex` e
+os links viram texto corrido embolado — o menu continua "funcionando", então
+o defeito passa por revisão. A tela atual leva `mg-dd-item active`, uma por
+página.
+
 ---
 
 ## 7. Sistemas irmãos
@@ -468,6 +487,34 @@ integração é o mesmo descrito aqui.
 O **central** (`smedigital-desenv.github.io`) é o hub: catálogo de sistemas,
 telas, papéis, perfis e vínculos de escola. Alterações no modelo de permissão
 acontecem lá, não aqui.
+
+### Tela nova não existe até ser cadastrada no central
+
+Publicar o `.html` e criar as tabelas **não basta**. Enquanto a tela não estiver
+no catálogo do central e liberada para o perfil, ela não é alcançável — e o
+sintoma não diz isso: aparece como erro de permissão na tela, o que leva a
+procurar defeito nas policies do MAPA, que estão certas.
+
+No banco do **central** (projeto separado, não o do MAPA):
+
+```sql
+-- 1) uma linha por tela, no sistema 'mapa'
+insert into public.telas (sistema_id, slug, nome, ordem)
+select id, 'saresp', 'SARESP', 3 from public.sistemas where slug='mapa';
+
+-- 2) liberar para o perfil (perfil_tela: pode_ver / pode_editar / pode_exportar)
+insert into public.perfil_tela (perfil_id, tela_id, pode_ver, pode_editar, pode_exportar)
+select p.id, t.id, true, true, true
+  from public.perfis p, public.telas t
+ where p.auth_user_id = '<uuid do usuário>' and t.slug = 'saresp';
+```
+
+⚠️ A identidade em `perfis` é o **`auth_user_id` (uuid)**, não o `id` (bigint)
+da própria tabela — o join errado falha com `operator does not exist: uuid =
+bigint`. `sistemas` e `telas` identificam por **`slug`**, não por `codigo`.
+
+O `data-tela` no HTML das telas do MAPA é **decorativo** — hoje nada o lê. O
+gate de verdade é o do central.
 
 ---
 
