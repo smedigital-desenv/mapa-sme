@@ -119,12 +119,18 @@ Secrets: `CODERP_TOKEN` (obrigatório) e `CODERP_URL` (opcional; o padrão é o
 ambiente `dsv`).
 
 **Quem consome em produção é a `avaliacao.html`**: as abas de bimestre
-(`pacoteViaFichaApi`), o **Total** e a **Análise de Consistência** (ambos via
-`fichaAlunosBimestre`: descobre as unidades com lançamento e baixa as fichas
-aluno a aluno, por lotes — único nível que rotula ano/turma; a API não fornece
-nome de aluno, só REMA). Uma
+(`pacoteViaFichaApi`), o **Total** (`fichaGruposTotal`, nível **agregado** —
+4 bimestres × 5 anos via `fichaRedeTurma`, turma `—`; o detalhe por turma de
+UMA unidade desce sob demanda ao clicar, via `fichaDetalheUnidadeTotal`.
+⚠️ NÃO voltar o Total para o nível aluno da rede inteira: 112 escolas × 4
+bimestres no navegador congelava a tela por minutos — a média ponderada pela
+qtd dá o MESMO número) e a **Análise de Consistência** (essa sim via
+`fichaAlunosBimestre`, memoizada por bimestre: baixa as fichas aluno a aluno,
+por lotes — a API não fornece nome de aluno, só REMA). Uma
 chamada `IndicadorTurma` por ano escolar, sem `escola`, devolve a rede aberta
-por unidade. O código CODERP (`uni_cod`) vira
+por unidade. O front nunca grava erro/vazio-com-Messages nos caches (session,
+IndexedDB) e usa tokens de geração para descartar resposta atrasada de outra
+aba — não "simplificar" esses guardas. O código CODERP (`uni_cod`) vira
 nome pela tabela **`escolas_catalogo`** (código, nome, tipo, setor, geoloc —
 fonte CODERP/SAE; separada do catálogo `escolas` do RLS, de propósito). Se a
 API falhar ou o perfil não tiver permissão, a tela cai sozinha para a RPC

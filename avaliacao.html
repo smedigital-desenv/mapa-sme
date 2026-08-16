@@ -6639,6 +6639,43 @@ function carregarTotalRapido(forcarAtualizar) {
   );
 }
 
+// ── Detalhe por unidade no TOTAL (sob demanda) ─────────────────────────────
+// O pacote agregado traz turma '—'; ao clicar numa unidade, as fichas dela
+// (e só dela) descem e substituem as linhas '—' — turmas reais na árvore e
+// filtro por turma funcionando, sem nunca varrer a rede inteira.
+let _totalDetalhePedido = null;
+function _aplicarDetalheUnidadeTotal(det, pac) {
+  pac.linhas = (pac.linhas || []).filter(l => !(l[TPKG.U] === det.unidade && l[TPKG.T] === '—')).concat(det.linhas || []);
+  pac.arvoreLinhas = (pac.arvoreLinhas || []).filter(al => !(al && al[0] === det.unidade && al[2] === '—')).concat(det.arvoreLinhas || []);
+  if (_hierTurmaAtiva === '—' && _hierUnidadeAtiva === det.unidade) _hierTurmaAtiva = 'TODAS';
+  // Invalida o índice para a árvore/painel renascerem do pacote atualizado.
+  _totalPacoteIndex = null;
+  _totalPacoteIndexPkgRef = null;
+}
+function _prefetchTotalTurmasUnidade(unidade) {
+  const pac = pacoteTotalAtual;
+  if (!pac || !Array.isArray(pac.linhas)) return;
+  const pendente = pac.linhas.some(l => l[TPKG.U] === unidade && l[TPKG.T] === '—');
+  if (!pendente) return;
+
+  const pedido = 'total||' + unidade;
+  if (_totalDetalhePedido === pedido) return;
+  _totalDetalhePedido = pedido;
+
+  google.script.run.withSuccessHandler(det => {
+    if (_totalDetalhePedido === pedido) _totalDetalhePedido = null;
+    if (!det || !det.ok || !Array.isArray(det.linhas)) return;
+    if (pacoteTotalAtual !== pac) return;   // pacote trocou enquanto o detalhe vinha
+    _aplicarDetalheUnidadeTotal(det, pac);
+    if (avaliacaoAtual !== 'Total') return;
+    _aplicarPacoteTotalCache(pac, pacoteTotalAnoAtual);
+    renderTotalPacoteLocal();
+  }).withFailureHandler(err => {
+    if (_totalDetalhePedido === pedido) _totalDetalhePedido = null;
+    console.warn('[MAPA CODERP] detalhe do Total indisponível para', unidade, err);
+  }).getDetalheUnidadeFichaTotal(unidade);
+}
+
 function _passaFiltroLinhaTotal(row, filtros) {
   if (!row) return false;
   const u = row[TPKG.U] || '';
@@ -7705,46 +7742,83 @@ function _renderTabelaTotal(linhas) {
   }
 
   // Grupos dos 4 bimestres no MESMO formato da RPC agrupar_bimestres:
-  // [bimestre, unidade, ano, turma, disciplina, eixo, valor, codigo, qtd].
-  // É o que o Total consome. Usa o nível ALUNO (o único que rotula ano e
-  // turma — o agregado devolvia tudo num nó 'Turma —'); com o pré-aquecimento
-  // e o cache local isso é barato, e bimestre sem lançamento volta vazio numa
-  // chamada. Se o nível aluno falhar num bimestre, cai para o agregado ('—').
+  // [bimestre, unidade, ano, turma, disciplina, eixo, valor, codigo, qtd, texto].
+  // É o que o Total consome.
+  //
+  // ⚠️ FONTE: nível AGREGADO (rede por unidade), 4 bins × 5 anos = 20 consultas
+  // memoizadas e pré-aquecidas — milhares de linhas. A versão anterior usava o
+  // nível ALUNO da rede inteira (112 escolas × 4 bimestres, milhões de linhas,
+  // JSON.parse de ~1 MB por escola), tudo na thread da interface: era ISSO que
+  // congelava a tela por minutos. Como a média é ponderada pela qtd, o
+  // resultado numérico é IDÊNTICO ao do nível aluno.
+  // A turma nasce '—' e o detalhe real desce sob demanda ao clicar na unidade
+  // (getDetalheUnidadeFichaTotal) — o mesmo padrão das abas de bimestre.
   async function fichaGruposTotal() {
+    const catalogo = await fichaCatalogo();
     const grupos = [];
     let algumaFonte = false;
     for (const b of [1, 2, 3, 4]) {
-      try {
-        const rows = await fichaAlunosBimestre(b);
+      const porAno = await Promise.all(FICHA_ANOS_ESCOLARES.map(a => fichaRedeTurma(b, a).catch(err => {
+        console.warn(`[MAPA CODERP] Total: falhou bim ${b} / ${a}:`, err);
+        return null;
+      })));
+      porAno.forEach((rows, i) => (rows || []).forEach(r => {
+        const qtd = Number(r.qtd_alunos || 0);   // a API devolve como texto
+        if (!qtd) return;
+        const u = catalogo.get(Number(r.uni_cod)) || ('UNIDADE ' + r.uni_cod);
+        grupos.push([b, u, FICHA_ANOS_ESCOLARES[i], '—',
+                     corrigirTextoLegivel(r.fnc_des || ''), corrigirTextoLegivel(r.fne_des || ''),
+                     r.fqr_vl, r.fqr_vl, qtd, r.fqr_txt_resp || '']);
         algumaFonte = true;
-        // r[9] = texto da resposta: sem ele, resposta que só existe como texto
-        // vira null no score e a turma inteira some do Total.
-        rows.forEach(r => grupos.push([
-          b, r.nome_unidade, r.ano_escolar || 'TODOS', String(r.turma || '—'),
-          r.fnc_disciplina, r.descricao_fne, r.valor_resposta, r.valor_resposta, 1,
-          r.texto_resposta || ''
-        ]));
-      } catch (err) {
-        console.warn(`[MAPA CODERP] Total: nível aluno indisponível no bim ${b}, usando agregado:`, err);
-        try {
-          const catalogo = await fichaCatalogo();
-          const porAno = await Promise.all(FICHA_ANOS_ESCOLARES.map(a => fichaRedeTurma(b, a).catch(() => null)));
-          porAno.forEach((rows, i) => (rows || []).forEach(r => {
-            const qtd = Number(r.qtd_alunos || 0);
-            if (!qtd) return;
-            const u = catalogo.get(Number(r.uni_cod)) || ('UNIDADE ' + r.uni_cod);
-            grupos.push([b, u, FICHA_ANOS_ESCOLARES[i], '—',
-                         corrigirTextoLegivel(r.fnc_des || ''), corrigirTextoLegivel(r.fne_des || ''),
-                         r.fqr_vl, r.fqr_vl, qtd, r.fqr_txt_resp || '']);
-            algumaFonte = true;
-          }));
-        } catch (e2) {
-          console.warn(`[MAPA CODERP] Total: bim ${b} sem nenhuma fonte:`, e2);
-        }
-      }
+      }));
     }
     if (!algumaFonte) throw new Error('todas as consultas ao CODERP falharam');
     return grupos;
+  }
+
+  // Detalhe de UMA unidade para o Total: nível aluno das 4 fichas da escola
+  // (memoizadas), convertido para o formato do pacote do Total. Barato — é
+  // uma escola, não a rede — e substitui as linhas '—' daquela unidade.
+  async function fichaDetalheUnidadeTotal(nomeUnidade) {
+    const catalogo = await fichaCatalogo();
+    const alvo = normalizar(cleanUnit(nomeUnidade));
+    let cod = null;
+    catalogo.forEach((nome, codigo) => {
+      if (cod === null && normalizar(cleanUnit(nome)) === alvo) cod = codigo;
+    });
+    if (cod === null) throw new Error('unidade sem código no catálogo: ' + nomeUnidade);
+    const u = cleanUnit(catalogo.get(cod) || nomeUnidade);
+
+    const ag = new Map();        // u||a||t||d||e||campo -> {soma, qtd}
+    const arvore = new Set();    // u||a||t
+    let algum = false;
+    for (const b of [1, 2, 3, 4]) {
+      let fichas = null;
+      try { fichas = await fichaFichasEscola(b, cod); } catch (e) { continue; }
+      if (fichas && fichas.length) algum = true;
+      const campo = 'b' + b;
+      (fichas || []).forEach(r => {
+        const a = normalizar(r.per_cod || '') || 'TODOS';
+        const t = String(r.tur_cod || '—').trim().toUpperCase() || '—';
+        arvore.add(u + '||' + a + '||' + t);
+        const d = normalizarDisciplina(corrigirTextoLegivel(r.fnc_des || '') || 'Sem disciplina');
+        const e = normalizarEixoTotal(corrigirTextoLegivel(r.fne_des || '') || 'Sem eixo');
+        if (!d || !e) return;
+        const score = respostaScore({ descricao_fne: r.fne_des || '', valor_resposta: r.fqr_vl, texto_resposta: r.fqr_txt_resp || '' });
+        if (score === null || Number.isNaN(score)) return;
+        const k = [u, a, t, d, e, campo].join('||');
+        if (!ag.has(k)) ag.set(k, { soma: 0, qtd: 0 });
+        ag.get(k).soma += score;
+        ag.get(k).qtd += 1;
+      });
+    }
+    return {
+      ok: true,
+      unidade: u,
+      algum: algum,
+      linhas: Array.from(ag.entries()).map(([k, v]) => { const p = k.split('||'); return [p[0], p[1], p[2], p[3], p[4], p[5], v.soma, v.qtd]; }),
+      arvoreLinhas: Array.from(arvore, s => s.split('||'))
+    };
   }
 
   // Detalhe de UMA unidade com ano e turma reais, para quando a pessoa clica
@@ -8222,6 +8296,11 @@ function _renderTabelaTotal(linhas) {
       return fichaDetalheUnidade(bimestre, unidade);
     },
 
+    async getDetalheUnidadeFichaTotal(unidade) {
+      if (!fichaApiAtiva()) return { ok: false };
+      return fichaDetalheUnidadeTotal(unidade);
+    },
+
     async getPacoteBimestreRapido(key, filtros) {
       const bimestre = BIM_KEY_TO_NUM[key] || 1;
       const ano = normalizar((filtros && filtros.ano) || 'TODOS');
@@ -8501,30 +8580,46 @@ function _renderTabelaTotal(linhas) {
       filtros = filtros || {};
       const anoFiltro = normalizar(filtros.ano || 'TODOS') || 'TODOS';
 
-      // Caminho principal: API ao vivo, nível ALUNO — turmas reais e contagem
-      // exata (REMAs distintos; aluno avaliado em qualquer bimestre conta).
+      // Caminho principal: nível AGREGADO da API (leve — o nível aluno da rede
+      // inteira congelava a tela). Contagem de alunos por unidade/ano pelo
+      // truque do MÍNIMO entre itens (validado contra o nível aluno); a turma
+      // nasce '—' e o detalhe real desce ao clicar na unidade.
       if (fichaApiAtiva()) {
         try {
-          const alunosPorUT = new Map();   // unidade||turma -> Set de REMAs
+          const catalogo = await fichaCatalogo();
+          const porUA = new Map();   // unidade||ano -> Map(item -> soma qtd) por bimestre
           for (const b of [1, 2, 3, 4]) {
-            let rows = null;
-            try { rows = await fichaAlunosBimestre(b); } catch (e) { continue; }
-            rows.forEach(r => {
-              const a = normalizar(r.ano_escolar || '') || 'TODOS';
+            const porAno = await Promise.all(FICHA_ANOS_ESCOLARES.map(a => fichaRedeTurma(b, a).catch(() => null)));
+            porAno.forEach((rows, i) => {
+              const a = normalizar(FICHA_ANOS_ESCOLARES[i]);
               if (anoFiltro !== 'TODOS' && a !== anoFiltro) return;
-              const u = cleanUnit(r.nome_unidade);
-              const t = String(r.turma || '—').trim().toUpperCase() || '—';
-              const k = u + '||' + t;
-              if (!alunosPorUT.has(k)) alunosPorUT.set(k, new Set());
-              alunosPorUT.get(k).add(r.rema_aluno);
+              (rows || []).forEach(r => {
+                const qtd = Number(r.qtd_alunos || 0);
+                if (!qtd) return;
+                const u = cleanUnit(catalogo.get(Number(r.uni_cod)) || ('UNIDADE ' + r.uni_cod));
+                const kh = u + '||' + a + '||' + b;
+                const ki = (r.fnc_des || '') + '||' + (r.fne_des || '');
+                if (!porUA.has(kh)) porUA.set(kh, new Map());
+                const itens = porUA.get(kh);
+                itens.set(ki, (itens.get(ki) || 0) + qtd);
+              });
             });
           }
-          if (alunosPorUT.size) {
+          if (porUA.size) {
+            // alunos por unidade/ano/bimestre = mínimo entre itens; por
+            // unidade fica o MAIOR bimestre (aluno conta uma vez, não 4).
+            const porU = new Map();  // unidade -> ano||: max alunos
+            porUA.forEach((itens, kh) => {
+              const p = kh.split('||');
+              const alunos = Math.min.apply(null, Array.from(itens.values()));
+              const kU = p[0] + '||' + p[1];
+              porU.set(kU, Math.max(porU.get(kU) || 0, alunos));
+            });
             const arvore = {};
-            alunosPorUT.forEach((remas, k) => {
-              const partes = k.split('||');
-              if (!arvore[partes[0]]) arvore[partes[0]] = {};
-              arvore[partes[0]][partes[1]] = (arvore[partes[0]][partes[1]] || 0) + remas.size;
+            porU.forEach((alunos, kU) => {
+              const u = kU.split('||')[0];
+              if (!arvore[u]) arvore[u] = {};
+              arvore[u]['—'] = (arvore[u]['—'] || 0) + alunos;
             });
             return { ok: true, arvore };
           }
@@ -8687,6 +8782,7 @@ function _renderTabelaTotal(linhas) {
       getDashboardAlunos() { return this._exec(api.getDashboardAlunos()); },
       getPacoteBimestreRapido(key, filtros) { return this._exec(api.getPacoteBimestreRapido(key, filtros)); },
       getDetalheUnidadeFicha(key, unidade) { return this._exec(api.getDetalheUnidadeFicha(key, unidade)); },
+      getDetalheUnidadeFichaTotal(unidade) { return this._exec(api.getDetalheUnidadeFichaTotal(unidade)); },
       getAvaliacaoBimestreRapida(key, filtros) { return this._exec(api.getAvaliacaoBimestreRapida(key, filtros)); },
       getHierarquiaBimestre(key, filtros) { return this._exec(api.getHierarquiaBimestre(key, filtros)); },
       getDetalheEixo(key, filtros) { return this._exec(api.getDetalheEixo(key, filtros)); },
