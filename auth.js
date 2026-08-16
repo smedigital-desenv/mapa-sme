@@ -463,32 +463,14 @@
           });
         }
 
-        // Depois da rede, enfileira as fichas por escola dos bimestres atuais.
-        function enfileirarEscolas(b) {
-          return chamar({ nivel: 'escola', parms: { anoLetivo: anoLetivo, bimestre: b } })
-            .then(function (r) { return r ? r.json() : null; })
-            .then(function (d) {
-              var vistos = {};
-              ((d && d.fichasAvaliacoesEscola) || []).forEach(function (e) {
-                if (vistos[e.uni_cod]) return;
-                vistos[e.uni_cod] = true;
-                fila.push({ nivel: 'aluno', parms: { anoLetivo: anoLetivo, bimestre: b, escola: Number(e.uni_cod) } });
-              });
-            })
-            .catch(function () {});
-        }
-
-        var preparo = null;
+        // ⚠️ Só o nível de REDE (agregado) é pré-aquecido — 20 consultas leves.
+        // NÃO enfileirar aqui as fichas aluno-a-aluno de todas as escolas: isso
+        // baixava ~1 MB por unidade em segundo plano a partir de QUALQUER tela,
+        // competindo com a navegação e deixando o sistema lento. O detalhe de
+        // uma escola desce sob demanda, quando a pessoa clica nela.
         function proxima() {
           var p = fila.shift();
-          if (!p) {
-            // Fila da rede acabou: prepara a fila do detalhe (uma vez só).
-            if (!preparo) {
-              preparo = Promise.all([enfileirarEscolas(1), enfileirarEscolas(2)])
-                .then(function () { proxima(); proxima(); proxima(); });
-            }
-            return;
-          }
+          if (!p) return;
           chamar(p).catch(function () {}).then(function () { proxima(); });
         }
         // 3 consultas simultâneas: aquece rápido sem disputar rede com a tela.
