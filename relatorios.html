@@ -2706,7 +2706,9 @@ async function enviarPergunta(texto) {
       const parts = res.parts || [];
       const fcs = parts.filter(p => p.functionCall).map(p => p.functionCall);
       if (fcs.length) {
-        contents.push({ role: 'model', parts: fcs.map(fc => ({ functionCall: fc })) });
+        // Ecoa as parts ORIGINAIS do modelo (preservam o thought_signature exigido
+        // pelo Gemini); NÃO remontar, senão o 400 "missing thought_signature".
+        contents.push({ role: 'model', parts: parts });
         contents.push({ role: 'user', parts: fcs.map(fc => ({ functionResponse: { name: fc.name, response: _execTool(fc.name, fc.args) } })) });
         continue;   // devolve o resultado ao modelo
       }
