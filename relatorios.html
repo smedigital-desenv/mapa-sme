@@ -2554,6 +2554,10 @@ function _contextoChat() {
   const total = linhas.length, vis = linhas.filter(l => l.nVisitas > 0).length;
   const cob = total ? Math.round(vis / total * 100) : 0;
 
+  // escolas com visita, ordenadas da mais recente para a mais antiga (p/ perguntas de data)
+  const comVisita = linhas.filter(l => l.ultima).sort((a,b) => b.ultima.getTime() - a.ultima.getTime());
+  const maisRecente = comVisita[0];
+
   const porReg = {};
   linhas.forEach(l => {
     const r = (l.regional && l.regional !== '—') ? l.regional : 'Sem regional';
@@ -2572,6 +2576,7 @@ function _contextoChat() {
 
   let ctx = 'RESUMO DA REDE (apenas escolas que você pode ver):\n';
   ctx += `- Escolas: ${total} | Visitadas: ${vis} (${cob}%) | Sem visita: ${total - vis}\n`;
+  if (maisRecente) ctx += `- Visita mais recente da rede: ${maisRecente.escola} em ${_fmtData(maisRecente.ultima)}\n`;
   ctx += `- Cobertura por regional: ${regTxt || '—'}\n`;
   ctx += `- Risco pedagógico: alto ${risc.alto}, médio ${risc.medio}, baixo ${risc.baixo}\n`;
   ctx += `- Temas mais frequentes: ${temasTxt || '—'}\n`;
@@ -2593,14 +2598,20 @@ function _contextoChat() {
     });
   }
 
-  const inds = linhas.filter(l => l.dev);
-  if (inds.length) {
-    ctx += `\nDEVOLUTIVAS POR ESCOLA (${inds.length}):\n`;
-    inds.forEach(l => { const d = l.dev;
-      ctx += `• ${l.escola} [${l.regional}] ${l.segmento} — prioridade ${d.prioridade || '?'}, risco ${(d.risco_pedagogico||{}).nivel || '?'}. ${d.sintese_executiva || ''}`;
-      const fr = (d.pontos_fracos || []).slice(0,3).join('; '); if (fr) ctx += ` Pontos fracos: ${fr}.`;
+  if (comVisita.length) {
+    ctx += `\nESCOLAS VISITADAS (${comVisita.length}) — da visita mais recente para a mais antiga:\n`;
+    comVisita.forEach(l => {
+      ctx += `• ${l.escola} [${l.regional}] ${l.segmento} — ${l.nVisitas} visita(s), última em ${_fmtData(l.ultima)}`;
+      if (l.dev) { const d = l.dev;
+        ctx += `; prioridade ${d.prioridade || '?'}, risco ${(d.risco_pedagogico||{}).nivel || '?'}. ${d.sintese_executiva || ''}`;
+        const fr = (d.pontos_fracos || []).slice(0,3).join('; '); if (fr) ctx += ` Pontos fracos: ${fr}.`;
+      }
       ctx += '\n';
     });
+  }
+  const semVisita = linhas.filter(l => l.nVisitas === 0).map(l => l.escola);
+  if (semVisita.length) {
+    ctx += `\nESCOLAS SEM VISITA (${semVisita.length}): ${semVisita.join('; ')}\n`;
   }
 
   const MAX = 60000;   // trava de segurança (tokens / tamanho do POST)
