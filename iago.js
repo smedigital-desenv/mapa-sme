@@ -342,8 +342,6 @@
   }
   function _md(t){ let s=esc(t); s=s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>'); s=s.replace(/^\s*[-*]\s+(.+)$/gm,'• $1'); return s.replace(/\n/g,'<br>'); }
 
-  const SUGESTOES=['Quais escolas estão em risco alto?','Qual regional está pior na fluência?','Quem visitou por último e o que observou?','Cruze o risco das visitas com o engajamento no Elefante'];
-
   // ── UI ──────────────────────────────────────────────────────────────────────
   function render(){
     const box=document.getElementById('iago-msgs'); if(!box) return;
@@ -360,7 +358,7 @@
           <li><b>Elefante Letrado</b> — engajamento e leituras</li>
           <li><b>Cobertura, regionais, riscos e temas</b> da rede</li>
         </ul>
-        <div class="iago-cta">Toque numa sugestão 👇 ou digite sua pergunta.</div>
+        <div class="iago-cta">Digite sua pergunta abaixo 👇</div>
       </div>`;
     } else {
       const av=`<img src="iago-cabeca.png" alt="Iago" class="iago-av" onerror="this.style.display='none'">`;
@@ -371,7 +369,6 @@
     }
     box.innerHTML=html; box.scrollTop=box.scrollHeight;
     const send=document.getElementById('iago-send'); if(send) send.disabled=_enviando;
-    const chips=document.getElementById('iago-chips'); if(chips) chips.style.display=_hist.length?'none':'flex';
   }
   function abrir(){ _aberto=true; document.getElementById('iago-panel').classList.add('aberto'); document.getElementById('iago-fab').classList.add('aberto');
     render(); const inp=document.getElementById('iago-input'); if(inp) inp.focus(); carregarDados().then(carregarAux).catch(()=>{}); }
@@ -428,7 +425,6 @@
     `;
     document.head.appendChild(style);
 
-    const chips=SUGESTOES.map(q=>`<button class="iago-chip" type="button">${esc(q)}</button>`).join('');
     const wrap=document.createElement('div'); wrap.id='iago-root';
     wrap.innerHTML=`
       <button id="iago-fab" title="Falar com o Iago"><img src="iago-cabeca.png" alt="Iago" onerror="this.parentNode.innerHTML='🤖';this.parentNode.style.fontSize='28px'"></button>
@@ -439,7 +435,6 @@
           <button class="iago-x" id="iago-fechar" title="Fechar" aria-label="Fechar">×</button>
         </div>
         <div id="iago-msgs"></div>
-        <div id="iago-chips">${chips}</div>
         <div class="iago-input">
           <textarea id="iago-input" rows="1" placeholder="Pergunte sobre escolas, regionais, riscos…"></textarea>
           <button id="iago-send" title="Enviar">➤</button>
@@ -453,7 +448,6 @@
     const inp=document.getElementById('iago-input');
     inp.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); enviar(); } });
     inp.addEventListener('input',function(){ this.style.height='auto'; this.style.height=Math.min(this.scrollHeight,110)+'px'; });
-    wrap.querySelectorAll('.iago-chip').forEach(b=>b.addEventListener('click',()=>enviar(b.textContent)));
     render();
   }
 
