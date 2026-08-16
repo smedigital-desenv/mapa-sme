@@ -448,14 +448,18 @@
                   // Só grava resposta com dado real, ou vazio sem Messages —
                   // erro "HTTP 200" da API não pode envenenar o cache por 10 min.
                   var resp = null; try { resp = JSON.parse(texto); } catch (e) {}
-                  var temDado = false, temMsg = false;
+                  var temDado = false, temMsg = false, parcial = false;
                   if (resp) {
                     for (var k in resp) {
                       if (k.indexOf('fichasAvaliacoes') === 0 && resp[k] && resp[k].length) { temDado = true; break; }
                     }
+                    // `detalherede` devolve `linhas`, não `fichasAvaliacoes*`.
+                    if (!temDado && resp.linhas && resp.linhas.length) temDado = true;
                     temMsg = !!(resp.Messages && resp.Messages.length);
+                    // Rede incompleta não pode ficar 10 min no cache.
+                    parcial = !!resp.parcial;
                   }
-                  if (resp && (temDado || !temMsg)) MapaFichaCache.gravar(chave, texto);
+                  if (resp && !parcial && (temDado || !temMsg)) MapaFichaCache.gravar(chave, texto);
                   return { json: function () { return Promise.resolve(JSON.parse(texto)) } };
                 });
               });
@@ -463,11 +467,16 @@
           });
         }
 
-        // ⚠️ Só o nível de REDE (agregado) é pré-aquecido — 20 consultas leves.
-        // NÃO enfileirar aqui as fichas aluno-a-aluno de todas as escolas: isso
-        // baixava ~1 MB por unidade em segundo plano a partir de QUALQUER tela,
-        // competindo com a navegação e deixando o sistema lento. O detalhe de
-        // uma escola desce sob demanda, quando a pessoa clica nela.
+        // Depois da rede, o DETALHE da rede (turmas) do 1º e do 2º bimestre.
+        // ⚠️ NÃO enfileirar aqui as fichas aluno-a-aluno escola por escola:
+        // isso baixava ~3 MB por unidade para dentro do navegador a partir de
+        // QUALQUER tela e era a causa da lentidão. O nível `detalherede` faz
+        // esse leque NO SERVIDOR e devolve só o agregado — uma resposta, não
+        // 112. É o que faz a tela de Avaliações abrir com todas as turmas.
+        [1, 2].forEach(function (b) {
+          fila.push({ nivel: 'detalherede', parms: { anoLetivo: anoLetivo, bimestre: b } });
+        });
+
         function proxima() {
           var p = fila.shift();
           if (!p) return;

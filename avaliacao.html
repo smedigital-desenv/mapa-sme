@@ -5464,11 +5464,11 @@ function _usarPacoteBimestre(pacote) {
 // Assim que o pacote de rede abre, o detalhe de cada unidade desce em
 // segundo plano (4 por vez): a árvore vai ganhando as turmas reais sem
 // nenhum clique, e clicar numa unidade já detalhada é instantâneo.
-// ⚠️ NÃO reativar o download em massa das 112 unidades. Ele baixava e
-// descompactava ~1 MB por escola em segundo plano assim que a aba abria:
-// era a causa da lentidão e do "carrega uma coisa e depois troca". A árvore
-// já nasce com o número certo (nível agregado) e o detalhe de turmas desce
-// SÓ da unidade clicada (_detalharUnidadeFicha), em ~1 s.
+// ⚠️ NÃO voltar a baixar as 112 fichas de escola AQUI, uma por unidade. Isso
+// já existiu e era a causa da lentidão: ~3 MB de JSON por escola, desserializados
+// na thread da interface. O leque por escola agora acontece NO SERVIDOR
+// (nível `detalherede` da coderp-ficha), que devolve só o agregado numa
+// resposta — é o que permite a tela abrir com todas as turmas de uma vez.
 let _fichaPrefetchPacote = null;
 let _arvRenderTimer = null;
 // A árvore ganha as turmas em segundo plano; redesenhar 1x a cada ~300ms
@@ -5486,8 +5486,35 @@ function _prefetchTurmasFicha() {
   if (_fichaPrefetchPacote === pac) return;
   _fichaPrefetchPacote = pac;
 
-  // Detalha APENAS a unidade que já está selecionada (se houver). As demais
-  // descem quando a pessoa clicar nelas — nada de varrer a rede inteira.
+  const chaveBim = bimestreAtualKey;
+
+  // UMA chamada traz o detalhe de todas as unidades (a Edge Function faz o
+  // leque por escola do lado do servidor e devolve só o agregado). Enquanto
+  // ela não chega — ou se o nível ainda não estiver publicado — a unidade
+  // clicada continua sendo detalhada sozinha, então a tela nunca fica presa.
+  google.script.run.withSuccessHandler(res => {
+    if (pacoteBimestreAtual !== pac || bimestreAtualKey !== chaveBim) return;
+    if (!res || !res.ok || !Array.isArray(res.unidades) || !res.unidades.length) {
+      if (res && res.motivo) console.warn('[MAPA CODERP] detalhe da rede indisponível:', res.motivo);
+      if (_hierUnidadeAtiva && _hierUnidadeAtiva !== 'TODAS') _detalharUnidadeFicha(_hierUnidadeAtiva);
+      return;
+    }
+    res.unidades.forEach(det => _aplicarDetalheUnidade(det, pac));
+    if (res.parcial) console.warn('[MAPA CODERP] detalhe da rede veio PARCIAL; unidades sem turma continuam por clique.');
+    // Um único redesenho no fim — não um por unidade.
+    renderBimestrePacoteLocal();
+    // Persiste o pacote já detalhado: voltar para esta aba não refaz nada.
+    try {
+      _cacheSet(_chavePacoteBimestre(chaveBim, { ano: pacoteBimestreAnoAtual || 'TODOS' }), pac);
+    } catch (e) { /* cache cheio não é erro funcional */ }
+  }).withFailureHandler(err => {
+    console.warn('[MAPA CODERP] detalhe da rede falhou:', err);
+    if (pacoteBimestreAtual === pac && _hierUnidadeAtiva && _hierUnidadeAtiva !== 'TODAS') {
+      _detalharUnidadeFicha(_hierUnidadeAtiva);
+    }
+  }).getDetalheRedeFicha(chaveBim);
+
+  // Não espera o leque: a unidade já selecionada desce em paralelo.
   if (_hierUnidadeAtiva && _hierUnidadeAtiva !== 'TODAS') {
     _detalharUnidadeFicha(_hierUnidadeAtiva);
   }
@@ -6323,6 +6350,46 @@ function _aplicarPacoteTotalCache(pkg, ano) {
 
   _hierArvoreTotal = _arvoreTotalDoIndice(pkg, _filtrosTotal().ano || 'TODOS');
   renderHierarquiaTotal(_hierArvoreTotal);
+
+  // Turmas de TODA a rede numa chamada só (leque feito no servidor).
+  _prefetchTotalTurmasRede();
+}
+
+// ── Turmas de toda a rede no TOTAL ─────────────────────────────────────────
+// O pacote do Total nasce agregado (turma '—'). Uma chamada ao nível
+// `detalherede` traz os 4 bimestres já reduzidos e substitui TODAS as linhas
+// '—' de uma vez — as turmas aparecem sem clique. Se o nível não estiver
+// publicado, nada acontece e o detalhe por unidade continua valendo.
+let _totalDetalheRedePedido = null;
+function _prefetchTotalTurmasRede() {
+  const pac = pacoteTotalAtual;
+  if (!pac || !Array.isArray(pac.linhas)) return;
+  if (_totalDetalheRedePedido === pac) return;
+  if (!pac.linhas.some(l => l[TPKG.T] === '—')) return;   // já detalhado
+  _totalDetalheRedePedido = pac;
+
+  google.script.run.withSuccessHandler(det => {
+    if (pacoteTotalAtual !== pac) return;
+    if (!det || !det.ok || !Array.isArray(det.linhas) || !det.linhas.length) {
+      if (det && det.motivo) console.warn('[MAPA CODERP] Total: detalhe da rede indisponível:', det.motivo);
+      return;
+    }
+    // Troca de uma vez as linhas '—' de TODAS as unidades detalhadas.
+    const detalhadas = new Set(det.linhas.map(l => l[0]));
+    pac.linhas = (pac.linhas || []).filter(l => !(detalhadas.has(l[TPKG.U]) && l[TPKG.T] === '—')).concat(det.linhas);
+    pac.arvoreLinhas = (pac.arvoreLinhas || [])
+      .filter(al => !(al && detalhadas.has(al[0]) && al[2] === '—'))
+      .concat(det.arvoreLinhas || []);
+    if (_hierTurmaAtiva === '—') _hierTurmaAtiva = 'TODAS';
+    _totalPacoteIndex = null;
+    _totalPacoteIndexPkgRef = null;
+    if (det.parcial) console.warn('[MAPA CODERP] Total: detalhe da rede veio PARCIAL.');
+    if (avaliacaoAtual !== 'Total') return;
+    _aplicarPacoteTotalCache(pac, pacoteTotalAnoAtual);
+    renderTotalPacoteLocal();
+  }).withFailureHandler(err => {
+    console.warn('[MAPA CODERP] Total: detalhe da rede falhou:', err);
+  }).getDetalheRedeFichaTotal();
 }
 
 function carregarHierarquiaTotal() {
@@ -7607,10 +7674,18 @@ function _renderTabelaTotal(linhas) {
     // Só entra no cache local resposta com dado real, ou vazio SEM Messages
     // (bimestre sem lançamento é legítimo; vazio COM aviso é suspeito e não
     // pode ficar "colado" por 10 min).
-    const temDado = !!resp && Object.keys(resp).some(k =>
-      k.indexOf('fichasAvaliacoes') === 0 && Array.isArray(resp[k]) && resp[k].length);
+    const temDado = !!resp && (
+      Object.keys(resp).some(k =>
+        k.indexOf('fichasAvaliacoes') === 0 && Array.isArray(resp[k]) && resp[k].length)
+      // O nível sintético `detalherede` devolve `linhas`, não `fichasAvaliacoes*`.
+      || (Array.isArray(resp.linhas) && resp.linhas.length));
     const msgs = ((resp && resp.Messages) || []).filter(m => m && m.Description);
-    if (window.MapaFichaCache && resp && (temDado || !msgs.length)) window.MapaFichaCache.gravar(corpo, texto);
+    // Resposta PARCIAL (leque incompleto) não vai para o cache: guardar uma
+    // rede pela metade por 10 min esconderia unidades sem nenhum aviso.
+    const parcial = !!(resp && resp.parcial);
+    if (window.MapaFichaCache && resp && !parcial && (temDado || !msgs.length)) {
+      window.MapaFichaCache.gravar(corpo, texto);
+    }
     if (msgs.length) console.warn('[MAPA CODERP] Messages da API:', msgs);
     return resp || {};
   }
@@ -7868,6 +7943,146 @@ function _renderTabelaTotal(linhas) {
         const p = kh.split('||');
         return [u, p[0], p[1], s.size];
       })
+    };
+  }
+
+  // ── Detalhe de TODA a rede numa chamada (nível sintético `detalherede`) ───
+  // A turma só existe no nível Aluno, e a rede inteira nesse nível são ~300 MB
+  // por bimestre — inviável no navegador. A Edge Function faz esse leque UMA
+  // vez, perto do CODERP, e devolve só o agregado (~600 kB comprimido, cache
+  // de 10 min compartilhado): é o que permite a tela abrir com TODAS as turmas
+  // sem clique.
+  //
+  // A função devolve os campos CRUS; a nomeação (unidade, disciplina, rótulo
+  // de resposta) acontece AQUI, com as mesmas regras do caminho por unidade —
+  // duplicá-las no servidor criaria duas verdades que divergem em silêncio.
+  const _detalheRedeMemo = new Map();
+  function fichaDetalheRede(bimestre) {
+    const k = 'dr|' + bimestre;
+    if (!_detalheRedeMemo.has(k)) {
+      _detalheRedeMemo.set(k,
+        chamarFichaApi('detalherede', { anoLetivo: fichaAnoLetivo(), bimestre: bimestre })
+          .catch(err => { _detalheRedeMemo.delete(k); throw err; }));
+    }
+    return _detalheRedeMemo.get(k);
+  }
+
+  // Converte a resposta crua no MESMO formato que `fichaDetalheUnidade`
+  // produz, mas para todas as unidades de uma vez: um objeto por unidade.
+  async function fichaDetalheRedePorUnidade(bimestre) {
+    const [catalogo, resp] = await Promise.all([fichaCatalogo(), fichaDetalheRede(bimestre)]);
+    if (!resp || !resp.ok || !Array.isArray(resp.linhas)) {
+      throw new Error('detalherede sem resposta utilizável');
+    }
+
+    const porUni = new Map();   // unidade -> { linhas, hierLinhas }
+    const nomeDe = cod => cleanUnit(catalogo.get(Number(cod)) || ('UNIDADE ' + cod));
+    const balde = u => {
+      if (!porUni.has(u)) porUni.set(u, { ok: true, unidade: u, linhas: [], hierLinhas: [] });
+      return porUni.get(u);
+    };
+
+    // linhas: [uni_cod, per_cod, tur_cod, fnc_des, fne_des, fqr_vl, fqr_txt, qtd]
+    resp.linhas.forEach(l => {
+      const u = nomeDe(l[0]);
+      balde(u).linhas.push([
+        u,
+        normalizar(l[1] || '') || 'TODOS',
+        String(l[2] || '—').trim().toUpperCase() || '—',
+        normalizarDisciplina(corrigirTextoLegivel(l[3] || '') || 'Sem disciplina'),
+        corrigirTextoLegivel(l[4] || 'Sem eixo'),
+        labelRespostaPainel(l[4] || '', l[5], l[6] || ''),
+        Number(l[7] || 0)
+      ]);
+    });
+    // hier: [uni_cod, per_cod, tur_cod, qtd]
+    (resp.hier || []).forEach(h => {
+      const u = nomeDe(h[0]);
+      balde(u).hierLinhas.push([
+        u,
+        normalizar(h[1] || '') || 'TODOS',
+        String(h[2] || '—').trim().toUpperCase() || '—',
+        Number(h[3] || 0)
+      ]);
+    });
+
+    // Duas linhas cruas podem colidir depois da normalização (mesma disciplina
+    // com grafias diferentes, por exemplo): somar evita duplicata na tabela.
+    porUni.forEach(det => {
+      const ag = new Map();
+      det.linhas.forEach(l => {
+        const k = l.slice(0, 6).join('||');
+        ag.set(k, (ag.get(k) || 0) + l[6]);
+      });
+      det.linhas = Array.from(ag.entries()).map(([k, q]) => k.split('||').concat([q]));
+
+      const agH = new Map();
+      det.hierLinhas.forEach(h => {
+        const k = h.slice(0, 3).join('||');
+        agH.set(k, (agH.get(k) || 0) + h[3]);
+      });
+      det.hierLinhas = Array.from(agH.entries()).map(([k, q]) => k.split('||').concat([q]));
+    });
+
+    return { unidades: Array.from(porUni.values()), parcial: !!resp.parcial };
+  }
+
+  // Mesmo leque, para o Total: os 4 bimestres detalhados de uma vez, no
+  // formato do pacote do Total (soma/qtd por unidade×ano×turma×disciplina×eixo).
+  //
+  // Ponderação: o peso é o número de ALUNOS DISTINTOS da combinação, não o
+  // número de linhas. É a mesma ponderação do caminho agregado
+  // (`fichaGruposTotal`, que pesa por `qtd_alunos`) — antes o detalhe por
+  // unidade contava linhas, o que dava peso extra a itens com mais de uma
+  // pergunta por aluno.
+  async function fichaDetalheRedeTotal() {
+    const [catalogo, ...respostas] = await Promise.all([
+      fichaCatalogo(),
+      ...[1, 2, 3, 4].map(b => fichaDetalheRede(b).catch(err => {
+        console.warn('[MAPA CODERP] Total: detalhe da rede falhou no bim ' + b + ':', err);
+        return null;
+      }))
+    ]);
+    if (!respostas.some(r => r && r.ok && Array.isArray(r.linhas) && r.linhas.length)) {
+      throw new Error('detalherede sem resposta utilizável para o Total');
+    }
+
+    const ag = new Map();       // u||a||t||d||e||campo -> {soma, qtd}
+    const arvore = new Set();   // u||a||t
+    let parcial = false;
+
+    respostas.forEach((resp, i) => {
+      if (!resp || !resp.ok) { parcial = true; return; }
+      if (resp.parcial) parcial = true;
+      const campo = 'b' + (i + 1);
+      (resp.linhas || []).forEach(l => {
+        const u = cleanUnit(catalogo.get(Number(l[0])) || ('UNIDADE ' + l[0]));
+        const a = normalizar(l[1] || '') || 'TODOS';
+        const t = String(l[2] || '—').trim().toUpperCase() || '—';
+        arvore.add(u + '||' + a + '||' + t);
+        const d = normalizarDisciplina(corrigirTextoLegivel(l[3] || '') || 'Sem disciplina');
+        const e = normalizarEixoTotal(corrigirTextoLegivel(l[4] || '') || 'Sem eixo');
+        if (!d || !e) return;
+        const score = respostaScore({ descricao_fne: l[4] || '', valor_resposta: l[5], texto_resposta: l[6] || '' });
+        if (score === null || Number.isNaN(score)) return;
+        const peso = Number(l[7] || 0);
+        if (!peso) return;
+        const k = [u, a, t, d, e, campo].join('||');
+        if (!ag.has(k)) ag.set(k, { soma: 0, qtd: 0 });
+        const alvo = ag.get(k);
+        alvo.soma += score * peso;
+        alvo.qtd += peso;
+      });
+    });
+
+    return {
+      ok: true,
+      parcial: parcial,
+      linhas: Array.from(ag.entries()).map(([k, v]) => {
+        const p = k.split('||');
+        return [p[0], p[1], p[2], p[3], p[4], p[5], v.soma, v.qtd];
+      }),
+      arvoreLinhas: Array.from(arvore, s => s.split('||'))
     };
   }
 
@@ -8291,6 +8506,29 @@ function _renderTabelaTotal(linhas) {
     async getDetalheUnidadeFichaTotal(unidade) {
       if (!fichaApiAtiva()) return { ok: false };
       return fichaDetalheUnidadeTotal(unidade);
+    },
+
+    // Detalhe de TODAS as unidades numa chamada. Se a Edge Function ainda não
+    // tiver o nível `detalherede` publicado, devolve ok:false e a tela mantém
+    // o comportamento antigo (turmas ao clicar) — nada quebra.
+    async getDetalheRedeFicha(key) {
+      if (!fichaApiAtiva()) return { ok: false, motivo: 'coderp desligado' };
+      const bimestre = BIM_KEY_TO_NUM[key] || 1;
+      try {
+        const r = await fichaDetalheRedePorUnidade(bimestre);
+        return { ok: true, bimestre, unidades: r.unidades, parcial: r.parcial };
+      } catch (err) {
+        return { ok: false, motivo: (err && err.message) || String(err) };
+      }
+    },
+
+    async getDetalheRedeFichaTotal() {
+      if (!fichaApiAtiva()) return { ok: false, motivo: 'coderp desligado' };
+      try {
+        return await fichaDetalheRedeTotal();
+      } catch (err) {
+        return { ok: false, motivo: (err && err.message) || String(err) };
+      }
     },
 
     async getPacoteBimestreRapido(key, filtros) {
@@ -8789,6 +9027,8 @@ function _renderTabelaTotal(linhas) {
       getDashboardAlunos() { return this._exec(api.getDashboardAlunos()); },
       getPacoteBimestreRapido(key, filtros) { return this._exec(api.getPacoteBimestreRapido(key, filtros)); },
       getDetalheUnidadeFicha(key, unidade) { return this._exec(api.getDetalheUnidadeFicha(key, unidade)); },
+      getDetalheRedeFicha(key) { return this._exec(api.getDetalheRedeFicha(key)); },
+      getDetalheRedeFichaTotal() { return this._exec(api.getDetalheRedeFichaTotal()); },
       getDetalheUnidadeFichaTotal(unidade) { return this._exec(api.getDetalheUnidadeFichaTotal(unidade)); },
       getAvaliacaoBimestreRapida(key, filtros) { return this._exec(api.getAvaliacaoBimestreRapida(key, filtros)); },
       getHierarquiaBimestre(key, filtros) { return this._exec(api.getHierarquiaBimestre(key, filtros)); },

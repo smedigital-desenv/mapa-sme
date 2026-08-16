@@ -55,6 +55,9 @@ const NIVEIS: Record<string, { endpoint: string; campo: string }> = {
   turma:  { endpoint: '/IndicadorTurma',  campo: 'parmsturma' },
 };
 
+// Nível SINTÉTICO — não existe na API do CODERP. Ver `detalheRede()`.
+const NIVEL_DETALHE_REDE = 'detalherede';
+
 const CORS = {
   'Access-Control-Allow-Origin': 'https://smedigital.com.br',
   'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info',
@@ -72,6 +75,10 @@ const CORS = {
 // do isolate. O cache morre com o isolate — é otimização, não fonte.
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const CACHE_MAX_BYTES = 400_000;      // limite APÓS compressão (~4 MB de JSON)
+// O agregado da rede (`detalherede`) é maior por natureza — ~600 kB
+// comprimido — e é exatamente o que faz a tela abrir com todas as turmas.
+// Cabe folgadamente na memória do isolate: são 4 itens, um por bimestre.
+const CACHE_MAX_BYTES_DETALHE = 3_000_000;
 const CACHE_MAX_ITENS = 120;
 const _cache = new Map<string, { t: number; gz: Uint8Array }>();
 
@@ -93,14 +100,151 @@ async function cacheLe(chave: string): Promise<string | null> {
   return await descomprimir(hit.gz);
 }
 
-async function cacheGrava(chave: string, corpo: string) {
+async function cacheGrava(chave: string, corpo: string, tetoBytes = CACHE_MAX_BYTES) {
   const gz = await comprimir(corpo);
-  if (gz.length > CACHE_MAX_BYTES) return;
+  if (gz.length > tetoBytes) return;
   if (_cache.size >= CACHE_MAX_ITENS) {
     const primeira = _cache.keys().next().value;
     if (primeira !== undefined) _cache.delete(primeira);
   }
   _cache.set(chave, { t: Date.now(), gz });
+}
+
+/* ── Nível sintético `detalherede` ──────────────────────────────────────────
+   POR QUE EXISTE
+   --------------
+   A turma só aparece no nível ALUNO: os níveis agregados devolvem per_cod e
+   tur_cod vazios (não há endpoint que liste turmas). Para a tela mostrar TODAS
+   as turmas da rede sem clique, alguém precisa buscar as ~112 fichas por
+   escola — cerca de 300 MB de JSON por bimestre.
+
+   Fazer isso NO NAVEGADOR foi tentado e é inviável: baixar e desserializar
+   ~3 MB por unidade na thread da interface travava a tela por minutos, e o
+   custo se repetia para cada pessoa que abrisse o sistema.
+
+   Aqui o mesmo trabalho é feito UMA vez, perto do CODERP, e o que trafega é só
+   o resultado reduzido (~9 MB de JSON, ~600 kB comprimido) — servido do cache
+   de 10 minutos para todo mundo. É a diferença entre 300 MB por usuário e
+   600 kB compartilhados.
+
+   O QUE VOLTA (campos CRUS do CODERP, de propósito)
+   -------------------------------------------------
+   A função NÃO normaliza nome de unidade, disciplina nem rótulo de resposta:
+   essas regras vivem no front (cleanUnit/normalizarDisciplina/
+   labelRespostaPainel) e duplicá-las aqui criaria duas verdades que divergem
+   em silêncio. O servidor só AGREGA; quem nomeia é a tela.
+
+     linhas: [uni_cod, per_cod, tur_cod, fnc_des, fne_des, fqr_vl, fqr_txt, qtd]
+     hier:   [uni_cod, per_cod, tur_cod, qtd]
+
+   `qtd` conta ALUNOS DISTINTOS (REMA), nunca linhas: um item pode ter mais de
+   uma pergunta por aluno, e contar linhas infla o total.                     */
+
+// Separador das chaves de agregação: caractere de controle, que não ocorre
+// em texto vindo da API. Um '|' partiria uma descrição que o contenha.
+const SEP = '\u0001';
+const DR_CONCORRENCIA = 8;         // fichas de escola buscadas ao mesmo tempo
+const DR_ORCAMENTO_MS = 100_000;   // teto de tempo: devolve parcial em vez de estourar
+
+// Deduplicação de leques SIMULTÂNEOS. Sem isto, dez pessoas abrindo a tela no
+// mesmo minuto (com o cache frio) disparariam dez leques de ~112 consultas ao
+// CODERP. O primeiro pedido faz o trabalho; os demais aguardam a MESMA
+// promessa e recebem a mesma resposta. Vale dentro de um isolate — é
+// mitigação de rajada, não coordenação global.
+const _emVoo = new Map<string, Promise<string>>();
+
+async function chamarCoderp(
+  urlBase: string, endpoint: string, campo: string, token: string, parms: unknown,
+): Promise<any> {
+  const r = await fetch(urlBase + endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth: { token }, [campo]: parms }),
+    signal: AbortSignal.timeout(25_000),
+  });
+  if (!r.ok) throw new Error(`${endpoint} HTTP ${r.status}`);
+  return await r.json();
+}
+
+async function detalheRede(
+  urlBase: string, token: string, anoLetivo: number, bimestre: number, escolaUnica?: number,
+) {
+  // 1) Quais unidades têm lançamento neste bimestre.
+  let codigos: number[];
+  if (Number.isInteger(escolaUnica)) {
+    codigos = [escolaUnica as number];
+  } else {
+    const d = await chamarCoderp(urlBase, '/IndicadorEscola', 'parmsescola', token,
+      { anoLetivo, bimestre });
+    const vistos = new Set<number>();
+    for (const e of (d?.fichasAvaliacoesEscola || [])) {
+      const c = Number(e?.uni_cod);
+      if (Number.isFinite(c)) vistos.add(c);
+    }
+    codigos = Array.from(vistos);
+  }
+
+  const linhas: unknown[][] = [];
+  const hier: unknown[][] = [];
+  const faltando: number[] = [];
+  const inicio = Date.now();
+  let i = 0;
+
+  async function trabalhador() {
+    while (i < codigos.length) {
+      const cod = codigos[i++];
+      // Orçamento estourado: marca o resto como faltante em vez de derrubar a
+      // resposta inteira. Parcial é útil — o front mescla o que chegou sobre o
+      // pacote agregado, que já tem os totais certos.
+      if (Date.now() - inicio > DR_ORCAMENTO_MS) { faltando.push(cod); continue; }
+      try {
+        const d = await chamarCoderp(urlBase, '/IndicadorAluno', 'parms', token,
+          { anoLetivo, bimestre, escola: cod });
+
+        // Agregação LOCAL à escola: os Sets de REMA morrem ao fim de cada
+        // unidade. Mantê-los todos vivos até o final estouraria a memória do
+        // isolate (centenas de milhares de Sets).
+        const ag = new Map<string, Set<string>>();
+        const porAT = new Map<string, Set<string>>();
+        for (const r of (d?.fichasAvaliacoesAluno || [])) {
+          const rema = String(r?.alu_rema ?? '');
+          if (!rema) continue;
+          const per = String(r?.per_cod ?? '').trim();
+          const tur = String(r?.tur_cod ?? '').trim();
+          const k = [per, tur, String(r?.fnc_des ?? ''), String(r?.fne_des ?? ''),
+                     String(r?.fqr_vl ?? ''), String(r?.fqr_txt_resp ?? '')].join(SEP);
+          let s = ag.get(k); if (!s) { s = new Set(); ag.set(k, s); } s.add(rema);
+          const kh = per + SEP + tur;
+          let sh = porAT.get(kh); if (!sh) { sh = new Set(); porAT.set(kh, sh); } sh.add(rema);
+        }
+        for (const [k, s] of ag) {
+          const p = k.split(SEP);
+          linhas.push([cod, p[0], p[1], p[2], p[3], p[4], p[5], s.size]);
+        }
+        for (const [kh, s] of porAT) {
+          const p = kh.split(SEP);
+          hier.push([cod, p[0], p[1], s.size]);
+        }
+      } catch (e) {
+        console.warn(`[coderp-ficha] detalherede: escola ${cod} falhou: ${String(e)}`);
+        faltando.push(cod);
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(DR_CONCORRENCIA, codigos.length) }, trabalhador),
+  );
+
+  return {
+    ok: true,
+    anoLetivo, bimestre,
+    escolas: codigos.length,
+    parcial: faltando.length > 0,
+    faltando,
+    linhas, hier,
+    geradoEm: new Date().toISOString(),
+  };
 }
 
 function json(body: unknown, status = 200) {
@@ -133,8 +277,12 @@ Deno.serve(async (req) => {
     // ── 2) Valida o pedido ─────────────────────────────────────────────────
     const corpo = await req.json().catch(() => null);
     const chaveNivel = String(corpo?.nivel || '').toLowerCase();
+    const ehDetalheRede = chaveNivel === NIVEL_DETALHE_REDE;
     const nivel = NIVEIS[chaveNivel];
-    if (!nivel) return json({ erro: 'nivel_invalido', aceitos: Object.keys(NIVEIS) }, 400);
+    if (!nivel && !ehDetalheRede) {
+      return json({ erro: 'nivel_invalido',
+                    aceitos: Object.keys(NIVEIS).concat(NIVEL_DETALHE_REDE) }, 400);
+    }
 
     const parms = corpo?.parms;
     if (!parms || typeof parms !== 'object') return json({ erro: 'parms_ausente' }, 400);
@@ -191,15 +339,53 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log(`[coderp-ficha] ${quem.user.email} -> ${nivel.endpoint}`
+    // Nível sintético: em vez de repassar UMA consulta, faz o leque de fichas
+    // por escola e devolve só o agregado. Cache maior porque a resposta é
+    // maior — e é justamente ela que faz a tela abrir pronta.
+    if (ehDetalheRede) {
+      console.log(`[coderp-ficha] ${quem.user.email} -> detalherede`
+        + ` ano=${parms.anoLetivo} bim=${parms.bimestre}`
+        + (Number.isInteger(parms.escola) ? ` escola=${parms.escola}` : ' (rede)'));
+      // Um leque igual já em andamento? Aguarda o mesmo, não dispara outro.
+      let promessa = _emVoo.get(chaveCache);
+      const juntou = !!promessa;
+      if (!promessa) {
+        const t0 = Date.now();
+        promessa = (async () => {
+          const resultado = await detalheRede(
+            urlBase, tokenCoderp, parms.anoLetivo, parms.bimestre,
+            Number.isInteger(parms.escola) ? parms.escola : undefined,
+          );
+          const texto = JSON.stringify(resultado);
+          console.log(`[coderp-ficha] detalherede pronto em ${Date.now() - t0}ms:`
+            + ` ${resultado.escolas} escolas, ${resultado.linhas.length} linhas`
+            + (resultado.parcial ? `, PARCIAL (${resultado.faltando.length} faltando)` : ''));
+          // Resposta parcial não entra no cache: congelar uma rede incompleta
+          // por 10 min esconderia unidades de quem tem direito a elas.
+          if (!resultado.parcial) await cacheGrava(chaveCache, texto, CACHE_MAX_BYTES_DETALHE);
+          return texto;
+        })();
+        _emVoo.set(chaveCache, promessa);
+        // Libera a vaga SEMPRE — inclusive em erro, senão a falha ficaria
+        // grudada e todo pedido seguinte herdaria a mesma exceção.
+        promessa.finally(() => { if (_emVoo.get(chaveCache) === promessa) _emVoo.delete(chaveCache); });
+      }
+      const texto = await promessa;
+      return new Response(texto, {
+        headers: { ...CORS, 'Content-Type': 'application/json',
+                   'X-Cache': juntou ? 'coalesced' : 'miss' },
+      });
+    }
+
+    console.log(`[coderp-ficha] ${quem.user.email} -> ${nivel!.endpoint}`
       + ` ano=${parms.anoLetivo} bim=${parms.bimestre}`);
 
     let r: Response;
     try {
-      r = await fetch(urlBase + nivel.endpoint, {
+      r = await fetch(urlBase + nivel!.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ auth: { token: tokenCoderp }, [nivel.campo]: parms }),
+        body: JSON.stringify({ auth: { token: tokenCoderp }, [nivel!.campo]: parms }),
         signal: AbortSignal.timeout(30_000),
       });
     } catch (e) {

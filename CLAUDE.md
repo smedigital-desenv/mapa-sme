@@ -109,11 +109,47 @@ e **nunca vai para o navegador nem para este repositório**. A função:
 4. mantém **cache em memória de 10 min** (gzip; inclui o nível aluno) — a
    permissão é checada por requisição ANTES do cache, que guarda só a
    resposta do CODERP. O `auth.js` **pré-aquece** de qualquer tela (rede dos
-   4 bimestres + fichas por escola do 1º/2º) e guarda as respostas num
+   4 bimestres + `detalherede` do 1º/2º) e guarda as respostas num
    **cache local do navegador** (`window.MapaFichaCache`, IndexedDB + gzip,
    TTL 10 min): a tela de Avaliações lê dali sem rede — é o que a torna
    instantânea. As três camadas (IndexedDB, memória da função, CODERP) têm o
    mesmo TTL de propósito.
+
+#### O nível sintético `detalherede` — por que ele existe
+
+**A turma só existe no nível Aluno.** Os níveis agregados devolvem `per_cod` e
+`tur_cod` vazios, e não há endpoint que liste turmas. Para a tela mostrar
+TODAS as turmas da rede sem clique, alguém precisa buscar as ~112 fichas por
+escola: **~300 MB de JSON por bimestre**.
+
+Fazer isso **no navegador** já foi tentado duas vezes e é inviável — baixar e
+desserializar ~3 MB por unidade na thread da interface travava a tela por
+minutos, **e o custo se repetia para cada pessoa**. ⚠️ Não reintroduza esse
+laço no front (o comentário em `_prefetchTurmasFicha` diz o mesmo).
+
+O nível `detalherede` (`POST { nivel:'detalherede', parms:{anoLetivo,bimestre} }`)
+faz o leque **dentro da Edge Function**, com concorrência 8, e devolve só o
+agregado: ~9 MB de JSON, **~600 kB comprimido**, servido do cache de 10 min
+para todos. É a diferença entre 300 MB por usuário e 600 kB compartilhados.
+
+Pontos que **não** são detalhe:
+
+- **A função não nomeia nada.** Devolve os campos crus
+  (`[uni_cod, per_cod, tur_cod, fnc_des, fne_des, fqr_vl, fqr_txt, qtd]`); a
+  normalização de unidade/disciplina/resposta continua só no front. Duplicá-la
+  no servidor criaria duas verdades que divergem em silêncio.
+- **`qtd` conta alunos DISTINTOS (REMA)**, nunca linhas — um item pode ter mais
+  de uma pergunta por aluno.
+- **Leques simultâneos são deduplicados** (`_emVoo`): sem isso, dez pessoas
+  abrindo a tela com o cache frio disparariam dez leques de 112 consultas.
+- **Resposta parcial não entra em cache nenhum** (nem na função, nem no
+  IndexedDB): congelar uma rede incompleta por 10 min esconderia unidades de
+  quem tem direito a elas. Parcial ainda é útil — o front mescla o que chegou
+  sobre o pacote agregado, que já tem os totais certos.
+- **Orçamento de 100 s**; o que não coube volta em `faltando` e continua
+  descendo por clique.
+- O front **degrada sozinho**: se o nível não estiver publicado, a chamada
+  responde 400 e a tela volta ao comportamento de detalhar por clique.
 
 Secrets: `CODERP_TOKEN` (obrigatório) e `CODERP_URL` (opcional; o padrão é o
 ambiente `dsv`).
