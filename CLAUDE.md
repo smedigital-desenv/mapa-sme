@@ -131,27 +131,30 @@ afirmação se confirmou, mas agora com evidência. Se o CODERP passar a rotular
 as turmas aparecem sozinhas e o leque abaixo nem é disparado (há um guarda
 para isso) — o contador avisa.
 
-⚠️ **`turma` é aceito na REQUISIÇÃO, mas não volta na resposta.** Isso abre uma
-rota tentadora: pedir a rede turma a turma (`anoescolar` + `turma`, sem
-`escola`) e rotular pelo que foi PEDIDO — ~40 consultas leves em vez do leque
-de 112. Só que ninguém verificou se a API respeita esse filtro. Se ela o
-ignorar, cada chamada devolve a rede inteira e tudo seria rotulado como a
-primeira turma: dado errado e silencioso, pior que lento. Antes de construir
-isso, rode a sonda no console da tela de Avaliações:
+✅ **MEDIDO: o filtro `turma` FUNCIONA.** A sonda `MapaDiagTurma(2)` comparou
+as consultas filtradas com a sem filtro (2026, 2º bim, 1 ANO): 92.756
+alunos-resposta sem filtro contra 92.360 somando A–F — as partes reproduzem o
+todo. Então a turma vem do que é **PEDIDO**, não do que a resposta devolve.
 
-```js
-MapaDiagTurma()                       // 1º bim, 1 ANO, turmas A..F
-MapaDiagTurma(2, '3 ANO', ['A','B'])  // outro recorte
-```
+É por isso que a rede abre por turma com **~40 consultas leves por bimestre**
+(5 anos × códigos de turma) em vez do leque de 112 fichas de escola. Os
+códigos saem da tabela `turmas` do MAPA (`letra_turma`); a varredura para
+depois de 2 códigos vazios seguidos, porque a cauda é rarefeita (a turma F já
+só existe em 6 unidades).
 
-Ela compara as consultas filtradas com a consulta sem filtro e responde
-FUNCIONA / IGNORADO / VAZIAS. Os códigos de turma já existem no banco do MAPA
-(a tela carrega ~12 mil), então não há nada a descobrir — falta só saber se o
-filtro vale.
+⚠️ **NADA é aplicado sem conferência.** Esta rota rotula pelo que foi pedido,
+então um código faltando na lista sumiria com alunos **em silêncio**. Por isso
+o pacote agregado carrega `bruto` (soma crua por unidade/ano) e o detalhe só
+substitui as linhas de uma unidade quando a soma das turmas **reproduz
+exatamente** esse número, em TODOS os anos daquela unidade. Quem não fecha
+continua com `'—'` e sai no console. Se você mexer aqui, não remova a
+conferência: sem ela o erro é invisível.
 
-O leque por escola só existe para o caso em que `tur_cod` de fato vem vazio.
-Nesse caso a turma só aparece no nível Aluno, e cobrir a rede exige buscar as
-~112 fichas por escola: **~300 MB de JSON por bimestre**.
+O nível `detalherede` (leque por escola dentro da Edge Function) continua
+escrito e é a reserva para o dia em que o filtro `turma` deixar de funcionar —
+aí a turma só existiria no nível Aluno, e cobrir a rede custaria **~300 MB de
+JSON por bimestre**. Ele NÃO está publicado; enquanto não estiver, a chamada
+responde 400 e a tela segue pela rota por turma.
 
 Fazer isso **no navegador** já foi tentado duas vezes e é inviável — baixar e
 desserializar ~3 MB por unidade na thread da interface travava a tela por

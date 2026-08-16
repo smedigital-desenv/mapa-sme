@@ -5516,7 +5516,7 @@ function _prefetchTurmasFicha() {
     if (pacoteBimestreAtual === pac && _hierUnidadeAtiva && _hierUnidadeAtiva !== 'TODAS') {
       _detalharUnidadeFicha(_hierUnidadeAtiva);
     }
-  }).getDetalheRedeFicha(chaveBim);
+  }).getDetalheRedeFicha(chaveBim, pacoteBimestreAnoAtual || 'TODOS', pac.bruto);
 
   // Não espera o leque: a unidade já selecionada desce em paralelo.
   if (_hierUnidadeAtiva && _hierUnidadeAtiva !== 'TODAS') {
@@ -7734,6 +7734,113 @@ function _renderTabelaTotal(linhas) {
     return _fichaTurmaMemo.get(k);
   }
 
+  // ── Rede aberta por TURMA, sem leque por escola ───────────────────────────
+  // MEDIDO (2026-08, 2º bim): o `IndicadorTurma` NÃO devolve `tur_cod`
+  // (28.141 linhas, zero rotuladas), mas RESPEITA o filtro `turma` — as
+  // consultas filtradas somam a consulta sem filtro (sonda MapaDiagTurma).
+  //
+  // Então a turma vem do que foi PEDIDO, não do que voltou: uma consulta por
+  // (ano escolar × turma) cobre a rede inteira já rotulada. São ~40 consultas
+  // leves por bimestre, contra o leque de 112 fichas de escola (~300 MB).
+  //
+  // ⚠️ O risco desta rota é rotular errado se a API algum dia ignorar o
+  // filtro, ou perder alunos se faltar um código na lista. Por isso NADA é
+  // aplicado sem CONFERÊNCIA: a soma por turma tem que bater com o total
+  // agregado da mesma unidade/ano. Unidade que não bate fica com '—' e um
+  // aviso no console — melhor sem detalhe do que com detalhe errado.
+  const _turmaCodMemo = new Map();
+  function fichaRedeTurmaFiltrada(bimestre, anoEsc, turma) {
+    const k = bimestre + '|' + anoEsc + '|' + turma;
+    if (!_turmaCodMemo.has(k)) {
+      _turmaCodMemo.set(k,
+        chamarFichaApi('turma', { anoLetivo: fichaAnoLetivo(), bimestre, anoescolar: anoEsc, turma })
+          .then(r => r.fichasAvaliacoesTurma || [])
+          .catch(err => { _turmaCodMemo.delete(k); throw err; }));
+    }
+    return _turmaCodMemo.get(k);
+  }
+
+  // Códigos de turma da rede — já existem no banco do MAPA (~12 mil linhas
+  // em `turmas`), então não há nada a descobrir na API.
+  let _turmaCodigosPromise = null;
+  function turmaCodigos() {
+    if (!_turmaCodigosPromise) {
+      _turmaCodigosPromise = fetchAll('turmas', 'letra_turma')
+        .then(rows => {
+          const s = new Set();
+          (rows || []).forEach(r => {
+            const t = String(r.letra_turma || '').trim().toUpperCase();
+            // Códigos plausíveis de turma; lixo de importação não vira consulta.
+            if (t && t.length <= 3) s.add(t);
+          });
+          return Array.from(s).sort();
+        })
+        .catch(err => { _turmaCodigosPromise = null; throw err; });
+    }
+    return _turmaCodigosPromise;
+  }
+
+  // Varre (ano × turma) e devolve as linhas já rotuladas com a turma pedida.
+  // Percorre os códigos em ordem e para depois de 2 vazios seguidos: a cauda
+  // é rarefeita (a turma F já só existe em 6 unidades). Parar cedo demais não
+  // corrompe nada — a conferência abaixo simplesmente não fecha e a unidade
+  // continua sem detalhe.
+  const MAX_VAZIOS_SEGUIDOS = 2;
+  async function _varrerTurmasDoAno(bimestre, anoEsc, codigos) {
+    const achadas = [];
+    let vazios = 0;
+    for (const t of codigos) {
+      let rows;
+      try { rows = await fichaRedeTurmaFiltrada(bimestre, anoEsc, t); }
+      catch (e) { console.warn(`[MAPA CODERP] turma ${t} / ${anoEsc}:`, e.message); break; }
+      if (!rows.length) { if (++vazios >= MAX_VAZIOS_SEGUIDOS) break; continue; }
+      vazios = 0;
+      achadas.push([t, rows]);
+    }
+    return achadas;
+  }
+
+  async function fichaDetalheRedePorTurma(bimestre, anoFiltro) {
+    const anos = (anoFiltro && anoFiltro !== 'TODOS') ? [normalizar(anoFiltro)] : FICHA_ANOS_ESCOLARES;
+    const [catalogo, codigos] = await Promise.all([fichaCatalogo(), turmaCodigos()]);
+    if (!codigos.length) throw new Error('nenhum código de turma no banco');
+
+    // Um ano escolar por vez em paralelo; dentro do ano, os códigos em série
+    // (é o que permite parar na cauda vazia).
+    const porAno = await Promise.all(anos.map(a => _varrerTurmasDoAno(bimestre, a, codigos)));
+
+    const ag = new Map();          // u||ano||turma||disc||eixo||resp -> qtd
+    const porItem = new Map();     // u||ano||turma -> (item -> soma)
+    const brutoTurma = new Map();  // u||ano -> soma crua (para conferir)
+
+    porAno.forEach((achadas, i) => {
+      const anoEsc = anos[i];
+      const a = normalizar(anoEsc);
+      achadas.forEach(([turma, rows]) => {
+        rows.forEach(r => {
+          const qtd = Number(r.qtd_alunos || 0);
+          if (!qtd) return;
+          const u = cleanUnit(catalogo.get(Number(r.uni_cod)) || ('UNIDADE ' + r.uni_cod));
+          const d = normalizarDisciplina(corrigirTextoLegivel(r.fnc_des || '') || 'Sem disciplina');
+          const e = corrigirTextoLegivel(r.fne_des || 'Sem eixo');
+          const rot = labelRespostaPainel(r.fne_des || '', r.fqr_vl, r.fqr_txt_resp || '');
+          ag.set([u, a, turma, d, e, rot].join('||'), (ag.get([u, a, turma, d, e, rot].join('||')) || 0) + qtd);
+
+          const kh = u + '||' + a + '||' + turma;
+          const ki = d + '||' + e;
+          if (!porItem.has(kh)) porItem.set(kh, new Map());
+          const itens = porItem.get(kh);
+          itens.set(ki, (itens.get(ki) || 0) + qtd);
+
+          const kb = u + '||' + a;
+          brutoTurma.set(kb, (brutoTurma.get(kb) || 0) + qtd);
+        });
+      });
+    });
+
+    return { ag, porItem, brutoTurma };
+  }
+
   // ── Sonda: a API RESPEITA o filtro `turma`? ───────────────────────────────
   // O `IndicadorTurma` aceita `turma` na requisição mas NÃO devolve `tur_cod`
   // (medido: 28.141 linhas, zero rotuladas). Se ele de fato filtrar, dá para
@@ -7812,6 +7919,7 @@ function _renderTabelaTotal(linhas) {
     const disciplinas = new Set();
     const anosSet = new Set();
     const porItem = new Map(); // unidade||ano||turma -> (disciplina||eixo -> total)
+    const bruto = {};   // unidade||ano -> soma crua de qtd_alunos
     let comTurma = 0, semTurma = 0;
 
     respostas.forEach((resp, i) => {
@@ -7844,6 +7952,11 @@ function _renderTabelaTotal(linhas) {
         if (!porItem.has(kh)) porItem.set(kh, new Map());
         const itens = porItem.get(kh);
         itens.set(ki, (itens.get(ki) || 0) + qtd);
+
+        // Total CRU por unidade/ano. É o padrão de conferência do detalhe por
+        // turma: a soma das turmas tem que reproduzir este número.
+        const kb = u + '||' + a;
+        bruto[kb] = (bruto[kb] || 0) + qtd;
       });
     });
 
@@ -7875,6 +7988,7 @@ function _renderTabelaTotal(linhas) {
       hierLinhas: hierLinhas,
       disciplinas: Array.from(disciplinas).sort(),
       anos: Array.from(anosSet).sort(),
+      bruto: bruto,
       generatedAt: new Date().toISOString()
     };
   }
@@ -8589,12 +8703,70 @@ function _renderTabelaTotal(linhas) {
     // Detalhe de TODAS as unidades numa chamada. Se a Edge Function ainda não
     // tiver o nível `detalherede` publicado, devolve ok:false e a tela mantém
     // o comportamento antigo (turmas ao clicar) — nada quebra.
-    async getDetalheRedeFicha(key) {
+    // Detalhe de turmas de TODA a rede, pela rota barata (consulta por
+    // ano × turma; ver fichaDetalheRedePorTurma). `bruto` é o total agregado
+    // por unidade/ano vindo do pacote — é contra ele que a soma das turmas é
+    // conferida. Sem `bruto`, não há como validar e nada é aplicado.
+    async getDetalheRedeFicha(key, anoFiltro, bruto) {
       if (!fichaApiAtiva()) return { ok: false, motivo: 'coderp desligado' };
+      if (!bruto) return { ok: false, motivo: 'sem base de conferência' };
       const bimestre = BIM_KEY_TO_NUM[key] || 1;
       try {
-        const r = await fichaDetalheRedePorUnidade(bimestre);
-        return { ok: true, bimestre, unidades: r.unidades, parcial: r.parcial };
+        const { ag, porItem, brutoTurma } = await fichaDetalheRedePorTurma(bimestre, anoFiltro);
+
+        // CONFERÊNCIA por unidade/ano: a soma das turmas tem que reproduzir o
+        // total agregado. Diferença significa código de turma faltando na
+        // lista (ou filtro parcial na API) — e aplicar assim ESCONDERIA
+        // alunos sem nenhum aviso. Essas unidades ficam de fora.
+        const okUA = new Set();
+        const divergentes = [];
+        Object.keys(bruto).forEach(kb => {
+          const esperado = bruto[kb];
+          const obtido = brutoTurma.get(kb) || 0;
+          if (esperado > 0 && obtido === esperado) okUA.add(kb);
+          else divergentes.push(kb.split('||')[0] + ' / ' + kb.split('||')[1]
+                                + ' (' + obtido + ' de ' + esperado + ')');
+        });
+        if (!okUA.size) throw new Error('nenhuma unidade fechou a conferência por turma');
+
+        // Só entram as unidades cujos ANOS TODOS fecharam: detalhar um ano e
+        // deixar outro agregado misturaria turma real com o marcador '—' na
+        // mesma unidade.
+        const anosPorU = new Map();
+        Object.keys(bruto).forEach(kb => {
+          const u = kb.split('||')[0];
+          if (!anosPorU.has(u)) anosPorU.set(u, { total: 0, ok: 0 });
+          const c = anosPorU.get(u);
+          c.total++;
+          if (okUA.has(kb)) c.ok++;
+        });
+        const unidadesOk = new Set(
+          Array.from(anosPorU.entries()).filter(([, c]) => c.total === c.ok).map(([u]) => u));
+
+        const porUni = new Map();
+        const balde = u => {
+          if (!porUni.has(u)) porUni.set(u, { ok: true, unidade: u, linhas: [], hierLinhas: [] });
+          return porUni.get(u);
+        };
+        ag.forEach((qtd, k) => {
+          const p = k.split('||');
+          if (!unidadesOk.has(p[0])) return;
+          balde(p[0]).linhas.push([p[0], p[1], p[2], p[3], p[4], p[5], qtd]);
+        });
+        // Alunos por turma = MÍNIMO entre os itens (um item pode ter mais de
+        // uma pergunta por aluno) — a mesma regra do nível agregado.
+        porItem.forEach((itens, kh) => {
+          const p = kh.split('||');
+          if (!unidadesOk.has(p[0])) return;
+          balde(p[0]).hierLinhas.push([p[0], p[1], p[2], Math.min.apply(null, Array.from(itens.values()))]);
+        });
+
+        if (divergentes.length) {
+          console.warn(`[MAPA CODERP] ${divergentes.length} unidade/ano não fecharam a conferência por turma`
+            + ' e ficam sem detalhe (o total continua correto):', divergentes.slice(0, 10));
+        }
+        return { ok: true, bimestre, unidades: Array.from(porUni.values()),
+                 parcial: divergentes.length > 0 };
       } catch (err) {
         return { ok: false, motivo: (err && err.message) || String(err) };
       }
@@ -9109,7 +9281,7 @@ function _renderTabelaTotal(linhas) {
       getDashboardAlunos() { return this._exec(api.getDashboardAlunos()); },
       getPacoteBimestreRapido(key, filtros) { return this._exec(api.getPacoteBimestreRapido(key, filtros)); },
       getDetalheUnidadeFicha(key, unidade) { return this._exec(api.getDetalheUnidadeFicha(key, unidade)); },
-      getDetalheRedeFicha(key) { return this._exec(api.getDetalheRedeFicha(key)); },
+      getDetalheRedeFicha(key, anoFiltro, bruto) { return this._exec(api.getDetalheRedeFicha(key, anoFiltro, bruto)); },
       getDetalheRedeFichaTotal() { return this._exec(api.getDetalheRedeFichaTotal()); },
       getDetalheUnidadeFichaTotal(unidade) { return this._exec(api.getDetalheUnidadeFichaTotal(unidade)); },
       getAvaliacaoBimestreRapida(key, filtros) { return this._exec(api.getAvaliacaoBimestreRapida(key, filtros)); },
