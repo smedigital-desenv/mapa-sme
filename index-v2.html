@@ -75,6 +75,19 @@
     .news-list { margin:.4rem 0 0; padding-left:1.15rem; }
     .news-list li { font-size:.82rem; color:#475569; margin-bottom:2px; }
     .secao-titulo { font-weight:900; color:var(--primary); letter-spacing:.02em; }
+
+    /* ── Menu dropdown ──
+       max-height + rolagem: o submenu de Aprendizagem tem 8 itens e, em tela
+       baixa, os últimos ficavam fora da janela sem forma de alcançá-los. */
+    .mg-dd { position:relative; }
+    .mg-dd-menu { position:absolute; top:calc(100% + 6px); left:0; background:#fff; border-radius:12px;
+      box-shadow:0 12px 30px rgba(2,16,38,.22); padding:6px; min-width:230px; display:none; z-index:1100;
+      max-height:calc(100vh - 90px); overflow-y:auto; overscroll-behavior:contain; }
+    .mg-dd:hover .mg-dd-menu { display:block; }
+    .mg-dd-item { display:flex; align-items:center; gap:.5rem; padding:8px 12px; border-radius:9px;
+      color:#1e293b; font-weight:700; font-size:.82rem; text-decoration:none; }
+    .mg-dd-item:hover { background:#eef2f7; color:var(--primary); }
+    .mg-dd-item.active { background:var(--primary); color:#fff; }
   </style>
 
 <!-- ↓↓↓ acrescentado por tools/gerar-v2.py — pele de teste ↓↓↓ -->
@@ -107,10 +120,15 @@
     </div>
     <nav class="mg-nav">
       <a class="mg-nav-btn active" href="index-v2.html"><i class="bi bi-house-fill"></i>Início</a>
-      <div class="mg-dd" data-tela-any="avaliacao,elefante,fluencia">
+      <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
         <a class="mg-nav-btn mg-dd-toggle" href="avaliacao-v2.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
         <div class="mg-dd-menu">
           <a class="mg-dd-item" href="avaliacao-v2.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+          <a class="mg-dd-item" href="avaliacao-diagnostica-v2.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+          <a class="mg-dd-item" href="av-oral-matematica-v2.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+          <a class="mg-dd-item" href="saresp-v2.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+          <a class="mg-dd-item" href="ideb-v2.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+          <a class="mg-dd-item" href="iee-v2.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
           <a class="mg-dd-item" href="elefante-v2.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
           <a class="mg-dd-item" href="fluencia-v2.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
         </div>

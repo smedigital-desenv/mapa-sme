@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-bs-theme="dark" data-tema="escuro" data-acento="ciano" data-fundo="medio">
 <head>
   <meta charset="UTF-8">
   <script src="auth-guard.js"></script>
@@ -78,8 +78,25 @@
     .ad-obs{font-size:.74rem;color:var(--muted);border-left:3px solid var(--line);padding-left:.6rem;margin-top:.6rem;}
     .spark{height:38px;width:100%;display:block;}
   </style>
+
+<!-- ↓↓↓ acrescentado por tools/gerar-v2.py — pele de teste ↓↓↓ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mapa-v2.css">
+<!-- ↑↑↑ -->
 </head>
 <body>
+<div class="v2-faixa">
+  <b>VERSÃO 2 · TESTE</b>
+  <span>Esta página é uma cópia para avaliar o visual novo. A que está em uso continua em</span>
+  <a href="saresp-v2.html">saresp.html</a>
+</div>
+<canvas id="ceu" aria-hidden="true"></canvas>
+<span class="v2-orbita v2-orbita--1" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--2" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--3" aria-hidden="true"></span>
+
 
 <header class="mg-header">
   <div class="mg-brand" style="cursor:pointer;" onclick="location.href='index.html'">
@@ -88,26 +105,26 @@
   </div>
   <nav class="mg-nav">
     <div class="mg-dd">
-      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao-v2.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
       <div class="mg-dd-menu">
-        <a class="mg-dd-item" href="avaliacao.html"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
-        <a class="mg-dd-item" href="avaliacao-diagnostica.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
-        <a class="mg-dd-item" href="av-oral-matematica.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
-        <a class="mg-dd-item active" href="saresp.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
-        <a class="mg-dd-item" href="ideb.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
-        <a class="mg-dd-item" href="iee.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
-        <a class="mg-dd-item" href="elefante.html"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
-        <a class="mg-dd-item" href="fluencia.html"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+        <a class="mg-dd-item" href="avaliacao-v2.html"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item" href="avaliacao-diagnostica-v2.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+        <a class="mg-dd-item" href="av-oral-matematica-v2.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+        <a class="mg-dd-item active" href="saresp-v2.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+        <a class="mg-dd-item" href="ideb-v2.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+        <a class="mg-dd-item" href="iee-v2.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
+        <a class="mg-dd-item" href="elefante-v2.html"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+        <a class="mg-dd-item" href="fluencia-v2.html"><i class="bi bi-book-half"></i>Fluência Leitora</a>
       </div>
     </div>
-    <a class="mg-nav-btn" href="atribuicao.html"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
-    <a class="mg-nav-btn" href="educacao_especial.html"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
-    <div class="mg-dd"><a class="mg-nav-btn mg-dd-toggle" href="frequencia.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+    <a class="mg-nav-btn" href="atribuicao-v2.html"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="educacao_especial-v2.html"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <div class="mg-dd"><a class="mg-nav-btn mg-dd-toggle" href="frequencia-v2.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
       <div class="mg-dd-menu">
-        <a class="mg-dd-item" href="frequencia.html"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
-        <a class="mg-dd-item" href="boletim-estatistico.html"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+        <a class="mg-dd-item" href="frequencia-v2.html"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+        <a class="mg-dd-item" href="boletim-estatistico-v2.html"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
       </div></div>
-    <a class="mg-nav-btn" href="relatorios.html"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+    <a class="mg-nav-btn" href="relatorios-v2.html"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
   </nav>
   <div class="mg-actions">
     <button class="mg-action-btn" onclick="location.reload()"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button>
@@ -295,5 +312,6 @@ async function aplicarGate(){
   catch(e){ console.error(e); document.getElementById('adNome').textContent='Erro ao carregar: '+(e.message||e); }
 })();
 </script>
+<script src="mapa-v2-ceu.js" defer></script>
 </body>
 </html>

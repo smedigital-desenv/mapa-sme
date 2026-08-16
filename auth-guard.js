@@ -14,8 +14,11 @@
     var st = document.createElement('style');
     st.textContent =
       '.mg-dd{position:relative;display:inline-block;}' +
+      // max-height + rolagem: o submenu de Aprendizagem tem 8 itens e, em tela
+      // baixa, os últimos ficavam fora da janela sem forma de alcançá-los.
       '.mg-dd-menu{position:absolute;top:100%;left:0;min-width:212px;background:#fff;border-radius:10px;' +
-      'box-shadow:0 12px 30px rgba(0,0,0,.25);padding:6px;display:none;z-index:1100;}' +
+      'box-shadow:0 12px 30px rgba(0,0,0,.25);padding:6px;display:none;z-index:1100;' +
+      'max-height:calc(100vh - 90px);overflow-y:auto;overscroll-behavior:contain;}' +
       '.mg-dd:hover .mg-dd-menu,.mg-dd:focus-within .mg-dd-menu{display:block;}' +
       '.mg-dd-item{display:flex;align-items:center;gap:.5rem;padding:8px 12px;border-radius:8px;' +
       'color:#002b5e;font-weight:800;font-size:.82rem;text-decoration:none;white-space:nowrap;}' +

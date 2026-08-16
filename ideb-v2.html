@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-bs-theme="dark" data-tema="escuro" data-acento="ciano" data-fundo="medio">
 <head>
   <meta charset="UTF-8">
   <script src="auth-guard.js"></script>
@@ -8,8 +8,8 @@
   <script src="config-central.js" defer></script>
   <script src="demo-mode.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SARESP | SME Ribeirão Preto</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+  <title>IDEB | SME Ribeirão Preto</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏅</text></svg>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -78,8 +78,25 @@
     .ad-obs{font-size:.74rem;color:var(--muted);border-left:3px solid var(--line);padding-left:.6rem;margin-top:.6rem;}
     .spark{height:38px;width:100%;display:block;}
   </style>
+
+<!-- ↓↓↓ acrescentado por tools/gerar-v2.py — pele de teste ↓↓↓ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mapa-v2.css">
+<!-- ↑↑↑ -->
 </head>
 <body>
+<div class="v2-faixa">
+  <b>VERSÃO 2 · TESTE</b>
+  <span>Esta página é uma cópia para avaliar o visual novo. A que está em uso continua em</span>
+  <a href="ideb-v2.html">ideb.html</a>
+</div>
+<canvas id="ceu" aria-hidden="true"></canvas>
+<span class="v2-orbita v2-orbita--1" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--2" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--3" aria-hidden="true"></span>
+
 
 <header class="mg-header">
   <div class="mg-brand" style="cursor:pointer;" onclick="location.href='index.html'">
@@ -88,26 +105,26 @@
   </div>
   <nav class="mg-nav">
     <div class="mg-dd">
-      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao-v2.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
       <div class="mg-dd-menu">
-        <a class="mg-dd-item" href="avaliacao.html"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
-        <a class="mg-dd-item" href="avaliacao-diagnostica.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
-        <a class="mg-dd-item" href="av-oral-matematica.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
-        <a class="mg-dd-item active" href="saresp.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
-        <a class="mg-dd-item" href="ideb.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
-        <a class="mg-dd-item" href="iee.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
-        <a class="mg-dd-item" href="elefante.html"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
-        <a class="mg-dd-item" href="fluencia.html"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+        <a class="mg-dd-item" href="avaliacao-v2.html"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item" href="avaliacao-diagnostica-v2.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+        <a class="mg-dd-item" href="av-oral-matematica-v2.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+        <a class="mg-dd-item" href="saresp-v2.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+        <a class="mg-dd-item active" href="ideb-v2.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+        <a class="mg-dd-item" href="iee-v2.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
+        <a class="mg-dd-item" href="elefante-v2.html"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+        <a class="mg-dd-item" href="fluencia-v2.html"><i class="bi bi-book-half"></i>Fluência Leitora</a>
       </div>
     </div>
-    <a class="mg-nav-btn" href="atribuicao.html"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
-    <a class="mg-nav-btn" href="educacao_especial.html"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
-    <div class="mg-dd"><a class="mg-nav-btn mg-dd-toggle" href="frequencia.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+    <a class="mg-nav-btn" href="atribuicao-v2.html"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="educacao_especial-v2.html"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <div class="mg-dd"><a class="mg-nav-btn mg-dd-toggle" href="frequencia-v2.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
       <div class="mg-dd-menu">
-        <a class="mg-dd-item" href="frequencia.html"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
-        <a class="mg-dd-item" href="boletim-estatistico.html"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+        <a class="mg-dd-item" href="frequencia-v2.html"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+        <a class="mg-dd-item" href="boletim-estatistico-v2.html"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
       </div></div>
-    <a class="mg-nav-btn" href="relatorios.html"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+    <a class="mg-nav-btn" href="relatorios-v2.html"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
   </nav>
   <div class="mg-actions">
     <button class="mg-action-btn" onclick="location.reload()"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button>
@@ -122,18 +139,18 @@
 </div>
 
 <div class="page">
-  <div class="titbar"><div class="t" id="adNome">—</div><div class="meta">Série histórica de proficiência média · 2022–2025</div></div>
+  <div class="titbar"><div class="t" id="adNome">—</div><div class="meta">Série histórica · 2005–2025</div></div>
   <div class="ops">
     <span class="rot">Mostrar</span>
     <button class="tg" id="bRede" aria-pressed="false"><i class="mk"></i>Comparar com a rede</button>
   </div>
-  <div class="secLabel">Proficiência média por ano escolar e componente</div>
+  <div class="secLabel">IDEB por etapa e ano</div>
   <div class="card2"><table class="ad" id="tab"></table></div>
-  <div class="leg" id="legenda">Verde = acima da média da rede naquele ano; vermelho = abaixo. Ligue o botão para ver a média da rede.</div>
+  <div class="leg" id="legenda">Verde = a escola alcançou a meta daquele ano; vermelho = ficou abaixo. O IDEB é avaliado contra a META da própria escola, não contra a rede.</div>
 
   <div class="ad-up" id="adUpload" style="display:none">
     <div class="secLabel" style="margin-top:0">Atualizar dados</div>
-    <div class="ad-obs" style="margin-top:0;margin-bottom:.7rem">Envie a planilha <b>SARESP — Série Histórica Prof. Média</b>.</div>
+    <div class="ad-obs" style="margin-top:0;margin-bottom:.7rem">Envie a planilha <b>IDEB — Série Histórica</b>.</div>
     <input type="file" id="adArq" accept=".xlsx" class="form-control form-control-sm" style="max-width:520px">
     <div id="adRes" class="ad-obs" style="margin-top:.7rem"></div>
   </div>
@@ -141,7 +158,7 @@
 
 <script>
 const PERFIL_FLUXO = 's.fluxoescolar@educacao.pmrp.sp.gov.br';
-const TABELA = 'av_saresp';
+const TABELA = 'av_ideb';
 function sb(){ return window.MAPA_SB; }
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nf = (v,d) => (v==null||isNaN(v)) ? '—' : Number(v).toFixed(d==null?1:d).replace('.',',');
@@ -160,38 +177,49 @@ function numero(v){
   const n=Number(s);
   return isFinite(n) ? n : null;
 }
-const CAMPOS='ano,ano_escolar,componente,proficiencia';
-const ANOS_ESC=['2º','5º'], COMPS=[['LP','Língua Portuguesa'],['Mat','Matemática']];
-const chavesRede = r => [[r.ano+'|'+r.ano_escolar+'|'+r.componente, r.proficiencia]];
+const CAMPOS='ano,etapa,ideb,meta';
+const ETAPAS=[['AI','Anos Iniciais'],['AF','Anos Finais']];
+const chavesRede = r => [[r.ano+'|'+r.etapa, r.ideb]];
 function render(){
   const anos=Array.from(new Set(DADOS.map(r=>r.ano))).sort();
-  const idx=new Map(DADOS.map(r=>[r.ano+'|'+r.ano_escolar+'|'+r.componente, r.proficiencia]));
-  let h='<tr><th style="text-align:left">Ano escolar · Componente</th>'+anos.map(a=>'<th>'+a+'</th>').join('')+'</tr>';
-  ANOS_ESC.forEach(ae=>COMPS.forEach(([sig,nome])=>{
-    h+='<tr><td class="lbl">'+ae+' ano · '+nome+'</td>'+anos.map(a=>{
-      const v=idx.get(a+'|'+ae+'|'+sig), rd=REDE.get(a+'|'+ae+'|'+sig);
-      const cor=v==null?'#94a3b8':(rd!=null&&v>=rd?'#166534':'#b91c1c');
-      return '<td><span class="val" style="color:'+cor+'">'+nf(v)+'</span><div class="rd">rede '+nf(rd)+'</div></td>';
+  const idx=new Map(DADOS.map(r=>[r.ano+'|'+r.etapa, r]));
+  let h='<tr><th style="text-align:left">Etapa</th>'+anos.map(a=>'<th>'+a+'</th>').join('')+'</tr>';
+  ETAPAS.forEach(([sig,nome])=>{
+    h+='<tr><td class="lbl">'+nome+'</td>'+anos.map(a=>{
+      const r=idx.get(a+'|'+sig), v=r?r.ideb:null, meta=r?r.meta:null, rd=REDE.get(a+'|'+sig);
+      // Verde/vermelho aqui compara com a META da própria escola, não com a
+      // rede: o IDEB é avaliado contra a meta que a escola recebeu.
+      const cor=v==null?'#94a3b8':(meta==null?'#0f172a':(v>=meta?'#166534':'#b91c1c'));
+      return '<td><span class="val" style="color:'+cor+'">'+nf(v)+'</span>'
+           + (meta!=null?'<div style="font-size:.6rem;color:#64748b">meta '+nf(meta)+'</div>':'')
+           + '<div class="rd">rede '+nf(rd)+'</div></td>';
     }).join('')+'</tr>';
-  }));
+  });
   document.getElementById('tab').innerHTML=h;
 }
 function parsePlanilha(wb){
   const L=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null});
-  const hdr=L[1]||[]; const cols=[];
+  const hdr=L[2]||[]; const cols=[];
   for(let j=3;j<hdr.length;j++){
-    const m=String(hdr[j]||'').match(/^\s*(\d)º\s*Ano\s+(LP|Mat)\s+(\d{4})/i);
-    if(m) cols.push({j,ano_escolar:m[1]+'º',componente:m[2],ano:Number(m[3])});
+    const m=String(hdr[j]||'').match(/^\s*(META\s+)?IDEB\s+(AI|AF)\s+(\d{4})/i);
+    if(m) cols.push({j,etapa:m[2].toUpperCase(),ano:Number(m[3]),meta:!!m[1]});
   }
   if(!cols.length) return null;
   const out=[];
-  for(let i=2;i<L.length;i++){
+  for(let i=3;i<L.length;i++){
     const r=L[i]; if(!r) continue;
     const nome=String(r[2]||'').trim(); if(!nome) continue;
+    const agg=new Map();
     cols.forEach(c=>{
+      const k=c.etapa+'|'+c.ano;
+      if(!agg.has(k)) agg.set(k,{ideb:null,meta:null});
       const v=r[c.j];
-      out.push({escola:nome,ano:c.ano,ano_escolar:c.ano_escolar,componente:c.componente,
-                proficiencia:numero(v),
+      agg.get(k)[c.meta?'meta':'ideb']=numero(v);
+    });
+    agg.forEach((v,k)=>{
+      if(v.ideb==null&&v.meta==null) return;
+      const p=k.split('|');
+      out.push({escola:nome,ano:Number(p[1]),etapa:p[0],ideb:v.ideb,meta:v.meta,
                 codigo_escola:numero(r[0]), codigo_inep:numero(r[1])});
     });
   }
@@ -255,7 +283,7 @@ function ligarUpload(){
     try{
       const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
       const linhas=parsePlanilha(wb);
-      if(!linhas||!linhas.length){ res.innerHTML='Planilha não reconhecida. Envie a <b>SARESP — Série Histórica Prof. Média</b>.'; return; }
+      if(!linhas||!linhas.length){ res.innerHTML='Planilha não reconhecida. Envie a <b>IDEB — Série Histórica</b>.'; return; }
       await gravar(linhas,res);
       res.innerHTML='<b>Pronto.</b> '+linhas.length+' linhas atualizadas.';
       await carregarRede(); await carregarEscolas();
@@ -295,5 +323,6 @@ async function aplicarGate(){
   catch(e){ console.error(e); document.getElementById('adNome').textContent='Erro ao carregar: '+(e.message||e); }
 })();
 </script>
+<script src="mapa-v2-ceu.js" defer></script>
 </body>
 </html>
