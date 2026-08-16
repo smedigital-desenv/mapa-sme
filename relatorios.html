@@ -2549,6 +2549,23 @@ async function enviarPergunta(texto) {
 // Monta o contexto (resumo + devolutivas) a partir dos dados em memória.
 // Como esses dados vieram das RPCs (que filtram por permissão), o contexto já
 // contém apenas o que o usuário logado pode ver.
+// Formata uma devolutiva individual COMPLETA (todos os campos) para o contexto do chat.
+function _devTxtCompleto(d) {
+  const L = a => (a || []).filter(Boolean).join('; ');
+  const p = [];
+  if (d.sintese_executiva) p.push('Síntese: ' + d.sintese_executiva);
+  if (d.prioridade) p.push('Prioridade: ' + d.prioridade + (d.justificativa_prioridade ? ' (' + d.justificativa_prioridade + ')' : ''));
+  const r = d.risco_pedagogico || {};
+  if (r.nivel) p.push('Risco: ' + r.nivel + (r.descricao ? ' — ' + r.descricao : ''));
+  if ((d.pontos_fortes || []).length)  p.push('Pontos fortes: ' + L(d.pontos_fortes));
+  if ((d.pontos_fracos || []).length)  p.push('Pontos fracos: ' + L(d.pontos_fracos));
+  if ((d.pontos_atencao || []).length) p.push('Pontos de atenção: ' + L(d.pontos_atencao));
+  if ((d.encaminhamentos_proxima_visita || []).length) p.push('Encaminhamentos: ' + L(d.encaminhamentos_proxima_visita));
+  if ((d.perguntas_para_proxima_visita || []).length)  p.push('Perguntas p/ próxima visita: ' + L(d.perguntas_para_proxima_visita));
+  if ((d.foco_formativo_sugerido || []).length) p.push('Foco formativo: ' + L(d.foco_formativo_sugerido));
+  return p.join(' | ');
+}
+
 function _contextoChat() {
   const linhas = _construirCobertura(['fundamental','infantil']);
   const total = linhas.length, vis = linhas.filter(l => l.nVisitas > 0).length;
@@ -2602,10 +2619,7 @@ function _contextoChat() {
     ctx += `\nESCOLAS VISITADAS (${comVisita.length}) — da visita mais recente para a mais antiga:\n`;
     comVisita.forEach(l => {
       ctx += `• ${l.escola} [${l.regional}] ${l.segmento} — ${l.nVisitas} visita(s), última em ${_fmtData(l.ultima)}`;
-      if (l.dev) { const d = l.dev;
-        ctx += `; prioridade ${d.prioridade || '?'}, risco ${(d.risco_pedagogico||{}).nivel || '?'}. ${d.sintese_executiva || ''}`;
-        const fr = (d.pontos_fracos || []).slice(0,3).join('; '); if (fr) ctx += ` Pontos fracos: ${fr}.`;
-      }
+      if (l.dev) ctx += `\n   ${_devTxtCompleto(l.dev)}`;
       ctx += '\n';
     });
   }
@@ -2614,8 +2628,25 @@ function _contextoChat() {
     ctx += `\nESCOLAS SEM VISITA (${semVisita.length}): ${semVisita.join('; ')}\n`;
   }
 
-  const MAX = 60000;   // trava de segurança (tokens / tamanho do POST)
-  if (ctx.length > MAX) ctx = ctx.slice(0, MAX) + '\n[... contexto truncado por tamanho ...]';
+  // Registros brutos (respostas do formulário) — vão por ÚLTIMO de propósito: se o
+  // contexto estourar o teto, é esta parte (a mais volumosa, e já resumida nas
+  // devolutivas) que é cortada, preservando o resumo e as análises acima.
+  ctx += '\n\nREGISTROS DETALHADOS DAS VISITAS (respostas do formulário):\n';
+  ['fundamental','infantil'].forEach(seg => {
+    (dadosPorSegmento[seg] || []).forEach(v => {
+      const escola = v['_ESCOLA_'] || '';
+      const data = v['Data da Visita:'] || v['Data da visita:'] || v['Carimbo de data/hora'] || '';
+      ctx += `\n[${escola} — ${data}]\n`;
+      Object.keys(v).forEach(k => {
+        if (!k || k.charAt(0) === '_' || k === 'Carimbo de data/hora' || k === 'Endereço de e-mail') return;
+        const val = String(v[k] == null ? '' : v[k]).trim();
+        if (val) ctx += `  ${k}: ${val}\n`;
+      });
+    });
+  });
+
+  const MAX = 180000;   // teto de tamanho (~45k tokens); corta os registros brutos primeiro
+  if (ctx.length > MAX) ctx = ctx.slice(0, MAX) + '\n[... registros truncados por tamanho; o resumo e as devolutivas acima estão completos ...]';
   return ctx;
 }
 
