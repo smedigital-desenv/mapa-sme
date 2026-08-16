@@ -197,6 +197,9 @@
     .iago-caps li i { color:var(--neon-blue); font-size:1.05rem; margin-top:.05rem; flex-shrink:0; }
     .iago-caps li b { color:#1e293b; }
     .iago-cta { font-size:.8rem; font-weight:800; color:#64748b; margin-top:1.1rem; }
+    .chat-row-bot { display:flex; align-items:flex-start; gap:.5rem; align-self:flex-start; max-width:92%; }
+    .chat-row-bot .chat-b.bot { max-width:100%; }
+    .chat-avatar-msg { width:34px; height:34px; border-radius:50%; object-fit:contain; background:#eef4fb; padding:2px; flex-shrink:0; box-shadow:0 2px 6px rgba(0,43,94,.12); }
     .chat-typing { align-self:flex-start; display:flex; gap:4px; padding:.7rem .95rem; }
     .chat-typing span { width:7px; height:7px; border-radius:50%; background:#cbd5e1; animation:chatpulse 1.2s infinite; }
     .chat-typing span:nth-child(2){ animation-delay:.2s; } .chat-typing span:nth-child(3){ animation-delay:.4s; }
@@ -2526,9 +2529,13 @@ function _renderChatMsgs() {
       <div class="iago-cta">Pergunte à vontade — ou toque numa sugestão abaixo 👇</div>
     </div>`;
   } else {
+    const avatar = `<img src="iago-cabeca.png" alt="Iago" class="chat-avatar-msg" onerror="this.style.display='none';">`;
     html = _chatHistorico.map(m =>
-      `<div class="chat-b ${m.role==='user'?'user':'bot'}">${m.role==='user'?escapar(m.texto):_mdSimples(m.texto)}</div>`).join('');
-    if (_chatEnviando) html += `<div class="chat-typing"><span></span><span></span><span></span></div>`;
+      m.role === 'user'
+        ? `<div class="chat-b user">${escapar(m.texto)}</div>`
+        : `<div class="chat-row-bot">${avatar}<div class="chat-b bot">${_mdSimples(m.texto)}</div></div>`
+    ).join('');
+    if (_chatEnviando) html += `<div class="chat-row-bot">${avatar}<div class="chat-typing"><span></span><span></span><span></span></div></div>`;
   }
   box.innerHTML = html;
   box.scrollTop = box.scrollHeight;
