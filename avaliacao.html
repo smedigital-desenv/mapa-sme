@@ -5619,8 +5619,17 @@ function renderBimestreRapido(res) {
 
   const disciplinas = res.disciplinas || [];
   if (!disciplinas.length) {
+    // Tela vazia tem mais de uma causa. Sem dizer qual, todo diagnóstico vira
+    // adivinhação: "banco sem registro" e "CODERP indisponível" são a MESMA
+    // tela em branco. O aviso abaixo separa os dois casos.
+    const pac = pacoteBimestreAtual || {};
+    const detalhe = pac.motivoCoderp
+      ? `<div class="mt-1" style="font-size:.75rem;opacity:.85;">Fonte CODERP indisponível (${escapeHtml(pac.motivoCoderp)}); o banco não tem registros para ${escapeHtml(bimestreAtualLabel)}.</div>`
+      : (pac.origem === 'banco'
+          ? `<div class="mt-1" style="font-size:.75rem;opacity:.85;">Fonte: banco de dados — sem registros para ${escapeHtml(bimestreAtualLabel)}.</div>`
+          : '');
     document.getElementById('pillsDisciplinasContainer').innerHTML =
-      `<div class="alert alert-warning w-100 m-0">Nenhum dado para o filtro ativo.</div>`;
+      `<div class="alert alert-warning w-100 m-0">Nenhum dado para o filtro ativo.${detalhe}</div>`;
     ['bimestre1Kpis','bimestre1Charts','bimestre1TableHead','bimestre1TableBody']
       .forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
     return;
@@ -7703,6 +7712,13 @@ function _renderTabelaTotal(linhas) {
       return [partes[0], partes[1], '—', Math.min.apply(null, Array.from(itens.values()))];
     });
 
+    // ⚠️ Resposta VAZIA do CODERP não é um pacote válido. A API pode devolver
+    // HTTP 200 sem nenhuma linha (bimestre sem lançamento no ambiente, recorte
+    // sem permissão, indisponibilidade momentânea). Se devolvêssemos ok:true
+    // com zero linhas, o caminho reserva do banco NUNCA seria tentado e a tela
+    // mostraria "Nenhum dado" mesmo com os dados importados disponíveis.
+    if (!ag.size) throw new Error('CODERP respondeu sem nenhuma linha para o bimestre ' + bimestre);
+
     return {
       ok: true,
       linhas: Array.from(ag.entries()).map(([k, qtd]) => k.split('||').concat([qtd])),
@@ -8282,13 +8298,20 @@ function _renderTabelaTotal(linhas) {
       const ano = normalizar((filtros && filtros.ano) || 'TODOS');
 
       // Caminho principal: API do CODERP ao vivo. Se falhar (permissão, rede,
-      // função fora do ar), cai para a RPC do banco — que aplica o RLS normal.
+      // função fora do ar, resposta vazia), cai para a RPC do banco — que
+      // aplica o RLS normal.
+      let motivoCoderp = '';
       if (fichaApiAtiva()) {
         try {
-          return await pacoteViaFichaApi(bimestre, ano);
+          const pac = await pacoteViaFichaApi(bimestre, ano);
+          pac.origem = 'coderp';
+          return pac;
         } catch (err) {
+          motivoCoderp = (err && err.message) || String(err);
           console.warn('[MAPA CODERP] API da ficha indisponível, usando o banco:', err);
         }
+      } else {
+        motivoCoderp = 'desligada por ?coderp=0';
       }
 
       const anoLike = (ano && ano !== 'TODOS') ? `%${ano.replace(' ANO', '')}%` : null;
@@ -8296,9 +8319,15 @@ function _renderTabelaTotal(linhas) {
       // Caminho reserva: agregação no servidor (poucos KB)
       try {
         const { grupos, hier } = await rpcAgruparBimestres({ bimestre, anoLike });
-        return pacoteDeGrupos(grupos, hier);
+        const pac = pacoteDeGrupos(grupos, hier);
+        pac.origem = 'banco';
+        // Guardado para a tela poder explicar uma eventual ausência de dados:
+        // "banco vazio" e "CODERP fora do ar" produzem a MESMA tela em branco.
+        pac.motivoCoderp = motivoCoderp;
+        return pac;
       } catch (err) {
         console.error('[MAPA Supabase] RPC agrupar_bimestres falhou:', err);
+        if (motivoCoderp) err.message = 'CODERP: ' + motivoCoderp + ' | Banco: ' + err.message;
         throw err;
       }
 
