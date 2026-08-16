@@ -6,7 +6,10 @@ desktop.ini
 # Editores
 .vscode/
 .idea/
-.claude/
+# Config compartilhada do Claude Code (.claude/settings.json) é versionada;
+# só os arquivos locais ficam de fora.
+.claude/settings.local.json
+.claude/launch.json
 *.swp
 *.swo
 *~
