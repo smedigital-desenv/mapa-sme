@@ -39,8 +39,10 @@
     .mg-dd:hover .mg-dd-menu{display:block;}
     .mg-dd-item{display:flex;align-items:center;gap:.5rem;padding:8px 12px;border-radius:9px;
       color:#1e293b;font-weight:700;font-size:.82rem;text-decoration:none;}
-    .mg-dd-item:hover{background:#eef2f7;color:var(--primary);}
+    .mg-dd-item:hover,.mg-dd-item:focus-visible{background:#dbeafe;color:var(--primary);
+      box-shadow:inset 3px 0 0 var(--neon,#00b8d4);outline:none;}
     .mg-dd-item.active{background:var(--primary);color:#fff;}
+    .mg-dd-item.active:hover,.mg-dd-item.active:focus-visible{background:#014a91;color:#fff;}
     .mg-actions{display:flex;gap:.5rem;}
     .mg-action-btn{display:inline-flex;align-items:center;gap:.4rem;padding:8px 14px;border-radius:12px;
       border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;font-weight:800;font-size:.82rem;}
@@ -129,6 +131,7 @@
         <a class="mg-dd-item" href="boletim-estatistico-v2.html"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
       </div></div>
     <a class="mg-nav-btn" href="relatorios-v2.html"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+    <a class="mg-nav-btn" href="boletim-v2.html"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
   </nav>
   <div class="mg-actions">
     <button class="mg-action-btn" onclick="location.reload()"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button>

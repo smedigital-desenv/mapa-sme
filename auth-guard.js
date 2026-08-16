@@ -22,7 +22,15 @@
       '.mg-dd:hover .mg-dd-menu,.mg-dd:focus-within .mg-dd-menu{display:block;}' +
       '.mg-dd-item{display:flex;align-items:center;gap:.5rem;padding:8px 12px;border-radius:8px;' +
       'color:#002b5e;font-weight:800;font-size:.82rem;text-decoration:none;white-space:nowrap;}' +
-      '.mg-dd-item:hover{background:#eef4ff;}.mg-dd-item.active{background:#002b5e;color:#fff;}' +
+      // O realce do item sob o cursor precisa ser visível: #eef4ff sobre branco
+      // é quase imperceptível, e sem ele não dá para saber o que se vai clicar.
+      // A barra à esquerda existe porque a cor sozinha não serve a quem não a
+      // distingue. O item ATIVO também reage — senão a linha da tela atual
+      // parece morta justo quando o cursor está nela.
+      '.mg-dd-item:hover,.mg-dd-item:focus-visible{background:#dbeafe;color:#002b5e;' +
+      'box-shadow:inset 3px 0 0 #00b8d4;outline:none;}' +
+      '.mg-dd-item.active{background:#002b5e;color:#fff;}' +
+      '.mg-dd-item.active:hover,.mg-dd-item.active:focus-visible{background:#014a91;color:#fff;}' +
       '.mg-dd-toggle .bi-chevron-down{transition:transform .15s;}' +
       '.mg-dd:hover .mg-dd-toggle .bi-chevron-down{transform:rotate(180deg);}';
     (document.head || document.documentElement).appendChild(st);
