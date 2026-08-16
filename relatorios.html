@@ -2485,6 +2485,7 @@ function renderAssistente() {
       </div>`;
     _renderChatMsgs();
     const inp = document.getElementById('chatInput'); if (inp) inp.focus();
+    _carregarAux();   // pré-aquece Fluência/Elefante enquanto o usuário digita
   };
   if (!devolutivasCarregadas) {
     main.innerHTML = '<div class="spinner-wrapper"><div class="spinner-border text-primary" role="status"></div></div>';
@@ -2529,6 +2530,7 @@ async function enviarPergunta(texto) {
   _chatEnviando = true;
   _renderChatMsgs();
   try {
+    await _carregarAux();   // garante Fluência/Elefante no contexto (cacheado)
     const res = await chamarAPI('chat', {
       pergunta: pergunta,
       contexto: _contextoChat(),
@@ -2549,6 +2551,81 @@ async function enviarPergunta(texto) {
 // Monta o contexto (resumo + devolutivas) a partir dos dados em memória.
 // Como esses dados vieram das RPCs (que filtram por permissão), o contexto já
 // contém apenas o que o usuário logado pode ver.
+// ── Dados auxiliares p/ o chat: Fluência Leitora e Elefante Letrado ──────────
+// Lidos das MESMAS fontes que fluencia.html / elefante.html já usam (view/tabelas
+// no Supabase, com a chave anônima — pública, igual àquelas telas). Agregados por
+// escola, com o filtro por escola do MapaAuth. NÃO altera aquelas telas nem a
+// segurança dos relatórios. Nomes unificados aos das unidades dos relatórios.
+const _AUX_SB_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
+const _AUX_SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk';
+let _fluPorEscola = null, _elePorEscola = null, _auxPromise = null;
+
+function _auxNorm(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/\s+/g,' ').trim(); }
+const _AUX_TITULOS = new Set(['PROF','PROFA','PROFO','DR','DRA','DRO','PROFESSOR','PROFESSORA','DOUTOR','DOUTORA']);
+const _AUX_ALIAS = { 'ENEIDA PEREIRA DOS SANTOS DE AGUIAR EMEF': 'ENEIDA PEREIRA DOS SANTOS EMEF' };
+function _auxNormEscola(s){
+  const limpo = _auxNorm(s).replace(/[º°ª]/g,'').replace(/[.,–—-]/g,' ').replace(/\s+/g,' ').trim();
+  const out=[]; for (const w of limpo.split(' ')){ if(_AUX_TITULOS.has(w))continue; if(w==='UNID')break; out.push(w); }
+  const nome=out.join(' '); return _AUX_ALIAS[nome]||nome;
+}
+async function _auxFetch(path){
+  const r = await fetch(`${_AUX_SB_URL}/rest/v1/${path}`, { headers:{ apikey:_AUX_SB_KEY, Authorization:`Bearer ${_AUX_SB_KEY}` } });
+  if(!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
+  return r.json();
+}
+// Carrega uma vez (promise cacheada). Falhas são silenciosas: sem a fonte, a seção some.
+function _carregarAux(){
+  if (_auxPromise) return _auxPromise;
+  _auxPromise = (async () => {
+    // nome normalizado → nome oficial da unidade nos relatórios (unifica as bases)
+    const mapaOficial = {};
+    ['fundamental','infantil'].forEach(seg => (escolasOficiais[seg]||[]).forEach(n => { mapaOficial[_auxNormEscola(n)] = n; }));
+    const canon = nome => mapaOficial[_auxNormEscola(nome)] || String(nome||'').trim();
+    const filtrar = (rows, getNome) => {
+      try { if (window.MapaAuth && window.MapaAuth.restritoEscola) return window.MapaAuth.filtrarEscolas(rows, getNome); } catch(e){}
+      return rows;
+    };
+    // Fluência (view v_fluencia_por_turma) → agrega por escola, avaliação mais recente
+    try {
+      let flu = await _auxFetch('v_fluencia_por_turma?select=escola,avaliacao,avaliados,fluentes,iniciantes,pre_n1,pre_n2,pre_n3,pre_n4,ausentes,total_estudantes&order=avaliacao.asc');
+      flu = filtrar(flu, t => t.escola);
+      const porEA = {};
+      flu.forEach(t => {
+        const e = canon(t.escola);
+        const o = (porEA[e] = porEA[e] || {});
+        const a = (o[t.avaliacao] = o[t.avaliacao] || {aval:0,flu:0,ini:0,n1:0,n2:0,n3:0,n4:0,aus:0,tot:0});
+        a.aval+=+t.avaliados||0; a.flu+=+t.fluentes||0; a.ini+=+t.iniciantes||0;
+        a.n1+=+t.pre_n1||0; a.n2+=+t.pre_n2||0; a.n3+=+t.pre_n3||0; a.n4+=+t.pre_n4||0;
+        a.aus+=+t.ausentes||0; a.tot+=+t.total_estudantes||0;
+      });
+      _fluPorEscola = {};
+      Object.keys(porEA).forEach(e => { const avs = Object.keys(porEA[e]).sort(); const av = avs[avs.length-1];
+        _fluPorEscola[e] = Object.assign({ avaliacao: av }, porEA[e][av]); });
+    } catch(e){ console.warn('Fluência indisponível:', e.message); }
+    // Elefante (elefante_turmas + elefante_escolas) → agrega por escola, mês mais recente
+    try {
+      const meses = await _auxFetch('elefante_turmas?select=mes_referencia&order=mes_referencia.desc&limit=1');
+      if (meses.length) {
+        const mes = meses[0].mes_referencia;
+        let turmas = await _auxFetch(`elefante_turmas?mes_referencia=eq.${encodeURIComponent(mes)}&select=escola,estudantes,leitores,livros_lidos`);
+        turmas = filtrar(turmas, t => t.escola);
+        const porE = {};
+        turmas.forEach(t => { const e = canon(t.escola);
+          const o = (porE[e] = porE[e] || {est:0,lei:0,liv:0,leit:null,mes:mes});
+          o.est+=+t.estudantes||0; o.lei+=+t.leitores||0; o.liv+=+t.livros_lidos||0; });
+        try {
+          let esc = await _auxFetch(`elefante_escolas?mes_referencia=eq.${encodeURIComponent(mes)}&select=nome_escola,leituras_concluidas`);
+          esc = filtrar(esc, r => r.nome_escola);
+          esc.forEach(r => { const e = canon(r.nome_escola); const o = (porE[e] = porE[e] || {est:0,lei:0,liv:0,leit:null,mes:mes});
+            o.leit = (o.leit||0) + (+r.leituras_concluidas||0); });
+        } catch(e){}
+        _elePorEscola = porE;
+      }
+    } catch(e){ console.warn('Elefante indisponível:', e.message); }
+  })();
+  return _auxPromise;
+}
+
 // Formata uma devolutiva individual COMPLETA (todos os campos) para o contexto do chat.
 function _devTxtCompleto(d) {
   const L = a => (a || []).filter(Boolean).join('; ');
@@ -2626,6 +2703,23 @@ function _contextoChat() {
   const semVisita = linhas.filter(l => l.nVisitas === 0).map(l => l.escola);
   if (semVisita.length) {
     ctx += `\nESCOLAS SEM VISITA (${semVisita.length}): ${semVisita.join('; ')}\n`;
+  }
+
+  // Fluência Leitora (por escola, avaliação mais recente).
+  if (_fluPorEscola && Object.keys(_fluPorEscola).length) {
+    ctx += '\nFLUÊNCIA LEITORA (por escola, avaliação mais recente; níveis do menos ao mais avançado: N1, N2, N3, N4, iniciante, fluente):\n';
+    Object.keys(_fluPorEscola).sort().forEach(e => { const f = _fluPorEscola[e];
+      const pct = f.aval > 0 ? Math.round(f.flu / f.aval * 100) : 0;
+      ctx += `• ${e} — ${f.avaliacao || ''}: ${f.aval} avaliados, ${f.flu} fluentes (${pct}%), iniciantes ${f.ini}, N1 ${f.n1}, N2 ${f.n2}, N3 ${f.n3}, N4 ${f.n4}, ausentes ${f.aus}\n`;
+    });
+  }
+  // Elefante Letrado (por escola, mês mais recente).
+  if (_elePorEscola && Object.keys(_elePorEscola).length) {
+    ctx += '\nELEFANTE LETRADO (por escola, mês mais recente; engajamento = leitores/estudantes):\n';
+    Object.keys(_elePorEscola).sort().forEach(e => { const g = _elePorEscola[e];
+      const eng = g.est > 0 ? Math.round(g.lei / g.est * 100) : 0;
+      ctx += `• ${e} — ${g.est} estudantes, ${g.lei} leitores (${eng}% engajamento), ${g.liv} livros lidos${g.leit != null ? `, ${g.leit} leituras concluídas` : ''}\n`;
+    });
   }
 
   // Registros brutos (respostas do formulário) — vão por ÚLTIMO de propósito: se o
