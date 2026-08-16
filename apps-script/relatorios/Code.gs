@@ -400,9 +400,15 @@ function _chamarGeminiTexto(prompt, maxOutputTokens) {
   const chavesRaw = props.getProperty("GEMINI_KEYS");
   if (!chavesRaw) throw new Error("Nenhuma chave de API configurada na propriedade 'GEMINI_KEYS'.");
   const pool = chavesRaw.split(",").map(k => k.trim()).filter(Boolean);
-  // Chatbot usa Flash Lite: 500 req/dia no gratuito (vs 20 do Flash normal) e
-  // é mais rápido/barato. Ajustável pela propriedade GEMINI_MODELO_CHAT.
-  const modelo = (props.getProperty("GEMINI_MODELO_CHAT") || "gemini-flash-lite-latest").trim();
+  // Lista de modelos em ORDEM DE PREFERÊNCIA. Cada modelo tem cota SEPARADA no
+  // Gemini, então, quando um estoura (429), caímos para o próximo — isso multiplica
+  // a capacidade, sobretudo o limite por minuto (TPM). O 1º é o Flash Lite (500
+  // req/dia no gratuito). Ajustável por GEMINI_MODELOS_CHAT (lista separada por
+  // vírgula) ou, para um único modelo, GEMINI_MODELO_CHAT.
+  const modelosRaw = props.getProperty("GEMINI_MODELOS_CHAT")
+                  || props.getProperty("GEMINI_MODELO_CHAT")
+                  || "gemini-flash-lite-latest,gemini-flash-latest";
+  const modelos = modelosRaw.split(",").map(m => m.trim()).filter(Boolean);
   const cache = CacheService.getScriptCache();
   const idxIni = (parseInt(cache.get("gemini_key_idx") || "0", 10) || 0) % pool.length;
 
@@ -412,34 +418,40 @@ function _chamarGeminiTexto(prompt, maxOutputTokens) {
   };
 
   let ultimoErro = "";
-  for (let i = 0; i < pool.length; i++) {
-    const idx = (idxIni + i) % pool.length;
-    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelo + ":generateContent?key=" + pool[idx];
-    try {
-      const resp = UrlFetchApp.fetch(url, {
-        method: "post", contentType: "application/json",
-        payload: JSON.stringify(payload), muteHttpExceptions: true
-      });
-      const code = resp.getResponseCode();
-      const j = JSON.parse(resp.getContentText());
-      if (j.error) {
-        const msg = j.error.message || "";
-        if (code === 429 || j.error.code === 429 || /quota/i.test(msg)) {
-          cache.put("gemini_key_idx", String((idx + 1) % pool.length), 3600);
-          ultimoErro = "cota esgotada"; continue;
+  for (let m = 0; m < modelos.length; m++) {
+    const modelo = modelos[m];
+    for (let i = 0; i < pool.length; i++) {
+      const idx = (idxIni + i) % pool.length;
+      const url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelo + ":generateContent?key=" + pool[idx];
+      try {
+        const resp = UrlFetchApp.fetch(url, {
+          method: "post", contentType: "application/json",
+          payload: JSON.stringify(payload), muteHttpExceptions: true
+        });
+        const code = resp.getResponseCode();
+        const j = JSON.parse(resp.getContentText());
+        if (j.error) {
+          const msg = j.error.message || "";
+          if (code === 429 || j.error.code === 429 || /quota/i.test(msg)) {
+            cache.put("gemini_key_idx", String((idx + 1) % pool.length), 3600);
+            ultimoErro = "cota esgotada (" + modelo + ")";
+            continue;                 // próxima CHAVE deste modelo
+          }
+          ultimoErro = "Erro API Gemini [" + code + "] em " + modelo + ": " + msg;
+          break;                      // erro não-cota (ex.: modelo inexistente) → próximo MODELO
         }
-        throw new Error("Erro API Gemini [" + code + "]: " + msg);
+        const texto = j.candidates && j.candidates[0] && j.candidates[0].content
+          && j.candidates[0].content.parts && j.candidates[0].content.parts[0]
+          && j.candidates[0].content.parts[0].text;
+        return (texto || "").trim();  // sucesso
+      } catch (e) {
+        ultimoErro = e.message;
+        break;                        // falha de rede → tenta o próximo MODELO
       }
-      const texto = j.candidates && j.candidates[0] && j.candidates[0].content
-        && j.candidates[0].content.parts && j.candidates[0].content.parts[0]
-        && j.candidates[0].content.parts[0].text;
-      return (texto || "").trim();
-    } catch (e) {
-      if (String(e.message).indexOf("Erro API Gemini") === 0) throw e;
-      ultimoErro = e.message;
     }
+    // esgotou as chaves deste modelo (cota/erro) → tenta o próximo modelo da lista
   }
-  throw new Error("Falha ao chamar o Gemini: " + ultimoErro);
+  throw new Error("Falha ao chamar o Gemini (todos os modelos/chaves): " + ultimoErro);
 }
 
 // Teto de perguntas por usuário por dia (guarda-custo do pool compartilhado).
