@@ -2705,20 +2705,26 @@ function _contextoChat() {
     ctx += `\nESCOLAS SEM VISITA (${semVisita.length}): ${semVisita.join('; ')}\n`;
   }
 
+  // Regional por escola (chave = nome normalizado) — permite ao modelo agrupar
+  // Fluência/Elefante por regional, já que aquelas fontes não trazem a regional.
+  const _regByNorm = {};
+  linhas.forEach(l => { if (l.regional && l.regional !== '—') _regByNorm[_auxNormEscola(l.escola)] = l.regional; });
+  const _regDe = nome => _regByNorm[_auxNormEscola(nome)] || '';
+
   // Fluência Leitora (por escola, avaliação mais recente).
   if (_fluPorEscola && Object.keys(_fluPorEscola).length) {
     ctx += '\nFLUÊNCIA LEITORA (por escola, avaliação mais recente; níveis do menos ao mais avançado: N1, N2, N3, N4, iniciante, fluente):\n';
-    Object.keys(_fluPorEscola).sort().forEach(e => { const f = _fluPorEscola[e];
+    Object.keys(_fluPorEscola).sort().forEach(e => { const f = _fluPorEscola[e]; const reg = _regDe(e);
       const pct = f.aval > 0 ? Math.round(f.flu / f.aval * 100) : 0;
-      ctx += `• ${e} — ${f.avaliacao || ''}: ${f.aval} avaliados, ${f.flu} fluentes (${pct}%), iniciantes ${f.ini}, N1 ${f.n1}, N2 ${f.n2}, N3 ${f.n3}, N4 ${f.n4}, ausentes ${f.aus}\n`;
+      ctx += `• ${e}${reg ? ` [${reg}]` : ''} — ${f.avaliacao || ''}: ${f.aval} avaliados, ${f.flu} fluentes (${pct}%), iniciantes ${f.ini}, N1 ${f.n1}, N2 ${f.n2}, N3 ${f.n3}, N4 ${f.n4}, ausentes ${f.aus}\n`;
     });
   }
   // Elefante Letrado (por escola, mês mais recente).
   if (_elePorEscola && Object.keys(_elePorEscola).length) {
     ctx += '\nELEFANTE LETRADO (por escola, mês mais recente; engajamento = leitores/estudantes):\n';
-    Object.keys(_elePorEscola).sort().forEach(e => { const g = _elePorEscola[e];
+    Object.keys(_elePorEscola).sort().forEach(e => { const g = _elePorEscola[e]; const reg = _regDe(e);
       const eng = g.est > 0 ? Math.round(g.lei / g.est * 100) : 0;
-      ctx += `• ${e} — ${g.est} estudantes, ${g.lei} leitores (${eng}% engajamento), ${g.liv} livros lidos${g.leit != null ? `, ${g.leit} leituras concluídas` : ''}\n`;
+      ctx += `• ${e}${reg ? ` [${reg}]` : ''} — ${g.est} estudantes, ${g.lei} leitores (${eng}% engajamento), ${g.liv} livros lidos${g.leit != null ? `, ${g.leit} leituras concluídas` : ''}\n`;
     });
   }
 
