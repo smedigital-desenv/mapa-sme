@@ -5488,6 +5488,10 @@ function _prefetchTurmasFicha() {
 
   const chaveBim = bimestreAtualKey;
 
+  // Se o próprio IndicadorTurma já rotulou as turmas, não há nada a detalhar:
+  // o leque por escola (caro, mesmo no servidor) fica de fora.
+  if (!pac.linhas.some(l => l[2] === '—')) return;
+
   // UMA chamada traz o detalhe de todas as unidades (a Edge Function faz o
   // leque por escola do lado do servidor e devolve só o agregado). Enquanto
   // ela não chega — ou se o nível ainda não estiver publicado — a unidade
@@ -7749,7 +7753,8 @@ function _renderTabelaTotal(linhas) {
     const ag = new Map();
     const disciplinas = new Set();
     const anosSet = new Set();
-    const porItem = new Map(); // unidade||ano -> (disciplina||eixo -> total de alunos)
+    const porItem = new Map(); // unidade||ano||turma -> (disciplina||eixo -> total)
+    let comTurma = 0, semTurma = 0;
 
     respostas.forEach((resp, i) => {
       const anoEsc = anos[i];
@@ -7758,18 +7763,25 @@ function _renderTabelaTotal(linhas) {
         if (!qtd) return;
         const u = cleanUnit(catalogo.get(Number(r.uni_cod)) || ('UNIDADE ' + r.uni_cod));
         const a = normalizar(anoEsc);
+        // A turma vem do próprio `tur_cod` QUANDO a API a rotula neste nível.
+        // O código antes cravava '—' e nunca lia o campo, o que impedia de
+        // saber se ele viria preenchido. Se vier, as turmas aparecem sem
+        // custo nenhum; se vier vazio, '—' e o detalhe desce por outro
+        // caminho. O contador abaixo registra qual dos dois é a realidade.
+        const t = String(r.tur_cod || '').trim().toUpperCase();
+        if (t) comTurma++; else semTurma++;
         const d = normalizarDisciplina(corrigirTextoLegivel(r.fnc_des || '') || 'Sem disciplina');
         const e = corrigirTextoLegivel(r.fne_des || 'Sem eixo');
         // Mesma rotulagem do caminho do banco: fqr_vl é o código, fqr_txt_resp
         // o texto (que a normVl/labelRespostaPainel também usa para "Não
         // Avaliado" nas quatro grafias que a API devolve).
         const rot = labelRespostaPainel(r.fne_des || '', r.fqr_vl, r.fqr_txt_resp || '');
-        const k = [u, a, '—', d, e, rot].join('||');
+        const k = [u, a, t || '—', d, e, rot].join('||');
         ag.set(k, (ag.get(k) || 0) + qtd);
         disciplinas.add(d);
         anosSet.add(a);
 
-        const kh = u + '||' + a;
+        const kh = u + '||' + a + '||' + (t || '—');
         const ki = d + '||' + e;
         if (!porItem.has(kh)) porItem.set(kh, new Map());
         const itens = porItem.get(kh);
@@ -7777,14 +7789,19 @@ function _renderTabelaTotal(linhas) {
       });
     });
 
-    // Alunos por unidade/ano: todo aluno tem resposta em todo item (inclusive
-    // "Não Avaliado"), mas um item pode ter MAIS DE UMA pergunta por aluno
-    // (ex.: Ciências/Matéria e Energia tem 3). A soma de um item é, portanto,
-    // alunos × nº de perguntas — e o MÍNIMO entre os itens (os de pergunta
-    // única) é o total de alunos. Conferido contra o nível aluno da API.
+    if (comTurma || semTurma) {
+      console.log(`[MAPA CODERP] IndicadorTurma bim ${bimestre}: ${comTurma} linhas COM tur_cod, ${semTurma} sem.`
+        + (comTurma ? ' Turmas vêm rotuladas neste nível — o leque por escola é desnecessário.' : ''));
+    }
+
+    // Alunos por unidade/ano/turma: todo aluno tem resposta em todo item
+    // (inclusive "Não Avaliado"), mas um item pode ter MAIS DE UMA pergunta
+    // por aluno (ex.: Ciências/Matéria e Energia tem 3). A soma de um item é,
+    // portanto, alunos × nº de perguntas — e o MÍNIMO entre os itens (os de
+    // pergunta única) é o total de alunos. Conferido contra o nível aluno.
     const hierLinhas = Array.from(porItem.entries()).map(([kh, itens]) => {
       const partes = kh.split('||');
-      return [partes[0], partes[1], '—', Math.min.apply(null, Array.from(itens.values()))];
+      return [partes[0], partes[1], partes[2], Math.min.apply(null, Array.from(itens.values()))];
     });
 
     // ⚠️ Resposta VAZIA do CODERP não é um pacote válido. A API pode devolver
@@ -7833,7 +7850,10 @@ function _renderTabelaTotal(linhas) {
         const qtd = Number(r.qtd_alunos || 0);   // a API devolve como texto
         if (!qtd) return;
         const u = catalogo.get(Number(r.uni_cod)) || ('UNIDADE ' + r.uni_cod);
-        grupos.push([b, u, FICHA_ANOS_ESCOLARES[i], '—',
+        // Turma do próprio `tur_cod` quando a API a rotula (ver o comentário
+        // em pacoteViaFichaApi); '—' só quando ela realmente não vem.
+        const t = String(r.tur_cod || '').trim().toUpperCase() || '—';
+        grupos.push([b, u, FICHA_ANOS_ESCOLARES[i], t,
                      corrigirTextoLegivel(r.fnc_des || ''), corrigirTextoLegivel(r.fne_des || ''),
                      r.fqr_vl, r.fqr_vl, qtd, r.fqr_txt_resp || '']);
         algumaFonte = true;
@@ -8842,7 +8862,10 @@ function _renderTabelaTotal(linhas) {
                 const qtd = Number(r.qtd_alunos || 0);
                 if (!qtd) return;
                 const u = cleanUnit(catalogo.get(Number(r.uni_cod)) || ('UNIDADE ' + r.uni_cod));
-                const kh = u + '||' + a + '||' + b;
+                // Turma rotulada pela própria API quando ela vem (ver
+                // pacoteViaFichaApi); '—' apenas quando de fato não vem.
+                const t = String(r.tur_cod || '').trim().toUpperCase() || '—';
+                const kh = u + '||' + a + '||' + t + '||' + b;
                 const ki = (r.fnc_des || '') + '||' + (r.fne_des || '');
                 if (!porUA.has(kh)) porUA.set(kh, new Map());
                 const itens = porUA.get(kh);
@@ -8853,18 +8876,19 @@ function _renderTabelaTotal(linhas) {
           if (porUA.size) {
             // alunos por unidade/ano/bimestre = mínimo entre itens; por
             // unidade fica o MAIOR bimestre (aluno conta uma vez, não 4).
-            const porU = new Map();  // unidade -> ano||: max alunos
+            const porU = new Map();  // unidade||ano||turma -> max alunos entre bimestres
             porUA.forEach((itens, kh) => {
               const p = kh.split('||');
               const alunos = Math.min.apply(null, Array.from(itens.values()));
-              const kU = p[0] + '||' + p[1];
+              const kU = p[0] + '||' + p[1] + '||' + p[2];
               porU.set(kU, Math.max(porU.get(kU) || 0, alunos));
             });
             const arvore = {};
             porU.forEach((alunos, kU) => {
-              const u = kU.split('||')[0];
+              const p = kU.split('||');
+              const u = p[0], t = p[2];
               if (!arvore[u]) arvore[u] = {};
-              arvore[u]['—'] = (arvore[u]['—'] || 0) + alunos;
+              arvore[u][t] = (arvore[u][t] || 0) + alunos;
             });
             return { ok: true, arvore };
           }

@@ -117,10 +117,20 @@ e **nunca vai para o navegador nem para este repositório**. A função:
 
 #### O nível sintético `detalherede` — por que ele existe
 
-**A turma só existe no nível Aluno.** Os níveis agregados devolvem `per_cod` e
-`tur_cod` vazios, e não há endpoint que liste turmas. Para a tela mostrar
-TODAS as turmas da rede sem clique, alguém precisa buscar as ~112 fichas por
-escola: **~300 MB de JSON por bimestre**.
+⚠️ **Leia isto antes de mexer.** `/IndicadorTurma` EXISTE e é a fonte dos
+números das abas de bimestre e do Total — não confunda "a API não tem endpoint
+de turma" (falso) com "a resposta não rotula a turma".
+
+O `pacoteViaFichaApi` **lê `tur_cod`** da resposta do `IndicadorTurma`. Quando
+ele vem preenchido, as turmas aparecem de graça, sem nenhuma consulta extra, e
+o leque abaixo nem chega a ser disparado. O console registra qual é a
+realidade (`X linhas COM tur_cod, Y sem`). Durante muito tempo o código cravava
+`'—'` e **nunca lia o campo** — ou seja, a afirmação "vem vazio" não estava
+sendo testada por ninguém. Se for mexer aqui, olhe o contador antes de supor.
+
+O leque por escola só existe para o caso em que `tur_cod` de fato vem vazio.
+Nesse caso a turma só aparece no nível Aluno, e cobrir a rede exige buscar as
+~112 fichas por escola: **~300 MB de JSON por bimestre**.
 
 Fazer isso **no navegador** já foi tentado duas vezes e é inviável — baixar e
 desserializar ~3 MB por unidade na thread da interface travava a tela por
