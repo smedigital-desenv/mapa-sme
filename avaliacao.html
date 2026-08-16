@@ -5223,8 +5223,15 @@ function selecionarUnidade(unidade, ui) {
 // troca as linhas '—' daquela unidade pelas detalhadas — a árvore passa a
 // mostrar as turmas reais e o recorte por turma funciona.
 function _aplicarDetalheUnidade(det, pac) {
-  pac.linhas = pac.linhas.filter(l => !(l[0] === det.unidade && l[2] === '—')).concat(det.linhas);
-  pac.hierLinhas = (pac.hierLinhas || []).filter(h => !(h[0] === det.unidade && h[2] === '—')).concat(det.hierLinhas);
+  // `det.anos` limita a troca aos anos escolares que o detalhe realmente
+  // cobre. Sem esse recorte, apagar TODAS as linhas '—' da unidade apagaria
+  // também os anos não detalhados — os alunos sumiriam da tela.
+  // Detalhe sem `anos` (o de uma unidade clicada) cobre a unidade inteira.
+  const anosDet = Array.isArray(det.anos) && det.anos.length ? new Set(det.anos) : null;
+  const alvo = (u, ano) => u === det.unidade && (!anosDet || anosDet.has(ano));
+
+  pac.linhas = pac.linhas.filter(l => !(alvo(l[0], l[1]) && l[2] === '—')).concat(det.linhas);
+  pac.hierLinhas = (pac.hierLinhas || []).filter(h => !(alvo(h[0], h[1]) && h[2] === '—')).concat(det.hierLinhas);
   // Se a pessoa tinha clicado no marcador '—', ele deixa de existir agora.
   if (_hierTurmaAtiva === '—' && _hierUnidadeAtiva === det.unidade) _hierTurmaAtiva = 'TODAS';
 }
@@ -7807,13 +7814,29 @@ function _renderTabelaTotal(linhas) {
   // corrompe nada — a conferência abaixo simplesmente não fecha e a unidade
   // continua sem detalhe.
   const MAX_VAZIOS_SEGUIDOS = 2;
+  const TENTATIVAS_TURMA = 3;
+
+  // O CODERP dá timeout esporádico nas consultas maiores. Uma tentativa só
+  // custava o ANO INTEIRO: sem o dado, a conferência não fecha e nenhuma
+  // unidade daquele ano ganha turma. Timeout é transitório — insiste.
+  async function _consultarTurma(bimestre, anoEsc, turma) {
+    for (let i = 0; i < TENTATIVAS_TURMA; i++) {
+      try { return await fichaRedeTurmaFiltrada(bimestre, anoEsc, turma); }
+      catch (e) {
+        if (e && e.coderpStatus === 404) return [];       // não existe: é resposta
+        if (i === TENTATIVAS_TURMA - 1) throw e;
+        await new Promise(r => setTimeout(r, 700 * (i + 1)));
+      }
+    }
+  }
+
   async function _varrerTurmasDoAno(bimestre, anoEsc, codigos) {
     const achadas = [];
     let vazios = 0;
     let achouAlgum = false;
     for (const t of codigos) {
       let rows;
-      try { rows = await fichaRedeTurmaFiltrada(bimestre, anoEsc, t); }
+      try { rows = await _consultarTurma(bimestre, anoEsc, t); }
       catch (e) { console.warn(`[MAPA CODERP] turma ${t} / ${anoEsc}:`, e.message); break; }
       if (!rows.length) {
         // A parada antecipada só vale DEPOIS de ter achado alguma turma. Se a
@@ -8770,35 +8793,33 @@ function _renderTabelaTotal(linhas) {
         });
         if (!okUA.size) throw new Error('nenhuma unidade fechou a conferência por turma');
 
-        // Só entram as unidades cujos ANOS TODOS fecharam: detalhar um ano e
-        // deixar outro agregado misturaria turma real com o marcador '—' na
-        // mesma unidade.
-        const anosPorU = new Map();
-        Object.keys(bruto).forEach(kb => {
-          const u = kb.split('||')[0];
-          if (!anosPorU.has(u)) anosPorU.set(u, { total: 0, ok: 0 });
-          const c = anosPorU.get(u);
-          c.total++;
-          if (okUA.has(kb)) c.ok++;
-        });
-        const unidadesOk = new Set(
-          Array.from(anosPorU.entries()).filter(([, c]) => c.total === c.ok).map(([u]) => u));
-
+        // A aprovação é por UNIDADE × ANO, não por unidade inteira. Um ano que
+        // o CODERP não entregou (timeout, indisponibilidade) não pode custar os
+        // outros quatro: já aconteceu de um único timeout no 3º ano deixar a
+        // rede toda sem turma. O ano reprovado apenas continua agregado ('—');
+        // os aprovados ganham as turmas reais.
         const porUni = new Map();
         const balde = u => {
-          if (!porUni.has(u)) porUni.set(u, { ok: true, unidade: u, linhas: [], hierLinhas: [] });
+          if (!porUni.has(u)) {
+            porUni.set(u, { ok: true, unidade: u, linhas: [], hierLinhas: [], anos: [] });
+          }
           return porUni.get(u);
         };
+        okUA.forEach(kb => {
+          const p = kb.split('||');
+          const b = balde(p[0]);
+          if (b.anos.indexOf(p[1]) < 0) b.anos.push(p[1]);
+        });
         ag.forEach((qtd, k) => {
           const p = k.split('||');
-          if (!unidadesOk.has(p[0])) return;
+          if (!okUA.has(p[0] + '||' + p[1])) return;
           balde(p[0]).linhas.push([p[0], p[1], p[2], p[3], p[4], p[5], qtd]);
         });
         // Alunos por turma = MÍNIMO entre os itens (um item pode ter mais de
         // uma pergunta por aluno) — a mesma regra do nível agregado.
         porItem.forEach((itens, kh) => {
           const p = kh.split('||');
-          if (!unidadesOk.has(p[0])) return;
+          if (!okUA.has(p[0] + '||' + p[1])) return;
           balde(p[0]).hierLinhas.push([p[0], p[1], p[2], Math.min.apply(null, Array.from(itens.values()))]);
         });
 

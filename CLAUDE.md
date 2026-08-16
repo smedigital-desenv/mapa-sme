@@ -152,6 +152,13 @@ inexistente. O erro carrega `err.coderpStatus` justamente para essa distinção.
 pacote incompleto NÃO entra em cache.** Sem isso, um bimestre em que 4 dos 5
 anos falharam ficaria 45 min na tela mostrando um quinto da rede sem avisar.
 
+⚠️ **A aprovação é por unidade × ANO, e o CODERP dá timeout esporádico.** Já
+aconteceu de um único 504 no 3º ano deixar a rede INTEIRA sem turma: a
+consulta era tentada uma vez só, e a reprovação valia para a unidade inteira.
+Hoje a consulta insiste 3 vezes, e o ano reprovado apenas continua agregado
+('—') sem custar os outros quatro. O `_aplicarDetalheUnidade` respeita
+`det.anos` — trocar as linhas '—' de anos NÃO detalhados apagaria alunos.
+
 ⚠️ **NADA é aplicado sem conferência.** Esta rota rotula pelo que foi pedido,
 então um código faltando na lista sumiria com alunos **em silêncio**. Por isso
 o pacote agregado carrega `bruto` (soma crua por unidade/ano) e o detalhe só
