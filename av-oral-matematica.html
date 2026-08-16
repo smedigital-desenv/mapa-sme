@@ -13,6 +13,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     :root{--primary:#002b5e;--pri2:#075f82;--neon-blue:#00e5ff;--neon:#00b8d4;
           --line:#e4e9f0;--ink:#0f172a;--muted:#64748b;}
@@ -180,9 +181,20 @@
   </tr></thead><tbody id="itemB"></tbody></table></div>
   <div class="leg" id="legItem">Uma linha por item da prova, na ordem de aplicação.</div>
 
+  <div class="ad-up" id="adUpload" style="display:none">
+    <div class="secLabel" style="margin-top:0">Atualizar dados</div>
+    <div class="ad-obs" style="margin-top:0;margin-bottom:.7rem">
+      Envie <b>Av Oral Mat Entrada — Escolas</b> ou <b>— Turmas</b>. A tela reconhece qual é
+      pelo cabeçalho. O arquivo de <b>Alunos</b> não entra por aqui: ele traz nome de criança,
+      e essa carga não passa pelo navegador.</div>
+    <input type="file" id="adArq" accept=".xlsx" class="form-control form-control-sm" style="max-width:520px">
+    <div id="adRes" class="ad-obs" style="margin-top:.7rem"></div>
+  </div>
+
 </div>
 
 <script>
+const PERFIL_FLUXO = 's.fluxoescolar@educacao.pmrp.sp.gov.br';
 function sb(){ return window.MAPA_SB; }
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtPct = v => (v==null||isNaN(v)) ? '—' : Math.round(Number(v)*100)+'%';
@@ -365,12 +377,113 @@ function avisarDescritor(tipo, sem, total){
   });
 })();
 
+
+/* ── Leitura das planilhas ──────────────────────────────────────────────────
+   Os dois arquivos têm a mesma forma: linha 0 agrupa ("PARTICIPAÇÃO",
+   "HABILIDADES AVALIADAS"), linha 1 nomeia as colunas, os dados começam na 2.
+   O que muda é a coluna 3 — "Série/ Ano" no de escolas, "Turma" no de turmas —
+   e é por ela que o arquivo é reconhecido.
+
+   ⚠️ As colunas de item vêm até a 27 no arquivo de escolas e de turmas, mas o
+   arquivo de ALUNOS tem só 10, com numeração própria: medido, o item 01 de um
+   não é o item 01 do outro. Não trate as duas numerações como a mesma coisa. */
+function numero(v){
+  if(v==null) return null;
+  if(typeof v==='number') return isFinite(v) ? v : null;
+  const s=String(v).replace(/\u00a0/g,' ').trim().replace(',','.');
+  if(!s || s==='-' || /^[a-zA-Z]/.test(s)) return null;
+  const n=Number(s);
+  return isFinite(n) ? n : null;
+}
+const HABS=['D001_J','D002_J','D003_J','D004_J','D005_J','D006_J','D007_J'];
+
+function parsePlanilha(wb){
+  const L=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null});
+  const hdr=(L[1]||[]).map(x=>String(x==null?'':x).trim());
+  const col3=(hdr[3]||'').toLowerCase().replace(/\s+/g,' ');
+  const porTurma = col3.indexOf('turma')>=0;
+  if(!porTurma && col3.indexOf('rie')<0) return null;   // nem "Série/ Ano" nem "Turma"
+
+  // As colunas de item são localizadas pelo cabeçalho, não por posição fixa:
+  // o arquivo de escolas carrega colunas extras no fim ("ERRO") que a contagem
+  // por posição engoliria.
+  const colHab={}, colItem={};
+  hdr.forEach((h,j)=>{
+    const mh=h.match(/^(D\d{3}_J)/); if(mh) colHab[mh[1]]=j;
+    const mi=h.match(/^Item\s*(\d{1,2})/i); if(mi) colItem[String(+mi[1]).padStart(2,'0')]=j;
+  });
+  if(!Object.keys(colHab).length) return null;
+
+  const oral=[], metrica=[];
+  for(let i=2;i<L.length;i++){
+    const r=L[i]; if(!r) continue;
+    const nome=String(r[2]||'').trim(); if(!nome) continue;
+    const ehRede = !porTurma && nome.toUpperCase()==='REDE';
+    const nivel = ehRede ? 'rede' : (porTurma ? 'turma' : 'escola');
+    const escola = ehRede ? 'REDE' : nome;
+    const turma = porTurma ? String(r[3]||'').trim() : '';
+    oral.push({ nivel, escola, turma,
+      serie: porTurma ? null : (String(r[3]||'').trim()||null),
+      previstos: numero(r[4]), avaliados: numero(r[5]),
+      codigo_escola: numero(r[0]), codigo_inep: numero(r[1]) });
+    const add=(tipo,chave,j)=>{ if(j==null) return;
+      const pct=numero(r[j]); if(pct==null) return;   // '-' = não aplicado, não é zero
+      metrica.push({ nivel, escola, turma, tipo, chave, pct }); };
+    HABS.forEach(h=>add('habilidade',h,colHab[h]));
+    Object.keys(colItem).forEach(k=>add('item',k,colItem[k]));
+  }
+  return { oral, metrica, rotulo: porTurma ? 'turmas' : 'escolas (e rede)' };
+}
+
+async function gravar(tabela, linhas, res, rotulo){
+  const LOTE=500;
+  for(let i=0;i<linhas.length;i+=LOTE){
+    const { error } = await sb().from(tabela).upsert(linhas.slice(i,i+LOTE));
+    if(error) throw error;
+    res.textContent='Gravando '+rotulo+'… '+Math.min(i+LOTE,linhas.length)+' de '+linhas.length;
+  }
+}
+
+function ligarUpload(){
+  const inp=document.getElementById('adArq'), res=document.getElementById('adRes');
+  if(!inp) return;
+  inp.addEventListener('change', async ()=>{
+    const f=inp.files&&inp.files[0]; if(!f) return;
+    res.textContent='Lendo a planilha…';
+    try{
+      const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+      const p=parsePlanilha(wb);
+      if(!p||!p.oral.length){
+        res.innerHTML='Planilha não reconhecida. Envie <b>Av Oral Mat Entrada — Escolas</b> ou <b>— Turmas</b>.';
+        return;
+      }
+      await gravar('av_oral', p.oral, res, 'participação');
+      await gravar('av_oral_metrica', p.metrica, res, 'habilidades e itens');
+      res.innerHTML='<b>Pronto.</b> '+p.oral.length+' linhas de participação e '
+                   +p.metrica.length+' medidas atualizadas ('+p.rotulo+').';
+      await carregarRede(); await carregarEscolas();
+    }catch(e){ console.error(e); res.innerHTML='Falhou: '+esc(e.message||e); }
+    finally{ inp.value=''; }
+  });
+}
+
+/* Gate do upload — conforto, não segurança: quem decide é a policy de escrita. */
+async function aplicarGate(){
+  try{
+    const { data } = await sb().auth.getUser();
+    const email=((data&&data.user&&data.user.email)||'').toLowerCase();
+    let redeToda=false;
+    try{ redeToda=!!(await sb().rpc('vejo_a_rede_toda')).data; }catch(e){}
+    if(email===PERFIL_FLUXO||redeToda) document.getElementById('adUpload').style.display='';
+  }catch(e){}
+}
+
 (async function(){
   // window.MAPA_SB nasce no auth.js quando a sessão abre. Criar cliente próprio
   // aqui geraria requisição sem identidade, que o banco recusa.
   for(let i=0;i<160 && !window.MAPA_SB;i++) await new Promise(r=>setTimeout(r,100));
   if(!window.MAPA_SB){ document.getElementById('adNome').textContent='Sessão indisponível'; return; }
-  try{ await carregarRede(); await carregarEscolas(); }
+  try{ ligarUpload(); aplicarGate(); await carregarRede(); await carregarEscolas(); }
   catch(e){ console.error(e); document.getElementById('adNome').textContent='Erro ao carregar: '+(e.message||e); }
 })();
 </script>
