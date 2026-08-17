@@ -27,10 +27,29 @@ Site estático (HTML/JS puro, sem framework nem build) publicado no GitHub Pages
 sob `smedigital.com.br/mapa-sme/`. Os dados ficam num projeto Supabase próprio.
 
 **Telas:** Avaliações (Diagnóstica, 1º a 4º Bimestre, Total, Análise de
-Consistência), Atribuição, Retrato Quantitativo de Atribuições, Análise de
-Jornada, Educação Especial, Gerência de Liminares, Frequência × Distância,
-Fluência Leitora, Elefante Letrado, Boletim da Escola, Relatórios,
+Consistência), Av. Diagnóstica SME/Vunesp, Av. Oral de Matemática, SARESP,
+IDEB, IEE, Atribuição, Retrato Quantitativo de Atribuições, Análise de Jornada,
+Educação Especial, Gerência de Liminares, Frequência × Distância, Fluência
+Leitora, Elefante Letrado, Boletim da Escola, Boletim Estatístico, Relatórios,
 Relatório Executivo.
+
+### Telas de avaliação externa (tabelas `av_*`)
+
+Alimentadas por **upload de planilha** na própria tela (gated), não por API.
+As tabelas seguem o RLS padrão: `anon` sem nada, recorte por escola com as
+chamadas dentro de `(select ...)`, escrita exigindo `posso_editar()`.
+
+⚠️ **`av_diag_item` guarda uma linha por ITEM da prova, não por habilidade.**
+Metade das habilidades é medida por mais de um item e a dispersão entre itens
+da MESMA habilidade é de 13 p.p. em média (chega a 73 p.p. na rede — medido em
+2026-06). Agregar por habilidade transformaria "uma questão todos acertam,
+outra quase ninguém" num meio-termo que não descreve nenhuma das duas. Não
+"simplifique" isso somando por habilidade.
+
+⚠️ **A escala TRI muda a cor do TEXTO junto com a faixa.** Sobre os três tons
+médios (`#65a30d`, `#ca8a04`, `#ea580c`) o texto branco fica em 2,94–3,56:1,
+abaixo do mínimo de 4,5:1; com tinta escura sobe para 5,0–6,1:1. A paleta é a
+mesma — não volte o texto para branco "para uniformizar".
 
 ---
 
@@ -109,11 +128,116 @@ e **nunca vai para o navegador nem para este repositório**. A função:
 4. mantém **cache em memória de 10 min** (gzip; inclui o nível aluno) — a
    permissão é checada por requisição ANTES do cache, que guarda só a
    resposta do CODERP. O `auth.js` **pré-aquece** de qualquer tela (rede dos
-   4 bimestres + fichas por escola do 1º/2º) e guarda as respostas num
+   4 bimestres + `detalherede` do 1º/2º) e guarda as respostas num
    **cache local do navegador** (`window.MapaFichaCache`, IndexedDB + gzip,
    TTL 10 min): a tela de Avaliações lê dali sem rede — é o que a torna
    instantânea. As três camadas (IndexedDB, memória da função, CODERP) têm o
    mesmo TTL de propósito.
+
+#### O nível sintético `detalherede` — por que ele existe
+
+⚠️ **Leia isto antes de mexer.** `/IndicadorTurma` EXISTE e é a fonte dos
+números das abas de bimestre e do Total — não confunda "a API não tem endpoint
+de turma" (falso) com "a resposta não rotula a turma".
+
+O `pacoteViaFichaApi` **lê `tur_cod`** da resposta do `IndicadorTurma` e o
+console registra o resultado (`X linhas COM tur_cod, Y sem`). Durante muito
+tempo o código cravava `'—'` e **nunca lia o campo** — a afirmação "vem vazio"
+não estava sendo testada por ninguém.
+
+**Medição de 2026-08, 2º bimestre: 28.141 linhas, ZERO com `tur_cod`.** A
+afirmação se confirmou, mas agora com evidência. Se o CODERP passar a rotular,
+as turmas aparecem sozinhas e o leque abaixo nem é disparado (há um guarda
+para isso) — o contador avisa.
+
+🚫 **A VARREDURA POR TURMA ESTÁ DESLIGADA (`?turmas=1` liga) — ela corrompe a
+contagem de alunos.** Medido em produção: ALCINA passou de 236 (correto) para
+68 no 1º bim e 466 no 2º. A causa NÃO é o filtro da API (esse funciona), é a
+forma de contar: alunos por turma sai do **mínimo entre os itens**, regra que
+assume que todo aluno responde todo item. Isso é FALSO para itens que só valem
+para parte da turma — Atendimento Educacional Especializado e Educação
+Especial aparecem no 1º bimestre. ⚠️ A conferência não pega esse erro porque
+ela confere a **soma crua** (alunos-resposta), e a soma crua fecha; o que está
+errado é a **contagem de alunos**, outra grandeza. Antes de religar, é preciso
+uma forma confiável de contar aluno por turma a partir do nível agregado — ou
+usar o nível aluno, que conta REMA distinto e é exato.
+
+✅ **MEDIDO: o filtro `turma` FUNCIONA.** A sonda `MapaDiagTurma(2)` comparou
+as consultas filtradas com a sem filtro (2026, 2º bim, 1 ANO): 92.756
+alunos-resposta sem filtro contra 92.360 somando A–F — as partes reproduzem o
+todo. Então a turma vem do que é **PEDIDO**, não do que a resposta devolve.
+
+É por isso que a rede abre por turma com **~40 consultas leves por bimestre**
+(5 anos × códigos de turma) em vez do leque de 112 fichas de escola. Os
+códigos saem da tabela `turmas` do MAPA (`letra_turma`); a varredura para
+depois de 2 códigos vazios seguidos, porque a cauda é rarefeita (a turma F já
+só existe em 6 unidades).
+
+⚠️ **O CODERP responde `404`, e não lista vazia, quando não há dado** — turma
+que não existe naquele ano, bimestre sem lançamento. Isso é RESPOSTA, não
+avaria: o front trata 404 como vazio (e memoiza, senão cada abertura repetiria
+a consulta). Tratar 404 como falha fazia a varredura abortar no primeiro código
+inexistente. O erro carrega `err.coderpStatus` justamente para essa distinção.
+
+⚠️ **Ano que falha de verdade (não 404) marca o pacote como `incompleto`, e
+pacote incompleto NÃO entra em cache.** Sem isso, um bimestre em que 4 dos 5
+anos falharam ficaria 45 min na tela mostrando um quinto da rede sem avisar.
+
+⚠️ **A aprovação é por unidade × ANO, e o CODERP dá timeout esporádico.** Já
+aconteceu de um único 504 no 3º ano deixar a rede INTEIRA sem turma: a
+consulta era tentada uma vez só, e a reprovação valia para a unidade inteira.
+Hoje a consulta insiste 3 vezes, e o ano reprovado apenas continua agregado
+('—') sem custar os outros quatro. O `_aplicarDetalheUnidade` respeita
+`det.anos` — trocar as linhas '—' de anos NÃO detalhados apagaria alunos.
+
+⚠️ **NADA é aplicado sem conferência.** Esta rota rotula pelo que foi pedido,
+então um código faltando na lista sumiria com alunos **em silêncio**. Por isso
+o pacote agregado carrega `bruto` (soma crua por unidade/ano) e o detalhe só
+substitui as linhas de uma unidade quando a soma das turmas **reproduz
+exatamente** esse número, em TODOS os anos daquela unidade. Quem não fecha
+continua com `'—'` e sai no console. Se você mexer aqui, não remova a
+conferência: sem ela o erro é invisível.
+
+A aba **Total** usa a MESMA rota e a MESMA conferência, com uma diferença: ela
+pontua pelo `fqr_vl` CRU, não pelo rótulo normalizado — rótulos diferentes
+colapsam no mesmo texto e o `respostaScore` precisa do código para dar a nota
+certa. Por isso a varredura devolve duas agregações (`ag` normalizada para as
+abas de bimestre, `agCru` para o Total).
+
+O nível `detalherede` (leque por escola dentro da Edge Function) continua
+escrito e é a reserva para o dia em que o filtro `turma` deixar de funcionar —
+aí a turma só existiria no nível Aluno, e cobrir a rede custaria **~300 MB de
+JSON por bimestre**. Ele NÃO está publicado; enquanto não estiver, a chamada
+responde 400 e a tela segue pela rota por turma.
+
+Fazer isso **no navegador** já foi tentado duas vezes e é inviável — baixar e
+desserializar ~3 MB por unidade na thread da interface travava a tela por
+minutos, **e o custo se repetia para cada pessoa**. ⚠️ Não reintroduza esse
+laço no front (o comentário em `_prefetchTurmasFicha` diz o mesmo).
+
+O nível `detalherede` (`POST { nivel:'detalherede', parms:{anoLetivo,bimestre} }`)
+faz o leque **dentro da Edge Function**, com concorrência 8, e devolve só o
+agregado: ~9 MB de JSON, **~600 kB comprimido**, servido do cache de 10 min
+para todos. É a diferença entre 300 MB por usuário e 600 kB compartilhados.
+
+Pontos que **não** são detalhe:
+
+- **A função não nomeia nada.** Devolve os campos crus
+  (`[uni_cod, per_cod, tur_cod, fnc_des, fne_des, fqr_vl, fqr_txt, qtd]`); a
+  normalização de unidade/disciplina/resposta continua só no front. Duplicá-la
+  no servidor criaria duas verdades que divergem em silêncio.
+- **`qtd` conta alunos DISTINTOS (REMA)**, nunca linhas — um item pode ter mais
+  de uma pergunta por aluno.
+- **Leques simultâneos são deduplicados** (`_emVoo`): sem isso, dez pessoas
+  abrindo a tela com o cache frio disparariam dez leques de 112 consultas.
+- **Resposta parcial não entra em cache nenhum** (nem na função, nem no
+  IndexedDB): congelar uma rede incompleta por 10 min esconderia unidades de
+  quem tem direito a elas. Parcial ainda é útil — o front mescla o que chegou
+  sobre o pacote agregado, que já tem os totais certos.
+- **Orçamento de 100 s**; o que não coube volta em `faltando` e continua
+  descendo por clique.
+- O front **degrada sozinho**: se o nível não estiver publicado, a chamada
+  responde 400 e a tela volta ao comportamento de detalhar por clique.
 
 Secrets: `CODERP_TOKEN` (obrigatório) e `CODERP_URL` (opcional; o padrão é o
 ambiente `dsv`).
@@ -334,6 +458,24 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
 - `?demo=0` desliga o modo demonstração, que também intercepta `fetch` e
   atrapalha diagnóstico de autenticação.
 
+### O cabeçalho é copiado em cada tela — e isso tem consequência
+
+Não há include: o `<header class="mg-header">` está escrito por extenso em cada
+`.html`. **Item novo no menu precisa entrar nas ~17 telas que o têm**, senão o
+usuário perde a navegação ao mudar de tela. Já aconteceu de o submenu ficar em
+três estados diferentes ao mesmo tempo.
+
+⚠️ **O CSS do submenu vem do `auth-guard.js`**, injetado antes do primeiro
+render para não haver flash. Seis telas redeclaram `.mg-dd-menu` na própria
+folha e, por especificidade, **vencem a regra compartilhada** — mexer só no
+`auth-guard.js` conserta 11 telas e deixa 6 para trás. Mexa nos dois lugares.
+
+⚠️ **Classe de item é `mg-dd-item`, e só.** Uma variação inventada
+(`mg-dd-item__ATIVO`) não casa com o seletor, o item perde o `display:flex` e
+os links viram texto corrido embolado — o menu continua "funcionando", então
+o defeito passa por revisão. A tela atual leva `mg-dd-item active`, uma por
+página.
+
 ---
 
 ## 7. Sistemas irmãos
@@ -345,6 +487,34 @@ integração é o mesmo descrito aqui.
 O **central** (`smedigital-desenv.github.io`) é o hub: catálogo de sistemas,
 telas, papéis, perfis e vínculos de escola. Alterações no modelo de permissão
 acontecem lá, não aqui.
+
+### Tela nova não existe até ser cadastrada no central
+
+Publicar o `.html` e criar as tabelas **não basta**. Enquanto a tela não estiver
+no catálogo do central e liberada para o perfil, ela não é alcançável — e o
+sintoma não diz isso: aparece como erro de permissão na tela, o que leva a
+procurar defeito nas policies do MAPA, que estão certas.
+
+No banco do **central** (projeto separado, não o do MAPA):
+
+```sql
+-- 1) uma linha por tela, no sistema 'mapa'
+insert into public.telas (sistema_id, slug, nome, ordem)
+select id, 'saresp', 'SARESP', 3 from public.sistemas where slug='mapa';
+
+-- 2) liberar para o perfil (perfil_tela: pode_ver / pode_editar / pode_exportar)
+insert into public.perfil_tela (perfil_id, tela_id, pode_ver, pode_editar, pode_exportar)
+select p.id, t.id, true, true, true
+  from public.perfis p, public.telas t
+ where p.auth_user_id = '<uuid do usuário>' and t.slug = 'saresp';
+```
+
+⚠️ A identidade em `perfis` é o **`auth_user_id` (uuid)**, não o `id` (bigint)
+da própria tabela — o join errado falha com `operator does not exist: uuid =
+bigint`. `sistemas` e `telas` identificam por **`slug`**, não por `codigo`.
+
+O `data-tela` no HTML das telas do MAPA é **decorativo** — hoje nada o lê. O
+gate de verdade é o do central.
 
 ---
 
