@@ -172,6 +172,42 @@ errado é a **contagem de alunos**, outra grandeza. Antes de religar, é preciso
 uma forma confiável de contar aluno por turma a partir do nível agregado — ou
 usar o nível aluno, que conta REMA distinto e é exato.
 
+### Como se conta ALUNO a partir do nível agregado — `alunosPorItens()`
+
+⚠️ **Esta é a regra que já errou duas vezes.** O mesmo defeito que derrubou a
+varredura por turma (acima) estava também na rota principal: em 2026-08 a tela
+mostrava **4.522 alunos no 1º bimestre contra 13.095 no 2º**, e o 2º só estava
+certo por acidente — a Ed. Especial ainda não havia sido lançada nele.
+
+A regra vive em `alunosPorItens()`, em `avaliacao.html`, e é usada nos **três**
+lugares que contam aluno pelo agregado (rota de rede, detalhe por turma e
+árvore do Total). Se você mexer em um, mexa nos três — ou melhor, mexa só na
+função.
+
+1. A soma de um item é `alunos × nº de perguntas daquele item` — um item pode
+   ter mais de uma pergunta por aluno (Ciências/Matéria e Energia tem 3).
+2. **Educação Especial e AEE ficam FORA da conta.** Elas atendem só parte da
+   turma, então quebram a premissa de que todo aluno responde todo item. Isso
+   NÃO as esconde da tela: elas continuam como disciplina e nos percentuais; o
+   que elas deixam de fazer é decidir quantos alunos existem.
+3. O **mínimo** entre os itens restantes identifica a escala de "um aluno por
+   resposta" — mas escolher o mínimo é escolher o item PIOR lançado. Então
+   entre os itens de pergunta única (soma abaixo de 1,5× o mínimo) vale o
+   **MAIOR**, que é o item mais completamente lançado.
+
+Medido contra a planilha oficial do 1º bimestre (13.626 alunos, 553 baldes
+unidade/ano/turma): o mínimo puro acerta 395 baldes e perde 580 alunos — 521
+deles só porque um item de Língua Portuguesa teve meia dúzia de lançamentos a
+menos que os demais da mesma turma. A regra atual acerta **533 dos 553** e,
+medido, **nunca conta acima do real** — os 20 restantes ficam abaixo, que é o
+lado seguro: aluno inventado é invisível, aluno faltando é reclamável.
+
+⚠️ O que sobra de diferença **não é defeito de código, é lançamento
+incompleto**. Não tente fechar os últimos 2% inflando a estimativa.
+
+⚠️ O nível **Aluno** conta REMA distinto e é exato — não precisa desta regra.
+Ela existe só porque cobrir a rede pelo nível aluno é inviável no navegador.
+
 ### O que `per_cod` traz, e por que a tela fica em 1º a 5º ano
 
 O `per_cod` (o ano escolar) devolve **18 valores distintos** quando a consulta

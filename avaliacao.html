@@ -7734,6 +7734,56 @@ function _renderTabelaTotal(linhas) {
     return !!v && !PER_COD_FORA.has(v);
   };
 
+  // ⚠️ Educação Especial e Atendimento Educacional Especializado NÃO podem
+  // participar da CONTAGEM DE ALUNOS. A contagem parte do item menos somado, e
+  // isso só vale porque todo aluno responde todo item — o que é FALSO para
+  // essas duas: elas atendem apenas os alunos com deficiência da turma. Com
+  // elas dentro, o piso da conta passa a ser o número de alunos do AEE.
+  //
+  // Medido na rede em 2026-08: o 1º bimestre mostrava 4.522 alunos (ALCINA
+  // com 68) contra 13.095 do 2º. O 2º bimestre só estava certo por acidente —
+  // a Ed. Especial ainda não havia sido lançada, e por isso não havia o que
+  // derrubar o piso.
+  //
+  // Isto NÃO esconde as duas disciplinas: elas continuam na tela e nos
+  // percentuais. O que elas deixam de fazer é decidir quantos alunos existem.
+  const _FORA_DA_CONTAGEM = /(EDUCACAOESPECIAL|EDUCACIONALESPECIALIZADO|ATENDIMENTOEDUCACIONAL)/;
+  const disciplinaContaAluno = d =>
+    !_FORA_DA_CONTAGEM.test(normalizar(String(d == null ? '' : d)).replace(/[^A-Z0-9]+/g, ''));
+
+  // Alunos de um balde unidade/ano/turma, a partir do mapa `disciplina||eixo ->
+  // soma`.
+  //
+  // A soma de um item é `alunos × nº de perguntas daquele item` (Ciências/
+  // Matéria e Energia tem 3 perguntas por aluno). O MÍNIMO entre os itens
+  // isola os de pergunta ÚNICA — mas, entre eles, escolhe justamente o PIOR
+  // lançado. Medido contra a planilha oficial do 1º bimestre (13.626 alunos
+  // em 553 baldes): o mínimo acerta 395 baldes e perde 580 alunos, dos quais
+  // 521 só porque um item de Língua Portuguesa ficou com meia dúzia de
+  // lançamentos a menos que os demais da mesma turma.
+  //
+  // Então o mínimo serve para IDENTIFICAR a escala de "um aluno por resposta"
+  // (item abaixo de 1,5× o mínimo tem uma pergunta só), e entre esses vale o
+  // MAIOR — o item mais completamente lançado. Isso acerta 533 dos 553 baldes
+  // e, medido, NUNCA conta acima do real: os 20 restantes ficam abaixo, que é
+  // o lado seguro. Inventar aluno seria invisível; faltar aluno é reclamável.
+  //
+  // Reserva: se NENHUM item for contável (turma só de Ed. Especial), a conta
+  // roda sobre todos os itens — zerar apagaria alunos que existem.
+  function alunosPorItens(itens) {
+    const contaveis = [], todos = [];
+    itens.forEach((qtd, ki) => {
+      todos.push(qtd);
+      if (disciplinaContaAluno(String(ki).split('||')[0])) contaveis.push(qtd);
+    });
+    const q = contaveis.length ? contaveis : todos;
+    if (!q.length) return 0;
+    const min = Math.min.apply(null, q);
+    let alunos = 0;
+    for (let i = 0; i < q.length; i++) if (q[i] < min * 1.5 && q[i] > alunos) alunos = q[i];
+    return alunos;
+  }
+
   function fichaApiAtiva() {
     try {
       if (new URLSearchParams(location.search).get('coderp') === '0') return false;
@@ -7921,6 +7971,83 @@ function _renderTabelaTotal(linhas) {
     (oficial || []).forEach(r => porDisc.set(r.fnc_des, (porDisc.get(r.fnc_des) || 0) + Number(r.qtd_alunos || 0)));
     console.log('[sonda rede] oficial por disciplina:', Object.fromEntries(porDisc));
     return { somaOficial, somaVarredura, dif, pct, porAno };
+  };
+
+  // ── Sonda: a API conta o mesmo aluno duas vezes? ──────────────────────────
+  // MEDIDO (2026-08, 1º bim, 5º ano): o arquivo oficial do CODERP tem 2.797
+  // alunos; o IndicadorTurma reporta 5.676 alunos-resposta para SETE
+  // disciplinas diferentes — o mesmo número para disciplinas de 1 item e de 2.
+  // Isso não fecha: se `qtd_alunos` contasse aluno por item, a de 2 itens teria
+  // o dobro da de 1.
+  //
+  // Hipótese a testar: mais de uma FICHA (fev_cod) por aluno no mesmo bimestre.
+  // O IndicadorTurma não devolve `fev_cod`; o IndicadorAluno devolve. Se cada
+  // aluno aparecer sob dois fev_cod, o agregado soma os dois e o arquivo cobre
+  // um — o que explicaria o ×2 e explicaria por que o efeito é maior onde há
+  // menos itens.
+  //
+  //   await MapaDiagDuplicidade(1, 44)     // bimestre, código CODERP da escola
+  window.MapaDiagDuplicidade = async function (bimestre, codEscola) {
+    bimestre = bimestre || 1;
+    if (!Number.isInteger(codEscola)) {
+      console.log('[dup] informe o código CODERP de uma escola: MapaDiagDuplicidade(1, 44)');
+      return;
+    }
+    const linhas = await chamarFichaApi('aluno',
+      { anoLetivo: fichaAnoLetivo(), bimestre, escola: codEscola })
+      .then(r => r.fichasAvaliacoes || [])
+      .catch(e => { console.log('[dup] IndicadorAluno falhou:', e.message); return []; });
+    if (!linhas.length) { console.log('[dup] sem linhas.'); return; }
+
+    const doAno = linhas.filter(r => String(r.per_cod || '').trim() === '5 ANO');
+    console.log(`[dup] escola ${codEscola}, bim ${bimestre}: ${linhas.length} linhas (${doAno.length} do 5º ano)`);
+
+    const remas = new Set(doAno.map(r => r.alu_rema));
+    const fev   = new Set(doAno.map(r => String(r.fev_cod)));
+    console.log(`[dup] alunos distintos (REMA): ${remas.size}`);
+    console.log(`[dup] fichas distintas (fev_cod): ${fev.size} — ${[...fev].join(', ')}`);
+
+    // Quantas fichas por aluno? Se a média for > 1, o agregado soma as duas.
+    const porAluno = new Map();
+    doAno.forEach(r => {
+      const s = porAluno.get(r.alu_rema) || new Set();
+      s.add(String(r.fev_cod)); porAluno.set(r.alu_rema, s);
+    });
+    const dist = new Map();
+    porAluno.forEach(s => dist.set(s.size, (dist.get(s.size) || 0) + 1));
+    console.log('[dup] alunos por quantidade de fichas:',
+      Object.fromEntries([...dist.entries()].sort()));
+
+    // O teste direto: agregar o nível ALUNO do mesmo jeito que a API agrega, e
+    // comparar com o que o IndicadorTurma diz para esta escola.
+    const ESP = new Set(['EDUCAÇÃO ESPECIAL', 'ATENDIMENTO EDUCACIONAL ESPECIALIZADO']);
+    const grupos = new Map();
+    doAno.filter(r => !ESP.has(r.fnc_des)).forEach(r => {
+      const k = [r.uni_cod, r.per_cod, r.tur_cod, r.fnc_des, r.fne_des, r.fqr_vl].join('||');
+      const s = grupos.get(k) || new Set(); s.add(r.alu_rema); grupos.set(k, s);
+    });
+    let somaAluno = 0; grupos.forEach(s => { somaAluno += s.size; });
+    console.log(`[dup] agregando o nível ALUNO (REMA distinto): ${grupos.size} grupos, ${somaAluno} alunos-resposta`);
+
+    const agg = (await chamarFichaApi('turma',
+      { anoLetivo: fichaAnoLetivo(), bimestre, escola: codEscola, anoescolar: '', turma: '' })
+      .then(r => r.fichasAvaliacoesTurma || []).catch(() => []))
+      .filter(r => String(r.per_cod || '').trim() === '5 ANO' && !ESP.has(r.fnc_des));
+    const somaAgg = agg.reduce((s, r) => s + Number(r.qtd_alunos || 0), 0);
+    console.log(`[dup] o que o IndicadorTurma diz:              ${agg.length} linhas, ${somaAgg} alunos-resposta`);
+
+    console.log('\n[dup] ── VEREDICTO ──');
+    if (!somaAluno) { console.log('[dup] sem dado de 5º ano nesta escola — tente outro código.'); return; }
+    const razao = somaAgg / somaAluno;
+    if (Math.abs(razao - 1) < 0.02) {
+      console.log('[dup] Os dois níveis batem. O agregado NÃO duplica — a diferença com o');
+      console.log('[dup] arquivo oficial está no arquivo, não na API.');
+    } else {
+      console.log(`[dup] O agregado é ${razao.toFixed(2)}x o nível aluno.`);
+      console.log('[dup] O nível ALUNO conta REMA distinto e é exato. Se a razão for ~2 e');
+      console.log('[dup] houver 2 fichas por aluno acima, a causa é a soma entre fichas.');
+    }
+    return { remas: remas.size, fichas: fev.size, somaAluno, somaAgg };
   };
 
   // ── Sonda: a API bate com o arquivo oficial do bimestre? ──────────────────
@@ -8465,14 +8592,12 @@ function _renderTabelaTotal(linhas) {
         + (comTurma ? ' Turmas vêm rotuladas neste nível — o leque por escola é desnecessário.' : ''));
     }
 
-    // Alunos por unidade/ano/turma: todo aluno tem resposta em todo item
-    // (inclusive "Não Avaliado"), mas um item pode ter MAIS DE UMA pergunta
-    // por aluno (ex.: Ciências/Matéria e Energia tem 3). A soma de um item é,
-    // portanto, alunos × nº de perguntas — e o MÍNIMO entre os itens (os de
-    // pergunta única) é o total de alunos. Conferido contra o nível aluno.
+    // Alunos por unidade/ano/turma — a regra e o porquê estão em
+    // alunosPorItens(). Em resumo: itens de pergunta única, o mais completo
+    // deles, e Ed. Especial/AEE fora da conta.
     const hierLinhas = Array.from(porItem.entries()).map(([kh, itens]) => {
       const partes = kh.split('||');
-      return [partes[0], partes[1], partes[2], Math.min.apply(null, Array.from(itens.values()))];
+      return [partes[0], partes[1], partes[2], alunosPorItens(itens)];
     });
 
     // ⚠️ Resposta VAZIA do CODERP não é um pacote válido. A API pode devolver
@@ -9285,12 +9410,13 @@ function _renderTabelaTotal(linhas) {
           if (!okUA.has(p[0] + '||' + p[1])) return;
           balde(p[0]).linhas.push([p[0], p[1], p[2], p[3], p[4], p[5], qtd]);
         });
-        // Alunos por turma = MÍNIMO entre os itens (um item pode ter mais de
-        // uma pergunta por aluno) — a mesma regra do nível agregado.
+        // Alunos por turma pela MESMA regra do nível agregado — ver
+        // alunosPorItens(): item de pergunta única, o mais completo, sem
+        // Ed. Especial/AEE.
         porItem.forEach((itens, kh) => {
           const p = kh.split('||');
           if (!okUA.has(p[0] + '||' + p[1])) return;
-          balde(p[0]).hierLinhas.push([p[0], p[1], p[2], Math.min.apply(null, Array.from(itens.values()))]);
+          balde(p[0]).hierLinhas.push([p[0], p[1], p[2], alunosPorItens(itens)]);
         });
 
         if (divergentes.length) {
@@ -9636,12 +9762,13 @@ function _renderTabelaTotal(linhas) {
             });
           });
           if (porUA.size) {
-            // alunos por unidade/ano/bimestre = mínimo entre itens; por
+            // alunos por unidade/ano/bimestre = mínimo entre os itens contáveis
+            // (Ed. Especial e AEE ficam de fora — ver alunosPorItens); por
             // unidade fica o MAIOR bimestre (aluno conta uma vez, não 4).
             const porU = new Map();  // unidade||ano||turma -> max alunos entre bimestres
             porUA.forEach((itens, kh) => {
               const p = kh.split('||');
-              const alunos = Math.min.apply(null, Array.from(itens.values()));
+              const alunos = alunosPorItens(itens);
               const kU = p[0] + '||' + p[1] + '||' + p[2];
               porU.set(kU, Math.max(porU.get(kU) || 0, alunos));
             });
