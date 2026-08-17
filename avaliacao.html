@@ -7795,6 +7795,81 @@ function _renderTabelaTotal(linhas) {
     return _fichaTurmaMemo.get(k);
   }
 
+  // ── Totais oficiais da REDE (/IndicadorRede) ──────────────────────────────
+  // É a ÚNICA fonte independente dos totais que a API oferece: uma chamada por
+  // bimestre, sem abrir por unidade. A conferência que já existe compara o
+  // detalhe por turma contra a soma da própria rota — ou seja, o dado se
+  // confere contra ele mesmo. Este nível permite perguntar outra coisa: o que
+  // a tela mostra bate com o consolidado do CODERP?
+  //
+  // ⚠️ NÃO substitui a varredura por turma. O /IndicadorRede não devolve
+  // `uni_cod` (medido na documentação: só nro_bim, fnc_*, fne_*, fqr_*,
+  // qtd_alunos), então não abre por unidade — e a tela precisa das 112.
+  //
+  // ⚠️ E não é comparável linha a linha com a varredura sem cuidado: ele não
+  // aceita filtro de ano escolar, logo cobre a rede municipal INTEIRA,
+  // enquanto a varredura cobre 1º a 5º ano. Se a rede tiver anos além desses,
+  // o total daqui é MAIOR por definição, e isso não é defeito. Por isso a
+  // comparação abaixo é registrada, não usada para invalidar nada.
+  const _fichaRedeMemo = new Map();
+  function fichaTotaisRede(bimestre) {
+    const k = String(bimestre);
+    if (!_fichaRedeMemo.has(k)) {
+      _fichaRedeMemo.set(k,
+        chamarFichaApi('rede', { anoLetivo: fichaAnoLetivo(), bimestre: bimestre })
+          .then(r => r.fichasAvaliacoesRede || [])
+          .catch(err => {
+            if (err && err.coderpStatus === 404) return [];   // bimestre sem lançamento
+            _fichaRedeMemo.delete(k);
+            throw err;
+          }));
+    }
+    return _fichaRedeMemo.get(k);
+  }
+
+  // Soma crua (alunos-resposta) de um conjunto de linhas agregadas.
+  const somaQtd = rows => (rows || []).reduce((s, r) => s + Number(r.qtd_alunos || 0), 0);
+
+  // Sonda: compara o consolidado oficial com o que a varredura por turma
+  // agrega. Rode `MapaDiagRede(1)` no console. Enquanto não soubermos se os
+  // dois recortes são comparáveis, o número da rede NÃO vai para a tela.
+  window.MapaDiagRede = async function (bimestre) {
+    bimestre = bimestre || 1;
+    const anoLetivo = fichaAnoLetivo();
+    console.log(`[sonda rede] ${anoLetivo}, bimestre ${bimestre} — consultando…`);
+
+    const oficial = await fichaTotaisRede(bimestre).catch(e => {
+      console.log('[sonda rede] /IndicadorRede falhou:', e.message); return null;
+    });
+    if (!oficial) return;
+    const somaOficial = somaQtd(oficial);
+    console.log(`[sonda rede] /IndicadorRede: ${oficial.length} linhas, ${somaOficial} alunos-resposta`);
+
+    let somaVarredura = 0;
+    const porAno = {};
+    for (const a of FICHA_ANOS_ESCOLARES) {
+      const rows = await fichaRedeTurma(bimestre, a).catch(() => []);
+      const s = somaQtd(rows);
+      porAno[a] = s; somaVarredura += s;
+      console.log(`[sonda rede]   ${a}: ${rows.length} linhas, ${s} alunos-resposta`);
+    }
+    console.log(`[sonda rede] varredura (1º a 5º): ${somaVarredura} alunos-resposta`);
+
+    const dif = somaOficial - somaVarredura;
+    const pct = somaOficial ? (dif / somaOficial * 100) : 0;
+    console.log(`[sonda rede] diferença: ${dif} (${pct.toFixed(1)}% do oficial)`);
+    if (Math.abs(pct) < 0.5)      console.log('[sonda rede] VEREDICTO: batem — a rede é só 1º a 5º ano, e a varredura a cobre inteira.');
+    else if (dif > 0)             console.log('[sonda rede] VEREDICTO: o oficial é MAIOR. Esperado se a rede tem anos além de 1º–5º. Confira o quanto antes de tratar como erro.');
+    else                          console.log('[sonda rede] VEREDICTO: a varredura é MAIOR que o oficial — isso NÃO tem explicação benigna. Investigar dupla contagem.');
+
+    // Onde a diferença se concentra, por disciplina — ajuda a distinguir
+    // "anos a mais" (diferença espalhada) de erro (diferença concentrada).
+    const porDisc = new Map();
+    (oficial || []).forEach(r => porDisc.set(r.fnc_des, (porDisc.get(r.fnc_des) || 0) + Number(r.qtd_alunos || 0)));
+    console.log('[sonda rede] oficial por disciplina:', Object.fromEntries(porDisc));
+    return { somaOficial, somaVarredura, dif, pct, porAno };
+  };
+
   // ── Rede aberta por TURMA, sem leque por escola ───────────────────────────
   // MEDIDO (2026-08, 2º bim): o `IndicadorTurma` NÃO devolve `tur_cod`
   // (28.141 linhas, zero rotuladas), mas RESPEITA o filtro `turma` — as
