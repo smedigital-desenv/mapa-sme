@@ -148,6 +148,8 @@ function injetarCSS(){
      casasDif   : casas decimais da diferença
      unidadeDif : ' pp' | ' pts' | ''
      colunas    : [{id, t, v:linha=>número, fmt, ord:bool}]  colunas extras
+                  (ou função (filtros, linhas) => [...], para colunas que
+                  dependem do recorte ou de haver dado)
      filtros    : [{id, rotulo, opcoes:()=>[{v,t}]}]
      carregar   : filtros => Promise<{linhas:[{escola, valor, ref, cols}],
                                       rotuloRef?, aviso?}>
@@ -280,7 +282,10 @@ function montarControles(){
    ordenação leem daqui, senão saem de sincronia. */
 function extras(){
   var c = cfg.colunas;
-  if(typeof c === 'function') c = c(filtros);
+  // Recebe também as linhas já carregadas: há coluna que só faz sentido quando
+  // ALGUMA unidade tem o dado (a meta do IDEB não existe em toda edição), e uma
+  // coluna inteira de '—' não informa nada — só ocupa a tela e sugere avaria.
+  if(typeof c === 'function') c = c(filtros, LINHAS);
   return c || [];
 }
 

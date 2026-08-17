@@ -342,14 +342,17 @@ function instalarComparativo(){
       {id:'etapa', rotulo:'Etapa', opcoes: () => [{v:'',t:'Ambas (média)'}].concat(
         ETAPAS.map(([sig,nome]) => ({v:sig, t:nome})))}
     ],
-    colunas: [
-      {id:'meta', t:'Meta', v:l=>l.cols.meta, fmt:v=>nf(v)},
-      {id:'vsMeta', t:'× meta', v:l=>(l.valor==null||l.cols.meta==null)?null:l.valor-l.cols.meta,
-       fmt:v=>{ const r=Number(v.toFixed(1));
-                const cor = r>0 ? '#166534' : (r<0 ? '#b91c1c' : '#64748b');
-                return '<span style="font-weight:800;color:'+cor+'">'
-                     + (r>0?'▲ ':(r<0?'▼ ':'= '))+nf(Math.abs(r))+'</span>'; }}
-    ],
+    // A meta não existe em toda edição — o INEP publica metas até 2021, e numa
+    // edição sem meta as duas colunas saíam inteiras de '—'. Coluna vazia não
+    // é informação: some quando nenhuma unidade do recorte tem meta.
+    colunas: (f, linhas) => (linhas || []).some(l => l.cols.meta != null)
+      ? [{id:'meta', t:'Meta', v:l=>l.cols.meta, fmt:v=>nf(v)},
+         {id:'vsMeta', t:'× meta', v:l=>(l.valor==null||l.cols.meta==null)?null:l.valor-l.cols.meta,
+          fmt:v=>{ const r=Number(v.toFixed(1));
+                   const cor = r>0 ? '#166534' : (r<0 ? '#b91c1c' : '#64748b');
+                   return '<span style="font-weight:800;color:'+cor+'">'
+                        + (r>0?'▲ ':(r<0?'▼ ':'= '))+nf(Math.abs(r))+'</span>'; }}]
+      : [{id:'n', t:'Etapas', v:l=>l.cols.n, fmt:v=>String(v)}],
     carregar: async f => {
       const ano = Number(f.ano);
       if(!ano) return {linhas:[]};
@@ -368,6 +371,13 @@ function instalarComparativo(){
            + 'etapas</b>. A cor mede a distância relativa da rede; a coluna <b>× meta</b> '
            + 'mostra a distância da meta da própria escola, que é a régua oficial. '
            + 'Clique no nome da unidade para abrir a série histórica dela.'
+           + '<br>⚠️ Com <b>Ambas</b>, a coluna Rede <b>muda de unidade para unidade</b>, e é '
+           + 'para isso que ela existe: quem só tem Anos Iniciais é comparado com a rede dos '
+           + 'Anos Iniciais; quem tem as duas, com a média das duas. Uma referência única '
+           + 'favoreceria a escola sem Anos Finais pela etapa que ela não oferece — os Anos '
+           + 'Finais puxam qualquer média para baixo. Pelo mesmo motivo o ranking pelo IDEB '
+           + 'cru mistura coberturas diferentes: para ordenar de forma comparável, escolha '
+           + '<b>uma etapa</b> ou ordene pela coluna <b>Dif.</b>'
   });
 }
 
