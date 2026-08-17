@@ -25,8 +25,14 @@
   --borda-forte:rgba(255,255,255,.18);
 
   --texto:#E6EEF4;
-  --texto-2:#94A0AB;
-  --texto-3:#8996A3;
+  /* ⚠️ Os dois tons de apoio são MEDIDOS, não escolhidos a olho. Sobre a
+     superfície mais clara (--superficie-2, rgba(255,255,255,.075)) os valores
+     antigos davam 4,55:1 e 4,26:1 — o terciário reprovava no mínimo de 4,5:1
+     da WCAG AA, e ele é justamente quem pinta o cabeçalho de TODA tabela do
+     sistema. Hoje: 5,4:1 e 4,9:1 no pior fundo, com a hierarquia preservada
+     (o terciário continua mais apagado que o secundário). */
+  --texto-2:#A3AFBB;
+  --texto-3:#95A2AF;
 
   --acento:#45D6F2;
   --acento-rgb:69,214,242;
@@ -959,22 +965,50 @@ th{
 /* ─── 12. FUNDOS CLAROS EM style= ───────────────────────── */
 /* Dezenas de elementos trazem a cor no atributo style, que vence qualquer
    folha de estilo. Só um seletor de atributo com !important alcança. */
-[style*="#fff"],[style*="#FFF"],[style*="#f8fafc"],[style*="#f1f5f9"],
-[style*="#e2e8f0"],[style*="#eef2ff"],[style*="#f5f7ff"],[style*="#f9fafb"],
-[style*="#f3f4f6"],[style*="#eef4ff"],[style*="white"]{
+/* ⚠️ Ancore o branco à PROPRIEDADE, nunca ao valor solto. `[style*="#fff"]`
+   também casa com `color:#ffffff`, e foi isso que apagou a escala de cores das
+   telas de avaliação: as duas faixas extremas — verde-escuro #15803d e
+   vermelho #b91c1c — são as únicas com tinta branca, então eram justamente a
+   melhor e a pior situação que perdiam o fundo e viravam cinza. Medido em
+   2026-08 com dados de teste: 17 células nas cinco telas de avaliação, mais os
+   cabeçalhos verdes (#198754) da Atribuição e das Avaliações e o botão azul
+   (#0ea5e9) do Boletim.
+   O sufixo ` i` cobre #FFF, #FFFFFF e WHITE sem multiplicar seletor. */
+[style*="background:#fff" i],[style*="background: #fff" i],
+[style*="background-color:#fff" i],[style*="background-color: #fff" i],
+[style*="background:white" i],[style*="background: white" i],
+[style*="background-color:white" i],[style*="background-color: white" i],
+[style*="#f8fafc" i],[style*="#f1f5f9" i],
+[style*="#e2e8f0" i],[style*="#eef2ff" i],[style*="#f5f7ff" i],[style*="#f9fafb" i],
+[style*="#f3f4f6" i],[style*="#eef4ff" i]{
   background-color:var(--superficie) !important;
   color:var(--texto) !important;
 }
-/* avisos mantêm a matiz semântica, só trocam o preenchimento */
-[style*="#fee2e2"],[style*="#fef2f2"]{
-  background-color:rgba(240,119,107,.12) !important;
-  color:var(--critico) !important;
+/* Os cabeçalhos de modal escrevem `background:var(--primary);color:#fff`, e
+   --primary aqui é TINTA clara (seção 13) — sem esta regra eles ficariam
+   branco sobre branco. Antes só não quebravam por causa do casamento acidental
+   com "#fff" que a correção acima desfez. São 16 telas. */
+[style*="background:var(--primary)" i]{
+  background:#101C26 !important;
+  color:var(--texto) !important;
 }
-[style*="#fef3c7"],[style*="#fffbeb"]{
+/* ⚠️ Estado tem MATIZ, e a matiz é o dado. As três pílulas do Relatório
+   Executivo (#e4f5ea atendida, #fbeed3 pendência, #fbe2e2 fora) caíam todas na
+   regra genérica de fundo claro e saíam com a MESMA superfície cinza: três
+   situações diferentes com a mesma aparência, distinguíveis só pelo texto.
+   Elas entram nos grupos semânticos abaixo, junto das grafias que já estavam. */
+/* avisos mantêm a matiz semântica, só trocam o preenchimento */
+[style*="#fee2e2"],[style*="#fef2f2"],[style*="#fbe2e2"]{
+  background-color:rgba(240,119,107,.12) !important;
+  /* um passo mais claro que --critico: medido sobre o cartão, o token puro
+     dava 4,32:1, abaixo do mínimo. */
+  color:#F3948B !important;
+}
+[style*="#fef3c7"],[style*="#fffbeb"],[style*="#fbeed3"]{
   background-color:rgba(232,181,74,.12) !important;
   color:var(--atencao) !important;
 }
-[style*="#dcfce7"],[style*="#f0fdf4"]{
+[style*="#dcfce7"],[style*="#f0fdf4"],[style*="#e4f5ea"]{
   background-color:rgba(63,214,154,.12) !important;
   color:var(--ok) !important;
 }
@@ -1047,3 +1081,98 @@ tr:hover > td,tr.selecionada > td,tr.ativa > td,
   border-color:var(--acento) !important;
   color:var(--acento-tinta) !important;
 }
+
+/* ─── 14. IDENTIDADE POR COR: O QUE NÃO PODE VIRAR CINZA ──────────────────── */
+
+/* ⚠️ Os ladrilhos dos cartões do portal trazem a cor da FAMÍLIA do sistema no
+   style=, e a regra de fundo claro os igualava: catorze cartões com o mesmo
+   tom de acento, distinguíveis só pelo glifo. Cor que identifica entidade não
+   é decoração — é o que faz a pessoa achar o sistema de sempre sem ler.
+
+   ⚠️ Devolver a cor CHAPADA não serve, e isso foi medido: sobre #0ea5e9 o
+   glifo de acento fica em 1,60:1 e o branco em 2,77:1, os dois abaixo do
+   mínimo de 3:1 para elemento gráfico. A matiz entra como VÉU (22%) sobre o
+   fundo escuro e o glifo recebe um passo claro da mesma matiz — identidade
+   preservada, 4,6–5,4:1 de contraste. Mesmo padrão das pílulas de estado. */
+.ic[style*="#0284c7" i]{ background:rgba(2,132,199,.22)  !important; color:#4DA8D7 !important; }
+.ic[style*="#059669" i]{ background:rgba(5,150,105,.22)  !important; color:#50B596 !important; }
+.ic[style*="#0ea5e9" i]{ background:rgba(14,165,233,.22) !important; color:#56C0EF !important; }
+.ic[style*="#7c3aed" i]{ background:rgba(124,58,237,.22) !important; color:#B088F4 !important; }
+.ic[style*="#d97706" i]{ background:rgba(217,119,6,.22)  !important; color:#E49F50 !important; }
+.ic[style*="#0d9488" i]{ background:rgba(13,148,136,.22) !important; color:#55B4AB !important; }
+.ic[style*="#0891b2" i]{ background:rgba(8,145,178,.22)  !important; color:#52B2C9 !important; }
+.ic[style] > i{ color:inherit !important; }
+
+/* As etiquetas de assunto do portal saíam em TRÊS tratamentos ao mesmo tempo:
+   umas claras como no tema claro (#e0f2fe não estava na lista), outras cinza e
+   uma âmbar. Todas passam a ser véu da própria matiz, como as pílulas. */
+/* ⚠️ A tinta é medida contra o fundo REAL do elemento, não contra o fundo da
+   página: estas etiquetas ficam dentro de cartões (--superficie-2), que são
+   mais claros, e o mesmo tom que dava 5,2:1 sobre a página caía para 4,0:1
+   ali dentro. Os passos abaixo já saem calculados sobre o cartão. */
+[style*="#e0f2fe" i]{ background-color:rgba(90,169,240,.14) !important; color:#7EBBF3 !important; }
+[style*="#d1fae5" i]{ background-color:rgba(63,214,154,.14) !important; color:#3FD69A !important; }
+[style*="#ede9fe" i]{ background-color:rgba(169,139,239,.16) !important; color:#C4B0F4 !important; }
+
+/* ⚠️ Os chips de nível da Fluência Leitora reprovavam em AA — e reprovam
+   TAMBÉM na tela em produção, não é efeito da pele escura. Medido com texto
+   branco: Pré-leitor N3 2,15:1, Fluente 2,54:1, Iniciante 3,68:1, Pré-leitor
+   N2 3,78:1, Pré-leitor N4 4,47:1, contra o mínimo de 4,5:1.
+
+   A correção segue o que a escala TRI já faz nesta rede: a PALETA não muda,
+   muda a tinta. Cada chip recebe a própria matiz levada quase ao preto —
+   4,7 a 6,1:1 — e a cor continua legível como cor.
+
+   ⚠️ Dois casos não se resolvem só pela tinta:
+   · Pré-leitor N3 (#F59E0B) é claro o bastante para o extrair-claros.py o ter
+     classificado como fundo claro, então ele chegava aqui já CINZA — tinta
+     escura sobre cinza escuro deu 1,05:1 na primeira tentativa. O fundo é
+     devolvido junto com a tinta;
+   · Pré-leitor N4 (#6366F1) está na zona morta: nem branco (4,47) nem preto
+     (4,70) passam com folga. Ali o fundo escurece 10% e o branco fica. */
+.chip-fluente  { color:#043324 !important; }
+.chip-iniciante{ color:#0B1A31 !important; }
+.chip-pre2     { color:#330019 !important; }
+.chip-pre3     { background:#F59E0B !important; color:#442C03 !important; }
+.chip-pre4     { background:#595BD8 !important; color:#fff !important; }
+
+/* ─── 15. AJUSTES FINOS MEDIDOS ───────────────────────────────────────────── */
+
+/* ⚠️ Medido com o Bootstrap REALMENTE carregado — sem ele a medição mente, e
+   erramos isso uma vez: um botão sem regra cai no cinza padrão do navegador e
+   aparenta 1,6:1 que na página de verdade não existe.
+   O que sobra depois de medir direito é um caso só: o filtro "Não atribuídas"
+   da Atribuição fica em 4,03:1 com o token --critico puro, abaixo do mínimo de
+   4,5:1. Um passo mais claro leva a 5,1:1. Os irmãos verdes já passavam
+   (6,0:1 e 7,6:1) e por isso NÃO têm regra aqui. */
+.btn-outline-danger{ color:#F1877C !important; }
+
+/* Cabeçalho do Boletim Estatístico: ele imita papel timbrado, com o navy
+   #002b5e cravado na tinta do nome da Prefeitura e cinza #64748B no da
+   Secretaria. Sobre a superfície escura isso deu 1,02:1 e 2,98:1 — o nome do
+   órgão era praticamente invisível. Passa a usar os tokens de tinta. */
+.be-org b{ color:var(--texto) !important; }
+.be-org span{ color:var(--texto-2) !important; }
+
+/* Os botões do mesmo cabeçalho têm fundo de cor viva (ciano #00b8d4, âmbar
+   #ffd166) e herdavam a tinta clara do tema: 2,03:1. Com a tinta escura do
+   acento vão a 7,0:1 e 11,6:1, e a cor do botão continua dizendo o que diz. */
+.be-btn{ color:var(--acento-tinta) !important; }
+
+/* Cabeçalhos de modal com cor de estado: o verde #198754 e o vermelho #ef4444
+   vêm do tema claro, onde o título é branco puro. Sob a tinta gelo do tema
+   escuro davam 3,86:1 e 3,21:1. Um passo mais escuro da MESMA matiz resolve
+   sem trocar a cor de significado: 5,1:1 e 5,2:1.
+   ⚠️ Ancorado à propriedade de propósito — #ef4444 também aparece como BORDA
+   em botões cujo fundo já é tratado, e casar pelo valor solto os repintaria. */
+[style*="background:#198754" i],[style*="background: #198754" i],
+[style*="background-color:#198754" i],[style*="background-color: #198754" i]{
+  background-color:#157247 !important;
+}
+[style*="background:#ef4444" i],[style*="background: #ef4444" i],
+[style*="background-color:#ef4444" i],[style*="background-color: #ef4444" i]{
+  background-color:#B33333 !important;
+}
+
+/* Linha de meta do Boletim Estatístico: cinza #64748B cravado, 3,37:1. */
+.be-metaline{ color:var(--texto-2) !important; }
