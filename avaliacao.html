@@ -3832,7 +3832,7 @@ function _setAnoFiltroAtualSeguro(ano, btn) {
 // Total zerava. v11 = arvoreLinhas com [unidade, ano, turma, alunos].
 function _chavePacoteTotal(filtrosBase) {
   filtrosBase = filtrosBase || {};
-  return ['pacoteTotal_supa_v11_arvalunos', filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacoteTotal_supa_v12_diageixo', filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _backendTemPacoteTotal() {
@@ -10140,18 +10140,35 @@ function _renderTabelaTotal(linhas) {
           alunosArv.set(kU, Math.max(alunosArv.get(kU) || 0, alunosPorItens(itens)));
         });
       }
-      // A Diagnóstica traz uma linha por ALUNO — conta direto, e vale o maior
-      // entre as duas fontes.
-      const diagArv = new Map();
+      // ⚠️ A Diagnóstica NÃO tem uma linha por aluno: tem uma por aluno × EIXO
+      // (Leitura, Escrita, Produção Textual…). Contar linhas multiplicava a
+      // turma pelo número de eixos — a ALCINA aparecia com 1.938 alunos onde o
+      // 1º bimestre mostra 232, e o fator variava por ano justamente porque o
+      // número de eixos lançados varia.
+      //
+      // A mesma regra dos itens resolve sem precisar do REMA: cada eixo tem
+      // uma linha por aluno, então a soma de um eixo JÁ É o número de alunos.
+      const diagItens = new Map();   // unidade||ano||turma -> (eixo -> linhas)
       (alunosRows || []).forEach(r => {
         const u = cleanUnit(r.nome_unidade || 'Sem unidade');
         const a = normalizar(r.ano_escolar || 'TODOS') || 'TODOS';
         const t = String(r.turma || 'Sem turma').trim().toUpperCase();
         if (!passaFiltros(u, a, t)) return;
         const k = [u, a, t].join('||');
-        diagArv.set(k, (diagArv.get(k) || 0) + 1);
+        if (!diagItens.has(k)) diagItens.set(k, new Map());
+        const itens = diagItens.get(k);
+        const ki = String(r.descricao_fne || 'Sem eixo');
+        itens.set(ki, (itens.get(ki) || 0) + 1);
       });
-      diagArv.forEach((n, k) => alunosArv.set(k, Math.max(alunosArv.get(k) || 0, n)));
+      // ⚠️ A Diagnóstica NÃO eleva a contagem: ela só preenche turma que os
+      // bimestres não cobrem. O número da lateral do Total tem de ser o MESMO
+      // das abas de bimestre — se a Diagnóstica pudesse ganhar, o Total
+      // apareceria maior sem que houvesse mais aluno lançado no bimestre, e a
+      // pessoa veria dois números diferentes para a mesma turma.
+      diagItens.forEach((itens, k) => {
+        if (alunosArv.has(k)) return;
+        alunosArv.set(k, alunosPorItens(itens));
+      });
 
       if (pacote) {
         const linhas = Array.from(ag.entries()).map(([k, v]) => {

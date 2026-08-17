@@ -359,6 +359,18 @@ versão fez a tela ler `al[3]` de um pacote que não a tinha — a lateral do
 Total zerou, sem erro nenhum no console. `_isPacoteTotalValido()` hoje recusa
 pacote com `arvoreLinhas` de menos de 4 colunas, como cinto de segurança.
 
+⚠️ **A tabela `alunos` (Diagnóstica) NÃO tem uma linha por aluno: tem uma por
+aluno × EIXO.** Contar linhas ali multiplicou a turma pelo número de eixos — a
+ALCINA apareceu com **1.938** alunos onde o 1º bimestre mostra 232, e o fator
+variava por ano porque o número de eixos lançados varia. A mesma regra dos
+itens resolve sem precisar do REMA: cada eixo tem uma linha por aluno, então a
+soma de um eixo já É o número de alunos.
+
+⚠️ **A Diagnóstica não eleva a contagem do Total**: ela só preenche turma que
+os bimestres não cobrem. O número da lateral do Total tem de ser o MESMO das
+abas de bimestre — decisão da SME —, senão a mesma turma aparece com dois
+números conforme a aba.
+
 A sonda `MapaDiagTotal([texto da unidade])` mostra o que a tela está lendo:
 quantas colunas o pacote tem, os alunos por ano e turma, e avisa se a turma
 agregada `'—'` está convivendo com turmas reais (dupla contagem).
