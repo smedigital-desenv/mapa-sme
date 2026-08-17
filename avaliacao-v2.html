@@ -8459,6 +8459,97 @@ function _renderTabelaTotal(linhas) {
   // Sonda: compara o consolidado oficial com o que a varredura por turma
   // agrega. Rode `MapaDiagRede(1)` no console. Enquanto não soubermos se os
   // dois recortes são comparáveis, o número da rede NÃO vai para a tela.
+  // ── Sonda: a contagem estimada bate com a EXATA? ──────────────────────────
+  // A contagem por unidade/ano/turma é uma ESTIMATIVA feita sobre o nível
+  // agregado (ver alunosPorItens). O nível ALUNO conta REMA distinto e é
+  // exato, mas só é viável para UMA escola por vez — o que basta para calibrar.
+  //
+  // Esta sonda põe os dois lado a lado e, para a turma que mais erra, mostra o
+  // mapa de itens que a regra recebeu. É com esse mapa que se decide a regra;
+  // sem ele, qualquer ajuste é chute.
+  //
+  //   await MapaDiagContagem('ALCINA', 1)
+  window.MapaDiagContagem = async function (nomeOuCod, bimestre) {
+    bimestre = bimestre || 1;
+    const catalogo = await fichaCatalogo();
+    let cod = null;
+    if (Number.isInteger(nomeOuCod)) cod = nomeOuCod;
+    else {
+      const alvo = normalizar(String(nomeOuCod || ''));
+      catalogo.forEach((nome, c) => { if (cod === null && normalizar(cleanUnit(nome)).includes(alvo)) cod = c; });
+    }
+    if (cod === null) { console.log('[contagem] unidade não encontrada no catálogo.'); return; }
+    const uNome = cleanUnit(catalogo.get(cod) || String(cod));
+    console.log('[contagem] ' + uNome + ' (cod ' + cod + '), bimestre ' + bimestre);
+
+    const t0 = performance.now();
+    // ── EXATO: nível aluno, REMA distinto ───────────────────────────────────
+    let fichas = null;
+    try { fichas = await fichaFichasEscola(bimestre, cod); }
+    catch (e) { console.log('[contagem] nível aluno indisponível: ' + (e && e.message)); return; }
+    const exato = new Map();          // ano||turma -> Set(rema)
+    (fichas || []).forEach(r => {
+      const k = (normalizar(r.per_cod || '') || 'TODOS') + '||'
+              + (String(r.tur_cod || '—').trim().toUpperCase() || '—');
+      if (!exato.has(k)) exato.set(k, new Set());
+      exato.get(k).add(r.alu_rema);
+    });
+
+    const tAluno = performance.now() - t0;
+    // ── ESTIMADO: nível agregado, exatamente como a tela monta ──────────────
+    const t1 = performance.now();
+    const itensPor = new Map();       // ano||turma -> (disciplina||eixo -> soma)
+    for (const a of FICHA_ANOS_ESCOLARES) {
+      let rows = null;
+      try { rows = await fichaRedeTurma(bimestre, a); } catch (e) { continue; }
+      (rows || []).filter(r => Number(r.uni_cod) === cod).forEach(r => {
+        const qtd = Number(r.qtd_alunos || 0);
+        if (!qtd) return;
+        const k = normalizar(a) + '||' + (String(r.tur_cod || '').trim().toUpperCase() || '—');
+        if (!itensPor.has(k)) itensPor.set(k, new Map());
+        const m = itensPor.get(k);
+        const ki = normalizarDisciplina(corrigirTextoLegivel(r.fnc_des || '') || 'Sem disciplina')
+                 + '||' + corrigirTextoLegivel(r.fne_des || 'Sem eixo');
+        m.set(ki, (m.get(ki) || 0) + qtd);
+      });
+    }
+
+    const tAgreg = performance.now() - t1;
+    console.log('[contagem] tempo: nível aluno ' + Math.round(tAluno) + ' ms, '
+      + 'agregado ' + Math.round(tAgreg) + ' ms'
+      + (tAgreg > 4000 ? '  ⚠️ o agregado está lento — as respostas deveriam vir do cache' : ''));
+
+    const linhas = [];
+    let somaExato = 0, somaEstim = 0, pior = null;
+    const chaves = new Set([...exato.keys(), ...itensPor.keys()]);
+    Array.from(chaves).sort().forEach(k => {
+      const ex = exato.has(k) ? exato.get(k).size : 0;
+      const es = itensPor.has(k) ? alunosPorItens(itensPor.get(k)) : 0;
+      somaExato += ex; somaEstim += es;
+      const p = k.split('||');
+      linhas.push({ ano: p[0], turma: p[1], exato: ex, estimado: es, dif: es - ex,
+                    itens: itensPor.has(k) ? itensPor.get(k).size : 0 });
+      if (ex && (!pior || Math.abs(es - ex) > Math.abs(pior.es - pior.ex))) pior = { k, ex, es };
+    });
+    console.table(linhas);
+    console.log('[contagem] EXATO (REMA distinto): ' + somaExato
+      + '   ESTIMADO (regra da tela): ' + somaEstim
+      + '   ' + (somaExato ? ((somaEstim - somaExato) / somaExato * 100).toFixed(1) + '%' : ''));
+
+    if (pior) {
+      console.log('\n[contagem] mapa de itens da turma que mais erra (' + pior.k
+        + ' — exato ' + pior.ex + ', estimado ' + pior.es + '):');
+      const m = itensPor.get(pior.k) || new Map();
+      const arr = Array.from(m.entries()).map(([ki, v]) => ({ item: ki.replace('||', ' / '), soma: v }))
+        .sort((a, b) => a.soma - b.soma);
+      console.table(arr);
+      console.log('[contagem] É deste mapa que a regra tira o número. Se o valor certo ('
+        + pior.ex + ') não estiver entre as somas acima, nenhuma regra sobre ele acerta —');
+      console.log('[contagem] o problema estaria no que a API devolve, não na conta.');
+    }
+    return { exato: somaExato, estimado: somaEstim, turmas: linhas };
+  };
+
   // ── Sonda: como o dado está CHEGANDO da API ───────────────────────────────
   // Responde três perguntas em sequência, que juntas separam "a API mandou
   // menos" de "a tela contou menos":

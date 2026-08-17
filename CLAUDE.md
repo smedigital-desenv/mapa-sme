@@ -429,6 +429,14 @@ incompleto**. Não tente fechar os últimos 2% inflando a estimativa.
 ⚠️ O nível **Aluno** conta REMA distinto e é exato — não precisa desta regra.
 Ela existe só porque cobrir a rede pelo nível aluno é inviável no navegador.
 
+⚠️ **Calibre a regra contra o exato, nunca no olho.** `MapaDiagContagem(unidade,
+bimestre)` põe os dois lado a lado para UMA escola — exato (REMA distinto do
+nível aluno) × estimado (a regra sobre o agregado) — e, para a turma que mais
+erra, imprime o mapa de itens que a regra recebeu, com o tempo de cada etapa.
+Se o número certo não estiver entre as somas desse mapa, nenhuma regra sobre
+ele acerta e o problema está no que a API devolve. Três ajustes de heurística
+foram feitos sem esse dado e os três erraram o alvo.
+
 ### O que `per_cod` traz, e por que a tela fica em 1º a 5º ano
 
 O `per_cod` (o ano escolar) devolve **18 valores distintos** quando a consulta
