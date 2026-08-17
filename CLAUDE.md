@@ -51,34 +51,47 @@ médios (`#65a30d`, `#ca8a04`, `#ea580c`) o texto branco fica em 2,94–3,56:1,
 abaixo do mínimo de 4,5:1; com tinta escura sobe para 5,0–6,1:1. A paleta é a
 mesma — não volte o texto para branco "para uniformizar".
 
-### 🚫 Distribuição de nível não usa rosca — usa faixa + legenda
+### A rosca da Diagnóstica tem DOIS anéis — o de fora é o alvo de clique
 
-As três distribuições da Diagnóstica (Leitura, Escrita, Produção Textual) eram
-roscas e **não são mais**. Não "melhore" isso devolvendo a pizza.
+As três distribuições da Diagnóstica (Leitura, Escrita, Produção Textual) são
+roscas, **por decisão da SME**. O que mudou foi como se clica nelas.
 
-O defeito não era o tamanho do gráfico: **numa rosca a área de clique é
-proporcional ao dado**, e a categoria que mais interessa é justamente a menor.
-`L. Fluente` com 5 alunos em 2.432 é **0,7° de arco** — inclicável, e *pior
-quanto melhor a rede fica*. Aumentar a rosca só adia o problema.
+O defeito original: **numa rosca comum a área de clique é proporcional ao
+dado**, e a categoria que mais interessa é justamente a menor. Medido em
+`avaliacao.html` com os números da rede: `L. Fluente`, 5 alunos em 2.432, ocupa
+**0,68° de arco**. É inclicável — e fica *pior quanto melhor a rede fica*.
 
-O que existe hoje, em `avaliacao.html`:
+⚠️ Duas saídas erradas, já descartadas: **aumentar a rosca** (0,68° continua
+0,68°, o ângulo não depende do raio) e **inflar a fatia mínima** (mentiria na
+proporção, que é a única coisa que a rosca faz).
 
-- `htmlFaixaComposicao()` — barra 100% empilhada, **só leitura**, na ordem do
-  nível (N1 → N4 → Iniciante → Fluente). Além de resolver o alvo, devolve a
-  leitura de progressão que a rosca destruía: ângulo não tem começo nem fim.
-- `htmlLegendaColorida()` — as linhas da legenda são o alvo de clique, com
-  **altura fixa de 44px+** (`.legend-alvo`), igual para quem tem 1.372 alunos e
-  para quem tem 5. A magnitude vai para uma barrinha dentro da linha, que não
-  custa alvo nenhum.
+A saída é separar as duas funções que a rosca acumulava — `_roscaAlunos()`:
 
-⚠️ `min-width` nos trechos da faixa e na barrinha é **de propósito**: sem ele a
-categoria de 0,2% desaparece, e "quase nada" não é o mesmo que "nada". Distorce
-menos de 1% da faixa, e o número exato está na legenda ao lado.
+| anel | dataset | o que é |
+|---|---|---|
+| interno | 1 | **o dado**, exatamente proporcional. Nada é ajustado para caber |
+| externo | 0 | **a seleção**: uma fatia IGUAL por categoria (360°/n), na cor dela |
+
+⚠️ No Chart.js o **dataset 0 é o anel de FORA** — inverter a ordem põe o atalho
+por baixo do dado e desfaz o conserto.
+
+Medido: o menor alvo sai de **0,68° para 47,2°** (69×), e um teste de clique
+real acerta **7/7** categorias, inclusive a de 5 alunos. As linhas da legenda
+também são alvo, com altura fixa de 44px+ (`.legend-alvo`), igual para quem tem
+1.372 alunos e para quem tem 5.
+
+⚠️ Detalhes que **não** são enfeite: o anel externo guarda `1` em cada posição,
+então o tooltip **tem** de ler o valor real do array de dados (senão mostra
+"1 aluno"); os `datalabels` saem só no anel do dado; e categoria com zero aluno
+não entra em nenhum dos dois — ocuparia um atalho que não leva a lugar nenhum.
 
 A paleta de `COR_FIXA` **não** foi mexida: ela é a linguagem visual da rede
 (badges, tabelas, outras telas). Ela é um arco-íris sobre uma escala ordinal —
 o certo seria um degradê de um só tom —, mas trocá-la é decisão da SME, não
 efeito colateral de um ajuste de usabilidade.
+
+⚠️ As roscas **por eixo** e as de **detalhe por pergunta** (mesma tela) ainda
+são de anel único: têm o alvo proporcional e só a legenda para clicar.
 
 ---
 

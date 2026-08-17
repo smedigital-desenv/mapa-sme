@@ -293,39 +293,6 @@
     box-shadow: 0 0 0 3px rgba(0,43,94,.18);
   }
 
-  /* ── FAIXA DE COMPOSIÇÃO ─────────────────────────────────────────────────
-     Substitui a rosca nas distribuições de nível (Leitura, Escrita, Produção
-     Textual).
-
-     ⚠️ NÃO volte para rosca/pizza. O problema não era o tamanho do gráfico:
-     numa rosca a área de clique é PROPORCIONAL AO DADO, e a categoria que mais
-     interessa é justamente a menor. 'L. Fluente' com 5 alunos em 2.432 é 0,7°
-     de arco — impossível de acertar com o mouse, e PIOR quanto melhor a rede
-     fica. Aumentar a rosca não resolve; só adia.
-
-     A faixa é só LEITURA (mostra a proporção e mantém a ordem do nível, que a
-     rosca destruía ao virar ângulo). Quem seleciona é a legenda abaixo, onde
-     toda linha tem a MESMA altura, independente de ter 1.372 alunos ou 5. */
-  .faixa-comp {
-    display: flex; gap: 2px; width: 100%; height: 34px;
-    margin: 6px 0 2px;
-  }
-  .faixa-seg {
-    /* min-width garante que a categoria de 0,2% continue VISÍVEL. Distorce a
-       proporção em menos de 1% da faixa — e o número exato está na legenda. */
-    min-width: 6px; border-radius: 4px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: .68rem; font-weight: 800; overflow: hidden;
-    transition: filter .12s, transform .12s;
-  }
-  .faixa-seg.realce { filter: brightness(1.12); transform: scaleY(1.16); }
-  .faixa-escala {
-    display: flex; justify-content: space-between; gap: 8px;
-    font-size: .62rem; color: #94a3b8; font-weight: 700; letter-spacing: .04em;
-    margin-bottom: 4px;
-  }
-  .faixa-escala > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
   /* ── LINHA DE LEGENDA COMO ALVO DE CLIQUE ────────────────────────────────
      44px é o mínimo recomendado para alvo de toque. Toda categoria tem a mesma
      altura de propósito: é o que desamarra o alvo do tamanho do dado. */
@@ -3292,41 +3259,6 @@ function _htmlLegenda(fne, pergunta, contagem) {
   return htmlLegendaColorida(fne, pergunta, contagem);
 }
 
-// ── Faixa de composição ────────────────────────────────────────────────────
-// Uma barra 100% empilhada, na ORDEM DO NÍVEL (N1 → N4 → Iniciante → Fluente).
-// Ler a rede vira ler da esquerda para a direita: quanto mais massa à direita,
-// mais avançada. A rosca não conseguia mostrar isso — ângulo não tem começo.
-//
-// ⚠️ A faixa NÃO é clicável de propósito. Ver o comentário do CSS: alvo de
-// clique proporcional ao dado é o defeito que estamos consertando.
-function htmlFaixaComposicao(fne, contagem, alvoId) {
-  const rotulos = _ordenarRotulosDiag(_fneChave(fne), Object.keys(contagem || {}));
-  const total = rotulos.reduce((s, l) => s + Number(contagem[l] || 0), 0);
-  if (!total) {
-    return '<div class="faixa-comp"><span class="faixa-seg" style="flex:1;background:#e2e8f0;color:#64748b;">sem dados</span></div>';
-  }
-
-  const segs = rotulos.filter(l => Number(contagem[l] || 0) > 0).map(l => {
-    const qtd = Number(contagem[l] || 0);
-    const pct = (qtd / total) * 100;
-    const cor = getCorParaRotulo(l);
-    // O rótulo só entra quando cabe; quem não cabe é lido na legenda abaixo,
-    // que mostra o número exato de toda categoria — nada fica só no hover.
-    const texto = pct >= 9 ? Math.round(pct) + '%' : '';
-    return `<span class="faixa-seg" data-seg="${escapeHtml(String(alvoId || ''))}"
-      data-label="${escapeHtml(l)}"
-      style="flex:${qtd} 1 0;background:${cor};color:${getTextColor(cor)};"
-      title="${escapeHtml(l)}: ${qtd.toLocaleString('pt-BR')} alunos · ${pct.toFixed(1)}%">${texto}</span>`;
-  }).join('');
-
-  return `<div class="faixa-comp" role="img"
-      aria-label="Distribuição de ${escapeHtml(fne || '')}: ${escapeHtml(
-        rotulos.filter(l => contagem[l] > 0)
-               .map(l => l + ' ' + Math.round((contagem[l] / total) * 100) + '%').join(', '))}"
-      >${segs}</div>
-    <div class="faixa-escala"><span>${escapeHtml(rotulos[0] || '')}</span><span>${escapeHtml(rotulos.filter(l => l !== 'Não Avaliado' && l !== 'Sem Dado').slice(-1)[0] || '')}</span></div>`;
-}
-
 // _ordenarRotulosDiag usa 'PROD'; a legenda usa 'PRODUCAO TEXTUAL'.
 function _fneChave(fne) {
   const f = String(fne || '').toUpperCase();
@@ -3392,11 +3324,6 @@ function htmlLegendaColorida(fne, pergunta, contagem, link) {
 const _legendActions = {};   // canvasId -> (label) => void
 
 function _realcarFatia(canvasId, label, ativo) {
-  // Faixa de composição: passar o mouse na legenda acende o trecho dela. É o
-  // mesmo gesto de antes; só o desenho mudou.
-  document.querySelectorAll('.faixa-seg[data-seg="' + (window.CSS && CSS.escape ? CSS.escape(canvasId) : canvasId) + '"]')
-    .forEach(s => s.classList.toggle('realce', ativo && s.dataset.label === label));
-
   const ch = (window.Chart && Chart.getChart) ? Chart.getChart(canvasId) : null;
   if (!ch) return;
   const idx = (ch.data.labels || []).indexOf(label);
@@ -3406,10 +3333,16 @@ function _realcarFatia(canvasId, label, ativo) {
     ch.update();
     return;
   }
-  ch.setActiveElements([{ datasetIndex: 0, index: idx }]);
+  // Acende TODOS os anéis da categoria. Nas roscas com anel de seleção são
+  // dois (atalho + dado); acender só um deixaria o outro apagado e daria a
+  // impressão de que o realce errou de fatia.
+  const alvos = (ch.data.datasets || []).map((_, di) => ({ datasetIndex: di, index: idx }));
+  ch.setActiveElements(alvos);
   try {
-    const meta = ch.getDatasetMeta(0).data[idx];
-    if (ch.tooltip && meta) ch.tooltip.setActiveElements([{ datasetIndex: 0, index: idx }], meta.tooltipPosition());
+    // O tooltip ancora no anel do DADO quando ele existe (é o que tem área).
+    const dsTip = ch.data.datasets.length > 1 ? 1 : 0;
+    const meta = ch.getDatasetMeta(dsTip).data[idx];
+    if (ch.tooltip && meta) ch.tooltip.setActiveElements([{ datasetIndex: dsTip, index: idx }], meta.tooltipPosition());
   } catch (e) {}
   ch.update();
 }
@@ -4823,24 +4756,24 @@ function prepararLayoutDiagnostica(titulo) {
           <div class="col-md-4">
             <div class="bg-white border rounded-3 shadow-sm p-3 d-flex flex-column" style="border-left:4px solid #002b5e!important;">
               <h6 class="fw-bold mb-2 text-primary text-center m-0">Leitura</h6>
-              <div id="faixaAlunosL"></div>
-              <div class="text-center mt-2 small text-muted"><i class="bi bi-hand-index me-1"></i>Clique na linha da categoria para ver os alunos</div>
+              <div class="chart-canvas-wrapper"><canvas id="alunosBarChart"></canvas></div>
+              <div class="text-center mt-2 small text-muted"><i class="bi bi-hand-index me-1"></i>Clique para ver os alunos<br><span style="font-size:.92em;opacity:.85;">O <b>anel externo</b> é atalho: uma fatia igual por categoria. A proporção real é a do <b>anel interno</b>.</span></div>
               <div id="legAlunosL">${_htmlLegenda('LEITURA', null)}</div>
             </div>
           </div>
           <div class="col-md-4">
             <div class="bg-white border rounded-3 shadow-sm p-3 d-flex flex-column" style="border-left:4px solid #002b5e!important;">
               <h6 class="fw-bold mb-2 text-primary text-center m-0">Escrita</h6>
-              <div id="faixaAlunosE"></div>
-              <div class="text-center mt-2 small text-muted"><i class="bi bi-hand-index me-1"></i>Clique na linha da categoria para ver os alunos</div>
+              <div class="chart-canvas-wrapper"><canvas id="alunosPieChart"></canvas></div>
+              <div class="text-center mt-2 small text-muted"><i class="bi bi-hand-index me-1"></i>Clique para ver os alunos<br><span style="font-size:.92em;opacity:.85;">O <b>anel externo</b> é atalho: uma fatia igual por categoria. A proporção real é a do <b>anel interno</b>.</span></div>
               <div id="legAlunosE">${_htmlLegenda('ESCRITA', null)}</div>
             </div>
           </div>
           <div class="col-md-4">
             <div class="bg-white border rounded-3 shadow-sm p-3 d-flex flex-column" style="border-left:4px solid #002b5e!important;">
               <h6 class="fw-bold mb-2 text-primary text-center m-0">Produção Textual</h6>
-              <div id="faixaAlunosP"></div>
-              <div class="text-center mt-2 small text-muted"><i class="bi bi-hand-index me-1"></i>Clique na linha da categoria para ver os alunos</div>
+              <div class="chart-canvas-wrapper"><canvas id="alunosProdChart"></canvas></div>
+              <div class="text-center mt-2 small text-muted"><i class="bi bi-hand-index me-1"></i>Clique para ver os alunos<br><span style="font-size:.92em;opacity:.85;">O <b>anel externo</b> é atalho: uma fatia igual por categoria. A proporção real é a do <b>anel interno</b>.</span></div>
               <div id="legAlunosP">${_htmlLegenda('PRODUCAO TEXTUAL', null)}</div>
             </div>
           </div>
@@ -5062,31 +4995,125 @@ function _ordenarRotulosDiag(fne, rotulos) {
   });
 }
 
-// ⚠️ Estes três painéis NÃO usam mais rosca — usam faixa de composição +
-// legenda como alvo de clique. O motivo está no CSS de .faixa-comp: numa rosca
-// o alvo é proporcional ao dado, e a categoria mais importante (os leitores
-// fluentes) é justamente a menor. Não "volte a pizza para ficar bonito".
+// ═══════════════════════════════════════════════════════════════════════════
+// ROSCA COM ANEL DE SELEÇÃO
+//
+// ⚠️ O problema que este desenho resolve: numa rosca comum a ÁREA DE CLIQUE é
+// proporcional ao dado, e a categoria que mais interessa é justamente a menor.
+// 'L. Fluente' com 5 alunos em 2.432 dá 0,7° de arco — inclicável. E fica PIOR
+// quanto melhor a rede fica, porque a categoria alvo continua pequena.
+//
+// A saída NÃO é aumentar a rosca (0,7° continua 0,7°) e NÃO é inflar a fatia
+// mínima — isso mentiria na proporção, que é a única coisa que a rosca faz.
+//
+// A saída é separar as duas funções que a rosca acumulava:
+//
+//   • anel INTERNO  = o dado. Continua exatamente proporcional.
+//   • anel EXTERNO  = a seleção. Uma fatia IGUAL por categoria (360°/n), na
+//                     cor da categoria. Com 7 categorias são ~51° para cada
+//                     uma — a de 5 alunos tem o mesmo alvo da de 1.372.
+//
+// Clicar em qualquer um dos dois anéis (ou na legenda) abre a mesma lista.
+// ⚠️ Não "unifique os anéis para ficar mais limpo": é o anel externo inteiro
+// que torna a rosca utilizável.
+// ═══════════════════════════════════════════════════════════════════════════
 function renderAlunosCharts(countsL, countsE, countsP) {
-  const _faixa = (id, fne, cObj, cv) => {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = htmlFaixaComposicao(fne, cObj, cv);
-  };
-  _faixa('faixaAlunosL', 'LEITURA', countsL, 'faixaLeitura');
-  _faixa('faixaAlunosE', 'ESCRITA', countsE, 'faixaEscrita');
-  _faixa('faixaAlunosP', 'PRODUCAO TEXTUAL', countsP, 'faixaProducao');
+  _roscaAlunos('alunosBarChart', 'LEITURA',          countsL, 'L');
+  _roscaAlunos('alunosPieChart', 'ESCRITA',          countsE, 'E');
+  _roscaAlunos('alunosProdChart', 'PRODUCAO TEXTUAL', countsP, 'P');
 
-  // As ações continuam as mesmas: clicar numa categoria abre a lista de alunos.
-  // O que mudou foi ONDE se clica — numa linha de 44px, não numa lasca de arco.
-  _legendActions['faixaLeitura']  = l => abrirModalAlunos('L', l);
-  _legendActions['faixaEscrita']  = l => abrirModalAlunos('E', l);
-  _legendActions['faixaProducao'] = l => abrirModalAlunos('P', l);
   const _legAluno = (id, fne, cObj, cv) => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = htmlLegendaColorida(fne, null, cObj, { canvasId: cv });
   };
-  _legAluno('legAlunosL', 'LEITURA', countsL, 'faixaLeitura');
-  _legAluno('legAlunosE', 'ESCRITA', countsE, 'faixaEscrita');
-  _legAluno('legAlunosP', 'PRODUCAO TEXTUAL', countsP, 'faixaProducao');
+  _legAluno('legAlunosL', 'LEITURA', countsL, 'alunosBarChart');
+  _legAluno('legAlunosE', 'ESCRITA', countsE, 'alunosPieChart');
+  _legAluno('legAlunosP', 'PRODUCAO TEXTUAL', countsP, 'alunosProdChart');
+}
+
+function _roscaAlunos(canvasId, fne, contagem, tipo) {
+  const cv = document.getElementById(canvasId);
+  if (!cv || !window.Chart) return;
+  const anterior = Chart.getChart(canvasId);
+  if (anterior) anterior.destroy();
+
+  // Só categorias COM aluno entram: uma categoria zerada não tem o que abrir,
+  // e ocuparia um atalho do anel externo sem levar a lugar nenhum.
+  const rotulos = _ordenarRotulosDiag(_fneChave(fne), Object.keys(contagem || {}))
+    .filter(l => Number(contagem[l] || 0) > 0);
+  const valores = rotulos.map(l => Number(contagem[l] || 0));
+  const cores   = rotulos.map(l => getCorParaRotulo(l));
+  const total   = valores.reduce((a, b) => a + b, 0);
+  if (!rotulos.length) return;
+
+  _legendActions[canvasId] = l => abrirModalAlunos(tipo, l);
+
+  new Chart(cv, {
+    type: 'doughnut',
+    data: {
+      labels: rotulos,
+      rawLabels: rotulos,
+      datasets: [
+        // dataset 0 = anel EXTERNO. No Chart.js o primeiro dataset é o de fora.
+        // Todos os valores iguais a 1 de propósito: é o que dá a toda categoria
+        // o mesmo alvo, independentemente de ter 5 alunos ou 1.372.
+        {
+          label: 'seletor',
+          data: rotulos.map(() => 1),
+          backgroundColor: cores,
+          borderWidth: 2, borderColor: '#ffffff',
+          weight: 0.62, hoverOffset: 10, hoverBorderWidth: 3
+        },
+        // dataset 1 = o DADO, proporcional. Nada aqui é ajustado para caber.
+        {
+          label: 'dados',
+          data: valores,
+          backgroundColor: cores,
+          borderWidth: 2, borderColor: '#ffffff',
+          weight: 2.5, hoverOffset: 14, hoverBorderWidth: 4
+        }
+      ]
+    },
+    options: {
+      maintainAspectRatio: false,
+      layout: { padding: 14 },
+      spacing: 2,
+      cutout: '34%',
+      // 'nearest' + intersect:false: o ponteiro não precisa cair DENTRO do
+      // arco, basta ser o mais próximo. Ajuda as fatias finas do anel interno.
+      interaction: { mode: 'nearest', intersect: false },
+      onClick: (event, elements, chart) => {
+        if (!elements.length) return;
+        const rot = (chart.data.rawLabels || [])[elements[0].index];
+        if (rot) abrirModalAlunos(tipo, rot);
+      },
+      onHover: (event, elements) => {
+        const alvo = event && event.native && event.native.target;
+        if (alvo) alvo.style.cursor = elements.length ? 'pointer' : 'default';
+      },
+      plugins: {
+        legend: { display: false },
+        datalabels: {
+          // Só no anel do dado: o anel externo é atalho, não é informação.
+          display: ctx => ctx.datasetIndex === 1 &&
+                          total > 0 && (valores[ctx.dataIndex] / total) >= 0.04,
+          color: ctx => getTextColor(cores[ctx.dataIndex]),
+          font: { weight: 'bold', size: 12 },
+          formatter: (v) => Math.round((v / total) * 100) + '%'
+        },
+        tooltip: {
+          callbacks: {
+            // O anel externo guarda 1, não o valor. O texto tem de vir sempre
+            // do dado real, senão o atalho mostraria "1 aluno".
+            label: c => (c.chart.data.rawLabels || [])[c.dataIndex] + ': '
+                      + (valores[c.dataIndex] || 0).toLocaleString('pt-BR') + ' alunos'
+                      + (total ? ' · ' + ((valores[c.dataIndex] / total) * 100).toFixed(1) + '%' : ''),
+            title: c => (c[0] && c[0].datasetIndex === 0) ? 'Atalho de seleção' : ''
+          }
+        }
+      }
+    }
+  });
 }
 
 
