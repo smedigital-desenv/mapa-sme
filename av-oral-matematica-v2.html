@@ -73,6 +73,10 @@
     td.c .rd{font-size:.62rem;font-weight:800;color:inherit;opacity:.85;margin-top:1px;display:none;}
     body.op-rede td.c .rd{display:block;}
     .colRede{display:none;} body.op-rede .colRede{display:table-cell;}
+    /* Colunas que só existem se o catálogo estiver preenchido. Com ele vazio a
+       tela some com elas: mostrar uma coluna inteira de "não cadastrado" para
+       toda a rede é ruído, não informação. */
+    body.sem-catalogo .colCat{display:none;}
     /* Barra de % de acerto — mesma leitura da tela da Diagnóstica: a barra dá a
        grandeza de relance, o número dá o valor exato. O tick é a rede. */
     .barwrap{background:#eef1f6;border-radius:6px;height:16px;position:relative;overflow:hidden;min-width:90px;}
@@ -187,7 +191,7 @@
 
   <div class="secLabel">Desempenho por habilidade</div>
   <div class="card2"><table class="ad"><thead><tr>
-    <th style="width:9%">Código</th><th style="width:37%">O que a habilidade avalia</th>
+    <th style="width:9%">Código</th><th class="colCat" style="width:37%">O que a habilidade avalia</th>
     <th style="width:26%">% de acerto (escola)</th><th style="width:10%">Escola</th>
     <th class="colRede" style="width:9%">Rede</th><th class="colRede" style="width:9%">Dif.</th>
   </tr></thead><tbody id="habB"></tbody></table></div>
@@ -196,8 +200,8 @@
 
   <div class="secLabel">Desempenho por item</div>
   <div class="card2"><table class="ad"><thead><tr>
-    <th style="width:6%">Item</th><th style="width:10%">Habilidade</th>
-    <th style="width:30%">O que o item avalia</th>
+    <th style="width:6%">Item</th><th class="colCat" style="width:10%">Habilidade</th>
+    <th class="colCat" style="width:30%">O que o item avalia</th>
     <th style="width:26%">% de acerto (escola)</th><th style="width:10%">Escola</th>
     <th class="colRede" style="width:9%">Rede</th><th class="colRede" style="width:9%">Dif.</th>
   </tr></thead><tbody id="itemB"></tbody></table></div>
@@ -273,8 +277,16 @@ async function carregarRede(){
   // faz é inventar o texto: um descritor errado é pior que nenhum, porque a
   // rede inteira leria como se fosse o oficial.
   CATALOGO=new Map(((cat&&cat.data)||[]).map(r=>[r.tipo+'|'+r.chave, r]));
+  aplicarCatalogo();
 }
 const doCatalogo = (tipo,chave) => CATALOGO.get(tipo+'|'+chave) || {};
+// Esconde as colunas do catálogo quando NENHUM descritor está preenchido — não
+// quando a tabela está vazia. Ela pode existir com as 34 linhas e a coluna
+// descritor toda nula, que é justamente o estado logo depois de criá-la.
+function aplicarCatalogo(){
+  const algum = Array.from(CATALOGO.values()).some(c => c && c.descritor);
+  document.body.classList.toggle('sem-catalogo', !algum);
+}
 
 async function selecionar(nome){
   atual=ESCOLAS.find(e=>e.escola===nome)||{escola:nome};
@@ -347,13 +359,12 @@ function corpoMetrica(tipo, alvo){
     const larg=v==null?0:Math.max(0,Math.min(100,v*100));
     const c=doCatalogo(tipo, m.chave);
     if(!c.descritor) semDescritor++;
-    const desc = c.descritor
-      ? '<td class="des">'+esc(c.descritor)+'</td>'
-      : '<td class="des sem">descritor não cadastrado</td>';
+    const desc = '<td class="des colCat'+(c.descritor?'':' sem')+'">'
+               + (c.descritor ? esc(c.descritor) : '—') + '</td>';
     // No item, mostrar a habilidade que ele mede é o que permite ler
     // "o item foi mal, e ele mede a D006_J".
     const colHab = tipo==='item'
-      ? '<td class="cod">'+esc(c.cod_habilidade||'—')+'</td>' : '';
+      ? '<td class="cod colCat">'+esc(c.cod_habilidade||'—')+'</td>' : '';
     return '<tr><td class="cod">'+esc(m.chave)+'</td>'+colHab+desc
       + '<td><div class="barwrap"><div class="barfill" style="width:'+larg+'%;background:'+f.bg+'"></div>'
       + (rd!=null?'<div class="tick" style="left:'+Math.max(0,Math.min(100,rd*100))+'%"></div>':'')
@@ -366,19 +377,25 @@ function corpoMetrica(tipo, alvo){
   avisarDescritor(tipo, semDescritor, linhas.length);
 }
 
-/* O aviso é deliberado e visível: sem ele a tela mostraria "D007_J" e a pessoa
-   ficaria sem saber se o código é o nome oficial da habilidade ou uma falha de
-   carga. Some sozinho quando o catálogo é preenchido. */
+/* O aviso serve a quem pode preencher o catálogo, não a quem só lê a tela.
+   Por isso três estados, e não dois:
+     · catálogo VAZIO   — some com as colunas e não avisa nada. É o estado de
+                          hoje; anunciá-lo à rede inteira seria ruído.
+     · PARCIALMENTE cheio — avisa. Meio preenchido é inconsistência de verdade,
+                          e alguém precisa terminar.
+     · completo         — mostra e cala.
+   Em todos os casos o console registra, para quem estiver procurando. */
 function avisarDescritor(tipo, sem, total){
   const el=document.getElementById(tipo==='habilidade'?'legHab':'legItem');
   if(!el) return;
   const base = tipo==='habilidade'
     ? 'Da habilidade mais frágil para a mais forte. Ligue “Comparar com a rede” para ver a marca da rede sobre a barra.'
     : 'Uma linha por item da prova, na ordem de aplicação.';
-  el.innerHTML = base + (sem
-    ? ' <b style="color:#b45309">'+sem+' de '+total+' sem descritor cadastrado</b> — '
-      + 'os códigos aparecem sozinhos até que o catálogo seja preenchido.'
+  const vazio = sem === total;
+  el.innerHTML = base + ((sem && !vazio)
+    ? ' <b style="color:#b45309">'+sem+' de '+total+' sem descritor cadastrado.</b>'
     : '');
+  if(sem) console.info('av_oral_catalogo: '+sem+' de '+total+' '+tipo+'(s) sem descritor.');
 }
 
 (function(){
