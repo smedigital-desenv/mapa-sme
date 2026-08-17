@@ -293,6 +293,33 @@
     box-shadow: 0 0 0 3px rgba(0,43,94,.18);
   }
 
+  /* ── ETIQUETAS EXTERNAS DA ROSCA (linha de chamada) ──────────────────────
+     A fatia miúda não vira alvo; ela ganha uma linha até uma etiqueta aqui
+     fora, e a etiqueta é que se clica. Ver _desenharChamadas(). */
+  .callout-camada { position: absolute; inset: 0; pointer-events: none; }
+  .callout-camada > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .callout-linha { stroke: #94a3b8; stroke-width: 1; fill: none; }
+  .callout-ponto { fill: #94a3b8; }
+  .callout-chip {
+    position: absolute; pointer-events: auto; cursor: pointer;
+    box-sizing: border-box;   /* a largura reservada em JS é a largura final */
+    display: flex; align-items: center; gap: 6px;
+    min-height: 38px; padding: 5px 7px;
+    background: #ffffff; border: 1px solid #dbe5ef; border-radius: 9px;
+    box-shadow: 0 1px 4px rgba(15,23,42,.10);
+    font-size: .62rem; line-height: 1.22; transition: box-shadow .12s, border-color .12s;
+  }
+  .callout-chip:hover, .callout-chip:focus-visible {
+    border-color: #00b8d4; box-shadow: 0 0 0 3px rgba(0,43,94,.18); outline: none;
+  }
+  .callout-cor {
+    width: 11px; height: 11px; min-width: 11px; border-radius: 3px;
+    border: 1px solid rgba(0,0,0,.08);
+  }
+  .callout-txt { min-width: 0; }
+  .callout-chip b { display: block; color: #0f172a; font-weight: 800; }
+  .callout-n { color: #475569; font-weight: 700; }
+
   /* ── LINHA DE LEGENDA COMO ALVO DE CLIQUE ────────────────────────────────
      44px é o mínimo recomendado para alvo de toque. Toda categoria tem a mesma
      altura de propósito: é o que desamarra o alvo do tamanho do dado. */
@@ -4996,31 +5023,26 @@ function _ordenarRotulosDiag(fne, rotulos) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ROSCA COM ANEL DE SELEÇÃO
+// ROSCA COM ETIQUETAS EXTERNAS (linha de chamada)
 //
-// ⚠️ O problema que este desenho resolve: numa rosca comum a ÁREA DE CLIQUE é
+// ⚠️ O problema que este desenho resolve: numa rosca a ÁREA DE CLIQUE é
 // proporcional ao dado, e a categoria que mais interessa é justamente a menor.
-// 'L. Fluente' com 5 alunos em 2.432 dá 0,7° de arco — inclicável. E fica PIOR
-// quanto melhor a rede fica, porque a categoria alvo continua pequena.
+// Medido com os números da rede: 'L. Fluente', 5 alunos em 2.432, ocupa
+// 0,68° de arco. É inclicável — e fica PIOR quanto melhor a rede fica.
 //
-// A saída NÃO é aumentar a rosca (0,7° continua 0,7°) e NÃO é inflar a fatia
-// mínima — isso mentiria na proporção, que é a única coisa que a rosca faz.
+// ⚠️ Duas saídas erradas, já descartadas: AUMENTAR a rosca (0,68° continua
+// 0,68°, ângulo não depende de raio) e INFLAR a fatia mínima (mentiria na
+// proporção, que é a única coisa que a rosca faz).
 //
-// A saída é separar as duas funções que a rosca acumulava:
-//
-//   • anel INTERNO  = o dado. Continua exatamente proporcional.
-//   • anel EXTERNO  = a seleção. Uma fatia IGUAL por categoria (360°/n), na
-//                     cor da categoria. Com 7 categorias são ~51° para cada
-//                     uma — a de 5 alunos tem o mesmo alvo da de 1.372.
-//
-// Clicar em qualquer um dos dois anéis (ou na legenda) abre a mesma lista.
-// ⚠️ Não "unifique os anéis para ficar mais limpo": é o anel externo inteiro
-// que torna a rosca utilizável.
+// A saída é tirar o alvo de dentro do arco: a fatia miúda ganha uma linha de
+// chamada até uma ETIQUETA fora da rosca, com nome e número, e a etiqueta é
+// que se clica. A rosca fica intacta e sem nada em volta; as fatias grandes
+// continuam clicáveis nelas mesmas. A legenda abaixo segue como alvo também.
 // ═══════════════════════════════════════════════════════════════════════════
 function renderAlunosCharts(countsL, countsE, countsP) {
-  _roscaAlunos('alunosBarChart', 'LEITURA',          countsL, 'L');
-  _roscaAlunos('alunosPieChart', 'ESCRITA',          countsE, 'E');
-  _roscaAlunos('alunosProdChart', 'PRODUCAO TEXTUAL', countsP, 'P');
+  _roscaAlunos('alunosBarChart',  'LEITURA',           countsL, 'L');
+  _roscaAlunos('alunosPieChart',  'ESCRITA',           countsE, 'E');
+  _roscaAlunos('alunosProdChart', 'PRODUCAO TEXTUAL',  countsP, 'P');
 
   const _legAluno = (id, fne, cObj, cv) => {
     const el = document.getElementById(id);
@@ -5031,56 +5053,61 @@ function renderAlunosCharts(countsL, countsE, countsP) {
   _legAluno('legAlunosP', 'PRODUCAO TEXTUAL', countsP, 'alunosProdChart');
 }
 
+// Abaixo deste percentual a fatia é fina demais para servir de alvo e passa a
+// ter etiqueta externa. 5% de 360° são 18° — cerca de 25px de arco na borda,
+// que ainda dá para acertar; abaixo disso, não.
+const _CHAMADA_LIMITE = 0.05;
+
 function _roscaAlunos(canvasId, fne, contagem, tipo) {
   const cv = document.getElementById(canvasId);
   if (!cv || !window.Chart) return;
   const anterior = Chart.getChart(canvasId);
   if (anterior) anterior.destroy();
 
-  // Só categorias COM aluno entram: uma categoria zerada não tem o que abrir,
-  // e ocuparia um atalho do anel externo sem levar a lugar nenhum.
+  // Só categorias COM aluno: uma categoria zerada não tem lista para abrir.
   const rotulos = _ordenarRotulosDiag(_fneChave(fne), Object.keys(contagem || {}))
     .filter(l => Number(contagem[l] || 0) > 0);
+  if (!rotulos.length) return;
   const valores = rotulos.map(l => Number(contagem[l] || 0));
   const cores   = rotulos.map(l => getCorParaRotulo(l));
   const total   = valores.reduce((a, b) => a + b, 0);
-  if (!rotulos.length) return;
 
   _legendActions[canvasId] = l => abrirModalAlunos(tipo, l);
+
+  // Quais fatias vão precisar de etiqueta, e de que lado da rosca elas caem.
+  // Dá para saber ANTES de desenhar: o Chart.js começa em -90° (topo) e anda
+  // no sentido horário. Preciso disso agora porque a folga lateral reservada
+  // para as etiquetas muda o tamanho da rosca.
+  let acc = -90;
+  const geo = valores.map(v => {
+    const span = (v / total) * 360;
+    const meio = acc + span / 2;
+    acc += span;
+    return { span, meio, dir: Math.cos(meio * Math.PI / 180) >= 0 };
+  });
+  const chamadas = geo.map((g, i) => ({ i, ...g })).filter(g => valores[g.i] / total < _CHAMADA_LIMITE);
+  const FOLGA = 108;   // largura reservada para a coluna de etiquetas
+  const temDir = chamadas.some(c => c.dir);
+  const temEsq = chamadas.some(c => !c.dir);
 
   new Chart(cv, {
     type: 'doughnut',
     data: {
       labels: rotulos,
       rawLabels: rotulos,
-      datasets: [
-        // dataset 0 = anel EXTERNO. No Chart.js o primeiro dataset é o de fora.
-        // Todos os valores iguais a 1 de propósito: é o que dá a toda categoria
-        // o mesmo alvo, independentemente de ter 5 alunos ou 1.372.
-        {
-          label: 'seletor',
-          data: rotulos.map(() => 1),
-          backgroundColor: cores,
-          borderWidth: 2, borderColor: '#ffffff',
-          weight: 0.62, hoverOffset: 10, hoverBorderWidth: 3
-        },
-        // dataset 1 = o DADO, proporcional. Nada aqui é ajustado para caber.
-        {
-          label: 'dados',
-          data: valores,
-          backgroundColor: cores,
-          borderWidth: 2, borderColor: '#ffffff',
-          weight: 2.5, hoverOffset: 14, hoverBorderWidth: 4
-        }
-      ]
+      datasets: [{
+        data: valores, backgroundColor: cores,
+        borderWidth: 2, borderColor: '#ffffff',
+        hoverOffset: 16, hoverBorderWidth: 4
+      }]
     },
     options: {
       maintainAspectRatio: false,
-      layout: { padding: 14 },
+      // A folga só existe do lado em que há etiqueta. Reservar dos dois lados
+      // por padrão encolheria a rosca à toa.
+      layout: { padding: { top: 14, bottom: 14, left: temEsq ? FOLGA : 14, right: temDir ? FOLGA : 14 } },
       spacing: 2,
-      cutout: '34%',
-      // 'nearest' + intersect:false: o ponteiro não precisa cair DENTRO do
-      // arco, basta ser o mais próximo. Ajuda as fatias finas do anel interno.
+      cutout: '45%',
       interaction: { mode: 'nearest', intersect: false },
       onClick: (event, elements, chart) => {
         if (!elements.length) return;
@@ -5091,24 +5118,24 @@ function _roscaAlunos(canvasId, fne, contagem, tipo) {
         const alvo = event && event.native && event.native.target;
         if (alvo) alvo.style.cursor = elements.length ? 'pointer' : 'default';
       },
+      animation: {
+        onComplete: function () { _desenharChamadas(this, canvasId, valores, total); }
+      },
       plugins: {
         legend: { display: false },
         datalabels: {
-          // Só no anel do dado: o anel externo é atalho, não é informação.
-          display: ctx => ctx.datasetIndex === 1 &&
-                          total > 0 && (valores[ctx.dataIndex] / total) >= 0.04,
+          // O rótulo dentro da fatia só cabe nas grandes; as miúdas são
+          // nomeadas pela etiqueta externa, não por um número espremido.
+          display: ctx => (valores[ctx.dataIndex] / total) >= 0.06,
           color: ctx => getTextColor(cores[ctx.dataIndex]),
           font: { weight: 'bold', size: 12 },
-          formatter: (v) => Math.round((v / total) * 100) + '%'
+          formatter: v => Math.round((v / total) * 100) + '%'
         },
         tooltip: {
           callbacks: {
-            // O anel externo guarda 1, não o valor. O texto tem de vir sempre
-            // do dado real, senão o atalho mostraria "1 aluno".
             label: c => (c.chart.data.rawLabels || [])[c.dataIndex] + ': '
                       + (valores[c.dataIndex] || 0).toLocaleString('pt-BR') + ' alunos'
-                      + (total ? ' · ' + ((valores[c.dataIndex] / total) * 100).toFixed(1) + '%' : ''),
-            title: c => (c[0] && c[0].datasetIndex === 0) ? 'Atalho de seleção' : ''
+                      + ' · ' + ((valores[c.dataIndex] / total) * 100).toFixed(1) + '%'
           }
         }
       }
@@ -5116,7 +5143,114 @@ function _roscaAlunos(canvasId, fne, contagem, tipo) {
   });
 }
 
+// ── As etiquetas externas ──────────────────────────────────────────────────
+// São DOM de verdade (não desenho no canvas): assim recebem foco de teclado,
+// entram no leitor de tela e reaproveitam os mesmos listeners da legenda —
+// por isso levam a classe .legend-clicavel e os data-cv/data-label.
+function _desenharChamadas(chart, canvasId, valores, total) {
+  const cv = chart.canvas;
+  const caixa = cv.parentNode;
+  if (!caixa) return;
 
+  // ⚠️ `animation.onComplete` dispara a CADA update() — e o realce vindo da
+  // legenda chama update(). Sem esta trava, as etiquetas seriam refeitas sob o
+  // cursor: o elemento sob o mouse é substituído, o `mouseout` nunca chega e o
+  // realce fica preso aceso. Só redesenha quando a geometria muda de verdade.
+  const assinatura = [caixa.clientWidth, caixa.clientHeight,
+                      (chart.data.labels || []).join('|'), valores.join('|')].join('#');
+  if (chart.$chamadasSig === assinatura) return;
+  chart.$chamadasSig = assinatura;
+
+  let camada = caixa.querySelector('.callout-camada');
+  if (!camada) {
+    camada = document.createElement('div');
+    camada.className = 'callout-camada';
+    camada.innerHTML = '<svg></svg>';
+    caixa.appendChild(camada);
+  }
+
+  const meta = chart.getDatasetMeta(0).data || [];
+  const rotulos = chart.data.rawLabels || chart.data.labels || [];
+  const L = caixa.clientWidth, A = caixa.clientHeight;
+
+  // Uma etiqueta por fatia fina, do lado em que a fatia está.
+  const itens = [];
+  rotulos.forEach((rot, i) => {
+    if (!meta[i] || valores[i] / total >= _CHAMADA_LIMITE) return;
+    const arco = meta[i];
+    const meio = (arco.startAngle + arco.endAngle) / 2;
+    const cx = arco.x, cy = arco.y, r = arco.outerRadius;
+    itens.push({
+      rot, i,
+      dir: Math.cos(meio) >= 0,
+      ax: cx + Math.cos(meio) * r,          // onde a linha encosta no arco
+      ay: cy + Math.sin(meio) * r,
+      yIdeal: cy + Math.sin(meio) * (r + 18)
+    });
+  });
+  if (!itens.length) { camada.innerHTML = '<svg></svg>'; return; }
+
+  const GAP = 6, LARG = 100;
+
+  // Passo 1 — desenhar as etiquetas para MEDIR. ⚠️ A altura não pode ser uma
+  // constante chutada: ela depende da fonte e de quantas linhas o nome ocupa
+  // ('N4 Pré-leitor' quebra, 'Nível 5' não). Chutar 38px produziu etiquetas
+  // sobrepostas, porque a real era 50px. Aqui elas são medidas.
+  camada.innerHTML = '<svg></svg>' + itens.map(t => {
+    const qtd = valores[t.i], pct = (qtd / total) * 100;
+    return '<div class="callout-chip legend-clicavel" role="button" tabindex="0"'
+      + ' data-cv="' + escapeHtml(canvasId) + '" data-label="' + escapeHtml(t.rot) + '"'
+      + ' title="Clique para ver os alunos desta categoria"'
+      + ' style="visibility:hidden;left:' + (t.dir ? (L - LARG) : 0) + 'px;top:0;width:' + LARG + 'px;">'
+      + '<span class="callout-cor" style="background:' + getCorParaRotulo(t.rot) + ';"></span>'
+      + '<span class="callout-txt"><b>' + escapeHtml(t.rot) + '</b>'
+      + '<span class="callout-n">' + qtd.toLocaleString('pt-BR') + ' · '
+      + (pct < 0.5 ? pct.toFixed(1) : Math.round(pct)) + '%</span></span></div>';
+  }).join('');
+
+  const nós = Array.from(camada.querySelectorAll('.callout-chip'));
+  nós.forEach((n, k) => { itens[k].el = n; itens[k].alt = n.offsetHeight; });
+
+  // Passo 2 — empilhar sem sobrepor e sem sair da caixa: cada etiqueta desce
+  // até caber; se o grupo estourar embaixo, ele sobe inteiro.
+  ['dir', 'esq'].forEach(lado => {
+    const grupo = itens.filter(t => (lado === 'dir') === t.dir)
+                       .sort((a, b) => a.yIdeal - b.yIdeal);
+    if (!grupo.length) return;
+    let y = 0;
+    grupo.forEach((t, k) => {
+      y = k === 0 ? t.yIdeal : Math.max(t.yIdeal, y + grupo[k - 1].alt + GAP);
+      t.y = y;
+    });
+    const ultimo = grupo[grupo.length - 1];
+    const excesso = (ultimo.y + ultimo.alt) - A;
+    if (excesso > 0) grupo.forEach(t => { t.y -= excesso; });
+    if (grupo[0].y < 0) {
+      // Não cabe nem subindo: distribui o que há de espaço por igual.
+      const usada = grupo.reduce((s, t) => s + t.alt, 0);
+      const folga = Math.max(0, (A - usada) / Math.max(1, grupo.length - 1));
+      let acy = 0;
+      grupo.forEach(t => { t.y = acy; acy += t.alt + folga; });
+    }
+    grupo.forEach(t => { t.x = lado === 'dir' ? (L - LARG) : 0; });
+  });
+
+  // Passo 3 — posicionar de verdade e traçar as linhas de chamada.
+  const svg = itens.map(t => {
+    t.el.style.left = t.x.toFixed(1) + 'px';
+    t.el.style.top  = t.y.toFixed(1) + 'px';
+    t.el.style.visibility = '';
+    const xChip = t.dir ? t.x : t.x + LARG;       // borda virada para a rosca
+    const yChip = t.y + t.alt / 2;
+    const cotovelo = t.ax + (t.dir ? 14 : -14);
+    return '<polyline class="callout-linha" points="'
+         + t.ax.toFixed(1) + ',' + t.ay.toFixed(1) + ' '
+         + cotovelo.toFixed(1) + ',' + t.ay.toFixed(1) + ' '
+         + xChip.toFixed(1) + ',' + yChip.toFixed(1) + '"/>'
+         + '<circle class="callout-ponto" cx="' + t.ax.toFixed(1) + '" cy="' + t.ay.toFixed(1) + '" r="2.5"/>';
+  }).join('');
+  camada.querySelector('svg').innerHTML = svg;
+}
 
 function renderBadgeAlunos(rotulo) {
   const cor = getCorParaRotulo(rotulo || 'Sem Dado');

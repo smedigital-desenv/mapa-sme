@@ -51,39 +51,48 @@ médios (`#65a30d`, `#ca8a04`, `#ea580c`) o texto branco fica em 2,94–3,56:1,
 abaixo do mínimo de 4,5:1; com tinta escura sobe para 5,0–6,1:1. A paleta é a
 mesma — não volte o texto para branco "para uniformizar".
 
-### A rosca da Diagnóstica tem DOIS anéis — o de fora é o alvo de clique
+### A rosca da Diagnóstica tem etiqueta externa para a fatia miúda
 
 As três distribuições da Diagnóstica (Leitura, Escrita, Produção Textual) são
 roscas, **por decisão da SME**. O que mudou foi como se clica nelas.
 
-O defeito original: **numa rosca comum a área de clique é proporcional ao
-dado**, e a categoria que mais interessa é justamente a menor. Medido em
-`avaliacao.html` com os números da rede: `L. Fluente`, 5 alunos em 2.432, ocupa
-**0,68° de arco**. É inclicável — e fica *pior quanto melhor a rede fica*.
+O defeito original: **numa rosca a área de clique é proporcional ao dado**, e a
+categoria que mais interessa é justamente a menor. Medido em `avaliacao.html`
+com os números da rede: `L. Fluente`, 5 alunos em 2.432, ocupa **0,68° de
+arco**. É inclicável — e fica *pior quanto melhor a rede fica*.
 
-⚠️ Duas saídas erradas, já descartadas: **aumentar a rosca** (0,68° continua
-0,68°, o ângulo não depende do raio) e **inflar a fatia mínima** (mentiria na
-proporção, que é a única coisa que a rosca faz).
+⚠️ Três saídas já descartadas, não as retome:
 
-A saída é separar as duas funções que a rosca acumulava — `_roscaAlunos()`:
+1. **Aumentar a rosca** — 0,68° continua 0,68°, ângulo não depende de raio.
+2. **Inflar a fatia mínima** — mentiria na proporção, que é a única coisa que
+   a rosca faz.
+3. **Anel externo com fatias iguais** — funcionava (alvo de 47°, clique 7/7),
+   mas a SME recusou: virou ruído em volta do gráfico.
 
-| anel | dataset | o que é |
-|---|---|---|
-| interno | 1 | **o dado**, exatamente proporcional. Nada é ajustado para caber |
-| externo | 0 | **a seleção**: uma fatia IGUAL por categoria (360°/n), na cor dela |
+O que existe hoje, em `_roscaAlunos()` + `_desenharChamadas()`: a rosca é de
+anel único e fica intacta; a fatia **abaixo de 5%** ganha uma linha de chamada
+até uma **etiqueta fora do gráfico**, com nome e número, e a etiqueta é o alvo.
+As fatias grandes continuam clicáveis nelas mesmas. Medido: **12/12** etiquetas
+abrem a lista certa, sem sobreposição, nos três gráficos.
 
-⚠️ No Chart.js o **dataset 0 é o anel de FORA** — inverter a ordem põe o atalho
-por baixo do dado e desfaz o conserto.
+⚠️ Pontos que **não** são detalhe:
 
-Medido: o menor alvo sai de **0,68° para 47,2°** (69×), e um teste de clique
-real acerta **7/7** categorias, inclusive a de 5 alunos. As linhas da legenda
-também são alvo, com altura fixa de 44px+ (`.legend-alvo`), igual para quem tem
-1.372 alunos e para quem tem 5.
+- **A altura da etiqueta é MEDIDA, nunca constante.** Ela depende da fonte e de
+  quantas linhas o nome ocupa (`N4 Pré-leitor` quebra, `Nível 5` não). Chutar
+  38px produziu etiquetas sobrepostas — a real era 50px. O código desenha,
+  mede com `offsetHeight` e só então empilha.
+- **A folga lateral só é reservada do lado em que há etiqueta** (`layout.padding`),
+  senão a rosca encolhe à toa.
+- **`animation.onComplete` dispara a cada `update()`**, e o realce vindo da
+  legenda chama `update()`. Sem a trava de assinatura (`$chamadasSig`), as
+  etiquetas seriam recriadas sob o cursor: o elemento sob o mouse é
+  substituído, o `mouseout` nunca chega e o realce fica preso aceso.
+- As etiquetas são **DOM de verdade**, não desenho no canvas — é o que lhes dá
+  foco de teclado, leitor de tela e o reaproveitamento dos listeners da legenda
+  (daí a classe `.legend-clicavel` e os `data-cv`/`data-label`).
 
-⚠️ Detalhes que **não** são enfeite: o anel externo guarda `1` em cada posição,
-então o tooltip **tem** de ler o valor real do array de dados (senão mostra
-"1 aluno"); os `datalabels` saem só no anel do dado; e categoria com zero aluno
-não entra em nenhum dos dois — ocuparia um atalho que não leva a lugar nenhum.
+As linhas da legenda também são alvo, com altura fixa de 44px+ (`.legend-alvo`),
+igual para quem tem 1.372 alunos e para quem tem 5, com barrinha de magnitude.
 
 A paleta de `COR_FIXA` **não** foi mexida: ela é a linguagem visual da rede
 (badges, tabelas, outras telas). Ela é um arco-íris sobre uma escala ordinal —
@@ -91,7 +100,7 @@ o certo seria um degradê de um só tom —, mas trocá-la é decisão da SME, n
 efeito colateral de um ajuste de usabilidade.
 
 ⚠️ As roscas **por eixo** e as de **detalhe por pergunta** (mesma tela) ainda
-são de anel único: têm o alvo proporcional e só a legenda para clicar.
+não têm etiqueta externa: nelas a fatia miúda só é alcançável pela legenda.
 
 ---
 
