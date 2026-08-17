@@ -8,6 +8,7 @@
   <script src="config-central.js" defer></script>
   <script src="demo-mode.js"></script>
   <script src="iago.js"></script>
+  <script src="visao-rede.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Av. Oral de Matemática | SME Ribeirão Preto</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎤</text></svg>">
@@ -261,7 +262,9 @@ async function carregarEscolas(){
   if(!ESCOLAS.length){ sel.innerHTML='<option>— sem dados importados —</option>'; return; }
   sel.innerHTML=ESCOLAS.map(e=>'<option value="'+esc(e.escola)+'">'+esc(e.escola)+'</option>').join('');
   sel.onchange=()=>selecionar(sel.value);
-  await selecionar(ESCOLAS[0].escola);
+  // preparar() acrescenta a opção "Todas as unidades" quando há mais de uma
+  // para comparar, e devolve o que a tela deve abrir.
+  await selecionar(window.MapaVisaoRede ? MapaVisaoRede.preparar(sel,ESCOLAS) : ESCOLAS[0].escola);
 }
 
 async function carregarRede(){
@@ -289,6 +292,7 @@ function aplicarCatalogo(){
 }
 
 async function selecionar(nome){
+  if(window.MapaVisaoRede && MapaVisaoRede.interceptar(nome)) return;
   atual=ESCOLAS.find(e=>e.escola===nome)||{escola:nome};
   document.getElementById('adNome').textContent=nome;
   document.getElementById('adCod').textContent='Cód. '+(atual.codigo_escola??'—');
@@ -417,6 +421,72 @@ function avisarDescritor(tipo, sem, total){
 })();
 
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Comparativo "Todas as unidades"
+
+   Três medidas, porque são três perguntas diferentes e misturá-las num número
+   só não descreveria nenhuma: quanto a unidade acertou nas habilidades, quanto
+   acertou nos itens, e quanto da turma prevista foi de fato avaliada.
+
+   ⚠️ Participação baixa contamina a leitura do acerto — uma unidade que
+   avaliou 60% dos alunos pode aparecer bem nas habilidades por ter avaliado só
+   quem estava presente. As duas medidas ficam à mão, no mesmo filtro, de
+   propósito: quem olha o acerto precisa poder conferir a participação.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const fmtPctMedia = v => (v==null||isNaN(v)) ? '—' : (Number(v)*100).toFixed(1).replace('.',',')+'%';
+
+function instalarComparativo(){
+  if(!window.MapaVisaoRede) return;
+  MapaVisaoRede.instalar({
+    sel: document.getElementById('adSel'),
+    escolher: selecionar,
+    titulo: 'Acerto e participação por unidade × rede',
+    rotuloValor: 'Média da unidade',
+    fmt: fmtPctMedia,
+    escalaDif: 100, casasDif: 1, unidadeDif: ' pp',
+    filtros: [{id:'medida', rotulo:'Medida', opcoes: () => [
+      {v:'habilidade', t:'% de acerto — habilidades'},
+      {v:'item',       t:'% de acerto — itens'},
+      {v:'participacao', t:'Participação (avaliados / previstos)'}
+    ]}],
+    colunas: f => f.medida === 'participacao'
+      ? [{id:'previstos', t:'Previstos', v:l=>l.cols.previstos, fmt:v=>String(Math.round(v))},
+         {id:'avaliados', t:'Avaliados', v:l=>l.cols.avaliados, fmt:v=>String(Math.round(v))}]
+      : [{id:'n', t:(f.medida==='item'?'Itens':'Habilidades'), v:l=>l.cols.n, fmt:v=>String(v)}],
+    carregar: async f => {
+      if(f.medida === 'participacao'){
+        const dados = await MapaVisaoRede.buscarTudo(() =>
+          sb().from('av_oral').select('escola,previstos,avaliados')
+              .eq('nivel','escola').order('escola'));
+        const rd = taxa(PART_REDE), vistos = new Set(), linhas = [];
+        dados.forEach(r => {
+          if(!r.escola || r.escola==='REDE' || vistos.has(r.escola)) return;
+          vistos.add(r.escola);
+          linhas.push({escola:r.escola, valor:taxa(r), ref:rd,
+                       cols:{previstos:r.previstos, avaliados:r.avaliados}});
+        });
+        return {linhas};
+      }
+      const dados = await MapaVisaoRede.buscarTudo(() =>
+        sb().from('av_oral_metrica').select('escola,tipo,chave,pct')
+            .eq('nivel','escola').eq('tipo',f.medida).order('escola').order('chave'));
+      const ag = MapaVisaoRede.agregador();
+      dados.forEach(r => {
+        if(!r.escola || r.escola==='REDE' || r.pct==null) return;
+        // A referência é habilidade a habilidade (ou item a item), não a média
+        // da rede contra a média da unidade: uma unidade que não aplicou um
+        // item estaria sendo comparada com uma prova diferente da sua.
+        ag.add(r.escola, r.pct, METRICAS_REDE.get(r.tipo+'|'+r.chave));
+      });
+      return {linhas: ag.linhas()};
+    },
+    legenda: 'Média da unidade na medida escolhida, ao lado da rede <b>nas mesmas '
+           + 'habilidades/itens</b>. A cor mede a distância relativa da rede. '
+           + '⚠️ Acerto e participação se leem juntos: participação baixa distorce o '
+           + 'acerto. Clique no nome da unidade para abrir a tela dela.'
+  });
+}
+
 /* ── Leitura das planilhas ──────────────────────────────────────────────────
    Os dois arquivos têm a mesma forma: linha 0 agrupa ("PARTICIPAÇÃO",
    "HABILIDADES AVALIADAS"), linha 1 nomeia as colunas, os dados começam na 2.
@@ -522,7 +592,7 @@ async function aplicarGate(){
   // aqui geraria requisição sem identidade, que o banco recusa.
   for(let i=0;i<160 && !window.MAPA_SB;i++) await new Promise(r=>setTimeout(r,100));
   if(!window.MAPA_SB){ document.getElementById('adNome').textContent='Sessão indisponível'; return; }
-  try{ ligarUpload(); aplicarGate(); await carregarRede(); await carregarEscolas(); }
+  try{ ligarUpload(); aplicarGate(); await carregarRede(); instalarComparativo(); await carregarEscolas(); }
   catch(e){ console.error(e); document.getElementById('adNome').textContent='Erro ao carregar: '+(e.message||e); }
 })();
 </script>
