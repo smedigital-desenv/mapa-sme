@@ -2497,7 +2497,7 @@ function renderAssistente() {
             <i class="bi bi-robot" style="font-size:1.4rem;color:var(--neon-blue);display:none;"></i>
           </span>
           <div>
-            <div class="tit">Iago</div>
+            <div class="tit">IAgo</div>
             <div class="sub">Assistente do MAPA · responde com base nos dados que você pode ver.</div>
           </div>
         </div>
@@ -2526,9 +2526,9 @@ function _renderChatMsgs() {
   let html;
   if (!_chatHistorico.length && !_chatEnviando) {
     html = `<div class="chat-vazio">
-      <img src="iago-ola.png" alt="Iago, assistente do MAPA" class="chat-mascote" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+      <img src="iago-ola.png" alt="IAgo, assistente do MAPA" class="chat-mascote" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
       <i class="bi bi-chat-square-heart" style="display:none;"></i>
-      <div class="iago-ola">Olá! Eu sou o <b>Iago</b> 👋</div>
+      <div class="iago-ola">Olá! Eu sou o <b>IAgo</b> 👋</div>
       <div class="iago-desc">Seu assistente do MAPA. Consigo analisar e <b>cruzar</b> os dados aos quais você tem acesso:</div>
       <ul class="iago-caps">
         <li><i class="bi bi-clipboard2-check-fill"></i><span><b>Visitas de acompanhamento</b> — quem visitou, quando e o responsável</span></li>
@@ -2540,7 +2540,7 @@ function _renderChatMsgs() {
       <div class="iago-cta">Pergunte à vontade — ou toque numa sugestão abaixo 👇</div>
     </div>`;
   } else {
-    const avatar = `<img src="iago-cabeca.png" alt="Iago" class="chat-avatar-msg" onerror="this.style.display='none';">`;
+    const avatar = `<img src="iago-cabeca.png" alt="IAgo" class="chat-avatar-msg" onerror="this.style.display='none';">`;
     html = _chatHistorico.map(m =>
       m.role === 'user'
         ? `<div class="chat-b user">${escapar(m.texto)}</div>`
@@ -2604,9 +2604,9 @@ function _contextoBase() {
 }
 
 function _sistemaChat() {
-  return 'Você é o Iago, o assistente virtual do MAPA (Secretaria Municipal da Educação de Ribeirão Preto), '
+  return 'Você é o IAgo, o assistente virtual do MAPA (Secretaria Municipal da Educação de Ribeirão Preto), '
     + 'que responde a gestores e técnicos sobre visitas de acompanhamento, devolutivas, Fluência Leitora e Elefante Letrado. '
-    + 'Se perguntarem quem é você, apresente-se como Iago, de forma breve e cordial.\n\n'
+    + 'Se perguntarem quem é você, apresente-se como IAgo, de forma breve e cordial.\n\n'
     + 'REGRAS:\n'
     + '- Use as FUNÇÕES para buscar os dados que precisar (escolas, detalhe_da_escola, visitas, indicadores, buscar). Chame quantas precisar antes de responder.\n'
     + '- Você PODE e DEVE calcular, somar, contar, agrupar, ordenar, tirar médias/percentuais, ranquear e CRUZAR os resultados (ex.: qual regional está pior na fluência, cruzar risco da visita com engajamento). Isso NÃO é inventar.\n'

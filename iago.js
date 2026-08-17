@@ -1,5 +1,5 @@
 /* ────────────────────────────────────────────────────────────────────────────
- * iago.js — Iago, o assistente flutuante do MAPA (disponível em TODAS as telas).
+ * iago.js — IAgo, o assistente flutuante do MAPA (disponível em TODAS as telas).
  *
  * Autocontido: injeta o botão flutuante + o painel de chat, carrega os PRÓPRIOS
  * dados (RPCs relat_* que já filtram por permissão + fluência/elefante) e roda o
@@ -137,7 +137,7 @@
         flu.forEach(t=>{ const e=canon(t.escola); const o=(porEA[e]=porEA[e]||{}); const a=(o[t.avaliacao]=o[t.avaliacao]||{aval:0,flu:0,ini:0,n1:0,n2:0,n3:0,n4:0,aus:0,tot:0});
           a.aval+=+t.avaliados||0;a.flu+=+t.fluentes||0;a.ini+=+t.iniciantes||0;a.n1+=+t.pre_n1||0;a.n2+=+t.pre_n2||0;a.n3+=+t.pre_n3||0;a.n4+=+t.pre_n4||0;a.aus+=+t.ausentes||0;a.tot+=+t.total_estudantes||0; });
         _fluPorEscola={}; Object.keys(porEA).forEach(e=>{ const avs=Object.keys(porEA[e]).sort(); const av=avs[avs.length-1]; _fluPorEscola[e]=Object.assign({avaliacao:av},porEA[e][av]); });
-      }catch(e){ console.warn('Iago · Fluência indisponível:',e.message); }
+      }catch(e){ console.warn('IAgo · Fluência indisponível:',e.message); }
       try{
         const meses=await _auxFetch('elefante_turmas?select=mes_referencia&order=mes_referencia.desc&limit=1');
         if(meses.length){
@@ -150,7 +150,7 @@
             esc2.forEach(r=>{ const e=canon(r.nome_escola); const o=(porE[e]=porE[e]||{est:0,lei:0,liv:0,leit:null,mes:mes}); o.leit=(o.leit||0)+(+r.leituras_concluidas||0); }); }catch(e){}
           _elePorEscola=porE;
         }
-      }catch(e){ console.warn('Iago · Elefante indisponível:',e.message); }
+      }catch(e){ console.warn('IAgo · Elefante indisponível:',e.message); }
     })();
     return _auxPromise;
   }
@@ -236,9 +236,9 @@
     return s;
   }
   function _sistema(){
-    return 'Você é o Iago, o assistente virtual do MAPA (Secretaria Municipal da Educação de Ribeirão Preto), '
+    return 'Você é o IAgo, o assistente virtual do MAPA (Secretaria Municipal da Educação de Ribeirão Preto), '
       +'que responde a gestores e técnicos sobre visitas de acompanhamento, devolutivas, Fluência Leitora e Elefante Letrado. '
-      +'Se perguntarem quem é você, apresente-se como Iago, de forma breve e cordial.\n\n'
+      +'Se perguntarem quem é você, apresente-se como IAgo, de forma breve e cordial.\n\n'
       +'REGRAS:\n'
       +'- Use as FUNÇÕES para buscar os dados que precisar (escolas, detalhe_da_escola, visitas, indicadores, buscar). Chame quantas precisar antes de responder.\n'
       +'- Você PODE e DEVE calcular, somar, contar, agrupar, ordenar, tirar médias/percentuais, ranquear e CRUZAR os resultados (ex.: qual regional está pior na fluência, cruzar risco com engajamento). Isso NÃO é inventar.\n'
@@ -349,8 +349,8 @@
     let html;
     if(!_hist.length&&!_enviando){
       html=`<div class="iago-vazio">
-        <img src="iago-ola.png" alt="Iago" class="iago-mascote" onerror="this.style.display='none'">
-        <div class="iago-ola">Olá! Eu sou o <b>Iago</b> 👋</div>
+        <img src="iago-ola.png" alt="IAgo" class="iago-mascote" onerror="this.style.display='none'">
+        <div class="iago-ola">Olá! Eu sou o <b>IAgo</b> 👋</div>
         <div class="iago-desc">Seu assistente do MAPA. Consigo analisar e <b>cruzar</b> os dados aos quais você tem acesso:</div>
         <ul class="iago-caps">
           <li><b>Visitas</b> — quem visitou, quando e o responsável</li>
@@ -362,7 +362,7 @@
         <div class="iago-cta">Digite sua pergunta abaixo 👇</div>
       </div>`;
     } else {
-      const av=`<img src="iago-cabeca.png" alt="Iago" class="iago-av" onerror="this.style.display='none'">`;
+      const av=`<img src="iago-cabeca.png" alt="IAgo" class="iago-av" onerror="this.style.display='none'">`;
       html=_hist.map(m=> m.role==='user'
         ? `<div class="iago-b user">${esc(m.texto)}</div>`
         : `<div class="iago-row">${av}<div class="iago-b bot">${_md(m.texto)}</div></div>`).join('');
@@ -428,11 +428,11 @@
 
     const wrap=document.createElement('div'); wrap.id='iago-root';
     wrap.innerHTML=`
-      <button id="iago-fab" title="Falar com o Iago"><img src="iago-cabeca.png" alt="Iago" onerror="this.parentNode.innerHTML='🤖';this.parentNode.style.fontSize='28px'"></button>
-      <div id="iago-panel" role="dialog" aria-label="Assistente Iago">
+      <button id="iago-fab" title="Falar com o IAgo"><img src="iago-cabeca.png" alt="IAgo" onerror="this.parentNode.innerHTML='🤖';this.parentNode.style.fontSize='28px'"></button>
+      <div id="iago-panel" role="dialog" aria-label="Assistente IAgo">
         <div class="iago-top">
           <img src="iago-cabeca.png" alt="" onerror="this.style.display='none'">
-          <div><div class="t">Iago</div><div class="s">Assistente do MAPA</div></div>
+          <div><div class="t">IAgo</div><div class="s">Assistente do MAPA</div></div>
           <button class="iago-x" id="iago-fechar" title="Fechar" aria-label="Fechar">×</button>
         </div>
         <div id="iago-msgs"></div>
