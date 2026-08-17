@@ -74,6 +74,15 @@ repetem e perdem linhas.
 a própria e um comparativo de uma linha não compara nada. Isso é conforto
 visual, não recorte: quem entrega a lista é o RLS.
 
+⚠️ **A Av. Oral é a única em que a referência da rede é uma LINHA GRAVADA**
+(`av_oral*` com `nivel='rede'`), e não uma função agregada. Quando o arquivo de
+Escolas sobe sem essa linha — ou com ela preenchida só na participação —, não
+há referência, e o painel saía inteiro cinza com `'—'`, sem dizer por quê. Hoje
+ele cai para a **média das unidades listadas**, e isso **se anuncia**: a coluna
+vira "Média das listadas" e a legenda diz o que falta importar. ⚠️ Não devolva o
+cabeçalho para "Rede" — sob RLS a lista é o que o banco entregou, e o rótulo é o
+que impede alguém de ler a média de 5 unidades como se fosse a das 112.
+
 ⚠️ **A Diagnóstica exige ano escolar × componente**, não tem "todos". Além de
 as unidades não oferecerem os mesmos anos, a rede inteira em todos os recortes
 passa de 70 mil linhas de item no navegador; um recorte por vez são ~2 mil.

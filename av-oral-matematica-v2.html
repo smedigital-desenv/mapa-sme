@@ -435,6 +435,39 @@ function avisarDescritor(tipo, sem, total){
    ═══════════════════════════════════════════════════════════════════════════ */
 const fmtPctMedia = v => (v==null||isNaN(v)) ? '—' : (Number(v)*100).toFixed(1).replace('.',',')+'%';
 
+/* ⚠️ Esta é a ÚNICA das cinco telas em que a referência da rede é uma LINHA
+   GRAVADA (`nivel='rede'`), e não uma função agregada do banco. Quando o
+   arquivo de Escolas sobe sem a linha REDE — ou com ela preenchida só na
+   participação, sem as colunas de habilidade e item —, não existe referência
+   nenhuma: o comparativo saía inteiro cinza, com '—' em Rede e Dif., sem dizer
+   por quê. Era isso que fazia esta tela não dar o mesmo resultado das outras
+   quatro, que têm o cálculo de reserva embutido.
+
+   O plano B é a média das UNIDADES DA LISTA. Ela não é a rede e não pode se
+   passar por ela: a coluna troca de nome e a legenda diz o que aconteceu e o
+   que fazer. ⚠️ Sob RLS a lista é o que o banco entregou — para quem vê parte
+   da rede este número é a média dessa parte, e o rótulo é justamente o que
+   impede a leitura errada. Não devolva o cabeçalho para "Rede". */
+function semLinhaRede(linhas, oQue){
+  console.info('av_oral: sem linha REDE para ' + oQue + '; comparando com a média das listadas.');
+  return {
+    linhas: linhas,
+    rotuloRef: 'Média das listadas',
+    aviso: 'A linha REDE não está importada para ' + oQue + ' — a comparação usa a média '
+         + 'das unidades listadas, que não é a média da rede. Envie a planilha '
+         + '“Av Oral Mat Entrada — Escolas”, que traz essa linha.'
+  };
+}
+function aplicarRef(linhas, refRede, calcularReserva, oQue){
+  if(refRede != null){
+    linhas.forEach(l => { l.ref = refRede; });
+    return {linhas: linhas};
+  }
+  const reserva = calcularReserva();
+  linhas.forEach(l => { l.ref = reserva; });
+  return semLinhaRede(linhas, oQue);
+}
+
 function instalarComparativo(){
   if(!window.MapaVisaoRede) return;
   MapaVisaoRede.instalar({
@@ -458,27 +491,53 @@ function instalarComparativo(){
         const dados = await MapaVisaoRede.buscarTudo(() =>
           sb().from('av_oral').select('escola,previstos,avaliados')
               .eq('nivel','escola').order('escola'));
-        const rd = taxa(PART_REDE), vistos = new Set(), linhas = [];
+        const vistos = new Set(), linhas = [];
         dados.forEach(r => {
           if(!r.escola || r.escola==='REDE' || vistos.has(r.escola)) return;
           vistos.add(r.escola);
-          linhas.push({escola:r.escola, valor:taxa(r), ref:rd,
+          linhas.push({escola:r.escola, valor:taxa(r),
                        cols:{previstos:r.previstos, avaliados:r.avaliados}});
         });
-        return {linhas};
+        // A taxa da rede é PONDERADA (soma de avaliados sobre soma de
+        // previstos), nunca a média das taxas: uma unidade de 30 alunos pesaria
+        // o mesmo que uma de 600.
+        const sub = () => {
+          let p=0, a=0;
+          linhas.forEach(l => { p += Number(l.cols.previstos)||0; a += Number(l.cols.avaliados)||0; });
+          return p ? a/p : null;
+        };
+        return aplicarRef(linhas, taxa(PART_REDE), sub, 'a participação');
       }
       const dados = await MapaVisaoRede.buscarTudo(() =>
         sb().from('av_oral_metrica').select('escola,tipo,chave,pct')
             .eq('nivel','escola').eq('tipo',f.medida).order('escola').order('chave'));
+      const uteis = dados.filter(r => r.escola && r.escola!=='REDE' && r.pct!=null);
+      // A referência é habilidade a habilidade (ou item a item), não a média da
+      // rede contra a média da unidade: uma unidade que não aplicou um item
+      // estaria sendo comparada com uma prova diferente da sua.
+      const chaves = Array.from(new Set(uteis.map(r => r.chave)));
+      const temTudo = chaves.length && chaves.every(k => METRICAS_REDE.get(f.medida+'|'+k) != null);
+      // Referência calculada sobre as unidades da lista, usada só quando a
+      // linha REDE não cobre todas as chaves. Uma fonte OU a outra, nunca as
+      // duas misturadas — meia rede e meia lista não é nenhuma das duas.
+      const media = new Map();
+      if(!temTudo){
+        const soma = new Map();
+        uteis.forEach(r => {
+          const s = soma.get(r.chave) || {t:0, n:0};
+          s.t += Number(r.pct); s.n++; soma.set(r.chave, s);
+        });
+        soma.forEach((s,k) => media.set(k, s.t/s.n));
+      }
       const ag = MapaVisaoRede.agregador();
-      dados.forEach(r => {
-        if(!r.escola || r.escola==='REDE' || r.pct==null) return;
-        // A referência é habilidade a habilidade (ou item a item), não a média
-        // da rede contra a média da unidade: uma unidade que não aplicou um
-        // item estaria sendo comparada com uma prova diferente da sua.
-        ag.add(r.escola, r.pct, METRICAS_REDE.get(r.tipo+'|'+r.chave));
-      });
-      return {linhas: ag.linhas()};
+      uteis.forEach(r => ag.add(r.escola, r.pct,
+        temTudo ? METRICAS_REDE.get(f.medida+'|'+r.chave) : media.get(r.chave)));
+      const linhas = ag.linhas();
+      // Sem nenhuma linha não há o que comparar, e o aviso da linha REDE seria
+      // uma pista falsa: o que falta aqui é o dado, não a referência.
+      if(!linhas.length) return {linhas: linhas};
+      return temTudo ? {linhas: linhas} : semLinhaRede(linhas,
+        f.medida === 'item' ? 'os itens' : 'as habilidades');
     },
     legenda: 'Média da unidade na medida escolhida, ao lado da rede <b>nas mesmas '
            + 'habilidades/itens</b>. A cor mede a distância relativa da rede. '
