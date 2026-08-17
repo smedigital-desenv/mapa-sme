@@ -406,17 +406,22 @@ agregada `'—'` está convivendo com turmas reais (dupla contagem).
    turma, então quebram a premissa de que todo aluno responde todo item. Isso
    NÃO as esconde da tela: elas continuam como disciplina e nos percentuais; o
    que elas deixam de fazer é decidir quantos alunos existem.
-3. O **mínimo** entre os itens restantes identifica a escala de "um aluno por
-   resposta" — mas escolher o mínimo é escolher o item PIOR lançado. Então
-   entre os itens de pergunta única (soma abaixo de 1,5× o mínimo) vale o
-   **MAIOR**, que é o item mais completamente lançado.
+3. A escala de "um aluno por resposta" é identificada pela **MEDIANA** das
+   somas dos itens restantes, e entre os itens dentro de 1,5× a mediana vale
+   o **MAIOR**, que é o mais completamente lançado.
+
+🚫 **NÃO ancore no mínimo.** Já foi assim e é frágil de um jeito que quebra em
+produção: basta **um** item com 1 resposta para a janela virar `[1, 1.5)` e a
+conta devolver 1 aluno por turma. Medido na planilha, injetando um item de 1
+resposta em cada balde, a rede caía de 13.626 para **553** — foi exatamente o
+que a tela mostrou (ALCINA com 12 em TODAS as abas, porque a regra é
+compartilhada). A mediana descreve o item típico e um outlier isolado não a
+move.
 
 Medido contra a planilha oficial do 1º bimestre (13.626 alunos, 553 baldes
-unidade/ano/turma): o mínimo puro acerta 395 baldes e perde 580 alunos — 521
-deles só porque um item de Língua Portuguesa teve meia dúzia de lançamentos a
-menos que os demais da mesma turma. A regra atual acerta **533 dos 553** e,
-medido, **nunca conta acima do real** — os 20 restantes ficam abaixo, que é o
-lado seguro: aluno inventado é invisível, aluno faltando é reclamável.
+unidade/ano/turma): a regra atual acerta **548 dos 553** e fecha em 13.628
+(0,0%); com o item raro injetado em todo balde, 13.621 — praticamente imune.
+A âncora no mínimo acertava 533 sem sabotagem e desabava com ela.
 
 ⚠️ O que sobra de diferença **não é defeito de código, é lançamento
 incompleto**. Não tente fechar os últimos 2% inflando a estimativa.

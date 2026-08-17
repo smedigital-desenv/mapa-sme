@@ -2971,9 +2971,23 @@ function alunosPorItens(itens) {
   });
   const q = contaveis.length ? contaveis : todos;
   if (!q.length) return 0;
-  const min = Math.min.apply(null, q);
+
+  // ⚠️ A âncora é a MEDIANA, não o mínimo — e isso não é preciosismo.
+  // Ancorar no mínimo faz UM único item raro derrubar a turma inteira: basta
+  // um item com 1 resposta para a janela virar [1, 1.5) e a conta devolver 1.
+  // Medido na planilha do 1º bimestre, injetando um item de 1 resposta em cada
+  // balde: a rede caía de 13.626 para 553 alunos — 1 por turma. Era esse o
+  // padrão que a tela mostrava (ALCINA com 12 em todas as abas).
+  //
+  // A mediana descreve o item TÍPICO: como a maioria dos itens tem uma
+  // pergunta por aluno, ela cai na escala certa, e um outlier isolado não a
+  // move. Entre os itens dentro de 1,5× a mediana vale o MAIOR, que é o mais
+  // completamente lançado. Medido sem sabotagem: 548 dos 553 baldes exatos
+  // (a âncora no mínimo acertava 533) e o total fica em 13.628 contra 13.626.
+  const ord = q.slice().sort((a, b) => a - b);
+  const mediana = ord[Math.floor(ord.length / 2)];
   let alunos = 0;
-  for (let i = 0; i < q.length; i++) if (q[i] < min * 1.5 && q[i] > alunos) alunos = q[i];
+  for (let i = 0; i < q.length; i++) if (q[i] <= mediana * 1.5 && q[i] > alunos) alunos = q[i];
   return alunos;
 }
 
