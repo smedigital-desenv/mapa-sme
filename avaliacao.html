@@ -8279,6 +8279,11 @@ function _renderTabelaTotal(linhas) {
     // da consulta mais lenta, não a soma das quatro rodadas.
     const porBim = await Promise.all([1, 2, 3, 4].map(b =>
       Promise.all(FICHA_ANOS_ESCOLARES.map(a => fichaRedeTurma(b, a).catch(err => {
+        // 404 do CODERP = ano/bimestre sem lançamento. É RESPOSTA, não avaria —
+        // o mesmo tratamento que pacoteViaFichaApi já dava. Sem isto, um 3º e
+        // um 4º bimestre ainda sem lançamento enchem o console de "falhou",
+        // escondendo as falhas de verdade no meio do ruído.
+        if (err && err.coderpStatus === 404) return [];
         console.warn(`[MAPA CODERP] Total: falhou bim ${b} / ${a}:`, err);
         return null;
       })))));
