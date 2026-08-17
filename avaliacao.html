@@ -6826,11 +6826,62 @@ function _aplicarPacoteTotalCache(pkg, ano) {
   // Cria o índice local uma única vez. Depois disso, unidade/turma/ano são filtrados instantaneamente.
   _garantirIndicePacoteTotal(pkg);
 
+  // Render imediato com a ESTRUTURA do pacote (unidades, anos e turmas).
   _hierArvoreTotal = _arvoreTotalDoIndice(pkg, _filtrosTotal().ano || 'TODOS');
   renderHierarquiaTotal(_hierArvoreTotal);
 
+  // ⚠️ …mas a CONTAGEM vem de getHierarquiaTotal, que consulta a MESMA fonte
+  // (fichaRedeTurma) e aplica a MESMA regra da aba de bimestre. Derivar o
+  // número do pacote do Total nunca deu certo: as `linhas` já têm o eixo
+  // normalizado (itens colapsam somando) e os `grupos` mudam de formato entre
+  // a API e a RPC do banco — as duas tentativas produziram números
+  // completamente diferentes dos da aba de bimestre. Se as duas telas têm de
+  // mostrar o mesmo número, que venham do mesmo cálculo.
+  _contarArvoreTotalPelaFicha();
+
   // Turmas de TODA a rede numa chamada só (leque feito no servidor).
   _prefetchTotalTurmasRede();
+}
+
+let _totalContagemPedida = null;
+function _contarArvoreTotalPelaFicha() {
+  const pac = pacoteTotalAtual;
+  if (!pac || _totalContagemPedida === pac) return;
+  _totalContagemPedida = pac;
+
+  google.script.run.withSuccessHandler(res => {
+    if (pacoteTotalAtual !== pac) return;          // outra visita já trocou o pacote
+    if (!res || !res.ok || !res.arvore) return;
+    const base = _hierArvoreTotal || {};
+    const cont = res.arvore;
+    // A árvore do pacote manda na ESTRUTURA (ela conhece turma sem resposta
+    // pontuável); a contagem manda no NÚMERO. Turma que a contagem não
+    // conhece fica com zero — some o número, nunca a turma.
+    const saida = {};
+    Object.keys(base).forEach(u => {
+      saida[u] = {};
+      Object.keys(base[u]).forEach(a => {
+        saida[u][a] = {};
+        Object.keys(base[u][a]).forEach(t => {
+          saida[u][a][t] = Number((((cont[u] || {})[a]) || {})[t] || 0);
+        });
+      });
+    });
+    // E o que a contagem tem a mais entra também.
+    Object.keys(cont).forEach(u => {
+      if (typeof _unidadeMatchFiltro === 'function' && !_unidadeMatchFiltro(u)) return;
+      Object.keys(cont[u]).forEach(a => Object.keys(cont[u][a]).forEach(t => {
+        if (!saida[u]) saida[u] = {};
+        if (!saida[u][a]) saida[u][a] = {};
+        if (!(t in saida[u][a])) saida[u][a][t] = Number(cont[u][a][t] || 0);
+      }));
+    });
+    _hierArvoreTotal = saida;
+    if (avaliacaoAtual === 'Total') renderHierarquiaTotal(_hierArvoreTotal);
+  }).withFailureHandler(err => {
+    console.warn('[MAPA] Total: contagem de alunos pela ficha falhou; a lateral fica com'
+      + ' os números do pacote:', err);
+  }).getHierarquiaTotal({ ano: _filtrosTotal().ano || 'TODOS' });
 }
 
 // ── Turmas de toda a rede no TOTAL ─────────────────────────────────────────

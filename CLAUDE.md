@@ -360,13 +360,17 @@ premissa "um item = uma pergunta por aluno". Foi exatamente essa a segunda
 tentativa errada: a lateral do Total passou a mostrar **452** onde o 1º
 bimestre mostra **232**, com o 3º ano exatamente 4× maior.
 
-A contagem do Total é feita **antes** da normalização, em
-`getTotalAvaliacoesRapido`, com os grupos ainda crus (`fnc_des`/`fne_des`
-originais), por bimestre, e vale o **maior bimestre** — um aluno existe uma
-vez, não quatro. O resultado viaja pronto no pacote: `arvoreLinhas` passou de
-`[unidade, ano, turma]` para `[unidade, ano, turma, alunos]`, e o índice
-apenas o lê. Pacote antigo, sem a 4ª coluna, mostra a turma com zero — some o
-número, nunca a turma.
+🚫 **E NÃO derive a contagem do pacote do Total, de jeito nenhum.** Foram duas
+tentativas, ambas erradas por motivos diferentes: pelas `linhas` o eixo já vem
+normalizado (itens colapsam somando, e a ALCINA foi para 452); pelos `grupos`
+o formato muda entre a API e a RPC do banco, e a mesma unidade foi para 12.
+
+O que vale hoje: a lateral do Total mostra a **estrutura** do pacote (ele
+conhece turma sem resposta pontuável) e a **contagem de `getHierarquiaTotal`**,
+que consulta a MESMA fonte (`fichaRedeTurma`) e aplica a MESMA regra da aba de
+bimestre. Se as duas telas têm de mostrar o mesmo número, que venham do mesmo
+cálculo — `_contarArvoreTotalPelaFicha()`. Turma que a contagem não conhece
+fica com zero: some o número, nunca a turma.
 
 ⚠️ Os dois caminhos de detalhe do Total seguem a mesma divisão: o de UMA
 unidade é nível aluno e conta **REMA distinto** (exato); o `detalherede` é
