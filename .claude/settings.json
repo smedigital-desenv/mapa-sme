@@ -33,7 +33,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/verificar-vazamento.py\"",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/verificar-vazamento.sh\"",
             "statusMessage": "Guarda anti-vazamento verificando o commit"
           }
         ]
