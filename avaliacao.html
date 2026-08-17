@@ -249,9 +249,21 @@
   .hier-unidade:hover { background: #f0f4ff; }
   .hier-unidade.ativa { background: #002b5e; color: #fff; }
   .hier-unidade.ativa .hier-count { background: rgba(255,255,255,.2); color: #fff; }
+  /* Nível do meio: ano escolar. Recuo e peso ficam ENTRE unidade e turma,
+     para que a hierarquia se leia sem precisar de linha-guia. */
+  .hier-anos { display: none; background: #fbfdff; border-bottom: 1px solid #e2e8f0; }
+  .hier-ano {
+    padding: 7px 12px 7px 20px; cursor: pointer; color: #1e3a5f;
+    display: flex; justify-content: space-between; align-items: center;
+    transition: background .15s; font-weight: 700; font-size: 0.76rem;
+    border-bottom: 1px solid #eef2f7;
+  }
+  .hier-ano:hover { background: #e8f0ff; }
+  .hier-ano.ativa { background: #1e4e8c; color: #fff; }
+  .hier-ano.ativa .hier-count { background: rgba(255,255,255,.22); color: #fff; }
   .hier-turmas { display: none; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
   .hier-turma {
-    padding: 6px 12px 6px 28px; cursor: pointer; color: #475569;
+    padding: 6px 12px 6px 40px; cursor: pointer; color: #475569;
     display: flex; justify-content: space-between; align-items: center;
     transition: background .15s; font-weight: 600; font-size: 0.75rem;
   }
@@ -1308,18 +1320,11 @@
     </div>
   </div>
 
-  <!-- Barra global de ano: usada em Diagnóstica, Bimestres e Total -->
-  <div id="anoFilterBar" class="ano-filter-bar d-none">
-      <span class="ano-filter-label">
-        <i class="bi bi-funnel-fill me-1"></i>Ano escolar
-      </span>
-      <button type="button" class="btn-ano active" onclick="selecionarAnoFiltro('TODOS', this)">Todos</button>
-      <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('1º ANO', this)">1º Ano</button>
-      <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('2º ANO', this)">2º Ano</button>
-      <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('3º ANO', this)">3º Ano</button>
-      <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('4º ANO', this)">4º Ano</button>
-      <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('5º ANO', this)">5º Ano</button>
-    </div>
+  <!-- ⚠️ A barra de botões de ano escolar foi REMOVIDA em 2026-08. O ano
+       passou a ser um nível da árvore lateral (unidade › ano › turma), para
+       que não se possa pedir um ano que a unidade selecionada não tem. Não
+       recrie #anoFilterBar: `_setAnoFiltroAtualSeguro` continua sendo o
+       caminho para mudar o ano, agora chamado pela árvore. -->
 
   <main class="container-fluid p-3 p-md-4 view-shell">
 
@@ -1341,7 +1346,7 @@
             <div class="p-3 border-bottom d-flex justify-content-between align-items-center"
                  style="background:#002b5e;border-radius:10px 10px 0 0;">
               <span class="text-white fw-bold" style="font-size:.8rem;">
-                <i class="bi bi-building me-2"></i>Unidade / Turma
+                <i class="bi bi-building me-2"></i>Unidade / Ano / Turma
               </span>
               <button type="button" class="btn btn-sm text-white p-0" style="font-size:.7rem;opacity:.8;"
                       onclick="limparHierarquiaSel()" title="Ver toda a rede">
@@ -1372,7 +1377,7 @@
               </div>
             </div>
 
-            <!-- Select técnico usado pelo JS_Bimestre; a barra visual é #anoFilterBar -->
+            <!-- Select técnico usado pelo JS_Bimestre; o ano visual é o nível do meio da árvore lateral -->
             <select id="filtroAvAno" class="hidden-technical-select">
               <option value="TODOS">Todos os anos</option>
             </select>
@@ -1426,7 +1431,7 @@
             <div class="p-3 border-bottom d-flex justify-content-between align-items-center"
                  style="background:#002b5e;border-radius:10px 10px 0 0;">
               <span class="text-white fw-bold" style="font-size:.8rem;">
-                <i class="bi bi-building me-2"></i>Unidade / Turma
+                <i class="bi bi-building me-2"></i>Unidade / Ano / Turma
               </span>
               <button type="button" class="btn btn-sm text-white p-0" style="font-size:.7rem;opacity:.8;"
                       onclick="limparHierarquiaTotal()" title="Ver toda a rede">
@@ -2782,6 +2787,10 @@ let totalEixoAtual = 'TODOS';
 let anoFiltroAtual = 'TODOS';
 
 let _hierUnidadeAtiva = 'TODAS';
+// O ano escolar é um NÍVEL da árvore lateral, não uma barra de botões no topo
+// (ver o bloco "ÁRVORE LATERAL"). `anoFiltroAtual` continua sendo a variável
+// que o resto da tela consulta — este estado só a alimenta.
+let _hierAnoAtivo = 'TODOS';
 let _hierTurmaAtiva = 'TODAS';
 let _hierArvore = {};
 let _hierArvoreDiag = {};
@@ -2853,12 +2862,123 @@ function _filtrarAlunosPorUnidade(lista) {
   return lista.filter(a => _unidadeMatchFiltro(a.u || a.unidade || ''));
 }
 
-// Filtra a ÁRVORE de hierarquia (objeto unidade->turmas) para a lista lateral.
+// Filtra a ÁRVORE de hierarquia para a lista lateral. Mexe só no primeiro
+// nível (unidade), então independe de a árvore ter 2 ou 3 níveis.
 function _filtrarArvorePorUnidade(arvore) {
   if (!filtroUnidadeEscola || !arvore) return arvore || {};
   const res = {};
   Object.keys(arvore).forEach(u => { if (_unidadeMatchFiltro(u)) res[u] = arvore[u]; });
   return res;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ÁRVORE LATERAL — unidade › ANO ESCOLAR › turma
+//
+// ⚠️ A árvore tem TRÊS níveis. Antes eram dois (unidade › turma) e o ano vivia
+// numa barra de botões no topo da tela (#anoFilterBar), separada da unidade.
+// Isso deixava pedir "5º ano" e uma unidade que não tem 5º ano ao mesmo tempo:
+// a tela ficava vazia sem dizer por quê, porque os dois filtros não
+// conversavam. Como nível da árvore, só aparece o ano que a unidade tem.
+//
+// Formato: arv[unidade][ano][turma] = alunos.
+// ⚠️ Use SEMPRE os helpers abaixo para montar e somar — foi o que permitiu
+// trocar o formato em um lugar só, em vez de nas seis rotinas que montam
+// árvore (Diagnóstica, Bimestres, Total, e os caminhos reserva de cada uma).
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️ A chave é a forma NORMALIZADA ('1 ANO'), que é o que
+// `normalizarAnoFiltroFront` devolve — não '1º ANO'. Escrever com o ordinal
+// aqui faria a ordenação errar o alvo em silêncio e cair no desempate por
+// texto, que só acerta por acaso enquanto os anos forem de um dígito.
+const ORDEM_ANO_HIER = ['1 ANO', '2 ANO', '3 ANO', '4 ANO', '5 ANO'];
+
+// A chave é normalizada; o rótulo é para gente ler.
+function _rotuloAnoHier(a) {
+  const n = String(a || '').match(/[1-5]/);
+  return n ? `${n[0]}º Ano` : 'Sem ano';
+}
+
+function _arvAdd(arv, unidade, ano, turma, qtd) {
+  if (!unidade || !turma) return;
+  const a = normalizarAnoFiltroFront(ano || 'TODOS') || 'TODOS';
+  if (!arv[unidade]) arv[unidade] = {};
+  if (!arv[unidade][a]) arv[unidade][a] = {};
+  arv[unidade][a][turma] = (arv[unidade][a][turma] || 0) + Number(qtd || 0);
+}
+
+function _arvAnos(arv, u) {
+  return Object.keys((arv && arv[u]) || {}).sort((x, y) => {
+    const ix = ORDEM_ANO_HIER.indexOf(x), iy = ORDEM_ANO_HIER.indexOf(y);
+    return (ix < 0 ? 99 : ix) - (iy < 0 ? 99 : iy) || String(x).localeCompare(String(y));
+  });
+}
+
+function _arvTurmas(arv, u, a) {
+  // '—' é o marcador do nível agregado (as turmas reais descem ao clicar).
+  // Ele nunca vira item da lista, mas CONTA nos totais — senão o número
+  // mudaria sozinho quando o detalhe chegasse.
+  return Object.keys(((arv && arv[u]) || {})[a] || {}).filter(t => t !== '—').sort();
+}
+
+function _arvTotalAno(arv, u, a) {
+  return Object.values(((arv && arv[u]) || {})[a] || {})
+    .reduce((s, v) => s + Number(v || 0), 0);
+}
+
+function _arvTotalUnidade(arv, u) {
+  return _arvAnos(arv, u).reduce((s, a) => s + _arvTotalAno(arv, u, a), 0);
+}
+
+// Renderizador único das três abas. Elas tinham markup quase idêntico em três
+// cópias; manter três significava, na prática, três estados diferentes ao
+// mesmo tempo. `fn` traz os nomes das funções de cada aba.
+function _htmlArvoreLateral(arv, fn) {
+  const unidades = Object.keys(arv || {}).sort();
+  if (!unidades.length) {
+    return '<div class="text-center text-muted p-3 small">Sem dados para o filtro atual.</div>';
+  }
+  const chamar = (nome, args) => (fn && fn[nome])
+    ? `${fn[nome]}(${args})` : '';
+
+  return unidades.map((u, ui) => {
+    const ativaU = _hierUnidadeAtiva === u;
+    const anos = _arvAnos(arv, u);
+    const linhasAno = !ativaU ? '' : anos.map(a => {
+      const ativoA = ativaU && _hierAnoAtivo === a;
+      const turmas = _arvTurmas(arv, u, a);
+      const linhasTurma = !ativoA ? '' : (
+        turmas.length
+          ? turmas.map(t => `
+            <div class="hier-turma${(_hierTurmaAtiva === t) ? ' ativa' : ''}"
+                 ${fn.preAquecer ? `onmouseenter="${chamar('preAquecer', `'${escapeJs(u)}','${escapeJs(t)}'`)}"` : ''}
+                 onclick="${chamar('turma', `'${escapeJs(u)}','${escapeJs(a)}','${escapeJs(t)}',event`)}">
+              <span><i class="bi bi-people-fill me-2" style="font-size:.65rem;"></i>Turma ${escapeHtml(t)}</span>
+              <span class="hier-count">${arv[u][a][t]}</span>
+            </div>`).join('')
+          : `<div class="text-muted px-3 py-2" style="font-size:.7rem;padding-left:40px!important;">
+               <span class="spinner-border spinner-border-sm me-2" style="width:.7rem;height:.7rem;"></span>carregando turmas…
+             </div>`
+      );
+      return `
+        <div class="hier-ano${ativoA ? ' ativa' : ''}"
+             onclick="${chamar('ano', `'${escapeJs(u)}','${escapeJs(a)}',event`)}">
+          <span><i class="bi bi-mortarboard-fill me-2" style="font-size:.7rem;"></i>${escapeHtml(_rotuloAnoHier(a))}</span>
+          <span class="hier-count">${_arvTotalAno(arv, u, a)}</span>
+        </div>
+        <div class="hier-turmas" style="${ativoA ? 'display:block' : 'display:none'}">${linhasTurma}</div>`;
+    }).join('');
+
+    return `
+      <div class="hier-unidade${ativaU ? ' ativa' : ''}"
+           ${fn.preAquecer ? `onmouseenter="${chamar('preAquecer', `'${escapeJs(u)}','TODAS'`)}"` : ''}
+           onclick="${chamar('unidade', `'${escapeJs(u)}', ${ui}`)}">
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+              title="${escapeHtml(u)}">${escapeHtml(u)}</span>
+        <span class="hier-count ms-2">${_arvTotalUnidade(arv, u)}</span>
+      </div>
+      <div class="hier-anos" style="${ativaU ? 'display:block' : 'display:none'}">
+        ${ativaU && !anos.length ? `<div class="text-muted px-3 py-2" style="font-size:.7rem;">sem ano escolar lançado</div>` : linhasAno}
+      </div>`;
+  }).join('');
 }
 
 // ===========================================================
@@ -3598,24 +3718,12 @@ function preAquecerMenuAoPassarMouse(tipo) {
 // TOTAL LOCAL PACKAGE + ANO SEGURO
 // ===========================================================
 function _anoFiltroAtualSeguro() {
-  const ativo = document.querySelector('#anoFilterBar .btn-ano.active');
-  if (ativo) return normalizarAnoFiltroFront(ativo.innerText || ativo.textContent || 'TODOS');
   return normalizarAnoFiltroFront(anoFiltroAtual || 'TODOS');
 }
 
 function _setAnoFiltroAtualSeguro(ano, btn) {
   anoFiltroAtual = normalizarAnoFiltroFront(ano || 'TODOS');
-  document.querySelectorAll('#anoFilterBar .btn-ano').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  else {
-    document.querySelectorAll('#anoFilterBar .btn-ano').forEach(b => {
-      const txt = String(b.innerText || '').toUpperCase();
-      if ((anoFiltroAtual === 'TODOS' && txt.includes('TODOS')) ||
-          (anoFiltroAtual !== 'TODOS' && txt.includes(anoFiltroAtual.charAt(0)))) {
-        b.classList.add('active');
-      }
-    });
-  }
+  _hierAnoAtivo = anoFiltroAtual;
   const sel = document.getElementById('filtroAvAno');
   if (sel) {
     const existe = [...sel.options].some(o => o.value === anoFiltroAtual);
@@ -4741,7 +4849,7 @@ function prepararLayoutDiagnostica(titulo) {
           <div class="p-3 border-bottom d-flex justify-content-between align-items-center"
                style="background:#002b5e;border-radius:10px 10px 0 0;">
             <span class="text-white fw-bold" style="font-size:.8rem;">
-              <i class="bi bi-building me-2"></i>Unidade / Turma
+              <i class="bi bi-building me-2"></i>Unidade / Ano / Turma
             </span>
             <button class="btn btn-sm text-white p-0"
                     style="font-size:.7rem;opacity:.75;"
@@ -4828,15 +4936,14 @@ function _alunoPassaAnoDiag_(aluno) {
 function _construirArvoreDiag() {
   const arv = {};
 
+  // ⚠️ SEM .filter(_alunoPassaAnoDiag_): a árvore é o navegador e mostra todos
+  // os anos. Quem filtra por ano é a seleção FEITA nela.
   (rawData?.alunos || [])
-    .filter(_alunoPassaAnoDiag_)
     .forEach(al => {
       const unidade = al.u || 'Sem unidade';
       const turma = al.t || 'Sem turma';
 
-      if (!arv[unidade]) arv[unidade] = {};
-      if (!arv[unidade][turma]) arv[unidade][turma] = 0;
-      arv[unidade][turma]++;
+      _arvAdd(arv, unidade, al.a || 'TODOS', turma, 1);
     });
 
   return arv;
@@ -4846,76 +4953,56 @@ function renderHierarquiaDiag(forcarRecriar) {
   if (forcarRecriar || !Object.keys(_hierArvoreDiag || {}).length) {
     _hierArvoreDiag = _filtrarArvorePorUnidade(_construirArvoreDiag());
   }
-
   const container = document.getElementById('hierarquiaContainerDiag');
   if (!container) return;
-
-  const unidades = Object.keys(_hierArvoreDiag).sort();
-
-  if (!unidades.length) {
-    container.innerHTML = `
-      <div class="text-center text-muted p-3 small">
-        Sem dados para o filtro atual.
-      </div>
-    `;
-    return;
-  }
-
-  container.innerHTML = unidades.map((u, ui) => {
-    const turmas = Object.keys(_hierArvoreDiag[u]).sort();
-    const totalU = Object.values(_hierArvoreDiag[u]).reduce((a, b) => a + b, 0);
-    const ativaU = _hierUnidadeAtiva === u;
-
-    return `
-      <div class="hier-unidade${ativaU ? ' ativa' : ''}"
-           onclick="selecionarUnidadeDiag('${escapeJs(u)}', ${ui})">
-        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
-              title="${escapeHtml(u)}">${escapeHtml(u)}</span>
-        <span class="hier-count ms-2">${totalU}</span>
-      </div>
-
-      <div class="hier-turmas" style="${ativaU ? 'display:block' : 'display:none'}">
-        ${turmas.map(t => `
-          <div class="hier-turma${(_hierTurmaAtiva === t && ativaU) ? ' ativa' : ''}"
-               onclick="selecionarTurmaDiag('${escapeJs(u)}','${escapeJs(t)}',event)">
-            <span><i class="bi bi-people-fill me-2" style="font-size:.65rem;"></i>Turma ${escapeHtml(t)}</span>
-            <span class="hier-count">${_hierArvoreDiag[u][t]}</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }).join('');
+  container.innerHTML = _htmlArvoreLateral(_hierArvoreDiag, {
+    unidade: 'selecionarUnidadeDiag', ano: 'selecionarAnoDiag', turma: 'selecionarTurmaDiag'
+  });
 }
 
 function selecionarUnidadeDiag(unidade, ui) {
   const jaSelecionada = _hierUnidadeAtiva === unidade;
-
   _hierUnidadeAtiva = jaSelecionada ? 'TODAS' : unidade;
+  _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
-
-  renderHierarquiaDiag(false);
+  _setAnoFiltroAtualSeguro('TODOS');
+  // ⚠️ true: a árvore da Diagnóstica é construída a partir de rawData JÁ
+  // filtrado pelo ano, então trocar o ano exige reconstruí-la.
+  renderHierarquiaDiag(true);
   _atualizarBreadcrumbDiag();
   _aplicarFiltroDiag();
 }
 
-function selecionarTurmaDiag(unidade, turma, ev) {
+function selecionarAnoDiag(unidade, ano, ev) {
   if (ev) ev.stopPropagation();
-
-  const jaSelecionada = _hierUnidadeAtiva === unidade && _hierTurmaAtiva === turma;
-
+  const ja = _hierUnidadeAtiva === unidade && _hierAnoAtivo === ano;
   _hierUnidadeAtiva = unidade;
-  _hierTurmaAtiva = jaSelecionada ? 'TODAS' : turma;
+  _hierAnoAtivo = ja ? 'TODOS' : ano;
+  _hierTurmaAtiva = 'TODAS';
+  _setAnoFiltroAtualSeguro(_hierAnoAtivo);
+  renderHierarquiaDiag(true);
+  _atualizarBreadcrumbDiag();
+  _aplicarFiltroDiag();
+}
 
-  renderHierarquiaDiag(false);
+function selecionarTurmaDiag(unidade, ano, turma, ev) {
+  if (ev) ev.stopPropagation();
+  const jaSelecionada = _hierUnidadeAtiva === unidade && _hierAnoAtivo === ano && _hierTurmaAtiva === turma;
+  _hierUnidadeAtiva = unidade;
+  _hierAnoAtivo = ano;
+  _hierTurmaAtiva = jaSelecionada ? 'TODAS' : turma;
+  _setAnoFiltroAtualSeguro(ano);
+  renderHierarquiaDiag(true);
   _atualizarBreadcrumbDiag();
   _aplicarFiltroDiag();
 }
 
 function limparHierarquiaDiag() {
   _hierUnidadeAtiva = 'TODAS';
+  _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
-
-  renderHierarquiaDiag(false);
+  _setAnoFiltroAtualSeguro('TODOS');
+  renderHierarquiaDiag(true);
   _atualizarBreadcrumbDiag();
   _aplicarFiltroDiag();
 }
@@ -4955,10 +5042,12 @@ function _aplicarFiltroDiag() {
   atualizarPainelAlunos(currentAlunosViewList);
 }
 
+// ⚠️ NÃO zera mais a unidade. Quando o ano era uma barra separada, trocar de
+// ano significava "recomeçar"; agora o ano vive DENTRO da unidade, e limpar a
+// unidade ao escolher um ano dela desfaria o clique que o usuário acabou de
+// dar. Para recomeçar existe limparHierarquiaDiag().
 function switchYear(ano, btn) {
   _setAnoFiltroAtualSeguro(ano || 'TODOS', btn);
-
-  _hierUnidadeAtiva = 'TODAS';
   _hierTurmaAtiva = 'TODAS';
   _hierArvoreDiag = {};
 
@@ -5379,50 +5468,35 @@ function renderHierarquia(arvore) {
   _hierArvore = _filtrarArvorePorUnidade(arvore || {});
   const container = document.getElementById('hierarquiaContainer');
   if (!container) return;
-
-  const unidades = Object.keys(_hierArvore).sort();
-  if (!unidades.length) {
-    container.innerHTML = `<div class="text-center text-muted p-3 small">Sem dados</div>`;
-    return;
-  }
-
-  container.innerHTML = unidades.map((u, ui) => {
-    const todasTurmas = Object.keys(_hierArvore[u] || {}).sort();
-    // '—' é o marcador do nível agregado. A contagem dele é o total real de
-    // alunos da unidade (mínimo entre itens, conferido contra o nível aluno),
-    // então o número aparece JÁ CERTO e não muda quando o detalhe desce —
-    // o que troca é só o aparecimento das turmas ao clicar.
-    const detalhada = true;
-    const turmas = todasTurmas.filter(t => t !== '—');
-    const totalU = Object.values(_hierArvore[u] || {}).reduce((a, b) => a + Number(b || 0), 0);
-    const ativaU = _hierUnidadeAtiva === u;
-
-    return `
-      <div class="hier-unidade${ativaU ? ' ativa' : ''}"
-           onmouseenter="preAquecerFiltroBimestre('${escapeJs(u)}','TODAS')"
-           onclick="selecionarUnidade('${escapeJs(u)}', ${ui})">
-        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(u)}">
-          ${escapeHtml(u)}
-        </span>
-        <span class="hier-count ms-2">${detalhada ? totalU : '…'}</span>
-      </div>
-      <div class="hier-turmas" style="${ativaU ? 'display:block' : 'display:none'}">
-        ${(ativaU && !turmas.length) ? `<div class="text-muted px-3 py-2" style="font-size:.7rem;"><span class="spinner-border spinner-border-sm me-2" style="width:.7rem;height:.7rem;"></span>carregando turmas…</div>` : ''}
-        ${turmas.map(t => `
-          <div class="hier-turma${(_hierTurmaAtiva === t && ativaU) ? ' ativa' : ''}"
-               onmouseenter="preAquecerFiltroBimestre('${escapeJs(u)}','${escapeJs(t)}')"
-               onclick="selecionarTurma('${escapeJs(u)}','${escapeJs(t)}',event)">
-            <span><i class="bi bi-people-fill me-2" style="font-size:.65rem;"></i>Turma ${escapeHtml(t)}</span>
-            <span class="hier-count">${_hierArvore[u][t]}</span>
-          </div>`).join('')}
-      </div>`;
-  }).join('');
+  container.innerHTML = _htmlArvoreLateral(_hierArvore, {
+    unidade: 'selecionarUnidade', ano: 'selecionarAnoHier', turma: 'selecionarTurma',
+    preAquecer: 'preAquecerFiltroBimestre'
+  });
 }
 
 function selecionarUnidade(unidade, ui) {
   const ja = _hierUnidadeAtiva === unidade;
   _hierUnidadeAtiva = ja ? 'TODAS' : unidade;
+  // Fechar a unidade zera os níveis de baixo: manter um ano aceso sob uma
+  // unidade fechada deixaria um filtro invisível ligado.
+  _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
+  _setAnoFiltroAtualSeguro('TODOS');
+  renderHierarquia(_hierArvore);
+  _atualizarBreadcrumb();
+  aplicarFiltrosAvaliacao();
+  if (!ja) _detalharUnidadeFicha(unidade);
+}
+
+// Nível do meio, compartilhado pelas três abas: quem muda o ano é sempre este
+// caminho, para que `anoFiltroAtual` e a árvore nunca discordem.
+function selecionarAnoHier(unidade, ano, ev) {
+  if (ev) ev.stopPropagation();
+  const ja = _hierUnidadeAtiva === unidade && _hierAnoAtivo === ano;
+  _hierUnidadeAtiva = unidade;
+  _hierAnoAtivo = ja ? 'TODOS' : ano;
+  _hierTurmaAtiva = 'TODAS';
+  _setAnoFiltroAtualSeguro(_hierAnoAtivo);
   renderHierarquia(_hierArvore);
   _atualizarBreadcrumb();
   aplicarFiltrosAvaliacao();
@@ -5472,11 +5546,13 @@ function _detalharUnidadeFicha(unidade) {
   }).getDetalheUnidadeFicha(bimestreAtualKey, unidade);
 }
 
-function selecionarTurma(unidade, turma, ev) {
+function selecionarTurma(unidade, ano, turma, ev) {
   if (ev) ev.stopPropagation();
-  const ja = _hierTurmaAtiva === turma && _hierUnidadeAtiva === unidade;
+  const ja = _hierTurmaAtiva === turma && _hierUnidadeAtiva === unidade && _hierAnoAtivo === ano;
   _hierUnidadeAtiva = unidade;
+  _hierAnoAtivo = ano;
   _hierTurmaAtiva = ja ? 'TODAS' : turma;
+  _setAnoFiltroAtualSeguro(ano);
   renderHierarquia(_hierArvore);
   _atualizarBreadcrumb();
   aplicarFiltrosAvaliacao();
@@ -5484,7 +5560,9 @@ function selecionarTurma(unidade, turma, ev) {
 
 function limparHierarquiaSel() {
   _hierUnidadeAtiva = 'TODAS';
+  _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
+  _setAnoFiltroAtualSeguro('TODOS');
   renderHierarquia(_hierArvore || {});
   _atualizarBreadcrumb();
   aplicarFiltrosAvaliacao();
@@ -5535,9 +5613,9 @@ function limparFiltrosAvaliacao() {
   _hierUnidadeAtiva = 'TODAS';
   _hierTurmaAtiva = 'TODAS';
   anoFiltroAtual = 'TODOS';
+  _hierAnoAtivo = 'TODOS';
   const sel = document.getElementById('filtroAvAno');
   if (sel) sel.value = 'TODOS';
-  document.querySelectorAll('#anoFilterBar .btn-ano').forEach((b, i) => b.classList.toggle('active', i === 0));
   renderHierarquia(_hierArvore || {});
   _atualizarBreadcrumb();
   aplicarFiltrosAvaliacao();
@@ -5802,10 +5880,9 @@ function _arvoreLocalDoPacote() {
       if (!u || !t) return;
       // Filtro de unidade escolar (acesso restrito por escola).
       if (typeof _unidadeMatchFiltro === 'function' && !_unidadeMatchFiltro(u)) return;
-      if (anoFiltro !== 'TODOS' && a !== anoFiltro) return;
+      // ⚠️ A árvore lateral NÃO é filtrada por ano: o ano é um NÍVEL dela. Filtrar aqui esconderia os outros anos e não haveria como trocar.
 
-      if (!arv[u]) arv[u] = {};
-      arv[u][t] = (arv[u][t] || 0) + qtd;
+      _arvAdd(arv, u, a, t, qtd);
     });
 
     return arv;
@@ -5837,18 +5914,22 @@ function _linhasPacoteFiltradas() {
   });
 }
 
+// Total de alunos do recorte ativo. Como a árvore agora tem três níveis, a
+// soma respeita os três: unidade, ano e turma.
 function _alunosTotalPacoteLocal() {
-  const arvore = _arvoreLocalDoPacote();
+  const arv = _arvoreLocalDoPacote();
+  const u = _hierUnidadeAtiva, a = _hierAnoAtivo, t = _hierTurmaAtiva;
 
-  if (_hierUnidadeAtiva !== 'TODAS') {
-    if (!arvore[_hierUnidadeAtiva]) return 0;
-    if (_hierTurmaAtiva !== 'TODAS') return Number(arvore[_hierUnidadeAtiva][_hierTurmaAtiva] || 0);
-    return Object.values(arvore[_hierUnidadeAtiva]).reduce((a, b) => a + Number(b || 0), 0);
-  }
+  const somaAno = (uu, aa) => (t !== 'TODAS')
+    ? Number((((arv[uu] || {})[aa]) || {})[t] || 0)
+    : _arvTotalAno(arv, uu, aa);
 
-  return Object.keys(arvore).reduce((total, u) => {
-    return total + Object.values(arvore[u] || {}).reduce((a, b) => a + Number(b || 0), 0);
-  }, 0);
+  const somaUnidade = uu => (a !== 'TODOS')
+    ? somaAno(uu, a)
+    : _arvAnos(arv, uu).reduce((s, aa) => s + somaAno(uu, aa), 0);
+
+  if (u !== 'TODAS') return arv[u] ? somaUnidade(u) : 0;
+  return Object.keys(arv).reduce((s, uu) => s + somaUnidade(uu), 0);
 }
 
 function _montarResumoLocalDoPacote() {
@@ -6278,18 +6359,17 @@ function _addLinhaIndiceTotal(cache, key, disc, eixo, campo, soma, qtd) {
   cache[key][k][campo].q += qtd;
 }
 
+// ⚠️ Uma árvore só, com o ano DENTRO dela — antes eram várias, uma por ano,
+// escolhidas pelo filtro do topo. Com o ano virando nível da árvore, servir a
+// árvore "do ano selecionado" esconderia justamente os outros anos e não
+// haveria como trocar: o navegador não pode ser filtrado por si mesmo.
 function _addArvoreTotalIndex(arvores, vistos, anoKey, unidade, turma) {
-  const keyVisto = unidade + '||' + turma;
-
-  if (!vistos[anoKey]) vistos[anoKey] = new Set();
-  if (vistos[anoKey].has(keyVisto)) return;
-
-  vistos[anoKey].add(keyVisto);
-
-  if (!arvores[anoKey]) arvores[anoKey] = {};
-  if (!arvores[anoKey][unidade]) arvores[anoKey][unidade] = {};
-
-  arvores[anoKey][unidade][turma] = (arvores[anoKey][unidade][turma] || 0) + 1;
+  const keyVisto = anoKey + '||' + unidade + '||' + turma;
+  if (!vistos.__geral) vistos.__geral = new Set();
+  if (vistos.__geral.has(keyVisto)) return;
+  vistos.__geral.add(keyVisto);
+  if (!arvores.__geral) arvores.__geral = {};
+  _arvAdd(arvores.__geral, unidade, anoKey, turma, 1);
 }
 
 function _garantirIndicePacoteTotal(pkg) {
@@ -6339,9 +6419,8 @@ function _garantirIndicePacoteTotal(pkg) {
     // Filtro de unidade escolar (acesso restrito por escola).
     if (typeof _unidadeMatchFiltro === 'function' && !_unidadeMatchFiltro(unidade)) return;
 
-    // Arvore lateral: pronta para TODOS e para cada ano.
-    _addArvoreTotalIndex(arvores, vistosArvore, 'TODOS', unidade, turma);
-    if (ano && ano !== 'TODOS') _addArvoreTotalIndex(arvores, vistosArvore, ano, unidade, turma);
+    // Árvore lateral: uma só, com unidade › ano › turma.
+    _addArvoreTotalIndex(arvores, vistosArvore, ano || 'TODOS', unidade, turma);
 
     if (!disc || !eixo || !campo || !qtd) return;
 
@@ -6408,12 +6487,13 @@ function _linhasTotalDoIndice(pkg, filtros) {
   return idx.arrays[key];
 }
 
+// O parâmetro `ano` continua na assinatura porque os chamadores o passam, mas
+// é IGNORADO de propósito: a árvore lateral mostra sempre a rede inteira, e é
+// nela que se escolhe o ano.
 function _arvoreTotalDoIndice(pkg, ano) {
   const idx = _garantirIndicePacoteTotal(pkg);
   if (!idx) return {};
-
-  const anoNorm = ano || 'TODOS';
-  return idx.arvores[anoNorm] || {};
+  return idx.arvores.__geral || {};
 }
 
 function _normalizarEixoTotalFront(eixo) {
@@ -6494,7 +6574,7 @@ function prepararLayoutTotalSeNecessario() {
         <div class="bg-white border rounded-3 shadow-sm p-0">
           <div class="p-3 border-bottom d-flex justify-content-between align-items-center" style="background:#002b5e;border-radius:10px 10px 0 0;">
             <span class="text-white fw-bold" style="font-size:.8rem;">
-              <i class="bi bi-building me-2"></i>Unidade / Turma
+              <i class="bi bi-building me-2"></i>Unidade / Ano / Turma
             </span>
             <button type="button" class="btn btn-sm text-white p-0" style="font-size:.7rem;opacity:.8;" onclick="limparHierarquiaTotal()" title="Ver toda a rede">
               <i class="bi bi-x-circle me-1"></i>Todos
@@ -6725,39 +6805,12 @@ function renderHierarquiaTotal(arvore) {
   _hierArvoreTotal = _filtrarArvorePorUnidade(arvore || {});
   const container = document.getElementById('hierarquiaContainerTotal');
   if (!container) return;
+  container.innerHTML = _htmlArvoreLateral(_hierArvoreTotal, {
+    unidade: 'selecionarUnidadeTotal', ano: 'selecionarAnoTotal', turma: 'selecionarTurmaTotal',
+    preAquecer: 'preAquecerFiltroTotal'
+  });
 
   const unidades = Object.keys(_hierArvoreTotal).sort();
-  if (!unidades.length) {
-    container.innerHTML = `<div class="text-center text-muted p-3 small">Sem dados para o filtro atual.</div>`;
-    return;
-  }
-
-  container.innerHTML = unidades.map(u => {
-    // '—' é o marcador do nível agregado (turmas reais chegam ao clicar).
-    // Ele NUNCA vira um item na lista: some para não dar a impressão de que
-    // a tela "trocou de informação" quando o detalhe desce.
-    const turmas = Object.keys(_hierArvoreTotal[u]).filter(t => t !== '—').sort();
-    const totalU = Object.values(_hierArvoreTotal[u]).reduce((a, b) => a + Number(b || 0), 0);
-    const ativaU = _hierUnidadeAtiva === u;
-
-    return `
-      <div class="hier-unidade${ativaU ? ' ativa' : ''}"
-           onclick="selecionarUnidadeTotal('${escapeJs(u)}')">
-        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(u)}">${escapeHtml(u)}</span>
-        <span class="hier-count ms-2">${totalU}</span>
-      </div>
-      <div class="hier-turmas" style="${ativaU ? 'display:block' : 'display:none'}">
-        ${(ativaU && !turmas.length) ? `<div class="text-muted px-3 py-2" style="font-size:.7rem;"><span class="spinner-border spinner-border-sm me-2" style="width:.7rem;height:.7rem;"></span>carregando turmas…</div>` : ''}
-        ${turmas.map(t => `
-          <div class="hier-turma${(_hierTurmaAtiva === t && ativaU) ? ' ativa' : ''}"
-               onmouseenter="preAquecerFiltroTotal('${escapeJs(u)}','${escapeJs(t)}')"
-               onclick="selecionarTurmaTotal('${escapeJs(u)}','${escapeJs(t)}',event)">
-            <span><i class="bi bi-people-fill me-2" style="font-size:.65rem;"></i>Turma ${escapeHtml(t)}</span>
-            <span class="hier-count">${_hierArvoreTotal[u][t]}</span>
-          </div>`).join('')}
-      </div>`;
-  }).join('');
-
   const preKey = (_filtrosTotal().ano || 'TODOS') + '|' + unidades.join('||');
   if (_totalPrefetchArvoreKey !== preKey) {
     _totalPrefetchArvoreKey = preKey;
@@ -6775,7 +6828,9 @@ function selecionarUnidadeTotal(unidade) {
   const jaSelecionada = _hierUnidadeAtiva === unidade;
 
   _hierUnidadeAtiva = jaSelecionada ? 'TODAS' : unidade;
+  _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
+  _setAnoFiltroAtualSeguro('TODOS');
   totalDisciplinaSelecionada = '';
   totalEixoAtual = 'TODOS';
 
@@ -6795,13 +6850,40 @@ function selecionarUnidadeTotal(unidade) {
 }
 
 
-function selecionarTurmaTotal(unidade, turma, ev) {
+function selecionarAnoTotal(unidade, ano, ev) {
+  if (ev) ev.stopPropagation();
+  const ja = _hierUnidadeAtiva === unidade && _hierAnoAtivo === ano;
+  _hierUnidadeAtiva = unidade;
+  _hierAnoAtivo = ja ? 'TODOS' : ano;
+  _hierTurmaAtiva = 'TODAS';
+  _setAnoFiltroAtualSeguro(_hierAnoAtivo);
+  totalDisciplinaSelecionada = '';
+  totalEixoAtual = 'TODOS';
+
+  renderHierarquiaTotal(_hierArvoreTotal);
+  atualizarBreadcrumbTotal();
+
+  // ⚠️ Aquecer o pacote do ano — era o que a barra de ano fazia. Sem isto a
+  // troca de ano fica lenta na primeira vez, e o 'TODOS' de reserva some.
+  if (typeof _prefetchPacoteTotal === 'function') {
+    _prefetchPacoteTotal({ ano: _hierAnoAtivo }, 1);
+    _prefetchPacoteTotal({ ano: 'TODOS' }, 4);
+  }
+  if (_hierUnidadeAtiva !== 'TODAS' && typeof _prefetchTotalTurmasUnidade === 'function') {
+    _prefetchTotalTurmasUnidade(_hierUnidadeAtiva, 1);
+  }
+  carregarTotalRapido(false);
+}
+
+function selecionarTurmaTotal(unidade, ano, turma, ev) {
   if (ev) ev.stopPropagation();
 
-  const jaSelecionada = _hierUnidadeAtiva === unidade && _hierTurmaAtiva === turma;
+  const jaSelecionada = _hierUnidadeAtiva === unidade && _hierAnoAtivo === ano && _hierTurmaAtiva === turma;
 
   _hierUnidadeAtiva = unidade;
+  _hierAnoAtivo = ano;
   _hierTurmaAtiva = jaSelecionada ? 'TODAS' : turma;
+  _setAnoFiltroAtualSeguro(ano);
   totalDisciplinaSelecionada = '';
   totalEixoAtual = 'TODOS';
 
@@ -7011,11 +7093,10 @@ function _montarArvoreTotalDoPacote(pkg, ano) {
     const u = row[TPKG.U] || 'Sem unidade';
     const a = normalizarAnoFiltroFront(row[TPKG.A] || 'TODOS');
     const t = String(row[TPKG.T] || 'Sem turma').trim().toUpperCase();
-    if (anoFiltro !== 'TODOS' && a !== anoFiltro) return;
-    if (!arv[u]) arv[u] = {};
-    const k = u + '||' + t;
+    // ⚠️ A árvore lateral NÃO é filtrada por ano: o ano é um NÍVEL dela. Filtrar aqui esconderia os outros anos e não haveria como trocar.
+    const k = u + '||' + a + '||' + t;
     if (!vistos.has(k)) {
-      arv[u][t] = (arv[u][t] || 0) + 1;
+      _arvAdd(arv, u, a, t, 1);
       vistos.add(k);
     }
   });
@@ -9727,9 +9808,7 @@ function _renderTabelaTotal(linhas) {
       const pacote = await this.getPacoteBimestreRapido(key, filtros || {});
       const arvore = {};
       (pacote.hierLinhas || []).forEach(r => {
-        const u = r[0], t = r[2], qtd = Number(r[3] || 0);
-        if (!arvore[u]) arvore[u] = {};
-        arvore[u][t] = (arvore[u][t] || 0) + qtd;
+        _arvAdd(arvore, r[0], r[1], r[2], Number(r[3] || 0));
       });
       return { ok: true, arvore };
     },
@@ -9944,7 +10023,7 @@ function _renderTabelaTotal(linhas) {
             const b = bi + 1;
             porAno.forEach((rows, i) => {
               const a = normalizar(FICHA_ANOS_ESCOLARES[i]);
-              if (anoFiltro !== 'TODOS' && a !== anoFiltro) return;
+              // ⚠️ A árvore lateral NÃO é filtrada por ano: o ano é um NÍVEL dela. Filtrar aqui esconderia os outros anos e não haveria como trocar.
               (rows || []).forEach(r => {
                 const qtd = Number(r.qtd_alunos || 0);
                 if (!qtd) return;
@@ -9974,9 +10053,7 @@ function _renderTabelaTotal(linhas) {
             const arvore = {};
             porU.forEach((alunos, kU) => {
               const p = kU.split('||');
-              const u = p[0], t = p[2];
-              if (!arvore[u]) arvore[u] = {};
-              arvore[u][t] = (arvore[u][t] || 0) + alunos;
+              _arvAdd(arvore, p[0], p[1], p[2], alunos);
             });
             return { ok: true, arvore };
           }
@@ -9992,11 +10069,10 @@ function _renderTabelaTotal(linhas) {
         const arvore = {};
         (data || []).forEach(r => {
           const a = normalizar(r.ano_escolar || 'TODOS') || 'TODOS';
-          if (anoFiltro !== 'TODOS' && a !== anoFiltro) return;
-          const u = cleanUnit(r.nome_unidade || 'Sem unidade');
-          const t = String(r.turma || 'Sem turma').trim().toUpperCase();
-          if (!arvore[u]) arvore[u] = {};
-          arvore[u][t] = (arvore[u][t] || 0) + Number(r.qtd_alunos || 0);
+          // ⚠️ A árvore lateral NÃO é filtrada por ano: o ano é um NÍVEL dela. Filtrar aqui esconderia os outros anos e não haveria como trocar.
+          _arvAdd(arvore, cleanUnit(r.nome_unidade || 'Sem unidade'), a,
+                  String(r.turma || 'Sem turma').trim().toUpperCase(),
+                  Number(r.qtd_alunos || 0));
         });
         return { ok: true, arvore };
       } catch (err) {
@@ -10014,15 +10090,14 @@ function _renderTabelaTotal(linhas) {
       const vistos = new Set();
       function add(uRaw, aRaw, tRaw, idRaw) {
         const a = normalizar(aRaw || 'TODOS') || 'TODOS';
-        if (anoFiltro !== 'TODOS' && a !== anoFiltro) return;
+        // ⚠️ A árvore lateral NÃO é filtrada por ano: o ano é um NÍVEL dela. Filtrar aqui esconderia os outros anos e não haveria como trocar.
         const u = cleanUnit(uRaw || 'Sem unidade');
         const t = String(tRaw || 'Sem turma').trim().toUpperCase();
         const id = String(idRaw || '').trim() || (u + '|' + a + '|' + t);
         const k = u + '||' + a + '||' + t + '||' + id;
         if (vistos.has(k)) return;
         vistos.add(k);
-        if (!arvore[u]) arvore[u] = {};
-        arvore[u][t] = (arvore[u][t] || 0) + 1;
+        _arvAdd(arvore, u, a, t, 1);
       }
 
       bimestresRows.forEach(r => add(r.nome_unidade, r.ano_escolar, r.turma, r.rema_aluno || r.nome_aluno || JSON.stringify(r)));
@@ -10453,14 +10528,14 @@ function executarPassoApresentacao() {
 // ===========================================================
 // BARRA DE ANO
 // ===========================================================
-function mostrarAnoFilterBar(show) {
-  const bar = document.getElementById('anoFilterBar');
-  if (bar) bar.classList.toggle('d-none', !show);
-}
+// A barra de botões de ano não existe mais — o ano é um nível da árvore
+// lateral. As duas funções continuam porque a troca de aba as chama; a de
+// mostrar virou no-op, e a de resetar zera o ESTADO, que é o que importava.
+function mostrarAnoFilterBar(show) { /* a barra foi removida; ver ÁRVORE LATERAL */ }
 
 function _resetarAnoFilterBar() {
   anoFiltroAtual = 'TODOS';
-  document.querySelectorAll('#anoFilterBar .btn-ano').forEach((b, i) => b.classList.toggle('active', i === 0));
+  _hierAnoAtivo = 'TODOS';
   const aSel = document.getElementById('filtroAvAno');
   if (aSel) aSel.value = 'TODOS';
 }

@@ -51,6 +51,46 @@ médios (`#65a30d`, `#ca8a04`, `#ea580c`) o texto branco fica em 2,94–3,56:1,
 abaixo do mínimo de 4,5:1; com tinta escura sobe para 5,0–6,1:1. A paleta é a
 mesma — não volte o texto para branco "para uniformizar".
 
+### O ano escolar é um NÍVEL da árvore lateral, não um filtro à parte
+
+⚠️ **Não recrie a barra de botões de ano (`#anoFilterBar`).** Ela foi removida
+em 2026-08 por decisão da SME. A árvore lateral das três abas (Diagnóstica,
+Bimestres, Total) é **unidade › ano escolar › turma**.
+
+O motivo não é estética: a barra ficava no topo, separada da unidade, e os dois
+filtros não conversavam. Dava para pedir "5º ano" numa unidade que não tem 5º
+ano — a tela ficava vazia sem dizer por quê. Como nível da árvore, só aparece
+o ano que a unidade realmente tem.
+
+Formato: `arv[unidade][ano][turma] = alunos`. ⚠️ Monte e some **sempre** pelos
+helpers `_arvAdd`, `_arvAnos`, `_arvTurmas`, `_arvTotalAno` e
+`_arvTotalUnidade` — são seis rotinas que montam árvore (as três abas e os
+caminhos reserva de cada uma), e foi o que permitiu trocar o formato num lugar
+só. As três abas compartilham **um** renderizador, `_htmlArvoreLateral()`;
+antes eram três cópias quase iguais, que na prática viviam em três estados
+diferentes ao mesmo tempo.
+
+⚠️ **A árvore NUNCA é filtrada pelo ano.** Ela é o navegador: filtrar por ano
+esconderia os outros anos e não haveria como trocar. Havia cinco pontos que
+faziam isso (`if (anoFiltro !== 'TODOS' && a !== anoFiltro) return`) dentro de
+construtores de árvore — todos foram retirados, e só ali. Os mesmos testes
+aplicados às LINHAS de dado continuam valendo.
+
+⚠️ Quem muda o ano é sempre `_setAnoFiltroAtualSeguro()`, chamado pela árvore.
+`anoFiltroAtual` continua sendo a variável que o resto da tela lê — o estado
+`_hierAnoAtivo` só a alimenta. Manter os dois em sincronia é o que impede a
+tela de mostrar os números de um ano com o rótulo de outro.
+
+⚠️ `switchYear()` **não zera mais a unidade**. Quando o ano era uma barra
+separada, trocar de ano significava recomeçar; agora o ano vive dentro da
+unidade, e limpar a unidade desfaria o clique que a pessoa acabou de dar.
+
+⚠️ A chave do ano é a forma **normalizada** (`'1 ANO'`), que é o que
+`normalizarAnoFiltroFront` devolve — não `'1º ANO'`. `ORDEM_ANO_HIER` escrito
+com o ordinal faz a ordenação errar em silêncio e cair no desempate por texto,
+que só acerta enquanto os anos forem de um dígito. O ordinal aparece só no
+rótulo, por `_rotuloAnoHier()`.
+
 ### A rosca da Diagnóstica tem etiqueta externa para a fatia miúda
 
 As três distribuições da Diagnóstica (Leitura, Escrita, Produção Textual) são
