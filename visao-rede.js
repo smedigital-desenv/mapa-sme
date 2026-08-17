@@ -91,13 +91,14 @@ var CSS = ''
 + 'body:not(.vr-todas) .vr-chip{display:none;}'
 + 'body.vr-todas .ad-chip:not(.vr-chip){display:none;}'
 + '.vr-ops{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:.2rem .2rem .7rem;}'
-+ '.vr-ops label{font-size:.7rem;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.05em;}'
-+ '.vr-ops select,.vr-ops input{border:1px solid #cdd7e3;border-radius:9px;padding:.35rem .6rem;'
-+   'font-family:inherit;font-size:.8rem;font-weight:700;background:#fff;color:#0f172a;}'
++ '.vr-ops label{font-size:.7rem;font-weight:800;color:var(--muted,#64748b);'
++   'text-transform:uppercase;letter-spacing:.05em;}'
++ '.vr-ops select,.vr-ops input{border:1px solid var(--line,#cdd7e3);border-radius:9px;'
++   'padding:.35rem .6rem;font-family:inherit;font-size:.8rem;font-weight:700;}'
 + '.vr-ops input{min-width:210px;font-weight:600;}'
-+ '.vr-ops .vr-cont{font-size:.72rem;color:#64748b;font-weight:700;}'
++ '.vr-ops .vr-cont{font-size:.72rem;color:var(--muted,#64748b);font-weight:700;}'
 + 'table.ad.vr-tab th.vr-ord{cursor:pointer;user-select:none;white-space:nowrap;}'
-+ 'table.ad.vr-tab th.vr-ord:hover{color:#0f172a;}'
++ 'table.ad.vr-tab th.vr-ord:hover{color:var(--ink,#0f172a);}'
 + 'table.ad.vr-tab td.vr-nm{text-align:left;}'
 /* O nome da unidade fica com a folga da tabela e as colunas de número não
    quebram. Sem isso a coluna da medida estica (uma célula colorida de 300px
@@ -106,13 +107,18 @@ var CSS = ''
 + 'table.ad.vr-tab th[data-ord="escola"]{width:42%;}'
 + 'table.ad.vr-tab td,table.ad.vr-tab th{white-space:nowrap;}'
 + 'table.ad.vr-tab td.vr-nm{white-space:normal;}'
-+ 'table.ad.vr-tab td.vr-posto{font-weight:900;color:#94a3b8;font-size:.72rem;width:46px;}'
-+ '.vr-nome{background:none;border:0;padding:0;font:inherit;font-weight:800;color:#002b5e;'
-+   'text-align:left;cursor:pointer;text-decoration:underline;'
-+   'text-decoration-color:rgba(0,43,94,.3);text-underline-offset:3px;}'
-+ '.vr-nome:hover{color:#075f82;text-decoration-color:currentColor;}'
-+ '.vr-nome:focus-visible{outline:2px solid #00b8d4;outline-offset:2px;border-radius:4px;}'
-+ '.vr-msg{color:#64748b;padding:.8rem;text-align:left;}';
++ 'table.ad.vr-tab td.vr-posto{font-weight:900;color:var(--muted,#94a3b8);font-size:.72rem;width:46px;}'
+/* ⚠️ As cores vêm das variáveis das telas, com o valor claro só de reserva.
+   A pele escura da /teste (mapa-v2.css) redefine --primary, --ink, --line e
+   --muted no :root; cravar #002b5e aqui deixaria o nome da unidade — o único
+   elemento clicável da lista — azul-marinho sobre fundo escuro. E este CSS
+   nasce do JavaScript, então o extrair-claros.py não o alcança. */
++ '.vr-nome{background:none;border:0;padding:0;font:inherit;font-weight:800;'
++   'color:var(--primary,#002b5e);text-align:left;cursor:pointer;text-decoration:underline;'
++   'text-decoration-color:rgba(128,128,128,.5);text-underline-offset:3px;}'
++ '.vr-nome:hover{text-decoration-color:currentColor;}'
++ '.vr-nome:focus-visible{outline:2px solid var(--neon,#00b8d4);outline-offset:2px;border-radius:4px;}'
++ '.vr-msg{color:var(--muted,#64748b);padding:.8rem;text-align:left;}';
 
 var cfg = null;          // configuração da tela
 var painel = null;       // elemento do painel
