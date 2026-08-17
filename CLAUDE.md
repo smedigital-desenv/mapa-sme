@@ -92,6 +92,21 @@ médios (`#65a30d`, `#ca8a04`, `#ea580c`) o texto branco fica em 2,94–3,56:1,
 abaixo do mínimo de 4,5:1; com tinta escura sobe para 5,0–6,1:1. A paleta é a
 mesma — não volte o texto para branco "para uniformizar".
 
+### A tela AVISA quando o dado não veio da API
+
+⚠️ O pacote do bimestre carrega `origem` (`'coderp'` ou `'banco'`) e
+`incompleto`. Quando o CODERP falha, a tela cai sozinha para a base importada
+— que tem **muito menos lançamento** — e os números despencam. Antes o aviso só
+aparecia com a tela VAZIA; com o banco tendo algum registro, a queda passava
+por erro de contagem. Hoje um selo aparece ao lado do "Filtro ativo" sempre que
+a fonte não é a API, e outro quando o pacote está incompleto.
+
+A sonda `MapaDiagFonte(bimestre)` fecha o diagnóstico em três passos: de que
+fonte veio o que está na tela, o que a API devolve CRU agora (ano a ano,
+linhas e alunos-resposta, `per_cod` distintos, `tur_cod` preenchidos) e se os
+dois são compatíveis. É o que separa "a API mandou menos" de "a tela contou
+menos" sem adivinhação.
+
 ### O ano escolar é um NÍVEL da árvore lateral, não um filtro à parte
 
 ⚠️ **Não recrie a barra de botões de ano (`#anoFilterBar`).** Ela foi removida

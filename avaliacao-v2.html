@@ -5587,6 +5587,42 @@ function _atualizarBreadcrumb() {
       <i class="bi bi-chevron-right mx-1 text-muted"></i>
       <i class="bi bi-people-fill me-1 text-info"></i><b class="text-info">Turma ${escapeHtml(_hierTurmaAtiva)}</b>${anoStr}`;
   }
+
+  // ⚠️ A fonte do dado precisa aparecer SEMPRE que não for a API. Antes o
+  // aviso só surgia com a tela vazia: quando o CODERP falhava mas o banco
+  // tinha ALGUM registro, a tela mostrava números muito menores sem dizer que
+  // tinha trocado de fonte — e a queda passava por erro de contagem.
+  el.insertAdjacentHTML('beforeend', _seloFonteBimestre());
+}
+
+function _seloFonteBimestre() {
+  const pac = pacoteBimestreAtual;
+  if (!pac || !pac.ok) return '';
+  // Rótulo curto e explicação inteira no title — nada de derivar o rótulo do
+  // texto por split, que produzia etiquetas como "Fonte".
+  const avisos = [];
+  if (pac.origem === 'banco') {
+    avisos.push({
+      rotulo: 'Dados do banco, não da API',
+      cor: '#b45309', fundo: '#fef3c7', icone: 'database-exclamation',
+      titulo: 'A API do CODERP não respondeu'
+        + (pac.motivoCoderp ? ' (' + pac.motivoCoderp + ')' : '')
+        + ', então a tela está mostrando a base importada. Os números tendem a ser menores'
+        + ' porque a base tem menos lançamentos que a API.'
+    });
+  }
+  if (pac.incompleto) {
+    avisos.push({
+      rotulo: 'Dado incompleto',
+      cor: '#b91c1c', fundo: '#fee2e2', icone: 'exclamation-triangle-fill',
+      titulo: 'Algum ano escolar falhou na consulta. Os totais estão abaixo do real.'
+    });
+  }
+  return avisos.map(a =>
+    `<span title="${escapeHtml(a.titulo)}" style="margin-left:10px;font-size:.68rem;font-weight:800;`
+    + `color:${a.cor};background:${a.fundo};border:1px solid ${a.cor}55;border-radius:999px;`
+    + `padding:2px 9px;white-space:nowrap;vertical-align:middle;">`
+    + `<i class="bi bi-${a.icone} me-1"></i>${escapeHtml(a.rotulo)}</span>`).join('');
 }
 
 // ===========================================================
@@ -8358,6 +8394,86 @@ function _renderTabelaTotal(linhas) {
   // Sonda: compara o consolidado oficial com o que a varredura por turma
   // agrega. Rode `MapaDiagRede(1)` no console. Enquanto não soubermos se os
   // dois recortes são comparáveis, o número da rede NÃO vai para a tela.
+  // ── Sonda: como o dado está CHEGANDO da API ───────────────────────────────
+  // Responde três perguntas em sequência, que juntas separam "a API mandou
+  // menos" de "a tela contou menos":
+  //   1. de qual FONTE veio o pacote que está na tela (CODERP ou banco);
+  //   2. o que a API devolve CRU agora, ano a ano;
+  //   3. se o número de alunos da tela é compatível com esse cru.
+  //
+  //   await MapaDiagFonte(1)
+  window.MapaDiagFonte = async function (bimestre) {
+    bimestre = bimestre || 1;
+
+    console.log('══ 1. O QUE ESTÁ NA TELA ══');
+    // `let` no topo não vira propriedade de window — o acesso é pelo nome.
+    const pac = (typeof pacoteBimestreAtual !== 'undefined') ? pacoteBimestreAtual : null;
+    if (!pac || !pac.ok) {
+      console.log('  nenhum pacote carregado — abra uma aba de bimestre primeiro.');
+    } else {
+      const somaPacote = (pac.linhas || []).reduce((s, l) => s + Number(l[6] || 0), 0);
+      const alunosTela = (pac.hierLinhas || []).reduce((s, h) => s + Number(h[3] || 0), 0);
+      const unidades = new Set((pac.hierLinhas || []).map(h => h[0]));
+      console.log('  fonte ................', pac.origem === 'coderp' ? 'CODERP (API ao vivo)'
+        : pac.origem === 'banco' ? '⚠️ BANCO (dados importados) — a API falhou ou está desligada'
+        : '(não carimbada)');
+      console.log('  gerado em ............', pac.generatedAt || '—');
+      if (pac.incompleto) console.warn('  ⚠️ pacote marcado como INCOMPLETO: algum ano falhou.');
+      console.log('  linhas ...............', (pac.linhas || []).length);
+      console.log('  alunos-resposta ......', somaPacote.toLocaleString('pt-BR'));
+      console.log('  unidades .............', unidades.size);
+      console.log('  ALUNOS que a tela soma', alunosTela.toLocaleString('pt-BR'));
+    }
+
+    console.log('\n══ 2. O QUE A API DEVOLVE AGORA (cru, sem passar pela tela) ══');
+    let somaApi = 0, linhasApi = 0;
+    const perCods = new Set(), unisApi = new Set();
+    let comTurma = 0, semTurma = 0;
+    for (const a of FICHA_ANOS_ESCOLARES) {
+      let rows = null;
+      try { rows = await fichaRedeTurma(bimestre, a); }
+      catch (err) {
+        console.log('  ' + String(a).padEnd(7) + ' ✗ ' + ((err && err.coderpStatus === 404)
+          ? '404 — sem lançamento (isto é RESPOSTA, não falha)'
+          : 'FALHOU: ' + ((err && err.message) || err)));
+        continue;
+      }
+      let soma = 0;
+      (rows || []).forEach(r => {
+        const q = Number(r.qtd_alunos || 0);
+        soma += q; perCods.add(String(r.per_cod || '').trim());
+        unisApi.add(Number(r.uni_cod));
+        if (String(r.tur_cod || '').trim()) comTurma++; else semTurma++;
+      });
+      linhasApi += (rows || []).length; somaApi += soma;
+      console.log('  ' + String(a).padEnd(7) + String((rows || []).length).padStart(7) + ' linhas   '
+        + String(soma.toLocaleString('pt-BR')).padStart(9) + ' alunos-resposta');
+    }
+    console.log('  ' + 'TOTAL'.padEnd(7) + String(linhasApi).padStart(7) + ' linhas   '
+      + String(somaApi.toLocaleString('pt-BR')).padStart(9) + ' alunos-resposta');
+    console.log('  unidades na resposta .', unisApi.size, '(a rede tem ~112)');
+    console.log('  per_cod distintos ....', Array.from(perCods).join(', ') || '(nenhum)');
+    console.log('  tur_cod ..............', comTurma + ' preenchidos, ' + semTurma + ' vazios');
+
+    console.log('\n══ 3. VEREDICTO ══');
+    if (!pac || !pac.ok) { console.log('  sem pacote na tela para comparar.'); return; }
+    const somaPacote = (pac.linhas || []).reduce((s, l) => s + Number(l[6] || 0), 0);
+    if (pac.origem === 'banco') {
+      console.log('  A tela NÃO está usando a API: caiu para o banco. Os números menores');
+      console.log('  vêm da base importada, não da contagem. Veja o aviso de falha acima.');
+    } else if (!linhasApi) {
+      console.log('  A API não devolveu nada agora — pode estar fora do ar ou sem permissão.');
+    } else if (Math.abs(somaPacote - somaApi) / Math.max(1, somaApi) > 0.02) {
+      console.log('  A API mandou ' + somaApi.toLocaleString('pt-BR') + ' alunos-resposta e o pacote da tela tem '
+        + somaPacote.toLocaleString('pt-BR') + '.');
+      console.log('  A diferença está na MONTAGEM do pacote, não na API.');
+    } else {
+      console.log('  API e pacote batem (' + somaApi.toLocaleString('pt-BR') + ' alunos-resposta).');
+      console.log('  Se o número de ALUNOS parecer baixo, o problema é a contagem, não a chegada.');
+    }
+    return { origem: pac.origem, linhasApi, somaApi, somaPacote, unidadesApi: unisApi.size };
+  };
+
   window.MapaDiagRede = async function (bimestre) {
     bimestre = bimestre || 1;
     const anoLetivo = fichaAnoLetivo();
