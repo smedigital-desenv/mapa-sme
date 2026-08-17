@@ -2176,7 +2176,8 @@ function imprimirRelatorio() {
   w.document.write(
     `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">` +
     `<title>${titulo}</title>${estilos}${printCss}</head>` +
-    `<body style="background:#fff;">${conteudo}</body></html>`
+    `<body style="background:#fff;">${conteudo}  <script src="iago.js"></script>
+</body></html>`
   );
   w.document.close();
   w.focus();
