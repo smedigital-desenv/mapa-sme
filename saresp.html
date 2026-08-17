@@ -8,6 +8,7 @@
   <script src="config-central.js" defer></script>
   <script src="demo-mode.js"></script>
   <script src="iago.js"></script>
+  <script src="visao-rede.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SARESP | SME Ribeirão Preto</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
@@ -246,10 +247,13 @@ async function carregarEscolas(){
   if(!ESCOLAS.length){ sel.innerHTML='<option>— sem dados importados —</option>'; document.getElementById('tab').innerHTML=''; return; }
   sel.innerHTML=ESCOLAS.map(e=>'<option value="'+esc(e.escola)+'">'+esc(e.escola)+'</option>').join('');
   sel.onchange=()=>selecionar(sel.value);
-  selecionar(ESCOLAS[0].escola);
+  // preparar() acrescenta a opção "Todas as unidades" quando há mais de uma
+  // para comparar, e devolve o que a tela deve abrir.
+  selecionar(window.MapaVisaoRede ? MapaVisaoRede.preparar(sel,ESCOLAS) : ESCOLAS[0].escola);
 }
 
 async function selecionar(nome){
+  if(window.MapaVisaoRede && MapaVisaoRede.interceptar(nome)) return;
   atual=ESCOLAS.find(e=>e.escola===nome)||{escola:nome};
   document.getElementById('adNome').textContent=nome;
   document.getElementById('adCod').textContent='Cód. '+(atual.codigo_escola??'—');
@@ -287,6 +291,58 @@ async function carregarRede(){
     });
   });
   REDE=new Map(Array.from(soma.entries()).map(([k,s])=>[k,s.t/s.n]));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Comparativo "Todas as unidades"
+   A proficiência de recortes diferentes não se soma: 2º e 5º ano, LP e
+   Matemática têm réguas próprias. A média por unidade só é comparável porque
+   a referência da rede é montada sobre EXATAMENTE os mesmos recortes daquela
+   unidade (o agregador do visao-rede.js cuida disso e devolve '—' quando não
+   fecha). Quem quiser um número de régua única filtra por um recorte só.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function anosDaRede(){
+  return Array.from(new Set(Array.from(REDE.keys()).map(k=>k.split('|')[0])))
+              .sort().reverse().map(a=>({v:a,t:a}));
+}
+function instalarComparativo(){
+  if(!window.MapaVisaoRede) return;
+  MapaVisaoRede.instalar({
+    sel: document.getElementById('adSel'),
+    escolher: selecionar,
+    titulo: 'Proficiência média por unidade × rede',
+    rotuloValor: 'Proficiência média',
+    fmt: v => nf(v),
+    casasDif: 1, unidadeDif: ' pts',
+    filtros: [
+      {id:'ano', rotulo:'Edição', opcoes: anosDaRede},
+      {id:'recorte', rotulo:'Recorte', opcoes: () => [{v:'',t:'Todos (média)'}].concat(
+        [].concat.apply([], ANOS_ESC.map(ae => COMPS.map(([sig,nome]) =>
+          ({v: ae+'|'+sig, t: ae+' ano · '+nome})))))}
+    ],
+    colunas: [
+      {id:'n', t:'Recortes', v:l=>l.cols.n, fmt:v=>String(v)}
+    ],
+    carregar: async f => {
+      const ano = Number(f.ano);
+      if(!ano) return {linhas:[]};
+      const dados = await MapaVisaoRede.buscarTudo(() =>
+        sb().from(TABELA).select('escola,ano,ano_escolar,componente,proficiencia')
+            .eq('ano',ano).order('escola').order('ano_escolar').order('componente'));
+      const ag = MapaVisaoRede.agregador();
+      dados.forEach(r => {
+        if(!r.escola || r.escola==='REDE' || r.proficiencia==null) return;
+        if(f.recorte && f.recorte !== r.ano_escolar+'|'+r.componente) return;
+        ag.add(r.escola, r.proficiencia, REDE.get(r.ano+'|'+r.ano_escolar+'|'+r.componente));
+      });
+      return {linhas: ag.linhas()};
+    },
+    legenda: 'Média da proficiência da unidade nos recortes da edição escolhida, '
+           + 'ao lado da média da rede <b>nos mesmos recortes</b>. A cor mede a distância '
+           + 'relativa: verde-escuro 10% ou mais acima · verde 3% acima · amarelo na média · '
+           + 'laranja até 10% abaixo · vermelho abaixo disso. Clique no nome da unidade para '
+           + 'abrir a série histórica dela. Ordene clicando no cabeçalho.'
+  });
 }
 
 async function gravar(linhas,res){
@@ -342,7 +398,7 @@ async function aplicarGate(){
   // aqui geraria requisição sem identidade, que o banco recusa.
   for(let i=0;i<160 && !window.MAPA_SB;i++) await new Promise(r=>setTimeout(r,100));
   if(!window.MAPA_SB){ document.getElementById('adNome').textContent='Sessão indisponível'; return; }
-  try{ ligarUpload(); aplicarGate(); await carregarRede(); await carregarEscolas(); }
+  try{ ligarUpload(); aplicarGate(); await carregarRede(); instalarComparativo(); await carregarEscolas(); }
   catch(e){ console.error(e); document.getElementById('adNome').textContent='Erro ao carregar: '+(e.message||e); }
 })();
 </script>
