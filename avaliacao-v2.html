@@ -314,6 +314,63 @@
     box-shadow: 0 0 0 3px rgba(0,43,94,.18);
   }
 
+  /* ── FAIXA DE COMPOSIÇÃO ─────────────────────────────────────────────────
+     Substitui a rosca nas distribuições de nível (Leitura, Escrita, Produção
+     Textual).
+
+     ⚠️ NÃO volte para rosca/pizza. O problema não era o tamanho do gráfico:
+     numa rosca a área de clique é PROPORCIONAL AO DADO, e a categoria que mais
+     interessa é justamente a menor. 'L. Fluente' com 5 alunos em 2.432 é 0,7°
+     de arco — impossível de acertar com o mouse, e PIOR quanto melhor a rede
+     fica. Aumentar a rosca não resolve; só adia.
+
+     A faixa é só LEITURA (mostra a proporção e mantém a ordem do nível, que a
+     rosca destruía ao virar ângulo). Quem seleciona é a legenda abaixo, onde
+     toda linha tem a MESMA altura, independente de ter 1.372 alunos ou 5. */
+  .faixa-comp {
+    display: flex; gap: 2px; width: 100%; height: 34px;
+    margin: 6px 0 2px;
+  }
+  .faixa-seg {
+    /* min-width garante que a categoria de 0,2% continue VISÍVEL. Distorce a
+       proporção em menos de 1% da faixa — e o número exato está na legenda. */
+    min-width: 6px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .68rem; font-weight: 800; overflow: hidden;
+    transition: filter .12s, transform .12s;
+  }
+  .faixa-seg.realce { filter: brightness(1.12); transform: scaleY(1.16); }
+  .faixa-escala {
+    display: flex; justify-content: space-between; gap: 8px;
+    font-size: .62rem; color: #94a3b8; font-weight: 700; letter-spacing: .04em;
+    margin-bottom: 4px;
+  }
+  .faixa-escala > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ── LINHA DE LEGENDA COMO ALVO DE CLIQUE ────────────────────────────────
+     44px é o mínimo recomendado para alvo de toque. Toda categoria tem a mesma
+     altura de propósito: é o que desamarra o alvo do tamanho do dado. */
+  .legend-alvo {
+    min-height: 44px; align-items: center;
+    border: 1px solid transparent; border-radius: 10px;
+    padding: 5px 8px; margin: 3px -8px;
+  }
+  .legend-alvo.legend-clicavel:hover, .legend-alvo.legend-clicavel:focus-visible {
+    background: #eef4ff; border-color: #bfd6f5; transform: none;
+  }
+  .legend-alvo.legend-clicavel:focus-visible { box-shadow: 0 0 0 3px rgba(0,43,94,.22); }
+  .legend-alvo.sem-alunos { opacity: .5; }
+  /* Barrinha na própria linha: devolve a leitura de magnitude que a rosca
+     dava, sem cobrar isso do tamanho do alvo. */
+  .legend-mini {
+    display: block;          /* é um <span>: sem isto, height não se aplica */
+    height: 4px; border-radius: 999px; background: #e2e8f0;
+    margin-top: 5px; overflow: hidden;
+  }
+  /* min-width pela mesma razão do trecho da faixa: 5 alunos em 2.432 daria uma
+     barra de menos de um pixel, e "quase nada" não é o mesmo que "nada". */
+  .legend-mini > i { display: block; height: 100%; border-radius: 999px; min-width: 3px; }
+
   /* ── DETALHE POR PERGUNTA ────────────────────────────── */
   .btn-detalhe-eixo {
     font-size: 0.65rem; padding: 3px 10px; border-radius: 12px;
@@ -2749,9 +2806,6 @@ Chart.register(ChartDataLabels);
 
 let myBarChart = null;
 let myPieChart = null;
-let alunosBarChart = null;
-let alunosPieChart = null;
-let alunosProdChart = null;
 let dynCharts = [];
 let _detalheCharts = [];
 let totalMainChartInst = null;
@@ -3276,6 +3330,47 @@ function _htmlLegenda(fne, pergunta, contagem) {
   return htmlLegendaColorida(fne, pergunta, contagem);
 }
 
+// ── Faixa de composição ────────────────────────────────────────────────────
+// Uma barra 100% empilhada, na ORDEM DO NÍVEL (N1 → N4 → Iniciante → Fluente).
+// Ler a rede vira ler da esquerda para a direita: quanto mais massa à direita,
+// mais avançada. A rosca não conseguia mostrar isso — ângulo não tem começo.
+//
+// ⚠️ A faixa NÃO é clicável de propósito. Ver o comentário do CSS: alvo de
+// clique proporcional ao dado é o defeito que estamos consertando.
+function htmlFaixaComposicao(fne, contagem, alvoId) {
+  const rotulos = _ordenarRotulosDiag(_fneChave(fne), Object.keys(contagem || {}));
+  const total = rotulos.reduce((s, l) => s + Number(contagem[l] || 0), 0);
+  if (!total) {
+    return '<div class="faixa-comp"><span class="faixa-seg" style="flex:1;background:#e2e8f0;color:#64748b;">sem dados</span></div>';
+  }
+
+  const segs = rotulos.filter(l => Number(contagem[l] || 0) > 0).map(l => {
+    const qtd = Number(contagem[l] || 0);
+    const pct = (qtd / total) * 100;
+    const cor = getCorParaRotulo(l);
+    // O rótulo só entra quando cabe; quem não cabe é lido na legenda abaixo,
+    // que mostra o número exato de toda categoria — nada fica só no hover.
+    const texto = pct >= 9 ? Math.round(pct) + '%' : '';
+    return `<span class="faixa-seg" data-seg="${escapeHtml(String(alvoId || ''))}"
+      data-label="${escapeHtml(l)}"
+      style="flex:${qtd} 1 0;background:${cor};color:${getTextColor(cor)};"
+      title="${escapeHtml(l)}: ${qtd.toLocaleString('pt-BR')} alunos · ${pct.toFixed(1)}%">${texto}</span>`;
+  }).join('');
+
+  return `<div class="faixa-comp" role="img"
+      aria-label="Distribuição de ${escapeHtml(fne || '')}: ${escapeHtml(
+        rotulos.filter(l => contagem[l] > 0)
+               .map(l => l + ' ' + Math.round((contagem[l] / total) * 100) + '%').join(', '))}"
+      >${segs}</div>
+    <div class="faixa-escala"><span>${escapeHtml(rotulos[0] || '')}</span><span>${escapeHtml(rotulos.filter(l => l !== 'Não Avaliado' && l !== 'Sem Dado').slice(-1)[0] || '')}</span></div>`;
+}
+
+// _ordenarRotulosDiag usa 'PROD'; a legenda usa 'PRODUCAO TEXTUAL'.
+function _fneChave(fne) {
+  const f = String(fne || '').toUpperCase();
+  return f.indexOf('PRODU') >= 0 ? 'PROD' : f;
+}
+
 function htmlLegendaColorida(fne, pergunta, contagem, link) {
   const itens = _legendaParaFne(fne);
   const tituloLeg = pergunta
@@ -3306,15 +3401,22 @@ function htmlLegendaColorida(fne, pergunta, contagem, link) {
           ? ` data-cv="${escapeHtml(link.canvasId)}" data-label="${escapeHtml(it.label)}" role="button" tabindex="0" title="Clique para ver os alunos desta categoria"`
           : '';
 
+        // ⚠️ A altura da linha é FIXA (.legend-alvo), não proporcional. É aqui
+        // que mora o conserto: numa rosca, a categoria com 5 alunos vira uma
+        // lasca inclicável; aqui ela tem exatamente o mesmo alvo da que tem
+        // 1.372. A magnitude vai para a barrinha, que não custa alvo nenhum.
         return `
-          <div class="legenda-item legend-row${interativa ? ' legend-clicavel' : ''}" style="justify-content:space-between;gap:10px;"${attrs}>
-            <span style="display:flex;align-items:flex-start;gap:8px;min-width:0;">
+          <div class="legenda-item legend-row${total ? ' legend-alvo' : ''}${interativa ? ' legend-clicavel' : ''}${total && !qtd ? ' sem-alunos' : ''}" style="justify-content:space-between;gap:10px;"${attrs}>
+            <span style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1 1 auto;">
               <span class="legenda-cor legend-dot" style="background:${cor};"></span>
-              <span style="min-width:0;"><b>${escapeHtml(it.label)}</b> — ${escapeHtml(it.texto)}</span>
+              <span style="min-width:0;flex:1 1 auto;">
+                <b>${escapeHtml(it.label)}</b> — ${escapeHtml(it.texto)}
+                ${total ? `<span class="legend-mini"><i style="width:${pct}%;background:${cor};"></i></span>` : ''}
+              </span>
             </span>
             ${total ? `
               <span style="flex:0 0 auto;font-weight:900;color:#0f172a;background:#ffffff;border:1px solid #dbe5ef;border-radius:999px;padding:2px 8px;white-space:nowrap;">
-                ${qtd} · ${pct}%
+                ${qtd.toLocaleString('pt-BR')} · ${pct}%
               </span>
             ` : ''}
           </div>
@@ -3328,6 +3430,11 @@ function htmlLegendaColorida(fne, pergunta, contagem, link) {
 const _legendActions = {};   // canvasId -> (label) => void
 
 function _realcarFatia(canvasId, label, ativo) {
+  // Faixa de composição: passar o mouse na legenda acende o trecho dela. É o
+  // mesmo gesto de antes; só o desenho mudou.
+  document.querySelectorAll('.faixa-seg[data-seg="' + (window.CSS && CSS.escape ? CSS.escape(canvasId) : canvasId) + '"]')
+    .forEach(s => s.classList.toggle('realce', ativo && s.dataset.label === label));
+
   const ch = (window.Chart && Chart.getChart) ? Chart.getChart(canvasId) : null;
   if (!ch) return;
   const idx = (ch.data.labels || []).indexOf(label);
@@ -4704,10 +4811,6 @@ function prepararLayoutDiagnostica(titulo) {
   const viewAlunos = document.getElementById('viewAlunos');
   if (!viewAlunos) return;
 
-  [alunosBarChart, alunosPieChart, alunosProdChart].forEach(c => {
-    if (c) c.destroy();
-  });
-
   viewAlunos.classList.remove('row', 'g-3', 'mb-4');
   viewAlunos.innerHTML = `
     <div class="row g-3">
@@ -4758,24 +4861,24 @@ function prepararLayoutDiagnostica(titulo) {
           <div class="col-md-4">
             <div class="bg-white border rounded-3 shadow-sm p-3 d-flex flex-column" style="border-left:4px solid #002b5e!important;">
               <h6 class="fw-bold mb-2 text-primary text-center m-0">Leitura</h6>
-              <div class="chart-canvas-wrapper"><canvas id="alunosBarChart"></canvas></div>
-              <div class="text-center mt-2 small text-muted"><i class="bi bi-info-circle me-1"></i>Clique na fatia ou na legenda</div>
+              <div id="faixaAlunosL"></div>
+              <div class="text-center mt-2 small text-muted"><i class="bi bi-hand-index me-1"></i>Clique na linha da categoria para ver os alunos</div>
               <div id="legAlunosL">${_htmlLegenda('LEITURA', null)}</div>
             </div>
           </div>
           <div class="col-md-4">
             <div class="bg-white border rounded-3 shadow-sm p-3 d-flex flex-column" style="border-left:4px solid #002b5e!important;">
               <h6 class="fw-bold mb-2 text-primary text-center m-0">Escrita</h6>
-              <div class="chart-canvas-wrapper"><canvas id="alunosPieChart"></canvas></div>
-              <div class="text-center mt-2 small text-muted"><i class="bi bi-info-circle me-1"></i>Clique na fatia ou na legenda</div>
+              <div id="faixaAlunosE"></div>
+              <div class="text-center mt-2 small text-muted"><i class="bi bi-hand-index me-1"></i>Clique na linha da categoria para ver os alunos</div>
               <div id="legAlunosE">${_htmlLegenda('ESCRITA', null)}</div>
             </div>
           </div>
           <div class="col-md-4">
             <div class="bg-white border rounded-3 shadow-sm p-3 d-flex flex-column" style="border-left:4px solid #002b5e!important;">
               <h6 class="fw-bold mb-2 text-primary text-center m-0">Produção Textual</h6>
-              <div class="chart-canvas-wrapper"><canvas id="alunosProdChart"></canvas></div>
-              <div class="text-center mt-2 small text-muted"><i class="bi bi-info-circle me-1"></i>Clique na fatia ou na legenda</div>
+              <div id="faixaAlunosP"></div>
+              <div class="text-center mt-2 small text-muted"><i class="bi bi-hand-index me-1"></i>Clique na linha da categoria para ver os alunos</div>
               <div id="legAlunosP">${_htmlLegenda('PRODUCAO TEXTUAL', null)}</div>
             </div>
           </div>
@@ -4997,98 +5100,33 @@ function _ordenarRotulosDiag(fne, rotulos) {
   });
 }
 
+// ⚠️ Estes três painéis NÃO usam mais rosca — usam faixa de composição +
+// legenda como alvo de clique. O motivo está no CSS de .faixa-comp: numa rosca
+// o alvo é proporcional ao dado, e a categoria mais importante (os leitores
+// fluentes) é justamente a menor. Não "volte a pizza para ficar bonito".
 function renderAlunosCharts(countsL, countsE, countsP) {
-  const commonOptions = {
-    maintainAspectRatio: false,
-    layout: { padding: 20 },
-    spacing: 2,
-    interaction: { mode: 'nearest', intersect: false },
-    onClick: (event, elements, chart) => {
-      if (elements.length > 0) {
-        const idx = elements[0].index;
-        const rawLabel = chart.data.rawLabels[idx];
-        const tipo = chart.canvas.id === 'alunosBarChart' ? 'L'
-                   : chart.canvas.id === 'alunosPieChart' ? 'E'
-                   : 'P';
-        abrirModalAlunos(tipo, rawLabel);
-      }
-    },
-    plugins: {
-      legend: { display: false },
-      datalabels: {
-        color: ctx => getTextColor(ctx.dataset.backgroundColor[ctx.dataIndex]),
-        font: { weight: 'bold', size: 12 },
-        formatter: (value, ctx) => {
-          const sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
-          if (sum === 0 || value === 0) return '';
-          const pct = Math.round((value / sum) * 100);
-          return pct >= 4 ? pct + '%' : '';
-        }
-      },
-      tooltip: {
-        callbacks: {
-          label: c => c.chart.data.rawLabels[c.dataIndex] + ': ' + c.raw.toLocaleString('pt-BR') + ' alunos'
-        }
-      }
-    }
+  const _faixa = (id, fne, cObj, cv) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = htmlFaixaComposicao(fne, cObj, cv);
   };
+  _faixa('faixaAlunosL', 'LEITURA', countsL, 'faixaLeitura');
+  _faixa('faixaAlunosE', 'ESCRITA', countsE, 'faixaEscrita');
+  _faixa('faixaAlunosP', 'PRODUCAO TEXTUAL', countsP, 'faixaProducao');
 
-  function buildData(cObj, fne) {
-    const rawLabels = _ordenarRotulosDiag(fne, Object.keys(cObj));
-    const data = rawLabels.map(l => cObj[l]);
-    const bgColors = rawLabels.map(l => getCorParaRotulo(l));
-    return { rawLabels, data, bgColors };
-  }
-
-  const cL = buildData(countsL, 'LEITURA');
-  const cE = buildData(countsE, 'ESCRITA');
-  const cP = buildData(countsP, 'PROD');
-
-  if (alunosBarChart) alunosBarChart.destroy();
-  alunosBarChart = new Chart(document.getElementById('alunosBarChart'), {
-    type: 'doughnut',
-    data: {
-      labels: cL.rawLabels,
-      rawLabels: cL.rawLabels,
-      datasets: [{ data: cL.data, backgroundColor: cL.bgColors, borderWidth: 2, borderColor: '#ffffff', hoverOffset: 18, hoverBorderWidth: 4 }]
-    },
-    options: { ...commonOptions, cutout: '42%' }
-  });
-
-  if (alunosPieChart) alunosPieChart.destroy();
-  alunosPieChart = new Chart(document.getElementById('alunosPieChart'), {
-    type: 'doughnut',
-    data: {
-      labels: cE.rawLabels,
-      rawLabels: cE.rawLabels,
-      datasets: [{ data: cE.data, backgroundColor: cE.bgColors, borderWidth: 2, borderColor: '#ffffff', hoverOffset: 18, hoverBorderWidth: 4 }]
-    },
-    options: { ...commonOptions, cutout: '42%' }
-  });
-
-  if (alunosProdChart) alunosProdChart.destroy();
-  alunosProdChart = new Chart(document.getElementById('alunosProdChart'), {
-    type: 'doughnut',
-    data: {
-      labels: cP.rawLabels,
-      rawLabels: cP.rawLabels,
-      datasets: [{ data: cP.data, backgroundColor: cP.bgColors, borderWidth: 2, borderColor: '#ffffff', hoverOffset: 18, hoverBorderWidth: 4 }]
-    },
-    options: { ...commonOptions, cutout: '42%' }
-  });
-
-  // Legendas clicáveis + ações (clicar/hover na legenda controla a fatia)
-  _legendActions['alunosBarChart']  = l => abrirModalAlunos('L', l);
-  _legendActions['alunosPieChart']  = l => abrirModalAlunos('E', l);
-  _legendActions['alunosProdChart'] = l => abrirModalAlunos('P', l);
+  // As ações continuam as mesmas: clicar numa categoria abre a lista de alunos.
+  // O que mudou foi ONDE se clica — numa linha de 44px, não numa lasca de arco.
+  _legendActions['faixaLeitura']  = l => abrirModalAlunos('L', l);
+  _legendActions['faixaEscrita']  = l => abrirModalAlunos('E', l);
+  _legendActions['faixaProducao'] = l => abrirModalAlunos('P', l);
   const _legAluno = (id, fne, cObj, cv) => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = htmlLegendaColorida(fne, null, cObj, { canvasId: cv });
   };
-  _legAluno('legAlunosL', 'LEITURA', countsL, 'alunosBarChart');
-  _legAluno('legAlunosE', 'ESCRITA', countsE, 'alunosPieChart');
-  _legAluno('legAlunosP', 'PRODUCAO TEXTUAL', countsP, 'alunosProdChart');
+  _legAluno('legAlunosL', 'LEITURA', countsL, 'faixaLeitura');
+  _legAluno('legAlunosE', 'ESCRITA', countsE, 'faixaEscrita');
+  _legAluno('legAlunosP', 'PRODUCAO TEXTUAL', countsP, 'faixaProducao');
 }
+
 
 
 function renderBadgeAlunos(rotulo) {

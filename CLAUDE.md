@@ -51,6 +51,35 @@ médios (`#65a30d`, `#ca8a04`, `#ea580c`) o texto branco fica em 2,94–3,56:1,
 abaixo do mínimo de 4,5:1; com tinta escura sobe para 5,0–6,1:1. A paleta é a
 mesma — não volte o texto para branco "para uniformizar".
 
+### 🚫 Distribuição de nível não usa rosca — usa faixa + legenda
+
+As três distribuições da Diagnóstica (Leitura, Escrita, Produção Textual) eram
+roscas e **não são mais**. Não "melhore" isso devolvendo a pizza.
+
+O defeito não era o tamanho do gráfico: **numa rosca a área de clique é
+proporcional ao dado**, e a categoria que mais interessa é justamente a menor.
+`L. Fluente` com 5 alunos em 2.432 é **0,7° de arco** — inclicável, e *pior
+quanto melhor a rede fica*. Aumentar a rosca só adia o problema.
+
+O que existe hoje, em `avaliacao.html`:
+
+- `htmlFaixaComposicao()` — barra 100% empilhada, **só leitura**, na ordem do
+  nível (N1 → N4 → Iniciante → Fluente). Além de resolver o alvo, devolve a
+  leitura de progressão que a rosca destruía: ângulo não tem começo nem fim.
+- `htmlLegendaColorida()` — as linhas da legenda são o alvo de clique, com
+  **altura fixa de 44px+** (`.legend-alvo`), igual para quem tem 1.372 alunos e
+  para quem tem 5. A magnitude vai para uma barrinha dentro da linha, que não
+  custa alvo nenhum.
+
+⚠️ `min-width` nos trechos da faixa e na barrinha é **de propósito**: sem ele a
+categoria de 0,2% desaparece, e "quase nada" não é o mesmo que "nada". Distorce
+menos de 1% da faixa, e o número exato está na legenda ao lado.
+
+A paleta de `COR_FIXA` **não** foi mexida: ela é a linguagem visual da rede
+(badges, tabelas, outras telas). Ela é um arco-íris sobre uma escala ordinal —
+o certo seria um degradê de um só tom —, mas trocá-la é decisão da SME, não
+efeito colateral de um ajuste de usabilidade.
+
 ---
 
 ## 2. Arquitetura de acesso
