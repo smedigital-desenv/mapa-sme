@@ -7923,6 +7923,44 @@ function _renderTabelaTotal(linhas) {
     return { somaOficial, somaVarredura, dif, pct, porAno };
   };
 
+  // ── Sonda: a API bate com o arquivo oficial do bimestre? ──────────────────
+  // O arquivo do CODERP vem em nível de ALUNO (uma linha por aluno × item ×
+  // pergunta); a API vem agregada. Para comparar, é preciso agregar o arquivo
+  // do mesmo jeito: por (unidade, ano, turma, disciplina, item, valor da
+  // resposta), contando REMA DISTINTO — nunca linhas, porque um item pode ter
+  // várias perguntas para o mesmo aluno.
+  //
+  // O 5º ano é o melhor controle: medido em 2026-08, o vocabulário de itens é
+  // IDÊNTICO nas duas fontes. Nos outros anos a API tem itens que o arquivo não
+  // tem (DANÇA, LUTAS, LEITURA/ESCUTA…), então a diferença ali é de recorte do
+  // export, não de fidelidade.
+  //
+  //   await MapaDiagConferir(1, '5 ANO')
+  window.MapaDiagConferir = async function (bimestre, anoEsc) {
+    bimestre = bimestre || 1; anoEsc = anoEsc || '5 ANO';
+    const ESP = new Set(['EDUCAÇÃO ESPECIAL', 'ATENDIMENTO EDUCACIONAL ESPECIALIZADO']);
+    const rows = (await chamarFichaApi('turma', { anoLetivo: fichaAnoLetivo(), bimestre, anoescolar: '', turma: '' })
+      .then(r => r.fichasAvaliacoesTurma || []))
+      .filter(r => String(r.per_cod || '').trim() === anoEsc && !ESP.has(r.fnc_des));
+
+    const por = new Map();
+    rows.forEach(r => {
+      const g = por.get(r.fnc_des) || { linhas: 0, alunos: 0 };
+      g.linhas++; g.alunos += Number(r.qtd_alunos || 0);
+      por.set(r.fnc_des, g);
+    });
+    const tab = Array.from(por.entries())
+      .map(([d, g]) => ({ disciplina: d, linhas: g.linhas, alunos: g.alunos }))
+      .sort((a, b) => b.linhas - a.linhas);
+    const tl = tab.reduce((s, x) => s + x.linhas, 0);
+    const ta = tab.reduce((s, x) => s + x.alunos, 0);
+    console.log(`[conferir] ${anoEsc}, bimestre ${bimestre}, só currículo — pela API:`);
+    console.table(tab);
+    console.log(`[conferir] TOTAL: ${tl} linhas, ${ta} alunos-resposta`);
+    console.log('[conferir] Compare com a agregação do arquivo oficial. Igual = a API é fiel.');
+    return { tab, tl, ta };
+  };
+
   // ── Sonda: onde está a diferença entre dois bimestres ─────────────────────
   // O 1º bimestre traz ~37 mil linhas e o 2º ~28 mil, no mesmo recorte de 1º a
   // 5º ano. Isso pode ser normal (bimestre com menos itens avaliados) ou pode
