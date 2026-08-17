@@ -3590,26 +3590,10 @@ function _realcarFatia(canvasId, label, ativo) {
     return;
   }
 
-  // ⚠️ Fatia fina demais NÃO recebe realce no gráfico, e isso não é preguiça.
-  // Com `spacing` + `hoverOffset`, o Chart.js degenera o traçado de um arco de
-  // menos de ~1° e pinta o ANEL INTEIRO com a cor da fatia: 'Não Avaliado'
-  // (8 alunos, 0,35° de arco) deixava a rosca toda cinza. Medido: 0,35° pinta
-  // 75% do anel; a partir de 1,74° o desenho já se comporta.
-  //
-  // Não há o que perder: uma fatia de menos de 2° é um fio de cabelo, e realçar
-  // um fio não mostra nada. O nome, o número e a descrição continuam na
-  // etiqueta externa e na linha da legenda — que se acendem sozinhas, por CSS.
-  const arco = (ch.getDatasetMeta(0).data || [])[idx];
-  const graus = arco ? Math.abs(Number(arco.circumference) || 0) * 180 / Math.PI : 0;
-  if (arco && graus < 2) {
-    ch.setActiveElements([]);
-    if (ch.tooltip) ch.tooltip.setActiveElements([], { x: 0, y: 0 });
-    ch.update();
-    return;
-  }
-  // Acende TODOS os anéis da categoria. Nas roscas com anel de seleção são
-  // dois (atalho + dado); acender só um deixaria o outro apagado e daria a
-  // impressão de que o realce errou de fatia.
+  // Só o BALÃO DE TEXTO. O elemento entra como ativo para o tooltip saber
+  // onde ancorar, mas não há realce visual: o dataset zera hoverOffset e
+  // repete as cores no hover (ver _roscaAlunos). Em rosca de fatia miúda o
+  // realce pintava o anel inteiro, e a SME pediu para tirar.
   const alvos = (ch.data.datasets || []).map((_, di) => ({ datasetIndex: di, index: idx }));
   ch.setActiveElements(alvos);
   try {
@@ -5317,10 +5301,21 @@ function _roscaAlunos(canvasId, fne, contagem, tipo) {
     data: {
       labels: rotulos,
       rawLabels: rotulos,
+      // ⚠️ A rosca NÃO tem realce de fatia — nem no hover do mouse, nem no da
+      // legenda. Por decisão da SME: com `spacing` + `hoverOffset`, o Chart.js
+      // degenera o traçado de um arco muito fino e pinta o ANEL INTEIRO com a
+      // cor da fatia (medido: 'Não Avaliado' com 0,35° de arco pintava 75% do
+      // anel de cinza). Quem informa é o BALÃO DE TEXTO — o tooltip, a
+      // etiqueta externa e a linha da legenda.
+      //
+      // Por isso hoverOffset/hoverBorderWidth ficam iguais ao estado normal e
+      // hoverBackgroundColor repete as cores: sem isso o Chart.js escurece a
+      // fatia sozinho. Não "reative o hover para dar feedback".
       datasets: [{
         data: valores, backgroundColor: cores,
         borderWidth: 2, borderColor: '#ffffff',
-        hoverOffset: 16, hoverBorderWidth: 4
+        hoverOffset: 0, hoverBorderWidth: 2,
+        hoverBackgroundColor: cores, hoverBorderColor: '#ffffff'
       }]
     },
     options: {

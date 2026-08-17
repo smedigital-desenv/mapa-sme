@@ -156,13 +156,19 @@ até uma **etiqueta fora do gráfico**, com nome e número, e a etiqueta é o al
 As fatias grandes continuam clicáveis nelas mesmas. Medido: **12/12** etiquetas
 abrem a lista certa, sem sobreposição, nos três gráficos.
 
-⚠️ **Fatia de menos de 2° não recebe realce no gráfico.** Não é preguiça: com
-`spacing` + `hoverOffset`, o Chart.js degenera o traçado de um arco muito fino
-e pinta o **anel inteiro** com a cor da fatia — `Não Avaliado` com 8 alunos
-(0,35° de arco) deixava a rosca toda cinza. Medido: 0,35° pinta 75% do anel; a
-partir de 1,74° o desenho se comporta. Realçar um fio de cabelo não mostraria
-nada de todo jeito, e o nome, o número e a descrição continuam na etiqueta
-externa e na linha da legenda, que se acendem por CSS.
+🚫 **A rosca NÃO tem realce de fatia — em nenhum caminho.** Nem no hover do
+mouse sobre o canvas, nem no da etiqueta, nem no da legenda. Decisão da SME.
+
+O motivo técnico: com `spacing` + `hoverOffset`, o Chart.js degenera o traçado
+de um arco muito fino e pinta o **anel inteiro** com a cor da fatia — medido,
+`Não Avaliado` com 0,35° de arco pintava 75% do anel de cinza. Quem informa é
+o **balão de texto**: o tooltip, a etiqueta externa e a linha da legenda.
+
+⚠️ Por isso `hoverOffset: 0`, `hoverBorderWidth` igual ao normal e
+`hoverBackgroundColor` repetindo as cores — sem esta última o Chart.js
+escurece a fatia por conta própria. Não "reative o hover para dar feedback":
+foi tentado limitar o realce às fatias acima de 2° e não bastou, porque o
+hover NATIVO do canvas não passa por `_realcarFatia`.
 
 ⚠️ Pontos que **não** são detalhe:
 
