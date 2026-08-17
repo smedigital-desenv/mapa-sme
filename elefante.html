@@ -1543,7 +1543,8 @@ function gerarPDF() {
     '<table><thead><tr><th>Turma</th><th>Professor(es)</th><th>Turno</th><th>Estudantes</th><th>Leitores</th><th>Livros</th><th>Tempo</th><th>Engajamento</th></tr></thead>',
     '<tbody>' + tabela + '</tbody></table>',
     '<div class="footer">Sistema MAPA - SME Ribeirao Preto - ' + sub.split('·')[0].trim() + '</div>',
-    '</body></html>',
+    '  <script src="iago.js"></script>
+</body></html>',
   ];
 
   const janela = window.open('', '_blank');
