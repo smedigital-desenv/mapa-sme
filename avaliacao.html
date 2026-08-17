@@ -8421,6 +8421,104 @@ function _renderTabelaTotal(linhas) {
   // Sonda: compara o consolidado oficial com o que a varredura por turma
   // agrega. Rode `MapaDiagRede(1)` no console. Enquanto não soubermos se os
   // dois recortes são comparáveis, o número da rede NÃO vai para a tela.
+  // ── Sonda: as QUATRO views da API contam a mesma coisa? ───────────────────
+  // Rede ⊂ Escola ⊂ Turma ⊂ Aluno é a hierarquia da API: os quatro níveis
+  // descrevem o MESMO universo com recortes diferentes, então os totais têm de
+  // fechar entre si. Quando um deles regride, a divergência aponta qual.
+  //
+  // Além dos totais, imprime os CAMPOS de cada resposta — mudança de contrato
+  // (campo que sumiu, campo que passou a vir vazio) aparece aqui e em nenhum
+  // outro lugar.
+  //
+  //   await MapaDiagViews(1)          // usa a 1ª escola do catálogo
+  //   await MapaDiagViews(1, 2)       // ALCINA
+  window.MapaDiagViews = async function (bimestre, codEscola) {
+    bimestre = bimestre || 1;
+    const anoLetivo = fichaAnoLetivo();
+    const catalogo = await fichaCatalogo();
+    if (!Number.isInteger(codEscola)) codEscola = Array.from(catalogo.keys())[0];
+    const uNome = cleanUnit(catalogo.get(codEscola) || String(codEscola));
+    console.log('══ VIEWS DA API — ano ' + anoLetivo + ', bimestre ' + bimestre
+      + ', escola de referência: ' + uNome + ' (cod ' + codEscola + ') ══\n');
+
+    const campos = arr => arr && arr.length ? Object.keys(arr[0]).join(', ') : '(sem linhas)';
+    const vazios = (arr, c) => arr.filter(r => !String(r[c] == null ? '' : r[c]).trim()).length;
+
+    async function chamar(rotulo, nivel, parms, chave) {
+      const t = performance.now();
+      try {
+        const resp = await chamarFichaApi(nivel, parms);
+        const arr = resp[chave] || [];
+        const ms = Math.round(performance.now() - t);
+        return { rotulo, ok: true, arr, ms, msg: (resp.Messages || resp.messages || null) };
+      } catch (err) {
+        return { rotulo, ok: false, ms: Math.round(performance.now() - t),
+                 erro: (err && err.message) || String(err), status: (err && err.coderpStatus) || 0 };
+      }
+    }
+
+    const [rede, escola, turmaRede, turmaEsc, aluno] = await Promise.all([
+      chamar('rede',      'rede',   { anoLetivo, bimestre }, 'fichasAvaliacoesRede'),
+      chamar('escola',    'escola', { anoLetivo, bimestre }, 'fichasAvaliacoesEscola'),
+      chamar('turma',     'turma',  { anoLetivo, bimestre, anoescolar: '', turma: '' }, 'fichasAvaliacoesTurma'),
+      chamar('turma+esc', 'turma',  { anoLetivo, bimestre, escola: codEscola, anoescolar: '', turma: '' }, 'fichasAvaliacoesTurma'),
+      chamar('aluno',     'aluno',  { anoLetivo, bimestre, escola: codEscola }, 'fichasAvaliacoes')
+    ]);
+
+    const soma = arr => arr.reduce((s, r) => s + Number(r.qtd_alunos || 0), 0);
+    const tab = [];
+    [rede, escola, turmaRede, turmaEsc, aluno].forEach(v => {
+      if (!v.ok) { tab.push({ view: v.rotulo, situacao: '✗ ' + v.erro, linhas: 0, alunosResposta: 0, ms: v.ms }); return; }
+      tab.push({ view: v.rotulo, situacao: v.msg ? '⚠ ' + JSON.stringify(v.msg).slice(0, 60) : 'ok',
+                 linhas: v.arr.length, alunosResposta: soma(v.arr), ms: v.ms });
+    });
+    console.table(tab);
+
+    console.log('\n── CAMPOS de cada view (mudança de contrato aparece aqui) ──');
+    [rede, escola, turmaRede, aluno].forEach(v => {
+      if (!v.ok) { console.log('  ' + v.rotulo.padEnd(10) + '✗ ' + v.erro); return; }
+      console.log('  ' + v.rotulo.padEnd(10) + campos(v.arr));
+      ['uni_cod', 'per_cod', 'tur_cod', 'alu_rema', 'qtd_alunos'].forEach(c => {
+        if (!v.arr.length || !(c in v.arr[0])) return;
+        const z = vazios(v.arr, c);
+        if (z) console.log('    ⚠ ' + c + ' vazio em ' + z + ' de ' + v.arr.length + ' linhas');
+      });
+    });
+
+    console.log('\n── CONFERÊNCIA CRUZADA (os níveis têm de fechar) ──');
+    const diz = (a, b, rotulo) => {
+      if (a == null || b == null) { console.log('  ' + rotulo + ': não dá para comparar'); return; }
+      const dif = b - a, pct = a ? (dif / a * 100) : 0;
+      console.log('  ' + rotulo.padEnd(46) + String(a).padStart(9) + ' × ' + String(b).padStart(9)
+        + '   ' + (Math.abs(pct) < 2 ? '✓ fecham' : '✗ diferem em ' + pct.toFixed(0) + '%'));
+    };
+    if (rede.ok && escola.ok)    diz(soma(rede.arr), soma(escola.arr), 'rede × soma(escola)');
+    if (escola.ok && turmaRede.ok) diz(soma(escola.arr), soma(turmaRede.arr), 'soma(escola) × soma(turma)');
+    if (escola.ok && turmaEsc.ok) {
+      const soEsc = escola.arr.filter(r => Number(r.uni_cod) === codEscola);
+      diz(soma(soEsc), soma(turmaEsc.arr), 'escola[' + codEscola + '] × turma[' + codEscola + ']');
+    }
+    if (aluno.ok) {
+      const remas = new Set(aluno.arr.map(r => r.alu_rema));
+      console.log('  nível aluno: ' + aluno.arr.length + ' linhas, ' + remas.size + ' alunos distintos');
+      if (turmaEsc.ok) {
+        diz(aluno.arr.length, soma(turmaEsc.arr), 'linhas(aluno) × soma(turma) na mesma escola');
+        console.log('    ↑ Aqui está o coração do problema: uma linha do nível ALUNO é uma');
+        console.log('    resposta; o agregado deveria somar o mesmo. Se o agregado for MUITO');
+        console.log('    menor, ele não descreve a turma inteira e não serve para contar aluno.');
+      }
+      const porTurma = new Map();
+      aluno.arr.forEach(r => {
+        const k = (normalizar(r.per_cod || '') || '?') + '/' + (String(r.tur_cod || '—').trim().toUpperCase());
+        if (!porTurma.has(k)) porTurma.set(k, new Set());
+        porTurma.get(k).add(r.alu_rema);
+      });
+      console.log('  alunos por turma (exato): '
+        + Array.from(porTurma.entries()).sort().map(([k, s]) => k + '=' + s.size).join('  '));
+    }
+    return { rede, escola, turmaRede, turmaEsc, aluno };
+  };
+
   // ── Sonda: a contagem estimada bate com a EXATA? ──────────────────────────
   // A contagem por unidade/ano/turma é uma ESTIMATIVA feita sobre o nível
   // agregado (ver alunosPorItens). O nível ALUNO conta REMA distinto e é
