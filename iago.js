@@ -244,6 +244,7 @@
       +'- Você PODE e DEVE calcular, somar, contar, agrupar, ordenar, tirar médias/percentuais, ranquear e CRUZAR os resultados (ex.: qual regional está pior na fluência, cruzar risco com engajamento). Isso NÃO é inventar.\n'
       +'- Baseie-se só no panorama e nos resultados das funções. Não invente escolas, números, datas ou nomes. Se o dado não existir, diga que não consta.\n'
       +'- Cada escola tem uma regional; use-a para agrupar/comparar por regional. Ao ranquear ou tirar média, mostre os números.\n'
+      +'- "Desempenho na alfabetização" / "% de leitores" de uma escola, turma ou regional = (fluentes + iniciantes) / avaliados. Ao avaliar alfabetização, ranquear ou dizer quem está pior/melhor, use o % de LEITORES (fluente + iniciante) — não apenas o % de fluentes. Menor desempenho = menor % de leitores.\n'
       +'- Seja objetivo e institucional; pode usar listas e negrito (markdown simples).\n\n'
       +'PANORAMA ATUAL:\n'+_contextoBase();
   }
@@ -251,7 +252,7 @@
     {name:'escolas',description:'Lista escolas com nº de visitas, data da última visita, prioridade e risco. Use filtros para recortar.',parameters:{type:'object',properties:{regional:{type:'string',description:'nome da regional, ex.: "Regional 3"'},status:{type:'string',description:'filtro opcional: visitada | sem_visita | com_devolutiva | risco_alto'}}}},
     {name:'detalhe_da_escola',description:'TODOS os dados de UMA escola: visitas (quem/quando/responsável), devolutiva completa, fluência e elefante.',parameters:{type:'object',properties:{escola:{type:'string',description:'nome da escola'}},required:['escola']}},
     {name:'visitas',description:'Lista as visitas realizadas (quem visitou, quando, período, responsável). Filtros opcionais.',parameters:{type:'object',properties:{regional:{type:'string'},escola:{type:'string'},responsavel:{type:'string'},de:{type:'string',description:'data inicial dd/mm/aaaa'},ate:{type:'string',description:'data final dd/mm/aaaa'}}}},
-    {name:'indicadores',description:'Fluência Leitora (avaliados, fluentes, % e níveis N1–N4) e Elefante Letrado (engajamento, livros, leituras) por escola/regional.',parameters:{type:'object',properties:{regional:{type:'string'},escola:{type:'string'}}}},
+    {name:'indicadores',description:'Fluência Leitora (avaliados, fluentes, iniciantes, leitores=fluente+iniciante, % de leitores, níveis N1–N4) e Elefante Letrado (engajamento, livros, leituras) por escola/regional. Use pct_leitores como medida de desempenho na alfabetização.',parameters:{type:'object',properties:{regional:{type:'string'},escola:{type:'string'}}}},
     {name:'buscar',description:'Procura um termo nas devolutivas e nas respostas das visitas; devolve as escolas que citam o termo.',parameters:{type:'object',properties:{termo:{type:'string'}},required:['termo']}}
   ]}];
   function _execTool(name,args){
@@ -303,7 +304,7 @@
     const { regDe, casaReg }=_chatLinhas();
     const ok=nome=>(!args.escola||_normEscola(nome)===_normEscola(args.escola))&&casaReg(regDe(nome),args.regional);
     const flu=[],ele=[];
-    if(_fluPorEscola) Object.keys(_fluPorEscola).forEach(e=>{ if(!ok(e))return; const f=_fluPorEscola[e]; flu.push({escola:e,regional:regDe(e),avaliacao:f.avaliacao,avaliados:f.aval,fluentes:f.flu,pct_fluentes:f.aval?Math.round(f.flu/f.aval*100):0,n1:f.n1,n2:f.n2,n3:f.n3,n4:f.n4,iniciantes:f.ini,ausentes:f.aus}); });
+    if(_fluPorEscola) Object.keys(_fluPorEscola).forEach(e=>{ if(!ok(e))return; const f=_fluPorEscola[e]; flu.push({escola:e,regional:regDe(e),avaliacao:f.avaliacao,avaliados:f.aval,fluentes:f.flu,iniciantes:f.ini,leitores:f.flu+f.ini,pct_leitores:f.aval?Math.round((f.flu+f.ini)/f.aval*100):0,pct_fluentes:f.aval?Math.round(f.flu/f.aval*100):0,n1:f.n1,n2:f.n2,n3:f.n3,n4:f.n4,ausentes:f.aus}); });
     if(_elePorEscola) Object.keys(_elePorEscola).forEach(e=>{ if(!ok(e))return; const g=_elePorEscola[e]; ele.push({escola:e,regional:regDe(e),estudantes:g.est,leitores:g.lei,pct_engajamento:g.est?Math.round(g.lei/g.est*100):0,livros_lidos:g.liv,leituras_concluidas:g.leit}); });
     return {fluencia:flu,elefante:ele};
   }
