@@ -337,10 +337,19 @@ function renderTRI(){
 // rede, então ela é a média das escolas com dado naquele ano/componente.
 let REDE_TRI = new Map();
 async function carregarRedeTRI(){
-  const { data, error } = await sb().from('av_diag_tri').select('ano_escolar,componente,proficiencia');
-  if(error) throw error;
+  // Mesma razão do SARESP: somar as linhas visíveis dá a média da rede para
+  // quem vê a rede toda, e a média da própria unidade para um perfil de
+  // escola. A função devolve só o agregado, sem expor linha de outra unidade.
+  const { data, error } = await sb().rpc('av_diag_tri_rede');
+  if(!error && data){
+    REDE_TRI = new Map(data.map(r => [r.ano_escolar+'||'+r.componente, r.media]));
+    return;
+  }
+  console.warn('av_diag_tri_rede indisponível; média calculada no navegador', error);
+  const res = await sb().from('av_diag_tri').select('ano_escolar,componente,proficiencia');
+  if(res.error) throw res.error;
   const soma = new Map();
-  (data||[]).forEach(r => {
+  (res.data||[]).forEach(r => {
     if(r.proficiencia == null) return;
     const k = r.ano_escolar+'||'+r.componente;
     const s = soma.get(k) || {t:0,n:0};

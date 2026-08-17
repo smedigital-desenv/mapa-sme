@@ -270,10 +270,24 @@ async function selecionar(nome){
 // A média da rede não vem nas planilhas de série histórica: é calculada sobre
 // as escolas com dado naquele recorte. Uma consulta só, na abertura.
 async function carregarRede(){
-  const { data, error } = await sb().from(TABELA).select(CAMPOS);
-  if(error) throw error;
+  // A média da rede vem de uma função SECURITY DEFINER que devolve SÓ o
+  // agregado. Calcular no navegador somando as linhas visíveis parecia
+  // equivalente e não é: sob RLS, um perfil de escola enxerga apenas a própria
+  // unidade, então a "média da rede" virava a média dela mesma — e no SARESP
+  // isso zerava a distância e pintava tudo de amarelo, inclusive uma unidade
+  // em situação crítica.
+  const { data, error } = await sb().rpc('av_ideb_rede');
+  if(!error && data){
+    REDE=new Map(data.map(r=>[r.ano+'|'+r.etapa, r.media]));
+    return;
+  }
+  // Enquanto a função não estiver publicada, cai no cálculo antigo — que é
+  // correto para quem vê a rede toda, que é justamente quem opera hoje.
+  console.warn('av_ideb_rede indisponível; média da rede calculada no navegador', error);
+  const res = await sb().from(TABELA).select(CAMPOS);
+  if(res.error) throw res.error;
   const soma=new Map();
-  (data||[]).forEach(r=>{
+  (res.data||[]).forEach(r=>{
     chavesRede(r).forEach(([k,v])=>{
       if(v==null) return;
       const s=soma.get(k)||{t:0,n:0}; s.t+=Number(v); s.n++; soma.set(k,s);
