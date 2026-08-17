@@ -310,6 +310,18 @@ número, nunca a turma.
 unidade é nível aluno e conta **REMA distinto** (exato); o `detalherede` é
 agregado e usa a regra sobre os itens crus.
 
+⚠️ **Mudou o formato do pacote? Suba a versão da chave de cache no mesmo
+commit.** `_chavePacoteTotal` e `_chavePacoteBimestre` carregam um número de
+versão justamente por isso: o pacote vive no sessionStorage e sobrevive ao
+recarregamento normal. Acrescentar a 4ª coluna de `arvoreLinhas` sem subir a
+versão fez a tela ler `al[3]` de um pacote que não a tinha — a lateral do
+Total zerou, sem erro nenhum no console. `_isPacoteTotalValido()` hoje recusa
+pacote com `arvoreLinhas` de menos de 4 colunas, como cinto de segurança.
+
+A sonda `MapaDiagTotal([texto da unidade])` mostra o que a tela está lendo:
+quantas colunas o pacote tem, os alunos por ano e turma, e avisa se a turma
+agregada `'—'` está convivendo com turmas reais (dupla contagem).
+
 1. A soma de um item é `alunos × nº de perguntas daquele item` — um item pode
    ter mais de uma pergunta por aluno (Ciências/Matéria e Energia tem 3).
 2. **Educação Especial e AEE ficam FORA da conta.** Elas atendem só parte da

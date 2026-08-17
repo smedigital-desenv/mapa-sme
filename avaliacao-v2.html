@@ -3304,8 +3304,11 @@ function _chaveBimestreCompleto(key) {
   return `bim_completo|${key}`;
 }
 
+// Mesma regra da chave do pacote: a árvore mudou de 2 para 3 níveis
+// (unidade › ano › turma), então a versão sobe junto. Cache antigo tem o
+// formato de 2 níveis e produziria uma árvore sem anos.
 function _chaveHierarquiaTotal(ano) {
-  return ['hier_total_supa_v9_coderp', ano || 'TODOS'].join('|');
+  return ['hier_total_supa_v10_anonivel', ano || 'TODOS'].join('|');
 }
 
 // ===========================================================
@@ -3859,9 +3862,15 @@ function _setAnoFiltroAtualSeguro(ano, btn) {
   return anoFiltroAtual;
 }
 
+// ⚠️ A versão na chave NÃO é enfeite. O pacote é guardado em sessionStorage e
+// no cache do navegador; quando o FORMATO muda, a chave TEM de mudar junto,
+// senão o cache antigo é reusado e a tela lê campos que não existem nele — em
+// silêncio. Foi o que aconteceu ao acrescentar a 4ª coluna de `arvoreLinhas`
+// (alunos): o pacote v10 não a tinha, `al[3]` vinha indefinido e a lateral do
+// Total zerava. v11 = arvoreLinhas com [unidade, ano, turma, alunos].
 function _chavePacoteTotal(filtrosBase) {
   filtrosBase = filtrosBase || {};
-  return ['pacoteTotal_supa_v10_semturma', filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacoteTotal_supa_v11_arvalunos', filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _backendTemPacoteTotal() {
@@ -6795,7 +6804,14 @@ function _filtrosTotal() {
 }
 
 function _isPacoteTotalValido(pkg) {
-  return !!(pkg && pkg.ok && Array.isArray(pkg.linhas) && (!pkg.linhas.length || Array.isArray(pkg.linhas[0])));
+  if (!(pkg && pkg.ok && Array.isArray(pkg.linhas))) return false;
+  if (pkg.linhas.length && !Array.isArray(pkg.linhas[0])) return false;
+  // ⚠️ Cinto de segurança contra cache de formato antigo que a troca de chave
+  // não tenha alcançado: `arvoreLinhas` sem a 4ª coluna não carrega a
+  // contagem de alunos, e usá-lo zeraria a lateral sem nenhum aviso.
+  const al = Array.isArray(pkg.arvoreLinhas) ? pkg.arvoreLinhas : null;
+  if (al && al.length && (!Array.isArray(al[0]) || al[0].length < 4)) return false;
+  return true;
 }
 
 function _isTotalAntigoValido(pkg) {
@@ -7212,6 +7228,53 @@ function _passaFiltroLinhaTotal(row, filtros) {
   if (filtros.turma && filtros.turma !== 'TODAS' && t !== filtros.turma) return false;
   return true;
 }
+
+// ── Sonda: de onde vem o número da lateral do Total ───────────────────────
+// A pergunta que ela responde é "o que a tela está lendo", não "o que deveria
+// ler". Distingue as três causas que já apareceram: cache de formato antigo
+// (sem a coluna de alunos), contagem inflada pelo colapso de eixo, e turma
+// '—' convivendo com turmas reais.
+//
+//   MapaDiagTotal()            // resumo de toda a rede
+//   MapaDiagTotal('ALCINA')    // detalha as unidades que casam com o texto
+window.MapaDiagTotal = function (filtro) {
+  const pac = pacoteTotalAtual;
+  if (!pac || !pac.ok) { console.log('[total] nenhum pacote carregado — abra a aba Total primeiro.'); return; }
+
+  const al = Array.isArray(pac.arvoreLinhas) ? pac.arvoreLinhas : [];
+  const colunas = al.length && Array.isArray(al[0]) ? al[0].length : 0;
+  console.log('[total] arvoreLinhas: ' + al.length + ' linhas, ' + colunas + ' colunas'
+    + (colunas >= 4 ? ' (traz a contagem de alunos)' : ' ✗ FORMATO ANTIGO — sem a contagem;'
+       + ' recarregue com Ctrl+F5 para descartar o cache'));
+
+  const arv = _hierArvoreTotal || {};
+  const unidades = Object.keys(arv).filter(u => !filtro
+    || String(u).toUpperCase().includes(String(filtro).toUpperCase())).sort();
+  if (!unidades.length) { console.log('[total] nenhuma unidade casa com o filtro.'); return; }
+
+  let redeTotal = 0;
+  unidades.forEach(u => {
+    const totU = _arvTotalUnidade(arv, u);
+    redeTotal += totU;
+    if (!filtro) return;
+    console.log('\n[total] ' + u + ' — ' + totU + ' alunos');
+    _arvAnos(arv, u).forEach(a => {
+      const turmas = arv[u][a] || {};
+      const detalhe = Object.keys(turmas).sort().map(t => t + '=' + turmas[t]).join('  ');
+      console.log('   ' + a.padEnd(8) + String(_arvTotalAno(arv, u, a)).padStart(6) + '   ' + detalhe);
+      if (Object.prototype.hasOwnProperty.call(turmas, '—') && Object.keys(turmas).length > 1) {
+        console.warn('   ⚠️ a turma agregada "—" convive com turmas reais neste ano:'
+          + ' o total deste ano está contado duas vezes.');
+      }
+    });
+  });
+
+  console.log('\n[total] ' + unidades.length + ' unidades, ' + redeTotal + ' alunos no total.');
+  console.log('[total] Compare com o mesmo número na aba de um bimestre: eles devem bater,');
+  console.log('[total] podendo o Total ficar UM POUCO acima se algum aluno só aparece em');
+  console.log('[total] bimestre posterior. Muito acima = contagem inflada; zero = cache antigo.');
+  return { colunas, unidades: unidades.length, alunos: redeTotal };
+};
 
 function _montarArvoreTotalDoPacote(pkg, ano) {
   const arvIndexada = _arvoreTotalDoIndice(pkg, ano || 'TODOS');
