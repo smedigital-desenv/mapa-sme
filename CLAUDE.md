@@ -145,10 +145,20 @@ console registra o resultado (`X linhas COM tur_cod, Y sem`). Durante muito
 tempo o código cravava `'—'` e **nunca lia o campo** — a afirmação "vem vazio"
 não estava sendo testada por ninguém.
 
-**Medição de 2026-08, 2º bimestre: 28.141 linhas, ZERO com `tur_cod`.** A
-afirmação se confirmou, mas agora com evidência. Se o CODERP passar a rotular,
-as turmas aparecem sozinhas e o leque abaixo nem é disparado (há um guarda
-para isso) — o contador avisa.
+**A API VOLTOU A ROTULAR — medido em 2026-08-17.** Durante um tempo ela não
+rotulava (28.141 linhas do 2º bimestre, zero com `tur_cod`), e é dessa época
+que vem a varredura descrita abaixo. Hoje `tur_cod` e `per_cod` vêm
+preenchidos em **100% das linhas, inclusive sem filtro de escola**: 57.919 de
+57.919 no 1º bimestre. O contador da tela confirma sozinho a cada abertura.
+
+⚠️ Isso torna a varredura por código de turma **desnecessária**, não apenas
+desligada. Ela continua no código como reserva caso a rotulagem regrida, mas
+não deve ser religada sem antes reconferir o contador.
+
+⚠️ Ao testar isso, cuidado com um detalhe que já enganou: um teste feito COM
+`escola` no corpo não responde pela rota da rede, que consulta SEM esse
+filtro. Use a sonda `MapaDiagRotulos(bimestre[, codEscola])`, que mede os dois
+recortes e dá o veredicto.
 
 🚫 **A VARREDURA POR TURMA ESTÁ DESLIGADA (`?turmas=1` liga) — ela corrompe a
 contagem de alunos.** Medido em produção: ALCINA passou de 236 (correto) para
@@ -161,6 +171,40 @@ ela confere a **soma crua** (alunos-resposta), e a soma crua fecha; o que está
 errado é a **contagem de alunos**, outra grandeza. Antes de religar, é preciso
 uma forma confiável de contar aluno por turma a partir do nível agregado — ou
 usar o nível aluno, que conta REMA distinto e é exato.
+
+### O que `per_cod` traz, e por que a tela fica em 1º a 5º ano
+
+O `per_cod` (o ano escolar) devolve **18 valores distintos** quando a consulta
+vai sem filtro. Medido em 2026-08, 1º bimestre, 57.919 linhas:
+
+| `per_cod` | o que é | disciplinas |
+|---|---|---|
+| 1 ANO … 5 ANO | Fundamental — anos iniciais | **10** |
+| 6 ANO … 9 ANO | Fundamental — anos finais | 2 |
+| CIC 2/3/4 | Educação Infantil, ciclos | 2 |
+| ETP 1/2 | Educação Infantil, etapas I e II | 2 |
+| PECAI | PEC dos Anos Iniciais | 2 |
+| TAIMS / TAFMS | Termos Multi Seriados (treinamento) | 2 |
+| TREIN | Prática Desportiva masc./fem. | 1 |
+
+⚠️ **A coluna "disciplinas" é a razão do recorte, e ela engana quem olha rápido.**
+Só de 1º a 5º ano existe avaliação curricular (Língua Portuguesa, Matemática,
+Geografia, História, Ciências, Arte, Ed. Física, Inglês, além de Educação
+Especial e AEE). De 6º a 9º — e em todos os demais — vêm **apenas Educação
+Especial e AEE**: é ficha de outra natureza, não currículo.
+
+⚠️ Não conclua "dá para incluir" comparando o vocabulário na direção errada.
+Perguntar "o que existe em 6º–9º e não existe em 1º–5º" devolve ZERO nos três
+eixos (disciplina, item, resposta) — porque 6º–9º é SUBCONJUNTO. A pergunta
+que decide é a inversa.
+
+Por decisão da SME (2026-08), a tela de Avaliações cobre **1º a 5º ano**. As
+fichas de Educação Especial dos demais anos são assunto da tela de Educação
+Especial, não desta. `PER_COD_FORA`, em `avaliacao.html`, é lista de EXCLUSÃO
+de propósito: `per_cod` novo entra e aparece, em vez de sumir calado.
+
+⚠️ Os `tur_cod` fora do padrão de letra única (`3C`, `TA`) são todos de
+`per_cod = TREIN` — 51 linhas em 2 unidades. Não são "3º ano turma C".
 
 ✅ **MEDIDO: o filtro `turma` FUNCIONA.** A sonda `MapaDiagTurma(2)` comparou
 as consultas filtradas com a sem filtro (2026, 2º bim, 1 ANO): 92.756

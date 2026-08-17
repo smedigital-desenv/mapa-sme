@@ -7850,6 +7850,31 @@ function _renderTabelaTotal(linhas) {
   const _fichaTurmaMemo = new Map();
   // Memo do pacote do Total por filtro (TTL 10 min, alinhado às outras camadas).
   const _totalPacoteMemo = new Map();
+  // ── Rede inteira numa consulta só, recortada por per_cod ──────────────────
+  // Desde que a API voltou a rotular (2026-08), `per_cod` vem preenchido em
+  // 100% das linhas. Uma consulta SEM `anoescolar` devolve a rede toda já
+  // rotulada por ano e turma — as cinco por ano escolar viram uma.
+  //
+  // O recorte passa a ser feito AQUI, e não no pedido. Isso muda quem decide o
+  // escopo: antes era a lista de anos consultados, agora é PER_COD_FORA. A
+  // diferença importa quando o CODERP inventar um per_cod novo — pelo pedido
+  // ele sumiria calado; pela exclusão ele aparece.
+  const _fichaTudoMemo = new Map();
+  function fichaRedeTudo(bimestre) {
+    const k = String(bimestre);
+    if (!_fichaTudoMemo.has(k)) {
+      _fichaTudoMemo.set(k,
+        chamarFichaApi('turma', { anoLetivo: fichaAnoLetivo(), bimestre, anoescolar: '', turma: '' })
+          .then(r => (r.fichasAvaliacoesTurma || []).filter(l => perCodContavel(l.per_cod)))
+          .catch(err => {
+            if (err && err.coderpStatus === 404) return [];   // bimestre sem lançamento
+            _fichaTudoMemo.delete(k);
+            throw err;
+          }));
+    }
+    return _fichaTudoMemo.get(k);
+  }
+
   function fichaRedeTurma(bimestre, anoEsc) {
     const k = bimestre + '|' + anoEsc;
     if (!_fichaTurmaMemo.has(k)) {
@@ -7934,6 +7959,75 @@ function _renderTabelaTotal(linhas) {
     (oficial || []).forEach(r => porDisc.set(r.fnc_des, (porDisc.get(r.fnc_des) || 0) + Number(r.qtd_alunos || 0)));
     console.log('[sonda rede] oficial por disciplina:', Object.fromEntries(porDisc));
     return { somaOficial, somaVarredura, dif, pct, porAno };
+  };
+
+  // ── Sonda: onde está a diferença entre dois bimestres ─────────────────────
+  // O 1º bimestre traz ~37 mil linhas e o 2º ~28 mil, no mesmo recorte de 1º a
+  // 5º ano. Isso pode ser normal (bimestre com menos itens avaliados) ou pode
+  // ser unidade que não lançou — e as duas coisas exigem respostas opostas: a
+  // primeira não é problema, a segunda é dado faltando na tela sem aviso.
+  //
+  // A sonda compara os dois em três cortes. O que decide é ONDE a diferença se
+  // concentra:
+  //   · em UNIDADES  → unidades sem lançamento. Some gente da tela.
+  //   · em DISCIPLINAS → o bimestre avalia menos matérias. Esperado.
+  //   · espalhada    → menos itens por disciplina. Também esperado.
+  //
+  //   await MapaDiagBimestres(1, 2)
+  window.MapaDiagBimestres = async function (bimA, bimB) {
+    bimA = bimA || 1; bimB = bimB || 2;
+    const anoLetivo = fichaAnoLetivo();
+    const buscar = async b => {
+      const rows = await chamarFichaApi('turma', { anoLetivo, bimestre: b, anoescolar: '', turma: '' })
+        .then(r => r.fichasAvaliacoesTurma || [])
+        .catch(e => { console.log(`[sonda bim] bimestre ${b} falhou: ${e.message}`); return []; });
+      // Só o recorte da tela: 1º a 5º ano. Sem isto a comparação mistura as
+      // fichas de Educação Especial dos demais anos e não diz nada.
+      return rows.filter(r => perCodContavel(r.per_cod) && /^[1-5] ANO$/.test(String(r.per_cod).trim()));
+    };
+    const [A, B] = [await buscar(bimA), await buscar(bimB)];
+    const somaQtd = rows => rows.reduce((s, r) => s + Number(r.qtd_alunos || 0), 0);
+    console.log(`[sonda bim] ${bimA}º: ${A.length} linhas, ${somaQtd(A)} alunos-resposta`);
+    console.log(`[sonda bim] ${bimB}º: ${B.length} linhas, ${somaQtd(B)} alunos-resposta`);
+
+    const agrupa = (rows, chave) => {
+      const m = new Map();
+      rows.forEach(r => { const k = chave(r); m.set(k, (m.get(k) || 0) + 1); });
+      return m;
+    };
+    const comparar = (rot, chave, limite) => {
+      const a = agrupa(A, chave), b = agrupa(B, chave);
+      const todas = new Set([...a.keys(), ...b.keys()]);
+      const linhas = Array.from(todas).map(k => ({
+        [rot]: k, [bimA + 'º']: a.get(k) || 0, [bimB + 'º']: b.get(k) || 0,
+        dif: (b.get(k) || 0) - (a.get(k) || 0),
+      })).sort((x, y) => x.dif - y.dif);
+      const sumiram = linhas.filter(l => l[bimA + 'º'] > 0 && l[bimB + 'º'] === 0);
+      console.log(`\n[sonda bim] ── por ${rot} ── (${todas.size} valores, ${sumiram.length} presentes no ${bimA}º e AUSENTES no ${bimB}º)`);
+      console.table(linhas.slice(0, limite));
+      if (sumiram.length) console.log(`[sonda bim] ausentes no ${bimB}º:`, sumiram.map(l => l[rot]));
+      return { linhas, sumiram };
+    };
+
+    const porUni  = comparar('uni_cod',   r => String(r.uni_cod), 40);
+    const porDisc = comparar('disciplina', r => r.fnc_des, 20);
+    const porItem = comparar('item',      r => r.fne_des, 25);
+
+    // ── Veredicto ──────────────────────────────────────────────────────────
+    console.log('\n[sonda bim] ── VEREDICTO ──');
+    if (porUni.sumiram.length) {
+      console.log(`[sonda bim] ${porUni.sumiram.length} UNIDADE(S) sem nenhuma linha no ${bimB}º bimestre.`);
+      console.log('[sonda bim] Isso é lançamento faltando, não característica do bimestre.');
+      console.log('[sonda bim] Elas somem da tela do 2º bimestre sem nenhum aviso — vale sinalizar.');
+    } else if (porDisc.sumiram.length) {
+      console.log(`[sonda bim] Nenhuma unidade sumiu, mas ${porDisc.sumiram.length} disciplina(s) não aparecem no ${bimB}º:`);
+      console.log('[sonda bim]  ', porDisc.sumiram.map(l => l.disciplina));
+      console.log('[sonda bim] Bimestre que avalia menos matérias é esperado. Confirme com a área pedagógica.');
+    } else {
+      console.log('[sonda bim] Mesmas unidades e mesmas disciplinas nos dois bimestres.');
+      console.log('[sonda bim] A diferença está no número de ITENS avaliados — esperado, não é falha.');
+    }
+    return { porUni, porDisc, porItem };
   };
 
   // ── Vocabulário do CODERP: o que existe fora de 1º a 5º ano ───────────────
