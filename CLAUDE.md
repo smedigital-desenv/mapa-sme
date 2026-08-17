@@ -46,6 +46,38 @@ da MESMA habilidade é de 13 p.p. em média (chega a 73 p.p. na rede — medido 
 outra quase ninguém" num meio-termo que não descreve nenhuma das duas. Não
 "simplifique" isso somando por habilidade.
 
+#### O painel "Todas as unidades" (`visao-rede.js`)
+
+As cinco telas (Diagnóstica, Av. Oral, SARESP, IDEB, IEE) trazem no filtro de
+unidade a opção **Todas as unidades**, que troca a leitura de uma escola por
+uma lista da rede: média da unidade, referência da rede, diferença, ordenação
+por qualquer coluna e busca por nome. **Clicar no nome da unidade move o filtro
+para ela** e devolve a tela de sempre.
+
+O painel é um arquivo só — `visao-rede.js` — e cada tela liga em três pontos:
+o `<script>`, uma linha no alto de `selecionar()` (`MapaVisaoRede.interceptar`)
+e a troca de `selecionar(ESCOLAS[0].escola)` por `MapaVisaoRede.preparar(...)`.
+O que muda de tela para tela é só o que ela sabe medir (filtros + agregação).
+
+⚠️ **A referência da rede é por unidade, nos MESMOS recortes que ela tem.**
+Unidades cobrem anos escolares e componentes diferentes; comparar a média de
+quem tem 4 recortes com a média da rede em 16 não é comparação. Quando a rede
+não cobre exatamente os recortes daquela unidade, a coluna sai `'—'` — não
+"conserte" isso preenchendo com a média geral.
+
+⚠️ **A consulta é paginada de mil em mil (`buscarTudo`).** O PostgREST corta em
+1.000 linhas e não avisa; sem a paginação o comparativo perderia unidades em
+silêncio. Toda consulta do painel precisa ir com `order()`, senão as páginas
+repetem e perdem linhas.
+
+⚠️ **A opção não aparece para quem tem uma unidade só** — perfil de escola vê
+a própria e um comparativo de uma linha não compara nada. Isso é conforto
+visual, não recorte: quem entrega a lista é o RLS.
+
+⚠️ **A Diagnóstica exige ano escolar × componente**, não tem "todos". Além de
+as unidades não oferecerem os mesmos anos, a rede inteira em todos os recortes
+passa de 70 mil linhas de item no navegador; um recorte por vez são ~2 mil.
+
 ⚠️ **A escala TRI muda a cor do TEXTO junto com a faixa.** Sobre os três tons
 médios (`#65a30d`, `#ca8a04`, `#ea580c`) o texto branco fica em 2,94–3,56:1,
 abaixo do mínimo de 4,5:1; com tinta escura sobe para 5,0–6,1:1. A paleta é a
@@ -455,6 +487,10 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
   **não é segurança** — é conforto visual. A segurança está no Postgres. Não
   remova, mas não confie nele.
 - Comentários e mensagens de usuário em português.
+- `visao-rede.js` expõe `window.MapaVisaoRede`, o painel "Todas as unidades"
+  compartilhado pelas telas de avaliação externa (seção 1). É a exceção
+  deliberada ao "cada tela é autocontida": eram 200 linhas iguais em cinco
+  arquivos, que divergiriam na primeira correção feita em quatro deles.
 - `?demo=0` desliga o modo demonstração, que também intercepta `fetch` e
   atrapalha diagnóstico de autenticação.
 

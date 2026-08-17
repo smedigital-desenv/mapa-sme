@@ -8,6 +8,7 @@
   <script src="config-central.js" defer></script>
   <script src="demo-mode.js"></script>
   <script src="iago.js"></script>
+  <script src="visao-rede.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Av. Diagnóstica SME/Vunesp | SME Ribeirão Preto</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
@@ -277,10 +278,13 @@ async function carregarEscolas(){
   if(!ESCOLAS.length){ sel.innerHTML = '<option>— sem dados importados —</option>'; return; }
   sel.innerHTML = ESCOLAS.map(e=>'<option value="'+esc(e.escola)+'">'+esc(e.escola)+'</option>').join('');
   sel.onchange = () => selecionar(sel.value);
-  selecionar(ESCOLAS[0].escola);
+  // preparar() acrescenta a opção "Todas as unidades" quando há mais de uma
+  // para comparar, e devolve o que a tela deve abrir.
+  selecionar(window.MapaVisaoRede ? MapaVisaoRede.preparar(sel, ESCOLAS) : ESCOLAS[0].escola);
 }
 
 async function selecionar(nome){
+  if(window.MapaVisaoRede && MapaVisaoRede.interceptar(nome)) return;
   escolaAtual = ESCOLAS.find(e => e.escola === nome) || {escola:nome};
   document.getElementById('adNome').textContent = nome;
   document.getElementById('adCod').textContent = 'Cód. ' + (escolaAtual.codigo_escola ?? '—');
@@ -397,6 +401,84 @@ function renderCriticas(){
     + '<td style="font-weight:900;color:'+corPct(x.pct_acerto)+'">'+fmtPct(x.pct_acerto)+'</td>'
     + '<td style="font-weight:800;color:#b91c1c">▼ '+Math.abs(x.dif)+'pp</td></tr>'
   ).join('') || '<tr><td colspan="7" class="text-muted p-3">Nenhum item abaixo da rede.</td></tr>';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Comparativo "Todas as unidades"
+
+   A média é do % de acerto DOS ITENS de um ano escolar × componente — e o
+   recorte é obrigatório, não "todos", por duas razões:
+
+   · comparabilidade — as unidades não oferecem os mesmos anos escolares. A
+     média de quem só tem 2º ano contra a de quem vai até o 9º compararia
+     provas diferentes e leria como desempenho;
+   · volume — a rede inteira, todos os anos e componentes, passa de 70 mil
+     linhas de item no navegador. Um recorte por vez são ~2 mil.
+
+   ⚠️ Esta média NÃO agrega por habilidade: ela é a média simples dos itens,
+   que é o que o painel de comparação pede. A dispersão entre itens da mesma
+   habilidade continua visível na tabela da unidade, e é lá que ela importa —
+   não some os itens por habilidade aqui para "simplificar".
+   ═══════════════════════════════════════════════════════════════════════════ */
+const fmtPctMedia = v => (v==null||isNaN(v)) ? '—' : (Number(v)*100).toFixed(1).replace('.',',')+'%';
+
+function recortesDaRede(campo){
+  const vistos = new Set();
+  REDE_TRI.forEach((v,k) => { const p=k.split('||'); vistos.add(campo==='ano' ? p[0] : p[1]); });
+  const ordem = campo==='ano' ? ANOS : COMPS;
+  const fora = ordem.filter(x => vistos.has(x));
+  return (fora.length ? fora : ordem).map(x => ({v:x, t: campo==='ano' ? x+' ano' : x}));
+}
+
+function instalarComparativo(){
+  if(!window.MapaVisaoRede) return;
+  MapaVisaoRede.instalar({
+    sel: document.getElementById('adSel'),
+    escolher: selecionar,
+    titulo: '% de acerto por unidade × rede',
+    rotuloValor: '% de acerto (média dos itens)',
+    fmt: fmtPctMedia,
+    escalaDif: 100, casasDif: 1, unidadeDif: ' pp',
+    filtros: [
+      {id:'ano', rotulo:'Ano escolar', opcoes: () => recortesDaRede('ano')},
+      {id:'comp', rotulo:'Componente', opcoes: () => recortesDaRede('comp')}
+    ],
+    colunas: [
+      {id:'tri', t:'TRI', v:l=>l.cols.tri, fmt:v=>{
+        const f=faixaTRI(v);
+        return '<span style="display:inline-block;min-width:44px;border-radius:6px;padding:1px 6px;'
+             + 'font-weight:900;background:'+f.bg+';color:'+f.fg+'">'+fmtTRI(v)+'</span>'; }},
+      {id:'itens', t:'Itens', v:l=>l.cols.n, fmt:v=>String(v)}
+    ],
+    carregar: async f => {
+      if(!f.ano || !f.comp) return {linhas:[]};
+      const [itens, tri] = await Promise.all([
+        MapaVisaoRede.buscarTudo(() =>
+          sb().from('av_diag_item').select('escola,item,pct_acerto')
+              .eq('ano_escolar',f.ano).eq('componente',f.comp).order('escola').order('item')),
+        MapaVisaoRede.buscarTudo(() =>
+          sb().from('av_diag_tri').select('escola,proficiencia')
+              .eq('ano_escolar',f.ano).eq('componente',f.comp).order('escola'))
+      ]);
+      // A referência é item a item: o mesmo item da mesma prova. Média contra
+      // média de conjuntos diferentes de itens não seria comparação.
+      const rede = new Map();
+      itens.forEach(r => { if(r.escola==='REDE' && r.pct_acerto!=null) rede.set(r.item, r.pct_acerto); });
+      const ag = MapaVisaoRede.agregador();
+      itens.forEach(r => {
+        if(!r.escola || r.escola==='REDE' || r.pct_acerto==null) return;
+        ag.add(r.escola, r.pct_acerto, rede.get(r.item));
+      });
+      const linhas = ag.linhas();
+      const mTri = new Map(tri.filter(r=>r.escola!=='REDE').map(r=>[r.escola, r.proficiencia]));
+      linhas.forEach(l => { l.cols.tri = mTri.has(l.escola) ? mTri.get(l.escola) : null; });
+      return {linhas};
+    },
+    legenda: 'Média simples do % de acerto da unidade nos itens daquele ano escolar e '
+           + 'componente, ao lado da média da rede <b>nos mesmos itens</b>. A cor mede a '
+           + 'distância relativa da rede; a coluna TRI traz a proficiência do mesmo recorte, '
+           + 'na escala absoluta de sempre. Clique no nome da unidade para abrir a tela dela.'
+  });
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -539,6 +621,7 @@ async function aplicarGate(){
   try{
     ligarUpload(); aplicarGate();
     await carregarRedeTRI();
+    instalarComparativo();
     await carregarEscolas();
   }catch(e){
     console.error(e);
