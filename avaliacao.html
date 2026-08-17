@@ -7706,6 +7706,34 @@ function _renderTabelaTotal(linhas) {
   const FICHA_FN_URL = supabaseUrl + '/functions/v1/coderp-ficha';
   const FICHA_ANOS_ESCOLARES = ['1 ANO', '2 ANO', '3 ANO', '4 ANO', '5 ANO'];
 
+  // ── O que o `per_cod` do CODERP pode trazer, e o que fica de fora ─────────
+  // Medido em 2026-08 (bim 1, rede inteira sem filtro): 18 valores distintos.
+  // A tela consultava só os cinco primeiros, então 36% das linhas da ficha
+  // nunca chegavam aqui. Definido com a SME o que entra:
+  //
+  //   1 ANO … 9 ANO   Ensino Fundamental — é o objeto destas telas.
+  //
+  //   CIC 2/3/4       Educação Infantil, ciclos 2, 3 e 4 ─┐
+  //   ETP 1/2         Educação Infantil, Etapas I e II     │ fora da contagem
+  //   PECAI           PEC dos Anos Iniciais                │
+  //   TAIMS           Termos Anos Iniciais Multi Seriados  │ turmas de
+  //   TAFMS           Termos Anos Finais Multi Seriados    │ treinamento
+  //   TREIN           Prática Desportiva masc./fem.       ─┘
+  //
+  // ⚠️ A lista é de EXCLUSÃO, não de inclusão, e isso é de propósito: um
+  // per_cod novo que o CODERP passe a devolver entra na contagem e aparece na
+  // tela, em vez de sumir em silêncio. Some quem for explicitamente excluído.
+  const PER_COD_FORA = new Set([
+    'CIC 2', 'CIC 3', 'CIC 4',      // Educação Infantil
+    'ETP 1', 'ETP 2',               // Educação Infantil
+    'PECAI',                        // PEC Anos Iniciais
+    'TAIMS', 'TAFMS', 'TREIN',      // turmas de treinamento
+  ]);
+  const perCodContavel = p => {
+    const v = String(p == null ? '' : p).trim().toUpperCase();
+    return !!v && !PER_COD_FORA.has(v);
+  };
+
   function fichaApiAtiva() {
     try {
       if (new URLSearchParams(location.search).get('coderp') === '0') return false;
@@ -7868,6 +7896,81 @@ function _renderTabelaTotal(linhas) {
     (oficial || []).forEach(r => porDisc.set(r.fnc_des, (porDisc.get(r.fnc_des) || 0) + Number(r.qtd_alunos || 0)));
     console.log('[sonda rede] oficial por disciplina:', Object.fromEntries(porDisc));
     return { somaOficial, somaVarredura, dif, pct, porAno };
+  };
+
+  // ── Vocabulário do CODERP: o que existe fora de 1º a 5º ano ───────────────
+  // Duas perguntas que precisam de número antes de decisão:
+  //   1. As respostas de 6º a 9º ano cabem nas telas atuais? Só cabem se a
+  //      disciplina, o item avaliado e a escala de resposta forem os mesmos.
+  //      Se o 6º ano usar outra escala, a tela renderizaria conceito que ela
+  //      não sabe pontuar — pior que não mostrar.
+  //   2. O que são os tur_cod fora do padrão (3C, TA) — turma de verdade, ou
+  //      outro dado no mesmo campo?
+  //
+  //   await MapaDiagVocabulario(1)
+  window.MapaDiagVocabulario = async function (bimestre) {
+    bimestre = bimestre || 1;
+    const anoLetivo = fichaAnoLetivo();
+    const rows = await chamarFichaApi('turma', { anoLetivo, bimestre, anoescolar: '', turma: '' })
+      .then(r => r.fichasAvaliacoesTurma || []);
+    console.log(`[vocabulário] bimestre ${bimestre}: ${rows.length} linhas`);
+
+    const ANOS_HOJE = new Set(['1 ANO','2 ANO','3 ANO','4 ANO','5 ANO']);
+    const porPer = new Map();
+    rows.forEach(r => {
+      const p = String(r.per_cod || '(vazio)').trim();
+      if (!porPer.has(p)) porPer.set(p, { linhas:0, alunos:0, disc:new Set(), item:new Set(),
+                                          resp:new Set(), turmas:new Set(), unis:new Set() });
+      const g = porPer.get(p);
+      g.linhas++; g.alunos += Number(r.qtd_alunos || 0);
+      g.disc.add(r.fnc_des); g.item.add(r.fne_des);
+      g.resp.add(String(r.fqr_vl) + '=' + String(r.fqr_txt_resp));
+      g.turmas.add(String(r.tur_cod || '').trim());
+      g.unis.add(String(r.uni_cod));
+    });
+
+    console.log('\n[vocabulário] ── por período ──');
+    console.table(Array.from(porPer.entries())
+      .sort((a,b) => b[1].linhas - a[1].linhas)
+      .map(([p,g]) => ({ 'per_cod':p, linhas:g.linhas, alunos:g.alunos,
+                         unidades:g.unis.size, disciplinas:g.disc.size,
+                         itens:g.item.size, respostas:g.resp.size,
+                         turmas:Array.from(g.turmas).sort().join(' ') })));
+
+    // O que existe em 6º–9º que NÃO existe em 1º–5º
+    const reune = (chave, filtro) => {
+      const s = new Set();
+      Array.from(porPer.entries()).filter(([p]) => filtro(p))
+        .forEach(([,g]) => g[chave].forEach(v => s.add(v)));
+      return s;
+    };
+    const ehAnosFinais = p => /^[6789] ANO$/.test(p);
+    for (const campo of ['disc','item','resp']) {
+      const hoje = reune(campo, p => ANOS_HOJE.has(p));
+      const finais = reune(campo, ehAnosFinais);
+      const novos = Array.from(finais).filter(v => !hoje.has(v));
+      const rot = { disc:'disciplinas', item:'itens avaliados', resp:'respostas (valor=texto)' }[campo];
+      console.log(`\n[vocabulário] ${rot}: ${hoje.size} em 1º–5º, ${finais.size} em 6º–9º`);
+      console.log(`[vocabulário]   presentes em 6º–9º e AUSENTES em 1º–5º: ${novos.length}`);
+      if (novos.length) console.log('[vocabulário]  ', novos.slice(0, 40));
+    }
+
+    // tur_cod fora do padrão de letra única
+    const estranhos = rows.filter(r => !/^[A-Z]$/.test(String(r.tur_cod || '').trim()));
+    console.log(`\n[vocabulário] ── tur_cod fora do padrão: ${estranhos.length} linhas ──`);
+    const porTur = new Map();
+    estranhos.forEach(r => {
+      const k = String(r.tur_cod || '(vazio)').trim();
+      if (!porTur.has(k)) porTur.set(k, { linhas:0, pers:new Set(), unis:new Set(), exemplo:r });
+      const g = porTur.get(k);
+      g.linhas++; g.pers.add(String(r.per_cod||'').trim()); g.unis.add(String(r.uni_cod));
+    });
+    porTur.forEach((g, k) => {
+      console.log(`[vocabulário] tur_cod "${k}": ${g.linhas} linhas, `
+        + `per_cod = ${Array.from(g.pers).join(', ')}, ${g.unis.size} unidade(s) (ex.: uni_cod ${g.exemplo.uni_cod})`);
+      console.log('[vocabulário]   exemplo de linha:', JSON.stringify(g.exemplo));
+    });
+    return { porPer, porTur };
   };
 
   // ── Sonda: a API voltou a rotular turma e período? ────────────────────────
