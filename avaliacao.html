@@ -6449,37 +6449,21 @@ function _addLinhaIndiceTotal(cache, key, disc, eixo, campo, soma, qtd) {
 // escolhidas pelo filtro do topo. Com o ano virando nível da árvore, servir a
 // árvore "do ano selecionado" esconderia justamente os outros anos e não
 // haveria como trocar: o navegador não pode ser filtrado por si mesmo.
-// ⚠️ Só REGISTRA que a combinação existe. Ela entra na árvore com zero, e o
-// número de alunos é calculado depois, em _fecharArvoreTotal(). Somar 1 aqui
-// era o defeito: a lateral do Total mostrava 12 para uma unidade que o 1º
-// bimestre mostrava com 232 — 12 é a quantidade de ano×turma, não de alunos.
-function _addArvoreTotalIndex(arvores, vistos, anoKey, unidade, turma) {
+// ⚠️ A contagem de alunos vem PRONTA no pacote (`arvoreLinhas[3]`), calculada
+// em getTotalAvaliacoesRapido com os grupos ainda crus. NÃO tente derivá-la
+// aqui a partir de `linhas`: nelas o eixo já foi normalizado e itens distintos
+// da prova colapsam somando — foi assim que a lateral do Total mostrou 452
+// para uma unidade que o 1º bimestre mostra com 232.
+//
+// Somar 1 por combinação, como já se fez, é pior ainda: exibe a quantidade de
+// ano×turma no lugar da de alunos (a mesma unidade aparecia com 12).
+function _addArvoreTotalIndex(arvores, vistos, anoKey, unidade, turma, alunos) {
   const keyVisto = anoKey + '||' + unidade + '||' + turma;
   if (!vistos.__geral) vistos.__geral = new Set();
   if (vistos.__geral.has(keyVisto)) return;
   vistos.__geral.add(keyVisto);
   if (!arvores.__geral) arvores.__geral = {};
-  _arvAdd(arvores.__geral, unidade, anoKey, turma, 0);
-}
-
-// Fecha a árvore do Total com a MESMA regra dos bimestres (alunosPorItens):
-// alunos = item de pergunta única mais completo, sem Ed. Especial/AEE.
-//
-// ⚠️ A conta é POR BIMESTRE e depois se toma o MAIOR entre eles — um aluno
-// existe uma vez, não quatro. Somar os quatro campos daria ~4× o real.
-function _fecharArvoreTotal(arvores, porItem) {
-  const arv = arvores.__geral || (arvores.__geral = {});
-  const porUAT = new Map();          // unidade||ano||turma -> alunos
-  porItem.forEach((itens, chave) => {
-    const p = chave.split('||');     // unidade, ano, turma, campo
-    const n = alunosPorItens(itens);
-    const k = p[0] + '||' + p[1] + '||' + p[2];
-    porUAT.set(k, Math.max(porUAT.get(k) || 0, n));
-  });
-  porUAT.forEach((n, k) => {
-    const p = k.split('||');
-    _arvAdd(arv, p[0], p[1], p[2], n);
-  });
+  _arvAdd(arvores.__geral, unidade, anoKey, turma, Number(alunos || 0));
 }
 
 function _garantirIndicePacoteTotal(pkg) {
@@ -6497,8 +6481,6 @@ function _garantirIndicePacoteTotal(pkg) {
   const arvores = {};
   const vistosArvore = {};
   const linhas = pkg.linhas || [];
-  // unidade||ano||turma||campo -> (disciplina||eixo -> alunos-resposta)
-  const porItemArvore = new Map();
 
   // Turma sem nenhuma resposta pontuável não gera linha de agregado, mas
   // EXISTE: o pacote traz a lista completa em arvoreLinhas e é ela que
@@ -6512,7 +6494,7 @@ function _garantirIndicePacoteTotal(pkg) {
     if (typeof _unidadeMatchFiltro === 'function' && !_unidadeMatchFiltro(unidade)) return;
     // ⚠️ Só o ano REAL entra. Registrar também sob 'TODOS' criava um nível de
     // ano fantasma na árvore, sempre com zero alunos.
-    _addArvoreTotalIndex(arvores, vistosArvore, ano || 'TODOS', unidade, turma);
+    _addArvoreTotalIndex(arvores, vistosArvore, ano || 'TODOS', unidade, turma, al[3]);
   });
 
   linhas.forEach(row => {
@@ -6532,18 +6514,11 @@ function _garantirIndicePacoteTotal(pkg) {
     // Filtro de unidade escolar (acesso restrito por escola).
     if (typeof _unidadeMatchFiltro === 'function' && !_unidadeMatchFiltro(unidade)) return;
 
-    // Árvore lateral: uma só, com unidade › ano › turma.
-    _addArvoreTotalIndex(arvores, vistosArvore, ano || 'TODOS', unidade, turma);
+    // Turma que exista só nas linhas (pacote antigo, sem arvoreLinhas) entra
+    // com zero — aparece na lista, sem inventar contagem.
+    _addArvoreTotalIndex(arvores, vistosArvore, ano || 'TODOS', unidade, turma, 0);
 
     if (!disc || !eixo || !campo || !qtd) return;
-
-    // Matéria-prima da contagem de alunos: soma por item, DENTRO de cada
-    // bimestre (`campo`). Misturar bimestres aqui multiplicaria o aluno.
-    const kArv = [unidade, ano || 'TODOS', turma, campo].join('||');
-    if (!porItemArvore.has(kArv)) porItemArvore.set(kArv, new Map());
-    const itensArv = porItemArvore.get(kArv);
-    const kItem = disc + '||' + eixo;
-    itensArv.set(kItem, (itensArv.get(kItem) || 0) + qtd);
 
     // Índices pré-agregados: rede, ano, unidade e turma.
     // Assim o clique em unidade/turma não precisa percorrer todas as linhas novamente.
@@ -6562,8 +6537,6 @@ function _garantirIndicePacoteTotal(pkg) {
       _addLinhaIndiceTotal(cache, _totalFiltroKey(ano, unidade, turma), disc, eixo, campo, soma, qtd);
     }
   });
-
-  _fecharArvoreTotal(arvores, porItemArvore);
 
   _totalPacoteIndex = {
     cache,
@@ -9033,7 +9006,9 @@ function _renderTabelaTotal(linhas) {
     const u = cleanUnit(catalogo.get(cod) || nomeUnidade);
 
     const ag = new Map();        // u||a||t||d||e||campo -> {soma, qtd}
-    const arvore = new Set();    // u||a||t
+    // ⚠️ Map, não Set: a árvore precisa do NÚMERO DE ALUNOS, e aqui o dado é
+    // de nível aluno — dá para contar REMA distinto, que é exato.
+    const arvore = new Map();    // u||a||t -> Set(rema)
     let algum = false;
     for (const b of [1, 2, 3, 4]) {
       let fichas = null;
@@ -9043,7 +9018,9 @@ function _renderTabelaTotal(linhas) {
       (fichas || []).forEach(r => {
         const a = normalizar(r.per_cod || '') || 'TODOS';
         const t = String(r.tur_cod || '—').trim().toUpperCase() || '—';
-        arvore.add(u + '||' + a + '||' + t);
+        const kArv = u + '||' + a + '||' + t;
+        if (!arvore.has(kArv)) arvore.set(kArv, new Set());
+        arvore.get(kArv).add(r.alu_rema);
         const d = normalizarDisciplina(corrigirTextoLegivel(r.fnc_des || '') || 'Sem disciplina');
         const e = normalizarEixoTotal(corrigirTextoLegivel(r.fne_des || '') || 'Sem eixo');
         if (!d || !e) return;
@@ -9060,7 +9037,7 @@ function _renderTabelaTotal(linhas) {
       unidade: u,
       algum: algum,
       linhas: Array.from(ag.entries()).map(([k, v]) => { const p = k.split('||'); return [p[0], p[1], p[2], p[3], p[4], p[5], v.soma, v.qtd]; }),
-      arvoreLinhas: Array.from(arvore, s => s.split('||'))
+      arvoreLinhas: Array.from(arvore.entries(), ([k, remas]) => k.split('||').concat([remas.size]))
     };
   }
 
@@ -9215,7 +9192,9 @@ function _renderTabelaTotal(linhas) {
     const catalogo = await fichaCatalogo();
 
     const ag = new Map();       // u||ano||turma||disc||eixo||campo -> {soma, qtd}
-    const arvore = new Set();   // u||ano||turma
+    const arvore = new Set();      // u||ano||turma
+    // u||ano||turma||campo -> (item cru -> qtd); vira contagem de alunos no fim
+    const arvoreItens = new Map();
     const reprovados = [];
     let algum = false;
 
@@ -9263,6 +9242,13 @@ function _renderTabelaTotal(linhas) {
         const score = respostaScore({ descricao_fne: p[4] || '', valor_resposta: p[5], texto_resposta: p[6] || '' });
         if (score === null || Number.isNaN(score)) return;
         arvore.add(p[0] + '||' + p[1] + '||' + p[2]);
+        // Matéria-prima da contagem: item CRU (fnc/fne originais), por
+        // bimestre. Depois do normalizarEixoTotal acima já não serviria.
+        const kArv = [p[0], p[1], p[2], campo].join('||');
+        if (!arvoreItens.has(kArv)) arvoreItens.set(kArv, new Map());
+        const itensArv = arvoreItens.get(kArv);
+        const kiArv = p[3] + '||' + p[4];
+        itensArv.set(kiArv, (itensArv.get(kiArv) || 0) + qtd);
         const kk = [p[0], p[1], p[2], d, e, campo].join('||');
         if (!ag.has(kk)) ag.set(kk, { soma: 0, qtd: 0 });
         const alvo = ag.get(kk);
@@ -9286,7 +9272,15 @@ function _renderTabelaTotal(linhas) {
         const p = k.split('||');
         return [p[0], p[1], p[2], p[3], p[4], p[5], v.soma, v.qtd];
       }),
-      arvoreLinhas: Array.from(arvore, x => x.split('||'))
+      arvoreLinhas: (() => {
+        const alunos = new Map();   // u||a||t -> alunos (o MAIOR bimestre)
+        arvoreItens.forEach((itens, k) => {
+          const p = k.split('||');
+          const kU = p[0] + '||' + p[1] + '||' + p[2];
+          alunos.set(kU, Math.max(alunos.get(kU) || 0, alunosPorItens(itens)));
+        });
+        return Array.from(arvore, x => x.split('||').concat([alunos.get(x) || 0]));
+      })()
     };
   }
 
@@ -10053,14 +10047,60 @@ function _renderTabelaTotal(linhas) {
         (bimestresRows || []).forEach(r => addTotal(r, campoBim(Number(r.bimestre || 1)), 'fnc_disciplina', null, 1));
       }
 
+      // ── Alunos por unidade/ano/turma, para a árvore lateral ───────────────
+      // ⚠️ Esta conta TEM de ser feita AQUI, com os grupos ainda CRUS. Não dá
+      // para derivá-la de `linhas`: ali o eixo já passou por
+      // normalizarEixoTotal(), e itens diferentes da prova colapsam no mesmo
+      // rótulo somando suas quantidades. Isso destrói a premissa de
+      // alunosPorItens ("um item = uma pergunta por aluno") e infla tudo — foi
+      // o que fez a lateral do Total mostrar 452 para uma unidade que o 1º
+      // bimestre mostra com 232, com o 3º ano exatamente 4× maior.
+      const alunosArv = new Map();      // unidade||ano||turma -> alunos
+      if (bimestreGrupos) {
+        const porBimItem = new Map();   // unidade||ano||turma||bimestre -> (item -> qtd)
+        bimestreGrupos.forEach(r => {
+          if (!Array.isArray(r)) return;
+          const u = cleanUnit(r[1] || 'Sem unidade');
+          const a = normalizar(r[2] || 'TODOS') || 'TODOS';
+          const t = String(r[3] || 'Sem turma').trim().toUpperCase();
+          if (!passaFiltros(u, a, t)) return;
+          const k = [u, a, t, r[0]].join('||');
+          if (!porBimItem.has(k)) porBimItem.set(k, new Map());
+          const itens = porBimItem.get(k);
+          const ki = (r[4] || '') + '||' + (r[5] || '');   // fnc e fne CRUS
+          itens.set(ki, (itens.get(ki) || 0) + Number(r[8] || 0));
+        });
+        // O maior bimestre, não a soma: um aluno existe uma vez, não quatro.
+        porBimItem.forEach((itens, k) => {
+          const p = k.split('||');
+          const kU = p[0] + '||' + p[1] + '||' + p[2];
+          alunosArv.set(kU, Math.max(alunosArv.get(kU) || 0, alunosPorItens(itens)));
+        });
+      }
+      // A Diagnóstica traz uma linha por ALUNO — conta direto, e vale o maior
+      // entre as duas fontes.
+      const diagArv = new Map();
+      (alunosRows || []).forEach(r => {
+        const u = cleanUnit(r.nome_unidade || 'Sem unidade');
+        const a = normalizar(r.ano_escolar || 'TODOS') || 'TODOS';
+        const t = String(r.turma || 'Sem turma').trim().toUpperCase();
+        if (!passaFiltros(u, a, t)) return;
+        const k = [u, a, t].join('||');
+        diagArv.set(k, (diagArv.get(k) || 0) + 1);
+      });
+      diagArv.forEach((n, k) => alunosArv.set(k, Math.max(alunosArv.get(k) || 0, n)));
+
       if (pacote) {
         const linhas = Array.from(ag.entries()).map(([k, v]) => {
           const parts = k.split('||');
           return [parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], v.soma, v.qtd];
         });
-        // arvoreLinhas = lista COMPLETA de turmas vistas (com ou sem score):
-        // é dela que a árvore lateral do Total nasce.
-        const arvoreLinhas = Array.from(hierSet, s => s.split('||'));
+        // arvoreLinhas = lista COMPLETA de turmas vistas (com ou sem score),
+        // agora com o número de alunos: [unidade, ano, turma, alunos].
+        const arvoreLinhas = Array.from(hierSet, s => {
+          const p = s.split('||');
+          return [p[0], p[1], p[2], Number(alunosArv.get(s) || 0)];
+        });
         const out = { ok: true, linhas, arvoreLinhas, generatedAt: new Date().toISOString() };
         if (memoK) _totalPacoteMemo.set(memoK, { ts: Date.now(), valor: out });
         return out;

@@ -291,6 +291,25 @@ ano×turma, não de alunos. `disciplinaContaAluno()` também normaliza por conta
 própria, sem chamar `normalizar()`: aquele helper carrega depois, e a
 dependência quebrava em silêncio, caindo no mínimo entre itens.
 
+🚫 **NUNCA aplique esta regra sobre as `linhas` do pacote do Total.** Ali o
+eixo já passou por `normalizarEixoTotal()`, e itens diferentes da prova
+colapsam no mesmo rótulo **somando** suas quantidades — o que destrói a
+premissa "um item = uma pergunta por aluno". Foi exatamente essa a segunda
+tentativa errada: a lateral do Total passou a mostrar **452** onde o 1º
+bimestre mostra **232**, com o 3º ano exatamente 4× maior.
+
+A contagem do Total é feita **antes** da normalização, em
+`getTotalAvaliacoesRapido`, com os grupos ainda crus (`fnc_des`/`fne_des`
+originais), por bimestre, e vale o **maior bimestre** — um aluno existe uma
+vez, não quatro. O resultado viaja pronto no pacote: `arvoreLinhas` passou de
+`[unidade, ano, turma]` para `[unidade, ano, turma, alunos]`, e o índice
+apenas o lê. Pacote antigo, sem a 4ª coluna, mostra a turma com zero — some o
+número, nunca a turma.
+
+⚠️ Os dois caminhos de detalhe do Total seguem a mesma divisão: o de UMA
+unidade é nível aluno e conta **REMA distinto** (exato); o `detalherede` é
+agregado e usa a regra sobre os itens crus.
+
 1. A soma de um item é `alunos × nº de perguntas daquele item` — um item pode
    ter mais de uma pergunta por aluno (Ciências/Matéria e Energia tem 3).
 2. **Educação Especial e AEE ficam FORA da conta.** Elas atendem só parte da
