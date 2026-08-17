@@ -7908,6 +7908,83 @@ function _renderTabelaTotal(linhas) {
     return { somaOficial, somaVarredura, dif, pct, porAno };
   };
 
+  // ── Sonda: a API voltou a rotular turma e período? ────────────────────────
+  // Contexto: em 2026-08 o /IndicadorTurma devolvia per_cod e tur_cod VAZIOS
+  // (28.141 linhas, zero rotuladas), e foi por isso que a turma passou a vir
+  // do que era PEDIDO, com uma consulta por (ano escolar × código de turma).
+  //
+  // Se a API voltar a rotular, essa varredura fica desnecessária. Mas há uma
+  // pegadinha: um teste feito COM `escola` no corpo não responde pela nossa
+  // rota, que consulta a rede INTEIRA sem esse filtro. Pode muito bem ser que
+  // o rótulo só apareça no recorte de uma unidade. Esta sonda mede os dois.
+  //
+  //   await MapaDiagRotulos(1)        // rede inteira vs. uma escola
+  //   await MapaDiagRotulos(1, 123)   // usando o código de escola que você quiser
+  window.MapaDiagRotulos = async function (bimestre, codEscola) {
+    bimestre = bimestre || 1;
+    const anoLetivo = fichaAnoLetivo();
+    const resumo = rows => {
+      const total = (rows || []).length;
+      const comTur = (rows || []).filter(r => String(r.tur_cod || '').trim()).length;
+      const comPer = (rows || []).filter(r => String(r.per_cod || '').trim()).length;
+      const turmas = new Set((rows || []).map(r => String(r.tur_cod || '').trim()).filter(Boolean));
+      const pers   = new Set((rows || []).map(r => String(r.per_cod || '').trim()).filter(Boolean));
+      const unis   = new Set((rows || []).map(r => String(r.uni_cod)));
+      return { total, comTur, comPer, turmas: [...turmas].sort(), pers: [...pers].sort(), unidades: unis.size };
+    };
+    const mostrar = (rot, r) => {
+      if (!r) { console.log(`[sonda rótulos] ${rot}: FALHOU`); return; }
+      console.log(`[sonda rótulos] ${rot}: ${r.total} linhas, ${r.unidades} unidade(s)`);
+      console.log(`[sonda rótulos]   tur_cod preenchido em ${r.comTur}/${r.total}`
+        + (r.turmas.length ? ` — valores: ${r.turmas.join(', ')}` : ''));
+      console.log(`[sonda rótulos]   per_cod preenchido em ${r.comPer}/${r.total}`
+        + (r.pers.length ? ` — valores: ${r.pers.join(', ')}` : ''));
+    };
+    const pedir = async (rot, parms) => {
+      try { return resumo(await chamarFichaApi('turma', parms).then(r => r.fichasAvaliacoesTurma || [])); }
+      catch (e) { console.log(`[sonda rótulos] ${rot}: erro ${e.message}`); return null; }
+    };
+
+    // (1) Como o MAPA consulta hoje: rede inteira, um ano escolar por vez.
+    const redeAno = await pedir('rede inteira, 1 ANO',
+      { anoLetivo, bimestre, anoescolar: '1 ANO' });
+    mostrar('rede inteira, anoescolar="1 ANO"', redeAno);
+
+    // (2) Rede inteira SEM ano escolar — se vier tudo rotulado, uma consulta
+    //     por bimestre substitui as cinco.
+    const redeTudo = await pedir('rede inteira, sem anoescolar',
+      { anoLetivo, bimestre, anoescolar: '', turma: '' });
+    mostrar('rede inteira, anoescolar="" turma=""', redeTudo);
+
+    // (3) Uma escola — foi assim que o teste no Postman foi feito.
+    let umaEscola = null;
+    if (Number.isInteger(codEscola)) {
+      umaEscola = await pedir('uma escola',
+        { anoLetivo, bimestre, escola: codEscola, anoescolar: '', turma: '' });
+      mostrar(`escola ${codEscola}, anoescolar="" turma=""`, umaEscola);
+    }
+
+    // ── Veredicto ──────────────────────────────────────────────────────────
+    const rotulado = r => r && r.total && r.comTur === r.total;
+    if (rotulado(redeTudo)) {
+      console.log('[sonda rótulos] VEREDICTO: a rede inteira já vem rotulada por turma SEM filtro.');
+      console.log('[sonda rótulos] A varredura por código de turma pode ser aposentada, e uma');
+      console.log('[sonda rótulos] consulta por bimestre substitui as cinco por ano escolar.');
+    } else if (rotulado(redeAno)) {
+      console.log('[sonda rótulos] VEREDICTO: vem rotulada quando o ano escolar é informado.');
+      console.log('[sonda rótulos] A varredura por código de turma pode ser aposentada; as 5');
+      console.log('[sonda rótulos] consultas por ano escolar continuam necessárias.');
+    } else if (rotulado(umaEscola)) {
+      console.log('[sonda rótulos] VEREDICTO: só rotula no recorte de UMA escola.');
+      console.log('[sonda rótulos] Não serve para a rota da rede — ela consulta sem `escola`.');
+      console.log('[sonda rótulos] O ganho fica no detalhe de unidade, que hoje usa IndicadorAluno.');
+    } else {
+      console.log('[sonda rótulos] VEREDICTO: continua sem rótulo nos recortes testados.');
+      console.log('[sonda rótulos] Nada muda; a rota por código de turma segue necessária.');
+    }
+    return { redeAno, redeTudo, umaEscola };
+  };
+
   // ── Rede aberta por TURMA, sem leque por escola ───────────────────────────
   // MEDIDO (2026-08, 2º bim): o `IndicadorTurma` NÃO devolve `tur_cod`
   // (28.141 linhas, zero rotuladas), mas RESPEITA o filtro `turma` — as
