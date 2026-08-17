@@ -2910,6 +2910,74 @@ function _filtrarArvorePorUnidade(arvore) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// CONTAGEM DE ALUNOS A PARTIR DO NÍVEL AGREGADO
+//
+// ⚠️ Mora aqui, no escopo compartilhado, e NÃO dentro do adaptador Supabase.
+// São três lugares que contam aluno pelo agregado — a rota de rede dos
+// bimestres, o detalhe por turma e o índice do Total — e o do Total vive em
+// outro bloco <script>. Enquanto a regra ficou dentro daquele IIFE, o Total
+// contava por conta própria e a lateral dele mostrava 12 onde o 1º bimestre
+// mostrava 232: eram combinações ano×turma, não alunos.
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️ Educação Especial e Atendimento Educacional Especializado NÃO podem
+// participar da CONTAGEM DE ALUNOS. A contagem parte do item menos somado, e
+// isso só vale porque todo aluno responde todo item — o que é FALSO para
+// essas duas: elas atendem apenas os alunos com deficiência da turma. Com
+// elas dentro, o piso da conta passa a ser o número de alunos do AEE.
+//
+// Medido na rede em 2026-08: o 1º bimestre mostrava 4.522 alunos (ALCINA
+// com 68) contra 13.095 do 2º. O 2º bimestre só estava certo por acidente —
+// a Ed. Especial ainda não havia sido lançada, e por isso não havia o que
+// derrubar o piso.
+//
+// Isto NÃO esconde as duas disciplinas: elas continuam na tela e nos
+// percentuais. O que elas deixam de fazer é decidir quantos alunos existem.
+const _FORA_DA_CONTAGEM = /(EDUCACAOESPECIAL|EDUCACIONALESPECIALIZADO|ATENDIMENTOEDUCACIONAL)/;
+// ⚠️ Normaliza por conta própria em vez de chamar `normalizar()`: esta regra
+// é usada por blocos <script> que carregam ANTES daquele helper, e a
+// dependência quebrava em silêncio (o Total caía no mínimo entre itens).
+const disciplinaContaAluno = d => !_FORA_DA_CONTAGEM.test(
+  String(d == null ? '' : d).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/[^A-Z0-9]+/g, ''));
+
+// Alunos de um balde unidade/ano/turma, a partir do mapa `disciplina||eixo ->
+// soma`.
+//
+// A soma de um item é `alunos × nº de perguntas daquele item` (Ciências/
+// Matéria e Energia tem 3 perguntas por aluno). O MÍNIMO entre os itens
+// isola os de pergunta ÚNICA — mas, entre eles, escolhe justamente o PIOR
+// lançado. Medido contra a planilha oficial do 1º bimestre (13.626 alunos
+// em 553 baldes): o mínimo acerta 395 baldes e perde 580 alunos, dos quais
+// 521 só porque um item de Língua Portuguesa ficou com meia dúzia de
+// lançamentos a menos que os demais da mesma turma.
+//
+// Então o mínimo serve para IDENTIFICAR a escala de "um aluno por resposta"
+// (item abaixo de 1,5× o mínimo tem uma pergunta só), e entre esses vale o
+// MAIOR — o item mais completamente lançado. Isso acerta 533 dos 553 baldes
+// e, medido, NUNCA conta acima do real: os 20 restantes ficam abaixo, que é
+// o lado seguro. Inventar aluno seria invisível; faltar aluno é reclamável.
+//
+// Reserva: se NENHUM item for contável (turma só de Ed. Especial), a conta
+// roda sobre todos os itens — zerar apagaria alunos que existem.
+// ⚠️ Exposta no window de propósito: o índice do Total vive em outro bloco
+// <script> e PRECISA usar esta mesma regra. Quando ele contava por conta
+// própria, a lateral do Total mostrava 12 onde o 1º bimestre mostrava 232 —
+// eram combinações ano×turma, não alunos.
+function alunosPorItens(itens) {
+  const contaveis = [], todos = [];
+  itens.forEach((qtd, ki) => {
+    todos.push(qtd);
+    if (disciplinaContaAluno(String(ki).split('||')[0])) contaveis.push(qtd);
+  });
+  const q = contaveis.length ? contaveis : todos;
+  if (!q.length) return 0;
+  const min = Math.min.apply(null, q);
+  let alunos = 0;
+  for (let i = 0; i < q.length; i++) if (q[i] < min * 1.5 && q[i] > alunos) alunos = q[i];
+  return alunos;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ÁRVORE LATERAL — unidade › ANO ESCOLAR › turma
 //
 // ⚠️ A árvore tem TRÊS níveis. Antes eram dois (unidade › turma) e o ano vivia
@@ -3513,6 +3581,24 @@ function _realcarFatia(canvasId, label, ativo) {
   if (!ch) return;
   const idx = (ch.data.labels || []).indexOf(label);
   if (idx < 0 || !ativo) {
+    ch.setActiveElements([]);
+    if (ch.tooltip) ch.tooltip.setActiveElements([], { x: 0, y: 0 });
+    ch.update();
+    return;
+  }
+
+  // ⚠️ Fatia fina demais NÃO recebe realce no gráfico, e isso não é preguiça.
+  // Com `spacing` + `hoverOffset`, o Chart.js degenera o traçado de um arco de
+  // menos de ~1° e pinta o ANEL INTEIRO com a cor da fatia: 'Não Avaliado'
+  // (8 alunos, 0,35° de arco) deixava a rosca toda cinza. Medido: 0,35° pinta
+  // 75% do anel; a partir de 1,74° o desenho já se comporta.
+  //
+  // Não há o que perder: uma fatia de menos de 2° é um fio de cabelo, e realçar
+  // um fio não mostra nada. O nome, o número e a descrição continuam na
+  // etiqueta externa e na linha da legenda — que se acendem sozinhas, por CSS.
+  const arco = (ch.getDatasetMeta(0).data || [])[idx];
+  const graus = arco ? Math.abs(Number(arco.circumference) || 0) * 180 / Math.PI : 0;
+  if (arco && graus < 2) {
     ch.setActiveElements([]);
     if (ch.tooltip) ch.tooltip.setActiveElements([], { x: 0, y: 0 });
     ch.update();
@@ -6401,13 +6487,37 @@ function _addLinhaIndiceTotal(cache, key, disc, eixo, campo, soma, qtd) {
 // escolhidas pelo filtro do topo. Com o ano virando nível da árvore, servir a
 // árvore "do ano selecionado" esconderia justamente os outros anos e não
 // haveria como trocar: o navegador não pode ser filtrado por si mesmo.
+// ⚠️ Só REGISTRA que a combinação existe. Ela entra na árvore com zero, e o
+// número de alunos é calculado depois, em _fecharArvoreTotal(). Somar 1 aqui
+// era o defeito: a lateral do Total mostrava 12 para uma unidade que o 1º
+// bimestre mostrava com 232 — 12 é a quantidade de ano×turma, não de alunos.
 function _addArvoreTotalIndex(arvores, vistos, anoKey, unidade, turma) {
   const keyVisto = anoKey + '||' + unidade + '||' + turma;
   if (!vistos.__geral) vistos.__geral = new Set();
   if (vistos.__geral.has(keyVisto)) return;
   vistos.__geral.add(keyVisto);
   if (!arvores.__geral) arvores.__geral = {};
-  _arvAdd(arvores.__geral, unidade, anoKey, turma, 1);
+  _arvAdd(arvores.__geral, unidade, anoKey, turma, 0);
+}
+
+// Fecha a árvore do Total com a MESMA regra dos bimestres (alunosPorItens):
+// alunos = item de pergunta única mais completo, sem Ed. Especial/AEE.
+//
+// ⚠️ A conta é POR BIMESTRE e depois se toma o MAIOR entre eles — um aluno
+// existe uma vez, não quatro. Somar os quatro campos daria ~4× o real.
+function _fecharArvoreTotal(arvores, porItem) {
+  const arv = arvores.__geral || (arvores.__geral = {});
+  const porUAT = new Map();          // unidade||ano||turma -> alunos
+  porItem.forEach((itens, chave) => {
+    const p = chave.split('||');     // unidade, ano, turma, campo
+    const n = alunosPorItens(itens);
+    const k = p[0] + '||' + p[1] + '||' + p[2];
+    porUAT.set(k, Math.max(porUAT.get(k) || 0, n));
+  });
+  porUAT.forEach((n, k) => {
+    const p = k.split('||');
+    _arvAdd(arv, p[0], p[1], p[2], n);
+  });
 }
 
 function _garantirIndicePacoteTotal(pkg) {
@@ -6425,6 +6535,8 @@ function _garantirIndicePacoteTotal(pkg) {
   const arvores = {};
   const vistosArvore = {};
   const linhas = pkg.linhas || [];
+  // unidade||ano||turma||campo -> (disciplina||eixo -> alunos-resposta)
+  const porItemArvore = new Map();
 
   // Turma sem nenhuma resposta pontuável não gera linha de agregado, mas
   // EXISTE: o pacote traz a lista completa em arvoreLinhas e é ela que
@@ -6436,8 +6548,9 @@ function _garantirIndicePacoteTotal(pkg) {
     const ano = normalizarAnoFiltroFront(al[1] || 'TODOS');
     const turma = String(al[2] || 'Sem turma').trim().toUpperCase();
     if (typeof _unidadeMatchFiltro === 'function' && !_unidadeMatchFiltro(unidade)) return;
-    _addArvoreTotalIndex(arvores, vistosArvore, 'TODOS', unidade, turma);
-    if (ano && ano !== 'TODOS') _addArvoreTotalIndex(arvores, vistosArvore, ano, unidade, turma);
+    // ⚠️ Só o ano REAL entra. Registrar também sob 'TODOS' criava um nível de
+    // ano fantasma na árvore, sempre com zero alunos.
+    _addArvoreTotalIndex(arvores, vistosArvore, ano || 'TODOS', unidade, turma);
   });
 
   linhas.forEach(row => {
@@ -6462,6 +6575,14 @@ function _garantirIndicePacoteTotal(pkg) {
 
     if (!disc || !eixo || !campo || !qtd) return;
 
+    // Matéria-prima da contagem de alunos: soma por item, DENTRO de cada
+    // bimestre (`campo`). Misturar bimestres aqui multiplicaria o aluno.
+    const kArv = [unidade, ano || 'TODOS', turma, campo].join('||');
+    if (!porItemArvore.has(kArv)) porItemArvore.set(kArv, new Map());
+    const itensArv = porItemArvore.get(kArv);
+    const kItem = disc + '||' + eixo;
+    itensArv.set(kItem, (itensArv.get(kItem) || 0) + qtd);
+
     // Índices pré-agregados: rede, ano, unidade e turma.
     // Assim o clique em unidade/turma não precisa percorrer todas as linhas novamente.
     _addLinhaIndiceTotal(cache, _totalFiltroKey('TODOS', 'TODAS', 'TODAS'), disc, eixo, campo, soma, qtd);
@@ -6479,6 +6600,8 @@ function _garantirIndicePacoteTotal(pkg) {
       _addLinhaIndiceTotal(cache, _totalFiltroKey(ano, unidade, turma), disc, eixo, campo, soma, qtd);
     }
   });
+
+  _fecharArvoreTotal(arvores, porItemArvore);
 
   _totalPacoteIndex = {
     cache,
@@ -8051,56 +8174,6 @@ function _renderTabelaTotal(linhas) {
     const v = String(p == null ? '' : p).trim().toUpperCase();
     return !!v && !PER_COD_FORA.has(v);
   };
-
-  // ⚠️ Educação Especial e Atendimento Educacional Especializado NÃO podem
-  // participar da CONTAGEM DE ALUNOS. A contagem parte do item menos somado, e
-  // isso só vale porque todo aluno responde todo item — o que é FALSO para
-  // essas duas: elas atendem apenas os alunos com deficiência da turma. Com
-  // elas dentro, o piso da conta passa a ser o número de alunos do AEE.
-  //
-  // Medido na rede em 2026-08: o 1º bimestre mostrava 4.522 alunos (ALCINA
-  // com 68) contra 13.095 do 2º. O 2º bimestre só estava certo por acidente —
-  // a Ed. Especial ainda não havia sido lançada, e por isso não havia o que
-  // derrubar o piso.
-  //
-  // Isto NÃO esconde as duas disciplinas: elas continuam na tela e nos
-  // percentuais. O que elas deixam de fazer é decidir quantos alunos existem.
-  const _FORA_DA_CONTAGEM = /(EDUCACAOESPECIAL|EDUCACIONALESPECIALIZADO|ATENDIMENTOEDUCACIONAL)/;
-  const disciplinaContaAluno = d =>
-    !_FORA_DA_CONTAGEM.test(normalizar(String(d == null ? '' : d)).replace(/[^A-Z0-9]+/g, ''));
-
-  // Alunos de um balde unidade/ano/turma, a partir do mapa `disciplina||eixo ->
-  // soma`.
-  //
-  // A soma de um item é `alunos × nº de perguntas daquele item` (Ciências/
-  // Matéria e Energia tem 3 perguntas por aluno). O MÍNIMO entre os itens
-  // isola os de pergunta ÚNICA — mas, entre eles, escolhe justamente o PIOR
-  // lançado. Medido contra a planilha oficial do 1º bimestre (13.626 alunos
-  // em 553 baldes): o mínimo acerta 395 baldes e perde 580 alunos, dos quais
-  // 521 só porque um item de Língua Portuguesa ficou com meia dúzia de
-  // lançamentos a menos que os demais da mesma turma.
-  //
-  // Então o mínimo serve para IDENTIFICAR a escala de "um aluno por resposta"
-  // (item abaixo de 1,5× o mínimo tem uma pergunta só), e entre esses vale o
-  // MAIOR — o item mais completamente lançado. Isso acerta 533 dos 553 baldes
-  // e, medido, NUNCA conta acima do real: os 20 restantes ficam abaixo, que é
-  // o lado seguro. Inventar aluno seria invisível; faltar aluno é reclamável.
-  //
-  // Reserva: se NENHUM item for contável (turma só de Ed. Especial), a conta
-  // roda sobre todos os itens — zerar apagaria alunos que existem.
-  function alunosPorItens(itens) {
-    const contaveis = [], todos = [];
-    itens.forEach((qtd, ki) => {
-      todos.push(qtd);
-      if (disciplinaContaAluno(String(ki).split('||')[0])) contaveis.push(qtd);
-    });
-    const q = contaveis.length ? contaveis : todos;
-    if (!q.length) return 0;
-    const min = Math.min.apply(null, q);
-    let alunos = 0;
-    for (let i = 0; i < q.length; i++) if (q[i] < min * 1.5 && q[i] > alunos) alunos = q[i];
-    return alunos;
-  }
 
   function fichaApiAtiva() {
     try {

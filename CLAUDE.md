@@ -115,6 +115,14 @@ até uma **etiqueta fora do gráfico**, com nome e número, e a etiqueta é o al
 As fatias grandes continuam clicáveis nelas mesmas. Medido: **12/12** etiquetas
 abrem a lista certa, sem sobreposição, nos três gráficos.
 
+⚠️ **Fatia de menos de 2° não recebe realce no gráfico.** Não é preguiça: com
+`spacing` + `hoverOffset`, o Chart.js degenera o traçado de um arco muito fino
+e pinta o **anel inteiro** com a cor da fatia — `Não Avaliado` com 8 alunos
+(0,35° de arco) deixava a rosca toda cinza. Medido: 0,35° pinta 75% do anel; a
+partir de 1,74° o desenho se comporta. Realçar um fio de cabelo não mostraria
+nada de todo jeito, e o nome, o número e a descrição continuam na etiqueta
+externa e na linha da legenda, que se acendem por CSS.
+
 ⚠️ Pontos que **não** são detalhe:
 
 - **A altura da etiqueta é MEDIDA, nunca constante.** Ela depende da fonte e de
@@ -272,8 +280,16 @@ certo por acidente — a Ed. Especial ainda não havia sido lançada nele.
 
 A regra vive em `alunosPorItens()`, em `avaliacao.html`, e é usada nos **três**
 lugares que contam aluno pelo agregado (rota de rede, detalhe por turma e
-árvore do Total). Se você mexer em um, mexa nos três — ou melhor, mexa só na
+índice do Total). Se você mexer em um, mexa nos três — ou melhor, mexa só na
 função.
+
+⚠️ **Ela fica no escopo compartilhado, NÃO dentro do adaptador Supabase.** O
+índice do Total vive em outro bloco `<script>`; enquanto a regra esteve dentro
+daquele IIFE, o Total contava por conta própria e a lateral dele mostrava **12**
+onde o 1º bimestre mostrava **232** — 12 era a quantidade de combinações
+ano×turma, não de alunos. `disciplinaContaAluno()` também normaliza por conta
+própria, sem chamar `normalizar()`: aquele helper carrega depois, e a
+dependência quebrava em silêncio, caindo no mínimo entre itens.
 
 1. A soma de um item é `alunos × nº de perguntas daquele item` — um item pode
    ter mais de uma pergunta por aluno (Ciências/Matéria e Energia tem 3).
