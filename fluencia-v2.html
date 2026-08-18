@@ -2176,8 +2176,7 @@ function imprimirRelatorio() {
   w.document.write(
     `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">` +
     `<title>${titulo}</title>${estilos}${printCss}</head>` +
-    `<body style="background:#fff;">${conteudo}  <script src="iago.js"></script>
-</body></html>`
+    `<body style="background:#fff;">${conteudo}</body></html>`
   );
   w.document.close();
   w.focus();
@@ -2612,6 +2611,7 @@ function esc(s) {
     c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 </script>
+  <script src="iago.js"></script>
 <script src="mapa-v2-ceu.js" defer></script>
 </body>
 </html>

@@ -1578,8 +1578,7 @@ function gerarPDF() {
     '<table><thead><tr><th>Turma</th><th>Professor(es)</th><th>Turno</th><th>Estudantes</th><th>Leitores</th><th>Livros</th><th>Tempo</th><th>Engajamento</th></tr></thead>',
     '<tbody>' + tabela + '</tbody></table>',
     '<div class="footer">Sistema MAPA - SME Ribeirao Preto - ' + sub.split('·')[0].trim() + '</div>',
-    '  <script src="iago.js"></script>
-</body></html>',
+    '</body></html>',
   ];
 
   const janela = window.open('', '_blank');
@@ -1628,6 +1627,7 @@ function engajChip(pct) {
   return 'el-chip-baixo';
 }
 </script>
+  <script src="iago.js"></script>
 <script src="mapa-v2-ceu.js" defer></script>
 </body>
 </html>
