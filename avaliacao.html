@@ -8610,6 +8610,197 @@ function _renderTabelaTotal(linhas) {
     return { exato: somaExato, estimado: somaEstim, turmas: linhas };
   };
 
+  // ── Sonda: CALIBRA a regra de contagem contra o exato ─────────────────────
+  // ⚠️ NENHUMA mudança em alunosPorItens() deve ser feita sem rodar isto antes.
+  // A regra vive de uma premissa que pode falhar — a de que o item típico tem
+  // UMA pergunta por aluno — e já foi ajustada no olho três vezes, errando o
+  // alvo nas três. Esta sonda põe as candidatas lado a lado contra a contagem
+  // EXATA (REMA distinto do nível aluno), em várias unidades, e inclui o teste
+  // de sabotagem que derrubou a âncora no mínimo.
+  //
+  //   await MapaDiagCalibrar(1)        // 12 unidades, bimestre 1
+  //   await MapaDiagCalibrar(2, 20)    // 20 unidades, bimestre 2
+  //
+  // O custo está no nível aluno (~1,5 s por unidade); o agregado é memoizado e
+  // sai de 5 consultas para a rede inteira, não por unidade.
+
+  // Cada regra recebe o mapa de itens do balde (chave `disciplina||eixo`) e,
+  // quando precisa, o mapa GLOBAL de perguntas por eixo. Devolve alunos.
+  function _somasContaveis(itens) {
+    const contaveis = [], todos = [];
+    itens.forEach((qtd, ki) => {
+      todos.push(qtd);
+      if (disciplinaContaAluno(String(ki).split('||')[0])) contaveis.push(qtd);
+    });
+    return (contaveis.length ? contaveis : todos).filter(v => v > 0);
+  }
+  function _ancoraJanela(q, pct, janela) {
+    if (!q.length) return 0;
+    const ord = q.slice().sort((a, b) => a - b);
+    const anc = ord[Math.min(ord.length - 1, Math.floor(pct * ord.length))];
+    let n = 0;
+    for (let i = 0; i < q.length; i++) if (q[i] <= anc * janela && q[i] > n) n = q[i];
+    return n;
+  }
+  // Divide cada soma pelo nº de perguntas do eixo e toma o item mais completo.
+  // Não é heurística de escala: é a conta certa, desde que `P` esteja certo.
+  function _porPerguntas(itens, P, pct) {
+    const v = [];
+    itens.forEach((qtd, ki) => {
+      if (!qtd) return;
+      if (!disciplinaContaAluno(String(ki).split('||')[0])) return;
+      v.push(qtd / (P.get(ki) || 1));
+    });
+    if (!v.length) return 0;
+    v.sort((a, b) => a - b);
+    return Math.round(v[Math.min(v.length - 1, Math.floor(pct * v.length))]);
+  }
+
+  // Quantas perguntas cada eixo tem, inferido da REDE inteira.
+  //
+  // A soma de um eixo é `alunos × perguntas`. Dentro de um balde não dá para
+  // separar os dois fatores; entre baldes, dá: a razão entre dois eixos é a
+  // razão entre seus números de pergunta, e o número de perguntas é o MESMO em
+  // toda a rede — é propriedade da prova, não da turma. Normalizando cada
+  // balde pela sua própria âncora baixa e tomando a MEDIANA da razão sobre
+  // centenas de baldes, o ruído de balde (turma incompleta, âncora infeliz)
+  // se cancela.
+  function _perguntasPorEixo(baldes) {
+    const razoes = new Map();
+    baldes.forEach(b => {
+      const q = _somasContaveis(b.itens);
+      if (q.length < 4) return;                    // balde curto não informa razão
+      const ord = q.slice().sort((a, z) => a - z);
+      const base = ord[Math.floor(0.15 * ord.length)];
+      if (!base) return;
+      b.itens.forEach((s, ki) => {
+        if (!s) return;
+        if (!razoes.has(ki)) razoes.set(ki, []);
+        razoes.get(ki).push(s / base);
+      });
+    });
+    const P = new Map();
+    razoes.forEach((arr, ki) => {
+      arr.sort((a, z) => a - z);
+      const m = arr[Math.floor(arr.length / 2)];
+      P.set(ki, Math.max(1, Math.round(m)));
+    });
+    return P;
+  }
+
+  window.MapaDiagCalibrar = async function (bimestre, quantas) {
+    bimestre = bimestre || 1;
+    quantas = quantas || 12;
+    const catalogo = await fichaCatalogo();
+    // `quantas` aceita um número (as N primeiras) ou uma lista de códigos.
+    const codigos = Array.isArray(quantas)
+      ? quantas.slice()
+      : Array.from(catalogo.keys()).slice(0, quantas);
+    const querido = new Set(codigos);          // Set, não includes: o laço abaixo
+                                               // roda uma vez por linha da REDE
+    console.log('[calibrar] bimestre ' + bimestre + ', ' + codigos.length + ' unidade(s). '
+      + 'O nível aluno leva ~1,5 s por unidade — aguarde.');
+
+    // 1) Agregado da rede: 5 consultas memoizadas, não uma por unidade.
+    const porUni = new Map();                       // uni_cod -> (ano||turma -> Map(item->soma))
+    for (const a of FICHA_ANOS_ESCOLARES) {
+      let rows = null;
+      try { rows = await fichaRedeTurma(bimestre, a); } catch (e) { continue; }
+      (rows || []).forEach(r => {
+        const u = Number(r.uni_cod);
+        if (!querido.has(u)) return;
+        const qtd = Number(r.qtd_alunos || 0);
+        if (!qtd) return;
+        const k = normalizar(a) + '||' + (String(r.tur_cod || '').trim().toUpperCase() || '—');
+        if (!porUni.has(u)) porUni.set(u, new Map());
+        const mu = porUni.get(u);
+        if (!mu.has(k)) mu.set(k, new Map());
+        const m = mu.get(k);
+        const ki = normalizarDisciplina(corrigirTextoLegivel(r.fnc_des || '') || 'Sem disciplina')
+                 + '||' + corrigirTextoLegivel(r.fne_des || 'Sem eixo');
+        m.set(ki, (m.get(ki) || 0) + qtd);
+      });
+    }
+
+    // 2) Exato, unidade por unidade.
+    const baldes = [];
+    let semAluno = 0;
+    for (const cod of codigos) {
+      let fichas = null;
+      try { fichas = await fichaFichasEscola(bimestre, cod); }
+      catch (e) { semAluno++; continue; }
+      const exato = new Map();
+      (fichas || []).forEach(r => {
+        const k = (normalizar(r.per_cod || '') || 'TODOS') + '||'
+                + (String(r.tur_cod || '—').trim().toUpperCase() || '—');
+        if (!exato.has(k)) exato.set(k, new Set());
+        exato.get(k).add(r.alu_rema);
+      });
+      const mu = porUni.get(cod) || new Map();
+      // Só baldes com os DOIS lados: sem exato não há alvo; sem itens não há
+      // o que a regra leia. Balde de 6º/8º ano (Ed. Especial) fica de fora
+      // porque a tela não o cobre.
+      mu.forEach((itens, k) => {
+        if (!exato.has(k)) return;
+        baldes.push({ u: cod, k, exato: exato.get(k).size, itens });
+      });
+    }
+    if (semAluno) console.log('[calibrar] ' + semAluno + ' unidade(s) sem nível aluno — fora da amostra.');
+    if (!baldes.length) { console.log('[calibrar] nenhum balde comparável.'); return; }
+
+    // 3) Perguntas por eixo, da amostra inteira.
+    const P = _perguntasPorEixo(baldes);
+    const dist = new Map();
+    P.forEach(p => dist.set(p, (dist.get(p) || 0) + 1));
+    console.log('[calibrar] perguntas por eixo inferidas em ' + P.size + ' eixos: '
+      + Array.from(dist.entries()).sort((a, b) => a[0] - b[0])
+          .map(([p, n]) => n + ' eixo(s) com ' + p).join(', '));
+
+    // 4) Candidatas. `sabota` injeta um item de 1 resposta em cada balde —
+    //    foi esse cenário que derrubou a âncora no mínimo em produção.
+    const REGRAS = [
+      { nome: 'atual — mediana ×1,5',  fn: (it) => _ancoraJanela(_somasContaveis(it), 0.50, 1.5) },
+      { nome: 'mínimo ×1,5 (antiga)',  fn: (it) => _ancoraJanela(_somasContaveis(it), 0.00, 1.5) },
+      { nome: 'percentil 15 ×1,10',    fn: (it) => _ancoraJanela(_somasContaveis(it), 0.15, 1.10) },
+      { nome: 'percentil 15 ×1,25',    fn: (it) => _ancoraJanela(_somasContaveis(it), 0.15, 1.25) },
+      { nome: 'percentil 25 ×1,10',    fn: (it) => _ancoraJanela(_somasContaveis(it), 0.25, 1.10) },
+      { nome: 'perguntas — máximo',    fn: (it) => _porPerguntas(it, P, 1.00) },
+      { nome: 'perguntas — p90',       fn: (it) => _porPerguntas(it, P, 0.90) },
+    ];
+
+    function avaliar(fn, sabotar) {
+      let exatos = 0, somaEx = 0, somaEs = 0, pior = 0, piorK = '';
+      baldes.forEach(b => {
+        let it = b.itens;
+        if (sabotar) { it = new Map(b.itens); it.set('Arte||ITEM RARO SABOTADO', 1); }
+        const es = fn(it);
+        somaEx += b.exato; somaEs += es;
+        if (es === b.exato) exatos++;
+        const d = Math.abs(es - b.exato);
+        if (d > pior) { pior = d; piorK = b.u + ' ' + b.k; }
+      });
+      return {
+        exatos: exatos + '/' + baldes.length,
+        '% baldes': (exatos / baldes.length * 100).toFixed(0) + '%',
+        estimado: somaEs, real: somaEx,
+        erro: (somaEx ? ((somaEs - somaEx) / somaEx * 100).toFixed(1) : '—') + '%',
+        'pior balde': pior + ' (' + piorK + ')',
+      };
+    }
+
+    console.log('\n[calibrar] SEM sabotagem — ' + baldes.length + ' baldes, '
+      + 'total real ' + baldes.reduce((s, b) => s + b.exato, 0) + ' alunos:');
+    console.table(Object.fromEntries(REGRAS.map(r => [r.nome, avaliar(r.fn, false)])));
+
+    console.log('[calibrar] COM sabotagem (um item de 1 resposta em cada balde) —'
+      + ' é o cenário que derrubou a âncora no mínimo:');
+    console.table(Object.fromEntries(REGRAS.map(r => [r.nome, avaliar(r.fn, true)])));
+
+    console.log('[calibrar] Escolha a regra que acerta mais baldes E resiste à sabotagem.'
+      + ' Erro total baixo com poucos baldes exatos é compensação de erros, não acerto.');
+    return { baldes: baldes.length, perguntas: P, avaliar, REGRAS };
+  };
+
   // ── Sonda: como o dado está CHEGANDO da API ───────────────────────────────
   // Responde três perguntas em sequência, que juntas separam "a API mandou
   // menos" de "a tela contou menos":

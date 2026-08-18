@@ -437,6 +437,32 @@ Se o número certo não estiver entre as somas desse mapa, nenhuma regra sobre
 ele acerta e o problema está no que a API devolve. Três ajustes de heurística
 foram feitos sem esse dado e os três erraram o alvo.
 
+⚠️ **`MapaDiagCalibrar(bimestre[, N ou lista de códigos])` é o passo obrigatório
+antes de trocar a regra.** Ele monta os baldes de várias unidades, com o exato
+ao lado, e roda as regras candidatas sobre os MESMOS baldes — duas vezes: sem
+sabotagem e com um item de 1 resposta injetado em cada balde, que é o cenário
+que derrubou a âncora no mínimo em produção. O relatório traz baldes exatos,
+erro total e o pior balde de cada regra.
+
+⚠️ **Erro total baixo com poucos baldes exatos é compensação de erros, não
+acerto.** Uma regra que erra metade para cima e metade para baixo fecha a rede
+e mente em cada turma. Olhe a coluna de baldes exatos primeiro.
+
+⚠️ **A premissa "o item típico tem uma pergunta por aluno" NÃO vale em todo
+bimestre.** Medido em 2026-08-18 na ALCINA, 2º bimestre, 1º ano A (26 alunos):
+as somas por eixo são `26 (×5), 52 (×12), 78, 104` — múltiplos exatos do número
+de alunos, porque cada eixo tem um número próprio de perguntas. Com 12 dos 19
+eixos valendo 2 perguntas, a MEDIANA cai em 52 e a janela de 1,5× devolve 78 —
+o triplo. O 2º bimestre tem menos eixos que o 1º (5.345 linhas contra 7.579 no
+1º ano), e quanto menos eixos, mais os de múltiplas perguntas dominam a
+mediana. Por isso a regra inflava 80% no 2º bimestre e 9% no 1º.
+
+O caminho que a sonda avalia contra as âncoras por percentil é **inferir quantas
+perguntas cada eixo tem** e dividir: o número de perguntas é propriedade da
+prova, igual em toda a rede, então a razão entre dois eixos é estável entre
+baldes e a mediana dessa razão sobre centenas deles cancela o ruído de turma
+incompleta.
+
 ### O que `per_cod` traz, e por que a tela fica em 1º a 5º ano
 
 O `per_cod` (o ano escolar) devolve **18 valores distintos** quando a consulta
