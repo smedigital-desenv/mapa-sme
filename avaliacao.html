@@ -2931,25 +2931,47 @@ function alunosPorItens(itens) {
     todos.push(qtd);
     if (disciplinaContaAluno(String(ki).split('||')[0])) contaveis.push(qtd);
   });
-  const q = contaveis.length ? contaveis : todos;
+  // Zero não é item lançado — deixá-lo entrar puxaria o percentil para baixo.
+  const q = (contaveis.length ? contaveis : todos).filter(v => v > 0);
   if (!q.length) return 0;
 
-  // ⚠️ A âncora é a MEDIANA, não o mínimo — e isso não é preciosismo.
-  // Ancorar no mínimo faz UM único item raro derrubar a turma inteira: basta
-  // um item com 1 resposta para a janela virar [1, 1.5) e a conta devolver 1.
-  // Medido na planilha do 1º bimestre, injetando um item de 1 resposta em cada
-  // balde: a rede caía de 13.626 para 553 alunos — 1 por turma. Era esse o
-  // padrão que a tela mostrava (ALCINA com 12 em todas as abas).
+  // ⚠️ A âncora é o PERCENTIL 25. Os dois extremos já estiveram aqui e os dois
+  // quebraram em produção — cada um por um motivo oposto:
   //
-  // A mediana descreve o item TÍPICO: como a maioria dos itens tem uma
-  // pergunta por aluno, ela cai na escala certa, e um outlier isolado não a
-  // move. Entre os itens dentro de 1,5× a mediana vale o MAIOR, que é o mais
-  // completamente lançado. Medido sem sabotagem: 548 dos 553 baldes exatos
-  // (a âncora no mínimo acertava 533) e o total fica em 13.628 contra 13.626.
+  //   MÍNIMO — um único item raro derruba a turma inteira. Basta um item com
+  //   1 resposta para a janela virar [1, 1.15) e a conta devolver 1. Medido
+  //   com um item de 1 resposta injetado em cada balde: 0 de 657 baldes
+  //   exatos, a rede caindo 96%.
+  //
+  //   MEDIANA — assume que o item TÍPICO tem uma pergunta por aluno, e isso é
+  //   falso em bimestre com poucos eixos. Medido na ALCINA, 2º bimestre, 1º
+  //   ano A (26 alunos): as somas por eixo são 26 (×5), 52 (×12), 78 e 104 —
+  //   múltiplos exatos, porque cada eixo tem seu próprio número de perguntas.
+  //   Com 12 dos 19 eixos valendo 2 perguntas, a mediana cai em 52 e a janela
+  //   de 1,5× devolve 78: o TRIPLO. A tela mostrava a rede 69% inflada.
+  //
+  // O percentil 25 fica acima do ruído de baixo (item mal lançado, sabotagem)
+  // e abaixo dos múltiplos de 2 perguntas. Entre os itens dentro de 1,15× a
+  // âncora vale o MAIOR, que é o mais completamente lançado.
+  //
+  // ⚠️ Calibrado com MapaDiagCalibrar sobre 821 baldes de 25 unidades, exato
+  // (REMA distinto do nível aluno) ao lado, nos dois bimestres:
+  //
+  //            regra          bim 1      bim 2     exatos   com sabotagem
+  //     p25 ×1,15 (esta)    340/399    418/422     92,3%       92,2%
+  //     mediana ×1,5        337/399    249/422     71,4%       81,6%
+  //     mínimo ×1,5         (—)          (—)         (—)        0,0%
+  //
+  // A grade inteira (7 percentis × 7 janelas) mostra por que 25 é o ponto:
+  // de p30 para cima o 2º bimestre desaba (338/422, +17%), porque a âncora
+  // passa a cair em eixo de 2 perguntas; de p20 para baixo o 1º bimestre
+  // perde (−2,7% a −9,5%), porque ela cai em item lançado pela metade. Já a
+  // JANELA quase não pesa: de 1,10 a 1,40 o resultado é o mesmo — quem faz o
+  // trabalho é a âncora. Não troque nenhum dos dois sem rodar a sonda antes.
   const ord = q.slice().sort((a, b) => a - b);
-  const mediana = ord[Math.floor(ord.length / 2)];
+  const ancora = ord[Math.min(ord.length - 1, Math.floor(0.25 * ord.length))];
   let alunos = 0;
-  for (let i = 0; i < q.length; i++) if (q[i] <= mediana * 1.5 && q[i] > alunos) alunos = q[i];
+  for (let i = 0; i < q.length; i++) if (q[i] <= ancora * 1.15 && q[i] > alunos) alunos = q[i];
   return alunos;
 }
 
@@ -3261,11 +3283,11 @@ function _chavePacoteBimestre(key, filtrosBase) {
   // sobrevive até ao recarregamento forçado, então mudar o FORMATO do pacote
   // sem mudar a versão faz a tela ler um pacote velho e sem os campos novos.
   // v10: o pacote passou a carregar `bruto` (base da conferência por turma).
-  return ['pacote_bim_supa_v11_semturma', key, filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacote_bim_supa_v12_p25', key, filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _chaveTotal(filtros) {
-  return ['total_supa_v10_semturma', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
+  return ['total_supa_v11_p25', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
 }
 
 function _chaveDetalhe(key, filtros) {
@@ -3284,7 +3306,7 @@ function _chaveBimestreCompleto(key) {
 // (unidade › ano › turma), então a versão sobe junto. Cache antigo tem o
 // formato de 2 níveis e produziria uma árvore sem anos.
 function _chaveHierarquiaTotal(ano) {
-  return ['hier_total_supa_v10_anonivel', ano || 'TODOS'].join('|');
+  return ['hier_total_supa_v11_p25', ano || 'TODOS'].join('|');
 }
 
 // ===========================================================
@@ -3830,7 +3852,7 @@ function _setAnoFiltroAtualSeguro(ano, btn) {
 // Total zerava. v11 = arvoreLinhas com [unidade, ano, turma, alunos].
 function _chavePacoteTotal(filtrosBase) {
   filtrosBase = filtrosBase || {};
-  return ['pacoteTotal_supa_v12_diageixo', filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacoteTotal_supa_v13_p25', filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _backendTemPacoteTotal() {
@@ -8759,11 +8781,17 @@ function _renderTabelaTotal(linhas) {
     // 4) Candidatas. `sabota` injeta um item de 1 resposta em cada balde —
     //    foi esse cenário que derrubou a âncora no mínimo em produção.
     const REGRAS = [
-      { nome: 'atual — mediana ×1,5',  fn: (it) => _ancoraJanela(_somasContaveis(it), 0.50, 1.5) },
-      { nome: 'mínimo ×1,5 (antiga)',  fn: (it) => _ancoraJanela(_somasContaveis(it), 0.00, 1.5) },
-      { nome: 'percentil 15 ×1,10',    fn: (it) => _ancoraJanela(_somasContaveis(it), 0.15, 1.10) },
-      { nome: 'percentil 15 ×1,25',    fn: (it) => _ancoraJanela(_somasContaveis(it), 0.15, 1.25) },
-      { nome: 'percentil 25 ×1,10',    fn: (it) => _ancoraJanela(_somasContaveis(it), 0.25, 1.10) },
+      { nome: 'ATUAL — p25 ×1,15',     fn: (it) => alunosPorItens(it) },
+      { nome: 'mediana ×1,5 (antiga)', fn: (it) => _ancoraJanela(_somasContaveis(it), 0.50, 1.50) },
+      { nome: 'mínimo ×1,5 (antiga)',  fn: (it) => _ancoraJanela(_somasContaveis(it), 0.00, 1.50) },
+      { nome: 'percentil 20 ×1,15',    fn: (it) => _ancoraJanela(_somasContaveis(it), 0.20, 1.15) },
+      { nome: 'percentil 30 ×1,15',    fn: (it) => _ancoraJanela(_somasContaveis(it), 0.30, 1.15) },
+      { nome: 'percentil 25 ×1,40',    fn: (it) => _ancoraJanela(_somasContaveis(it), 0.25, 1.40) },
+      // Inferir quantas perguntas cada eixo tem e dividir PERDEU na calibração
+      // (bim 2: 112/258 contra 256/258 da âncora por percentil). Fica aqui
+      // como candidata para o dia em que a API rotular o item — hoje o `p`
+      // sai de uma razão estimada, e dividir por `p` errado erra mais do que
+      // não dividir.
       { nome: 'perguntas — máximo',    fn: (it) => _porPerguntas(it, P, 1.00) },
       { nome: 'perguntas — p90',       fn: (it) => _porPerguntas(it, P, 0.90) },
     ];

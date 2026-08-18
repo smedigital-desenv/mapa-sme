@@ -406,25 +406,52 @@ agregada `'—'` está convivendo com turmas reais (dupla contagem).
    turma, então quebram a premissa de que todo aluno responde todo item. Isso
    NÃO as esconde da tela: elas continuam como disciplina e nos percentuais; o
    que elas deixam de fazer é decidir quantos alunos existem.
-3. A escala de "um aluno por resposta" é identificada pela **MEDIANA** das
-   somas dos itens restantes, e entre os itens dentro de 1,5× a mediana vale
+3. A escala de "um aluno por resposta" é identificada pelo **PERCENTIL 25** das
+   somas dos itens restantes, e entre os itens dentro de 1,15× a âncora vale
    o **MAIOR**, que é o mais completamente lançado.
 
-🚫 **NÃO ancore no mínimo.** Já foi assim e é frágil de um jeito que quebra em
-produção: basta **um** item com 1 resposta para a janela virar `[1, 1.5)` e a
-conta devolver 1 aluno por turma. Medido na planilha, injetando um item de 1
-resposta em cada balde, a rede caía de 13.626 para **553** — foi exatamente o
-que a tela mostrou (ALCINA com 12 em TODAS as abas, porque a regra é
-compartilhada). A mediana descreve o item típico e um outlier isolado não a
-move.
+🚫 **Os dois extremos já estiveram aqui e os dois quebraram em produção.**
 
-Medido contra a planilha oficial do 1º bimestre (13.626 alunos, 553 baldes
-unidade/ano/turma): a regra atual acerta **548 dos 553** e fecha em 13.628
-(0,0%); com o item raro injetado em todo balde, 13.621 — praticamente imune.
-A âncora no mínimo acertava 533 sem sabotagem e desabava com ela.
+**NÃO ancore no mínimo:** basta **um** item com 1 resposta para a janela virar
+`[1, 1.15)` e a conta devolver 1 aluno por turma. Medido com um item de 1
+resposta injetado em cada balde: **0 de 657** baldes exatos, a rede caindo 96%.
+Foi o que a tela mostrou (ALCINA com 12 em TODAS as abas, porque a regra é
+compartilhada).
 
-⚠️ O que sobra de diferença **não é defeito de código, é lançamento
-incompleto**. Não tente fechar os últimos 2% inflando a estimativa.
+**NÃO ancore na mediana:** ela assume que o item típico tem UMA pergunta por
+aluno, e isso é falso em bimestre com poucos eixos (ver o bloco sobre a
+premissa, adiante). Medido: 249 de 422 baldes no 2º bimestre, com a rede **69%
+inflada**.
+
+⚠️ **A âncora é o que decide; a janela quase não pesa.** Na grade de 7
+percentis × 7 janelas, p25 dá o mesmo resultado de 1,10 a 1,40. De p30 para
+cima o 2º bimestre desaba (338/422, +17%) porque a âncora passa a cair em eixo
+de 2 perguntas; de p20 para baixo o 1º bimestre perde (−2,7% a −9,5%) porque
+ela cai em item lançado pela metade. **p25 é o ponto entre os dois**, não um
+número escolhido a dedo.
+
+Calibrado com `MapaDiagCalibrar` sobre **821 baldes de 25 unidades**, com o
+exato ao lado, nos dois bimestres:
+
+| regra | bim 1 | bim 2 | exatos | com sabotagem |
+|---|---|---|---|---|
+| **p25 ×1,15** (atual) | 340/399 | 418/422 | **92,3%** | 92,2% |
+| mediana ×1,5 | 337/399 | 249/422 | 71,4% | 81,6% |
+| mínimo ×1,5 | — | — | — | **0,0%** |
+
+⚠️ O que sobra de diferença (−2,0% no 1º bimestre, −0,5% no 2º) **não é defeito
+de código, é lançamento incompleto** — turma em que nenhum item foi lançado por
+inteiro. Não tente fechar isso inflando a estimativa: errar 2% para baixo é
+muito melhor que os 69% para cima da mediana.
+
+⚠️ **Zero não entra na amostra.** Item com soma 0 não é item lançado, e deixá-lo
+entrar puxa o percentil para baixo. O filtro `v > 0` faz parte da regra
+calibrada — tirá-lo muda o resultado.
+
+⚠️ **Trocar a regra muda os números GRAVADOS no pacote.** Suba as quatro chaves
+de cache no mesmo commit (`_chavePacoteBimestre`, `_chavePacoteTotal`,
+`_chaveHierarquiaTotal` e a do Total por filtro) — o pacote vive no
+sessionStorage e sobrevive ao recarregamento normal.
 
 ⚠️ O nível **Aluno** conta REMA distinto e é exato — não precisa desta regra.
 Ela existe só porque cobrir a rede pelo nível aluno é inviável no navegador.
@@ -449,7 +476,8 @@ acerto.** Uma regra que erra metade para cima e metade para baixo fecha a rede
 e mente em cada turma. Olhe a coluna de baldes exatos primeiro.
 
 ⚠️ **A premissa "o item típico tem uma pergunta por aluno" NÃO vale em todo
-bimestre.** Medido em 2026-08-18 na ALCINA, 2º bimestre, 1º ano A (26 alunos):
+bimestre — foi ela que derrubou a âncora na mediana.** Medido em 2026-08-18 na
+ALCINA, 2º bimestre, 1º ano A (26 alunos):
 as somas por eixo são `26 (×5), 52 (×12), 78, 104` — múltiplos exatos do número
 de alunos, porque cada eixo tem um número próprio de perguntas. Com 12 dos 19
 eixos valendo 2 perguntas, a MEDIANA cai em 52 e a janela de 1,5× devolve 78 —
@@ -457,11 +485,17 @@ o triplo. O 2º bimestre tem menos eixos que o 1º (5.345 linhas contra 7.579 no
 1º ano), e quanto menos eixos, mais os de múltiplas perguntas dominam a
 mediana. Por isso a regra inflava 80% no 2º bimestre e 9% no 1º.
 
-O caminho que a sonda avalia contra as âncoras por percentil é **inferir quantas
-perguntas cada eixo tem** e dividir: o número de perguntas é propriedade da
-prova, igual em toda a rede, então a razão entre dois eixos é estável entre
-baldes e a mediana dessa razão sobre centenas deles cancela o ruído de turma
-incompleta.
+🚫 **Inferir quantas perguntas cada eixo tem e dividir JÁ FOI TENTADO e perdeu.**
+Parece o caminho principiado — o número de perguntas é propriedade da prova,
+igual em toda a rede — mas medido dá **112 de 258** baldes no 2º bimestre,
+contra 256 da âncora por percentil. O motivo aparece no próprio mapa que a
+inferência devolve: `MATEMÁTICA||NÚMEROS` sai com 3 perguntas quando na ALCINA
+aquele eixo soma 52 numa turma de 26, ou seja, 2. A inferência normaliza cada
+balde por um percentil dele, e quando esse percentil já é um eixo de 2
+perguntas o `p` sai escalado errado — **dividir por `p` errado erra mais do que
+não dividir**. As duas variantes seguem em `MapaDiagCalibrar` como candidatas
+para o dia em que a API rotular o item; enquanto o `p` for estimado, não
+retome.
 
 ### O que `per_cod` traz, e por que a tela fica em 1º a 5º ano
 
