@@ -8,6 +8,7 @@
   <script src="config-central.js" defer></script>
   <script src="demo-mode.js"></script>
   <script src="iago.js"></script>
+  <script src="visao-rede.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>IEE | SME Ribeirão Preto</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏆</text></svg>">
@@ -261,10 +262,13 @@ async function carregarEscolas(){
   if(!ESCOLAS.length){ sel.innerHTML='<option>— sem dados importados —</option>'; document.getElementById('tab').innerHTML=''; return; }
   sel.innerHTML=ESCOLAS.map(e=>'<option value="'+esc(e.escola)+'">'+esc(e.escola)+'</option>').join('');
   sel.onchange=()=>selecionar(sel.value);
-  selecionar(ESCOLAS[0].escola);
+  // preparar() acrescenta a opção "Todas as unidades" quando há mais de uma
+  // para comparar, e devolve o que a tela deve abrir.
+  selecionar(window.MapaVisaoRede ? MapaVisaoRede.preparar(sel,ESCOLAS) : ESCOLAS[0].escola);
 }
 
 async function selecionar(nome){
+  if(window.MapaVisaoRede && MapaVisaoRede.interceptar(nome)) return;
   atual=ESCOLAS.find(e=>e.escola===nome)||{escola:nome};
   document.getElementById('adNome').textContent=nome;
   document.getElementById('adCod').textContent='Cód. '+(atual.codigo_escola??'—');
@@ -302,6 +306,52 @@ async function carregarRede(){
     });
   });
   REDE=new Map(Array.from(soma.entries()).map(([k,s])=>[k,s.t/s.n]));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Comparativo "Todas as unidades"
+   O IEE é um índice por ano, uma linha por unidade — não há recorte a somar.
+   Meta, ICM e prêmio entram como colunas de contexto e continuam SEM faixa de
+   cor: não são desempenho, e colori-los sugeriria uma leitura que não têm.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function anosDaRede(){
+  return Array.from(REDE.keys()).sort().reverse().map(a=>({v:a,t:a}));
+}
+function instalarComparativo(){
+  if(!window.MapaVisaoRede) return;
+  MapaVisaoRede.instalar({
+    sel: document.getElementById('adSel'),
+    escolher: selecionar,
+    titulo: 'IEE por unidade × rede',
+    rotuloValor: 'IEE',
+    fmt: v => nf(v,2),
+    casasDif: 2, unidadeDif: '',
+    filtros: [ {id:'ano', rotulo:'Ano', opcoes: anosDaRede} ],
+    colunas: [
+      {id:'meta', t:'Meta', v:l=>l.cols.meta, fmt:v=>nf(v,2)},
+      {id:'icm', t:'Cumpriu a meta', v:l=>l.cols.icm,
+       fmt:v=>'<span style="font-weight:800;color:'+(v>=1?'#166534':'#b91c1c')+'">'
+              +(v>=1?'Sim':'Não')+'</span>'},
+      {id:'premio', t:'Prêmio', v:l=>l.cols.premio, fmt:v=>brl(v)}
+    ],
+    carregar: async f => {
+      const ano = Number(f.ano);
+      if(!ano) return {linhas:[]};
+      const dados = await MapaVisaoRede.buscarTudo(() =>
+        sb().from(TABELA).select('escola,ano,iee,meta,icm,premio')
+            .eq('ano',ano).order('escola'));
+      const rd = REDE.get(String(ano));
+      const ag = MapaVisaoRede.agregador();
+      dados.forEach(r => {
+        if(!r.escola || r.escola==='REDE' || r.iee==null) return;
+        ag.add(r.escola, r.iee, rd, {meta:r.meta, icm:r.icm, premio:r.premio});
+      });
+      return {linhas: ag.linhas()};
+    },
+    legenda: 'IEE de cada unidade no ano escolhido, ao lado da média da rede. A cor mede a '
+           + 'distância relativa da rede. Meta, cumprimento e prêmio ficam sem faixa — não '
+           + 'são desempenho. Clique no nome da unidade para abrir a série dela.'
+  });
 }
 
 async function gravar(linhas,res){
@@ -357,7 +407,7 @@ async function aplicarGate(){
   // aqui geraria requisição sem identidade, que o banco recusa.
   for(let i=0;i<160 && !window.MAPA_SB;i++) await new Promise(r=>setTimeout(r,100));
   if(!window.MAPA_SB){ document.getElementById('adNome').textContent='Sessão indisponível'; return; }
-  try{ ligarUpload(); aplicarGate(); await carregarRede(); await carregarEscolas(); }
+  try{ ligarUpload(); aplicarGate(); await carregarRede(); instalarComparativo(); await carregarEscolas(); }
   catch(e){ console.error(e); document.getElementById('adNome').textContent='Erro ao carregar: '+(e.message||e); }
 })();
 </script>

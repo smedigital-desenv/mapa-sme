@@ -410,16 +410,22 @@
     if(_uiFeita) return; _uiFeita=true;
     const style=document.createElement('style');
     style.textContent=`
-      #iago-fab{position:fixed;right:22px;bottom:22px;width:64px;height:64px;border-radius:50%;border:0;cursor:pointer;z-index:99998;
+      /* ⚠️ O canto inferior direito NÃO é livre: o crachá do usuário (widget do
+         central, fora deste repositório) fica ali. Com bottom:22px o Iago
+         cobria o nome de quem está logado. A folga abaixo é para ele. */
+      #iago-fab{position:fixed;right:22px;bottom:86px;width:64px;height:64px;border-radius:50%;border:0;cursor:pointer;z-index:99998;
         background:#002b5e;box-shadow:0 8px 24px rgba(0,43,94,.35);display:flex;align-items:center;justify-content:center;transition:transform .15s, box-shadow .15s;padding:0;}
       #iago-fab:hover{transform:translateY(-3px) scale(1.04);box-shadow:0 12px 30px rgba(0,43,94,.45);}
       #iago-fab img{width:56px;height:56px;object-fit:contain;}
       #iago-fab.aberto{transform:scale(.9);opacity:.85;}
-      #iago-panel{position:fixed;right:22px;bottom:98px;width:390px;max-width:calc(100vw - 32px);height:min(620px,78vh);z-index:99999;
+      /* O painel sobe junto com o botão. A altura desconta a folga de baixo em
+         vez de usar 78vh cravado: numa tela baixa, 78vh + 162px estouraria
+         para fora do topo e o cabeçalho do painel ficaria inalcançável. */
+      #iago-panel{position:fixed;right:22px;bottom:162px;width:390px;max-width:calc(100vw - 32px);height:min(620px,calc(100vh - 186px));z-index:99999;
         background:#fff;border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;overflow:hidden;
         opacity:0;visibility:hidden;transform:translateY(16px);transition:opacity .18s, transform .18s, visibility .18s;font-family:'Inter',system-ui,sans-serif;}
       #iago-panel.aberto{opacity:1;visibility:visible;transform:translateY(0);}
-      @media(max-width:520px){#iago-panel{right:0;bottom:0;width:100vw;max-width:100vw;height:100vh;border-radius:0;}#iago-fab{right:16px;bottom:16px;}}
+      @media(max-width:520px){#iago-panel{right:0;bottom:0;width:100vw;max-width:100vw;height:100vh;border-radius:0;}#iago-fab{right:16px;bottom:80px;}}
       .iago-top{background:#002b5e;color:#fff;padding:.75rem 1rem;display:flex;align-items:center;gap:.6rem;}
       .iago-top img{width:38px;height:38px;object-fit:contain;background:rgba(255,255,255,.12);border-radius:50%;padding:2px;flex-shrink:0;}
       .iago-top .t{font-weight:900;font-size:.98rem;line-height:1.1;}

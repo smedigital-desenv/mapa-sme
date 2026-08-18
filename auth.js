@@ -425,6 +425,14 @@
       setTimeout(function () {
         var anoLetivo = new Date().getFullYear();
         var fila = [];
+        // Os totais da rede vêm PRIMEIRO: são 4 consultas (uma por bimestre),
+        // sem abrir por unidade, e é a única fonte independente dos totais que
+        // a API oferece. Chegam antes da varredura por turma, que é 5x maior.
+        [1, 2, 3, 4].forEach(function (b) {
+          fila.push({ nivel: 'rede', parms: { anoLetivo: anoLetivo, bimestre: b } });
+        });
+        // Depois a varredura por ano escolar, que é o que abre a rede por
+        // unidade (o /IndicadorRede não devolve uni_cod).
         [1, 2, 3, 4].forEach(function (b) {
           ['1 ANO', '2 ANO', '3 ANO', '4 ANO', '5 ANO'].forEach(function (a) {
             fila.push({ nivel: 'turma', parms: { anoLetivo: anoLetivo, bimestre: b, anoescolar: a } });
