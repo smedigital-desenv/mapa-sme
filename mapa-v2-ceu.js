@@ -81,10 +81,9 @@
 
     /* ⚠️ Adensar é seguro; clarear não é. O teto de 0,10 vale POR ESTRELA, e
        uma letra cobre uma ou duas — então mais pontos não pioram o contraste
-       de nenhuma delas, enquanto mais brilho pioraria o de todas. Foi por aí
-       que o campo ganhou presença: 44 estrelas num 1280×900 (0,02% da tela)
-       não se viam; ~256 se veem, e o pico dentro da coluna continua em 0,10. */
-    var n = Math.max(120, Math.min(460, Math.round(L * A / 4500)));
+       de nenhuma delas, enquanto mais brilho pioraria o de todas. Aumentado
+       de 4500 para 3200 (~75% mais estrelas) para maior presença visual. */
+    var n = Math.max(160, Math.min(640, Math.round(L * A / 3200)));
     var COLUNA = larguraDaColuna();
 
     for (var i = 0; i < n; i++) {
@@ -92,20 +91,21 @@
       var y = Math.random() * A;
       var livre = folga(x, L, COLUNA);
 
-      /* Distribuição de potência: a maioria é miúda e fraca, poucas se
-         destacam. É o que faz ler como céu — um campo de pontos todos
-         iguais lê como textura de fundo, não como estrela. */
-      var q = Math.pow(Math.random(), 2.6);
+      /* Distribuição de potência: reduzido de 2.6 para 2.1 para maior presença
+         visual de estrelas de médio brilho. Ainda mantém muitos pontos miúdos
+         com poucas grandes se destacando — a forma de parecer céu. */
+      var q = Math.pow(Math.random(), 2.1);
       var teto = TETO_TEXTO + (TETO_LIVRE - TETO_TEXTO) * livre;
-      var a = 0.035 + q * (teto - 0.035);
+      var a = 0.050 + q * (teto - 0.050);
       /* Dentro da coluna a estrela cresce em vez de clarear: área maior no
          mesmo alfa lê melhor do que um ponto minúsculo e apagado, e não mexe
-         no contraste, que depende só do alfa. */
-      var r = 0.4 + q * (livre > 0.5 ? 1.6 : 1.15);
+         no contraste, que depende só do alfa. Tamanho aumentado para maior
+         presença visual. */
+      var r = 0.5 + q * (livre > 0.5 ? 1.8 : 1.3);
       var cor = (Math.random() < 0.18) ? COR_ACENTO : COR;
 
-      // halo só nas poucas e grandes que estão fora da coluna de trabalho
-      if (q > 0.72 && livre > 0.5) {
+      // halo nas estrelas médias e grandes fora da coluna (reduzido de 0.72)
+      if (q > 0.60 && livre > 0.5) {
         var g = ctx.createRadialGradient(x, y, 0, x, y, r * 6);
         g.addColorStop(0, "rgba(" + cor + "," + (a * 0.55).toFixed(3) + ")");
         g.addColorStop(1, "rgba(" + cor + ",0)");
