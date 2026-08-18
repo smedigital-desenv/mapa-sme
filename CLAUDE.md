@@ -406,25 +406,52 @@ agregada `'—'` está convivendo com turmas reais (dupla contagem).
    turma, então quebram a premissa de que todo aluno responde todo item. Isso
    NÃO as esconde da tela: elas continuam como disciplina e nos percentuais; o
    que elas deixam de fazer é decidir quantos alunos existem.
-3. A escala de "um aluno por resposta" é identificada pela **MEDIANA** das
-   somas dos itens restantes, e entre os itens dentro de 1,5× a mediana vale
+3. A escala de "um aluno por resposta" é identificada pelo **PERCENTIL 25** das
+   somas dos itens restantes, e entre os itens dentro de 1,15× a âncora vale
    o **MAIOR**, que é o mais completamente lançado.
 
-🚫 **NÃO ancore no mínimo.** Já foi assim e é frágil de um jeito que quebra em
-produção: basta **um** item com 1 resposta para a janela virar `[1, 1.5)` e a
-conta devolver 1 aluno por turma. Medido na planilha, injetando um item de 1
-resposta em cada balde, a rede caía de 13.626 para **553** — foi exatamente o
-que a tela mostrou (ALCINA com 12 em TODAS as abas, porque a regra é
-compartilhada). A mediana descreve o item típico e um outlier isolado não a
-move.
+🚫 **Os dois extremos já estiveram aqui e os dois quebraram em produção.**
 
-Medido contra a planilha oficial do 1º bimestre (13.626 alunos, 553 baldes
-unidade/ano/turma): a regra atual acerta **548 dos 553** e fecha em 13.628
-(0,0%); com o item raro injetado em todo balde, 13.621 — praticamente imune.
-A âncora no mínimo acertava 533 sem sabotagem e desabava com ela.
+**NÃO ancore no mínimo:** basta **um** item com 1 resposta para a janela virar
+`[1, 1.15)` e a conta devolver 1 aluno por turma. Medido com um item de 1
+resposta injetado em cada balde: **0 de 657** baldes exatos, a rede caindo 96%.
+Foi o que a tela mostrou (ALCINA com 12 em TODAS as abas, porque a regra é
+compartilhada).
 
-⚠️ O que sobra de diferença **não é defeito de código, é lançamento
-incompleto**. Não tente fechar os últimos 2% inflando a estimativa.
+**NÃO ancore na mediana:** ela assume que o item típico tem UMA pergunta por
+aluno, e isso é falso em bimestre com poucos eixos (ver o bloco sobre a
+premissa, adiante). Medido: 249 de 422 baldes no 2º bimestre, com a rede **69%
+inflada**.
+
+⚠️ **A âncora é o que decide; a janela quase não pesa.** Na grade de 7
+percentis × 7 janelas, p25 dá o mesmo resultado de 1,10 a 1,40. De p30 para
+cima o 2º bimestre desaba (338/422, +17%) porque a âncora passa a cair em eixo
+de 2 perguntas; de p20 para baixo o 1º bimestre perde (−2,7% a −9,5%) porque
+ela cai em item lançado pela metade. **p25 é o ponto entre os dois**, não um
+número escolhido a dedo.
+
+Calibrado com `MapaDiagCalibrar` sobre **821 baldes de 25 unidades**, com o
+exato ao lado, nos dois bimestres:
+
+| regra | bim 1 | bim 2 | exatos | com sabotagem |
+|---|---|---|---|---|
+| **p25 ×1,15** (atual) | 340/399 | 418/422 | **92,3%** | 92,2% |
+| mediana ×1,5 | 337/399 | 249/422 | 71,4% | 81,6% |
+| mínimo ×1,5 | — | — | — | **0,0%** |
+
+⚠️ O que sobra de diferença (−2,0% no 1º bimestre, −0,5% no 2º) **não é defeito
+de código, é lançamento incompleto** — turma em que nenhum item foi lançado por
+inteiro. Não tente fechar isso inflando a estimativa: errar 2% para baixo é
+muito melhor que os 69% para cima da mediana.
+
+⚠️ **Zero não entra na amostra.** Item com soma 0 não é item lançado, e deixá-lo
+entrar puxa o percentil para baixo. O filtro `v > 0` faz parte da regra
+calibrada — tirá-lo muda o resultado.
+
+⚠️ **Trocar a regra muda os números GRAVADOS no pacote.** Suba as quatro chaves
+de cache no mesmo commit (`_chavePacoteBimestre`, `_chavePacoteTotal`,
+`_chaveHierarquiaTotal` e a do Total por filtro) — o pacote vive no
+sessionStorage e sobrevive ao recarregamento normal.
 
 ⚠️ O nível **Aluno** conta REMA distinto e é exato — não precisa desta regra.
 Ela existe só porque cobrir a rede pelo nível aluno é inviável no navegador.
@@ -436,6 +463,39 @@ erra, imprime o mapa de itens que a regra recebeu, com o tempo de cada etapa.
 Se o número certo não estiver entre as somas desse mapa, nenhuma regra sobre
 ele acerta e o problema está no que a API devolve. Três ajustes de heurística
 foram feitos sem esse dado e os três erraram o alvo.
+
+⚠️ **`MapaDiagCalibrar(bimestre[, N ou lista de códigos])` é o passo obrigatório
+antes de trocar a regra.** Ele monta os baldes de várias unidades, com o exato
+ao lado, e roda as regras candidatas sobre os MESMOS baldes — duas vezes: sem
+sabotagem e com um item de 1 resposta injetado em cada balde, que é o cenário
+que derrubou a âncora no mínimo em produção. O relatório traz baldes exatos,
+erro total e o pior balde de cada regra.
+
+⚠️ **Erro total baixo com poucos baldes exatos é compensação de erros, não
+acerto.** Uma regra que erra metade para cima e metade para baixo fecha a rede
+e mente em cada turma. Olhe a coluna de baldes exatos primeiro.
+
+⚠️ **A premissa "o item típico tem uma pergunta por aluno" NÃO vale em todo
+bimestre — foi ela que derrubou a âncora na mediana.** Medido em 2026-08-18 na
+ALCINA, 2º bimestre, 1º ano A (26 alunos):
+as somas por eixo são `26 (×5), 52 (×12), 78, 104` — múltiplos exatos do número
+de alunos, porque cada eixo tem um número próprio de perguntas. Com 12 dos 19
+eixos valendo 2 perguntas, a MEDIANA cai em 52 e a janela de 1,5× devolve 78 —
+o triplo. O 2º bimestre tem menos eixos que o 1º (5.345 linhas contra 7.579 no
+1º ano), e quanto menos eixos, mais os de múltiplas perguntas dominam a
+mediana. Por isso a regra inflava 80% no 2º bimestre e 9% no 1º.
+
+🚫 **Inferir quantas perguntas cada eixo tem e dividir JÁ FOI TENTADO e perdeu.**
+Parece o caminho principiado — o número de perguntas é propriedade da prova,
+igual em toda a rede — mas medido dá **112 de 258** baldes no 2º bimestre,
+contra 256 da âncora por percentil. O motivo aparece no próprio mapa que a
+inferência devolve: `MATEMÁTICA||NÚMEROS` sai com 3 perguntas quando na ALCINA
+aquele eixo soma 52 numa turma de 26, ou seja, 2. A inferência normaliza cada
+balde por um percentil dele, e quando esse percentil já é um eixo de 2
+perguntas o `p` sai escalado errado — **dividir por `p` errado erra mais do que
+não dividir**. As duas variantes seguem em `MapaDiagCalibrar` como candidatas
+para o dia em que a API rotular o item; enquanto o `p` for estimado, não
+retome.
 
 ### O que `per_cod` traz, e por que a tela fica em 1º a 5º ano
 
@@ -550,6 +610,40 @@ Pontos que **não** são detalhe:
 
 Secrets: `CODERP_TOKEN` (obrigatório) e `CODERP_URL` (opcional; o padrão é o
 ambiente `dsv`).
+
+#### Desenhado e AINDA NÃO LIGADO: a conferência Rede × Turma
+
+⚠️ **Só ligar depois que os níveis voltarem a fechar entre si.** Hoje eles não
+fecham, e a conferência acusaria em toda abertura de tela — o aviso viraria
+ruído e as pessoas aprenderiam a ignorá-lo, que é o pior estado possível para
+um alerta.
+
+O que está desenhado, para quando fechar:
+
+- `/IndicadorRede` é a **única fonte independente** de total que a API oferece.
+  Toda conferência que existe hoje compara o detalhe por turma contra a soma
+  da própria rota — ou seja, **o dado se confere contra ele mesmo**, e um erro
+  na origem passa inteiro. O comentário em `avaliacao.html` (rota
+  `fichaRedeTotais`) já dizia isso antes de a diferença aparecer.
+- Uma chamada de Rede por bimestre, comparada contra a soma do pacote de
+  Turma. Divergindo além da margem, acende o mesmo selo de
+  `_seloFonteBimestre()` — hoje ele só aparece quando a API **falha**, e não
+  quando ela responde número implausível.
+- Custo: uma consulta leve por bimestre (251 linhas medidas), memoizável junto
+  com o resto do pacote.
+
+⚠️ **A arquitetura alvo, quando os agregados voltarem a fechar:** `IndicadorTurma`
+é superconjunto de Escola e de Rede — uma consulta por bimestre entrega a
+árvore inteira (unidade › ano › turma) e os níveis acima saem de uma soma no
+front. Isso substitui as 5 consultas por ano escolar. Duas condições para
+migrar, e **as duas** precisam valer: `qtd_alunos` agregando, e a consulta sem
+`anoescolar` devolvendo só o nível Turma. `fichaRedeTudo()` já está escrita
+para esse dia e **não é chamada por ninguém** de propósito — ligá-la antes
+disso traz linhas de outro nível para dentro do pacote.
+
+⚠️ Nada disso dispensa `alunosPorItens()`: mesmo com o campo correto, o aluno
+aparece em várias linhas, e continuar sendo preciso somar por item e escolher
+o representativo é próprio do nível agregado, não de defeito nenhum.
 
 **Quem consome em produção é a `avaliacao.html`**: as abas de bimestre
 (`pacoteViaFichaApi`), o **Total** (`fichaGruposTotal`, nível **agregado** —
