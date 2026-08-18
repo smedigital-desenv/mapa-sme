@@ -25,14 +25,8 @@
   --borda-forte:rgba(255,255,255,.18);
 
   --texto:#E6EEF4;
-  /* ⚠️ Os dois tons de apoio são MEDIDOS, não escolhidos a olho. Sobre a
-     superfície mais clara (--superficie-2, rgba(255,255,255,.075)) os valores
-     antigos davam 4,55:1 e 4,26:1 — o terciário reprovava no mínimo de 4,5:1
-     da WCAG AA, e ele é justamente quem pinta o cabeçalho de TODA tabela do
-     sistema. Hoje: 5,4:1 e 4,9:1 no pior fundo, com a hierarquia preservada
-     (o terciário continua mais apagado que o secundário). */
-  --texto-2:#A3AFBB;
-  --texto-3:#95A2AF;
+  --texto-2:#94A0AB;
+  --texto-3:#8996A3;
 
   --acento:#45D6F2;
   --acento-rgb:69,214,242;
