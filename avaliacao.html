@@ -6932,7 +6932,7 @@ function _prefetchTotalTurmasRede() {
   if (_totalDetalheRedePedido === pac) return;
   if (!pac.linhas.some(l => l[TPKG.T] === '—')) return;   // já detalhado
   // Mesma trava das abas de bimestre: a contagem por turma derivada do nível
-  // agregado (mínimo entre itens) não é confiável quando há item que não vale
+  // agregado (alunosPorItens) não é confiável quando há item que não vale
   // para todos os alunos. Ver o comentário em _prefetchTurmasFicha.
   let _ligaTurmaTotal = false;
   try { _ligaTurmaTotal = new URLSearchParams(location.search).get('turmas') === '1'; } catch (e) {}
@@ -10787,9 +10787,9 @@ function _renderTabelaTotal(linhas) {
       const anoFiltro = normalizar(filtros.ano || 'TODOS') || 'TODOS';
 
       // Caminho principal: nível AGREGADO da API (leve — o nível aluno da rede
-      // inteira congelava a tela). Contagem de alunos por unidade/ano pelo
-      // truque do MÍNIMO entre itens (validado contra o nível aluno); a turma
-      // nasce '—' e o detalhe real desce ao clicar na unidade.
+      // inteira congelava a tela). Contagem de alunos por unidade/ano por
+      // `alunosPorItens` (calibrada contra o nível aluno); a turma nasce '—'
+      // e o detalhe real desce ao clicar na unidade.
       if (fichaApiAtiva()) {
         try {
           const catalogo = await fichaCatalogo();
@@ -10817,9 +10817,21 @@ function _renderTabelaTotal(linhas) {
             });
           });
           if (porUA.size) {
-            // alunos por unidade/ano/bimestre = mínimo entre os itens contáveis
-            // (Ed. Especial e AEE ficam de fora — ver alunosPorItens); por
-            // unidade fica o MAIOR bimestre (aluno conta uma vez, não 4).
+            // Alunos por unidade/ano/turma/bimestre saem de `alunosPorItens`
+            // (Ed. Especial e AEE ficam de fora — ver lá).
+            //
+            // ⚠️ Entre BIMESTRES fica o MAIOR de cada turma, e é por isso que o
+            // Total NÃO iguala nenhuma aba quando a turma muda de tamanho no
+            // ano. Decisão da SME (2026-08-18): o Total responde "quantos
+            // alunos passaram por esta turma no ano", e o máximo é a
+            // aproximação barata disso. Medido na ALCINA — 1º Bim 234, 2º Bim
+            // 235, Total 238 — porque 4º A e 4º B vão de 17 para 18 e o 5º B
+            // de 27 para 29 entre os dois bimestres.
+            //
+            // 🚫 Não troque por um bimestre só para "bater" com a aba: isso
+            // descartaria quem esteve na turma apenas no outro. A união exata
+            // (REMA distinto somando os bimestres) seria melhor, mas exige o
+            // nível aluno unidade a unidade — inviável para as 112 de uma vez.
             const porU = new Map();  // unidade||ano||turma -> max alunos entre bimestres
             porUA.forEach((itens, kh) => {
               const p = kh.split('||');

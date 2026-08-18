@@ -392,9 +392,30 @@ itens resolve sem precisar do REMA: cada eixo tem uma linha por aluno, então a
 soma de um eixo já É o número de alunos.
 
 ⚠️ **A Diagnóstica não eleva a contagem do Total**: ela só preenche turma que
-os bimestres não cobrem. O número da lateral do Total tem de ser o MESMO das
-abas de bimestre — decisão da SME —, senão a mesma turma aparece com dois
-números conforme a aba.
+os bimestres não cobrem. A Diagnóstica não pode fazer a mesma turma aparecer
+com dois números conforme a aba — decisão da SME.
+
+⚠️ **Entre BIMESTRES, porém, o Total fica com o MAIOR de cada turma**
+(`Math.max` em `getHierarquiaTotal`) — e por isso ele **não** iguala nenhuma
+aba quando a turma muda de tamanho no ano. Isso é decisão da SME (2026-08-18),
+não descuido: o Total responde "quantos alunos passaram por esta turma no
+ano", e o máximo é a aproximação barata disso.
+
+Medido na ALCINA: 1º Bim 234, 2º Bim 235, Total 238. As três divergem por
+motivos diferentes, e nenhuma é defeito:
+
+- **1º × 2º bimestre** — a composição muda de verdade (3º B vai de 27 para 25;
+  4º A e 4º B de 17 para 18; 5º B de 27 para 29). Os exatos dos dois bimestres
+  são 235, e coincidem por acaso.
+- **234 em vez de 235** no 1º bimestre — é o resíduo de −2,0% da regra de
+  contagem, turma em que nenhum item foi lançado por inteiro.
+- **238 no Total** — a soma dos máximos por turma dá 239; sai 238 porque o 1º
+  bimestre entra com aquele −1 numa turma em que ele era o máximo.
+
+🚫 Não "conserte" o Total para igualar a aba de bimestre. Igualar exigiria
+escolher um bimestre e descartar quem esteve na turma só no outro. A união
+exata (REMA distinto somando os bimestres) seria melhor, mas exige o nível
+aluno unidade a unidade — inviável para as 112 de uma vez.
 
 A sonda `MapaDiagTotal([texto da unidade])` mostra o que a tela está lendo:
 quantas colunas o pacote tem, os alunos por ano e turma, e avisa se a turma
