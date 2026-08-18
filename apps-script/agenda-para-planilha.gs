@@ -27,7 +27,13 @@
  *      script.
  *   4. Menu ▸ "Importar agora" — o Google pede autorização na primeira vez
  *      (Calendar + Planilhas). Autorize com a conta que ENXERGA a agenda.
- *   5. Menu ▸ "Ativar rotina automática" — instala o gatilho por tempo.
+ *   5. Menu ▸ "Definir intervalo de atualização" — escolha de quanto em quanto
+ *      tempo ela se atualiza (de 5 minutos a 1x por dia). O padrão é 1 hora.
+ *   6. Menu ▸ "Ativar rotina automática" — instala o gatilho por tempo.
+ *
+ * ⚠ Trocar o intervalo REFAZ o gatilho na hora. Não adianta mudar número no
+ *   código: o gatilho guarda a cadência de quando foi criado, e um já
+ *   instalado seguiria na antiga.
  *
  * ⚠ O ID da agenda mora nas PROPRIEDADES DO SCRIPT, não aqui no código, e é de
  *   propósito: este repositório é público. As propriedades ficam no projeto
@@ -35,6 +41,7 @@
  *   Configurações do projeto ▸ Propriedades do script:
  *         AGENDAS       = ID da agenda (vários? separe por vírgula)
  *                         'primary' = a agenda pessoal de quem roda
+ *         INTERVALO_MIN = 60   (em minutos; use o menu, é mais seguro)
  *         DIAS_PASSADO  = 30
  *         DIAS_FUTURO   = 180
  *         ABA           = Agenda
@@ -44,7 +51,8 @@
  * USO — menu "Agenda para Planilha":
  *   • Importar agora               → roda a importação na hora
  *   • Escolher a agenda (pelo link)→ decodifica o link e grava o ID
- *   • Ativar rotina automática     → cria o gatilho por tempo (padrão: 1x/hora)
+ *   • Definir intervalo            → escolhe a cadência e refaz o gatilho
+ *   • Ativar rotina automática     → cria o gatilho na cadência configurada
  *   • Desativar rotina automática  → remove o gatilho
  *   • Conferir configuração        → mostra agendas, janela e aba em uso
  * ─────────────────────────────────────────────────────────────────────────
@@ -55,8 +63,36 @@ var AGENDAS      = 'primary';   // 'primary', ou 'a@x.br, b@group.calendar.googl
 var DIAS_PASSADO = 30;          // quanto tempo para trás a janela alcança
 var DIAS_FUTURO  = 180;         // quanto tempo para frente
 var ABA          = 'Agenda';    // nome da aba de destino (criada se não existir)
-var FREQ_HORAS   = 1;           // frequência da rotina automática (horas)
 var MAX_DESCRICAO = 2000;       // corta descrição gigante (célula aguenta 50k)
+
+/**
+ * Intervalos oferecidos no menu, em minutos.
+ *
+ * ⚠ A lista NÃO é livre. O Apps Script só aceita alguns valores:
+ *   everyMinutes() → 5, 10, 15, 30 (o de 1 minuto existe, mas queima cota à toa)
+ *   everyHours()   → 1, 2, 4, 6, 8, 12
+ *   everyDays()    → 1
+ * Um valor fora disso é recusado na hora de criar o gatilho. Por isso o menu
+ * oferece uma LISTA em vez de pedir um número: não há como escolher inválido.
+ *
+ * ⚠ 3, 5, 7 horas não estão aqui porque não dividem o dia — mesmo que fossem
+ *   aceitos, o horário de disparo escorregaria de um dia para o outro.
+ */
+var INTERVALOS = [
+  { min: 5,    rotulo: '5 minutos' },
+  { min: 10,   rotulo: '10 minutos' },
+  { min: 15,   rotulo: '15 minutos' },
+  { min: 30,   rotulo: '30 minutos' },
+  { min: 60,   rotulo: '1 hora' },
+  { min: 120,  rotulo: '2 horas' },
+  { min: 240,  rotulo: '4 horas' },
+  { min: 360,  rotulo: '6 horas' },
+  { min: 480,  rotulo: '8 horas' },
+  { min: 720,  rotulo: '12 horas' },
+  { min: 1440, rotulo: '1 vez por dia (de madrugada)' }
+];
+var INTERVALO_PADRAO = 60;      // usado enquanto ninguém tiver escolhido
+var HORA_DIARIA      = 5;       // quando o intervalo é diário, dispara às 5h
 
 var CABECALHO = [
   'Chave', 'ID do evento', 'Agenda', 'Título', 'Início', 'Fim', 'Dia inteiro',
@@ -78,7 +114,9 @@ function onOpen() {
     .addItem('Importar agora', 'importarAgendaMenu')
     .addSeparator()
     .addItem('Escolher a agenda (pelo link)', 'configurarAgendaPeloLink')
-    .addItem('Ativar rotina automática (1x/hora)', 'ativarRotinaAgenda')
+    .addItem('Definir intervalo de atualização', 'definirIntervaloAgenda')
+    .addSeparator()
+    .addItem('Ativar rotina automática', 'ativarRotinaAgenda')
     .addItem('Desativar rotina automática', 'desativarRotinaAgenda')
     .addSeparator()
     .addItem('Conferir configuração', 'conferirConfigAgenda')
@@ -400,7 +438,8 @@ function conferirConfigAgenda() {
                  c.diasFuturo + ' para frente\n' +
     'Aba de destino: ' + c.aba + '\n' +
     'Fuso do script: ' + Session.getScriptTimeZone() + '\n\n' +
-    'Rotina automática: ' + (gatilhoAgenda_() ? 'ATIVA' : 'desligada'));
+    'Rotina automática: ' + (gatilhoAgenda_() ? 'ATIVA' : 'desligada') + '\n' +
+    'Intervalo configurado: ' + rotuloIntervalo_(intervaloAtual_()));
 }
 
 // ── Gatilho por tempo ─────────────────────────────────────────────────────
@@ -412,14 +451,84 @@ function gatilhoAgenda_() {
   return achou;
 }
 
-function ativarRotinaAgenda() {
-  if (gatilhoAgenda_()) {
-    SpreadsheetApp.getUi().alert('A rotina automática já está ativa.');
+/** Intervalo escolhido, em minutos — sempre um dos valores de INTERVALOS. */
+function intervaloAtual_() {
+  var p = PropertiesService.getScriptProperties();
+  var min = Number(p.getProperty('INTERVALO_MIN'));
+  if (!min) {                                   // versão antiga guardava horas
+    var horas = Number(p.getProperty('FREQ_HORAS'));
+    if (horas) min = horas * 60;
+  }
+  return rotuloIntervalo_(min) ? min : INTERVALO_PADRAO;
+}
+
+/** Rótulo do intervalo, ou '' se o valor não estiver na lista aceita. */
+function rotuloIntervalo_(min) {
+  for (var i = 0; i < INTERVALOS.length; i++) {
+    if (INTERVALOS[i].min === Number(min)) return INTERVALOS[i].rotulo;
+  }
+  return '';
+}
+
+/** Cria o gatilho na cadência pedida, escolhendo o método que o Apps Script
+ *  aceita para aquela faixa. */
+function instalarGatilho_(min) {
+  var b = ScriptApp.newTrigger(GATILHO).timeBased();
+  if (min < 60)        b.everyMinutes(min);
+  else if (min < 1440) b.everyHours(min / 60);
+  else                 b.everyDays(1).atHour(HORA_DIARIA);
+  b.create();
+}
+
+/**
+ * ⚠ O gatilho guarda a cadência de QUANDO FOI CRIADO — mudar a configuração não
+ *   alcança um gatilho já instalado. Por isso trocar o intervalo o REFAZ na
+ *   hora, em vez de pedir que a pessoa desligue e religue: quem esquecesse o
+ *   segundo passo continuaria na cadência antiga achando que mudou.
+ */
+function definirIntervaloAgenda() {
+  var ui = SpreadsheetApp.getUi();
+  var atual = intervaloAtual_();
+  var lista = INTERVALOS.map(function (it, i) {
+    return '  ' + (i + 1) + ') ' + it.rotulo + (it.min === atual ? '   <= atual' : '');
+  }).join('\n');
+
+  var r = ui.prompt('Intervalo de atualização',
+    'De quanto em quanto tempo a planilha deve se atualizar sozinha?\n\n' +
+    lista + '\n\nDigite o número da opção:', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+
+  var n = parseInt(String(r.getResponseText()).trim(), 10);
+  if (!(n >= 1 && n <= INTERVALOS.length)) {
+    ui.alert('Opção inválida — digite um número de 1 a ' + INTERVALOS.length +
+             '. Nada foi alterado.');
     return;
   }
-  ScriptApp.newTrigger(GATILHO).timeBased().everyHours(FREQ_HORAS).create();
+
+  var escolhido = INTERVALOS[n - 1];
+  PropertiesService.getScriptProperties()
+    .setProperty('INTERVALO_MIN', String(escolhido.min));
+
+  var t = gatilhoAgenda_();
+  if (t) {
+    ScriptApp.deleteTrigger(t);
+    instalarGatilho_(escolhido.min);
+  }
+  ui.alert('Intervalo: ' + escolhido.rotulo + '.\n\n' + (t
+    ? 'A rotina automática foi refeita e já roda nessa cadência.'
+    : 'A rotina automática está desligada — use "Ativar rotina automática".'));
+}
+
+function ativarRotinaAgenda() {
+  var min = intervaloAtual_();
+  var antigo = gatilhoAgenda_();
+  // Substitui em vez de recusar: assim "Ativar" sempre deixa o gatilho na
+  // cadência configurada, mesmo que já houvesse um de antes.
+  if (antigo) ScriptApp.deleteTrigger(antigo);
+  instalarGatilho_(min);
   SpreadsheetApp.getUi().alert(
-    'Rotina ativada: a importação roda sozinha a cada ' + FREQ_HORAS + 'h.');
+    'Rotina ativada: a importação roda sozinha a cada ' + rotuloIntervalo_(min) +
+    '.' + (antigo ? '\n\n(O gatilho anterior foi substituído.)' : ''));
 }
 
 function desativarRotinaAgenda() {
