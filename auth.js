@@ -127,12 +127,58 @@
     });
   }
 
+  // ── Cronômetro do login ───────────────────────────────────────────────────
+  // A abertura de sessão é uma corrida de revezamento: prerender, três
+  // scripts, o handshake do central, a ponte e o setSession. Quando alguém
+  // diz "o login está lento", sem isto não há como saber QUAL perna atrasou —
+  // e as pernas ficam em servidores diferentes (jsdelivr, /central, a Edge
+  // Function). Custo: um objeto e algumas subtrações.
+  //
+  // O relatório sai sozinho no console ao fim, e fica em MapaAuthTempos.
+  var T0 = (performance && performance.now) ? performance.now() : Date.now();
+  var TEMPOS = { inicio: new Date().toISOString() };
+  var _tUlt = T0;
+  function marcar(nome) {
+    var agora = (performance && performance.now) ? performance.now() : Date.now();
+    TEMPOS[nome] = Math.round(agora - _tUlt);
+    _tUlt = agora;
+    return TEMPOS[nome];
+  }
+  function relatarTempos(desfecho) {
+    TEMPOS.desfecho = desfecho;
+    TEMPOS.total = Math.round(((performance && performance.now) ? performance.now() : Date.now()) - T0);
+    window.MapaAuthTempos = TEMPOS;
+    var partes = [];
+    for (var k in TEMPOS) {
+      if (k === 'inicio' || k === 'desfecho' || k === 'total') continue;
+      partes.push(k + ' ' + TEMPOS[k] + 'ms');
+    }
+    // Um `warn` quando passa de 4 s: é o limiar em que as pessoas recarregam
+    // a página, e recarregar no meio da abertura de sessão é o que produz o
+    // "só funciona na segunda vez".
+    var linha = '[mapa-auth] login em ' + TEMPOS.total + 'ms (' + desfecho + ') — '
+      + partes.join(' · ');
+    if (TEMPOS.total > 4000) console.warn(linha + '  ⚠️ lento');
+    else console.info(linha);
+  }
+  window.MapaAuthTempos = TEMPOS;
+
   (async function () {
     await esperarAtivacao();
+    marcar('prerender');
     try {
+      // ⚠️ Os três continuam em SÉRIE de propósito. `acesso-sme.js` é servido
+      // por /central (outro repositório) e pode usar `window.supabase` no topo
+      // do arquivo; carregar em paralelo pode fazê-lo rodar antes do CDN
+      // responder, e o sintoma seria login quebrado para todo mundo. Se a
+      // medição abaixo mostrar que o CDN domina o tempo, o caminho seguro é
+      // servir o supabase-js do próprio domínio, não paralelizar no escuro.
       await carregarScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
+      marcar('supabase_cdn');
       await carregarScript('/central/config.js');
+      marcar('config');
       await carregarScript('/central/acesso-sme.js');
+      marcar('acesso_sme');
 
       // window.MAPA_SB: cliente do Supabase do MAPA, só para DADOS.
       // Sessão PERSISTENTE de propósito: quem emite essa sessão é a Edge
@@ -155,11 +201,22 @@
 
     var apiCentral;
     try { apiCentral = await A.pronto; }
-    catch (e) { liberarToken(null); overlayErro('Não foi possível verificar seu acesso no central.'); return; }
+    catch (e) {
+      marcar('central'); relatarTempos('falha no central');
+      liberarToken(null); overlayErro('Não foi possível verificar seu acesso no central.'); return;
+    }
+    marcar('central');
 
     // Sem perfil = o central já redirecionou para o login ou já pintou a tela
     // de "sem acesso". Nada a fazer aqui — e nada de abrir sessão no MAPA.
-    if (!apiCentral || !A.perfil) { liberarToken(null); return; }
+    if (!apiCentral || !A.perfil) {
+      // Saída silenciosa: o central já redirecionou ou já pintou "sem acesso".
+      // Fica registrada mesmo assim — se ela acontecer com a pessoa LOGADA, o
+      // sintoma é tela vazia que "conserta" ao recarregar, e sem esta linha
+      // não há como distinguir isso de um redirecionamento legítimo.
+      relatarTempos('sem perfil no central');
+      liberarToken(null); return;
+    }
 
     // ── Ponte: token do central -> sessão real deste projeto ────────────────
     // Sem isso as consultas sairiam como `anon`, que não tem permissão nenhuma
@@ -229,7 +286,13 @@
       var alvo = simulando || emailReal;
 
       var atual = (await window.MAPA_SB.auth.getSession()).data.session;
-      if (atual && String(atual.user.email || '').toLowerCase() === alvo) return true;
+      marcar('sessao_guardada');
+      // Sessão já aberta e do mesmo e-mail: a ponte NÃO é chamada. É o caminho
+      // rápido, e é por ele que o segundo carregamento parece instantâneo.
+      if (atual && String(atual.user.email || '').toLowerCase() === alvo) {
+        TEMPOS.reaproveitou = true;
+        return true;
+      }
       // Trocou de conta (ou entrou/saiu da simulação): encerra só esta aba.
       // O padrão do supabase-js é global e revogaria os refresh tokens da
       // pessoa em todos os dispositivos.
@@ -242,10 +305,13 @@
         return false;
       }
 
+      marcar('token_central');
       var resp = await pedirTokenAPonte(tokenCentral, simulando);
+      marcar('ponte');
       if (!resp || !resp.access_token) return false;
 
       var erro = await abrirSessao(resp);
+      marcar('abrir_sessao');
       if (!erro) {
         if (resp.simulando) {
           console.info('[mapa-auth] sessão aberta COMO ' + resp.email
@@ -268,7 +334,7 @@
       console.error('[mapa-auth] erro inesperado ao abrir a sessão', e);
       overlayErro('Erro inesperado ao abrir sua sessão no MAPA. Recarregue a página.');
     }
-    if (!comSessao) { liberarToken(null); return; }
+    if (!comSessao) { relatarTempos('sem sessão'); liberarToken(null); return; }
 
     // A partir daqui toda chamada ao banco do MAPA sai assinada com a sessão
     // DESTE projeto — é ela que faz auth.uid() funcionar nas policies.
@@ -345,6 +411,7 @@
     api.pronto = Promise.resolve(api);
 
     gateOff();
+    relatarTempos(TEMPOS.reaproveitou ? 'sessão reaproveitada' : 'sessão nova');
     document.dispatchEvent(new CustomEvent('mapa-auth-pronto', { detail: api }));
 
     // ── Cache local das respostas da Ficha CODERP ──────────────────────────
@@ -428,15 +495,15 @@
         // Os totais da rede vêm PRIMEIRO: são 4 consultas (uma por bimestre),
         // sem abrir por unidade, e é a única fonte independente dos totais que
         // a API oferece. Chegam antes da varredura por turma, que é 5x maior.
+        //
+        // ⚠️ E elas DECIDEM o resto: a varredura por ano escolar só é
+        // enfileirada para o bimestre que respondeu com linha. Antes eram 4×5
+        // consultas fixas, e como 3º e 4º bimestre não têm lançamento, 10 das
+        // 20 iam para o CODERP só para receber 404 — de toda tela, de todo
+        // usuário, a cada 10 minutos. Elas batem na MESMA runtime de Edge
+        // Function que atende o `central-bridge`, que é quem abre o login.
         [1, 2, 3, 4].forEach(function (b) {
           fila.push({ nivel: 'rede', parms: { anoLetivo: anoLetivo, bimestre: b } });
-        });
-        // Depois a varredura por ano escolar, que é o que abre a rede por
-        // unidade (o /IndicadorRede não devolve uni_cod).
-        [1, 2, 3, 4].forEach(function (b) {
-          ['1 ANO', '2 ANO', '3 ANO', '4 ANO', '5 ANO'].forEach(function (a) {
-            fila.push({ nivel: 'turma', parms: { anoLetivo: anoLetivo, bimestre: b, anoescolar: a } });
-          });
         });
 
         // Busca e GRAVA no cache local; se já está fresco, nem sai para a rede.
@@ -475,20 +542,44 @@
           });
         }
 
-        // Depois da rede, o DETALHE da rede (turmas) do 1º e do 2º bimestre.
+        // A resposta da rede diz se o bimestre tem lançamento. Só então vale
+        // gastar 5 consultas de turma + 1 de detalhe com ele.
+        //
         // ⚠️ NÃO enfileirar aqui as fichas aluno-a-aluno escola por escola:
         // isso baixava ~3 MB por unidade para dentro do navegador a partir de
         // QUALQUER tela e era a causa da lentidão. O nível `detalherede` faz
         // esse leque NO SERVIDOR e devolve só o agregado — uma resposta, não
         // 112. É o que faz a tela de Avaliações abrir com todas as turmas.
-        [1, 2].forEach(function (b) {
-          fila.push({ nivel: 'detalherede', parms: { anoLetivo: anoLetivo, bimestre: b } });
-        });
+        function temLinhas(resp) {
+          if (!resp) return false;
+          for (var k in resp) {
+            if (k.indexOf('fichasAvaliacoes') === 0 && resp[k] && resp[k].length) return true;
+          }
+          return !!(resp.linhas && resp.linhas.length);
+        }
+        function desdobrar(bimestre) {
+          ['1 ANO', '2 ANO', '3 ANO', '4 ANO', '5 ANO'].forEach(function (a) {
+            fila.push({ nivel: 'turma', parms: { anoLetivo: anoLetivo, bimestre: bimestre, anoescolar: a } });
+          });
+          fila.push({ nivel: 'detalherede', parms: { anoLetivo: anoLetivo, bimestre: bimestre } });
+        }
 
+        var comLancamento = [];
         function proxima() {
           var p = fila.shift();
           if (!p) return;
-          chamar(p).catch(function () {}).then(function () { proxima(); });
+          chamar(p).then(function (r) {
+            // Só a resposta de `rede` decide desdobramento, e só uma vez por
+            // bimestre — as de turma passam direto.
+            if (p.nivel !== 'rede' || !r || !r.json) return;
+            return r.json().then(function (resp) {
+              if (!temLinhas(resp)) return;
+              var b = p.parms.bimestre;
+              if (comLancamento.indexOf(b) !== -1) return;
+              comLancamento.push(b);
+              desdobrar(b);
+            }).catch(function () {});
+          }).catch(function () {}).then(function () { proxima(); });
         }
         // 3 consultas simultâneas: aquece rápido sem disputar rede com a tela.
         proxima(); proxima(); proxima();
