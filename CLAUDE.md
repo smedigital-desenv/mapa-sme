@@ -864,6 +864,16 @@ python3 tools/gerar-v2.py          # regenera as -v2 e o bloco do CSS
 python3 tools/gerar-v2.py --limpar # apaga as -v2
 ```
 
+⚠️ **O céu de fundo (`mapa-v2-ceu.js`) tem TETO DE BRILHO medido, e ele não é
+enfeite.** Uma estrela atrás de texto clareia aquele pedaço e derruba o
+contraste: sobre `#14232F`, o terciário `--texto-3` aguenta até **alfa 0,11**
+(4,56:1) e é ele quem pinta rótulo de filtro e cabeçalho de tabela. Por isso
+**dentro da coluna de conteúdo nenhuma estrela passa de 0,10**; só na margem
+lateral — medida em tempo de desenho, não cravada — o brilho sobe e as estrelas
+ganham halo. Adensar é seguro (o teto é por estrela, e uma letra cobre uma ou
+duas); clarear não é. ⚠️ Nenhuma auditoria automática pega isso: o canvas fica
+ATRÁS do conteúdo, não é fundo herdado, e some do cálculo de contraste.
+
 ⚠️ **Não edite `*-v2.html` nem o bloco entre os marcadores de `mapa-v2.css`.**
 A próxima publicação reescreve os dois. Ajuste na tela original, ou no CSS
 escrito à mão fora dos marcadores.
