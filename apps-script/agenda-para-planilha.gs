@@ -20,23 +20,30 @@
  * ─────────────────────────────────────────────────────────────────────────
  * SETUP (uma vez):
  *   1. Planilha ▸ Extensões ▸ Apps Script → cole este arquivo e salve.
- *   2. Ajuste a seção "Config" abaixo (ou, melhor, use Propriedades do script —
- *      Configurações do projeto ▸ Propriedades do script:
- *         AGENDAS       = primary
- *                         (ou e-mails/IDs separados por vírgula:
- *                          "fulano@escola.br", "abc@group.calendar.google.com")
+ *   2. Recarregue a planilha → menu "Agenda para Planilha".
+ *   3. Menu ▸ "Escolher a agenda (pelo link)" — cole o endereço que o Google
+ *      Agenda mostra em "Integrar agenda" (aquele com "cid=" ou "src="). O
+ *      script decodifica, confere o acesso e guarda o ID nas Propriedades do
+ *      script.
+ *   4. Menu ▸ "Importar agora" — o Google pede autorização na primeira vez
+ *      (Calendar + Planilhas). Autorize com a conta que ENXERGA a agenda.
+ *   5. Menu ▸ "Ativar rotina automática" — instala o gatilho por tempo.
+ *
+ * ⚠ O ID da agenda mora nas PROPRIEDADES DO SCRIPT, não aqui no código, e é de
+ *   propósito: este repositório é público. As propriedades ficam no projeto
+ *   Apps Script, no servidor do Google, e não viajam no Git.
+ *   Configurações do projeto ▸ Propriedades do script:
+ *         AGENDAS       = ID da agenda (vários? separe por vírgula)
+ *                         'primary' = a agenda pessoal de quem roda
  *         DIAS_PASSADO  = 30
  *         DIAS_FUTURO   = 180
  *         ABA           = Agenda
- *      As propriedades VENCEM o que estiver no código — é o jeito de mudar a
- *      janela sem editar o script.)
- *   3. Recarregue a planilha → menu "Agenda para Planilha".
- *   4. Menu ▸ "Importar agora" — o Google pede autorização na primeira vez
- *      (Calendar + Planilhas). Autorize com a conta que ENXERGA as agendas.
- *   5. Menu ▸ "Ativar rotina automática" — instala o gatilho por tempo.
+ *   As propriedades VENCEM os valores da seção "Config" abaixo — é o jeito de
+ *   mudar a janela sem editar o script.
  *
  * USO — menu "Agenda para Planilha":
  *   • Importar agora               → roda a importação na hora
+ *   • Escolher a agenda (pelo link)→ decodifica o link e grava o ID
  *   • Ativar rotina automática     → cria o gatilho por tempo (padrão: 1x/hora)
  *   • Desativar rotina automática  → remove o gatilho
  *   • Conferir configuração        → mostra agendas, janela e aba em uso
@@ -70,6 +77,7 @@ function onOpen() {
     .createMenu('Agenda para Planilha')
     .addItem('Importar agora', 'importarAgendaMenu')
     .addSeparator()
+    .addItem('Escolher a agenda (pelo link)', 'configurarAgendaPeloLink')
     .addItem('Ativar rotina automática (1x/hora)', 'ativarRotinaAgenda')
     .addItem('Desativar rotina automática', 'desativarRotinaAgenda')
     .addSeparator()
@@ -312,6 +320,76 @@ function configAgenda_() {
     diasFuturo:  Number(p.getProperty('DIAS_FUTURO')  || DIAS_FUTURO),
     aba:         String(p.getProperty('ABA') || ABA)
   };
+}
+
+/**
+ * Recebe o endereço que o Google Agenda oferece em "Integrar agenda" e guarda
+ * o ID nas Propriedades do script. Aceita as três formas que circulam por aí:
+ *   .../calendar/u/0?cid=<base64 do ID>      (o botão "copiar link")
+ *   .../calendar/embed?src=<ID codificado>   (o código de incorporação)
+ *   o próprio ID da agenda, colado direto (o que termina em
+ *   "group.calendar.google.com", ou o e-mail de uma agenda pessoal)
+ */
+function configurarAgendaPeloLink() {
+  var ui = SpreadsheetApp.getUi();
+  var r = ui.prompt('Escolher a agenda',
+    'Cole o link da agenda (o endereço com "cid=" ou "src=") ou o ID dela.\n' +
+    'Para mais de uma, separe por vírgula ou por linha.',
+    ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+
+  var ids = String(r.getResponseText()).split(/[\n,;]+/)
+    .map(idDaAgenda_)
+    .filter(function (s) { return s.length; });
+  if (!ids.length) { ui.alert('Nada reconhecido no que foi colado.'); return; }
+
+  // Confere o acesso ANTES de gravar: melhor recusar aqui, com o link à vista,
+  // do que deixar a rotina falhar depois, sozinha, no gatilho por tempo.
+  var nomes = [];
+  for (var i = 0; i < ids.length; i++) {
+    var cal = (ids[i] === 'primary')
+      ? CalendarApp.getDefaultCalendar()
+      : CalendarApp.getCalendarById(ids[i]);
+    if (!cal) {
+      ui.alert('Sem acesso a esta agenda:\n\n' + ids[i] + '\n\n' +
+        'Ela precisa estar compartilhada com a conta que está rodando o script ' +
+        '(pelo menos "Ver todos os detalhes do evento"). Nada foi gravado.');
+      return;
+    }
+    nomes.push(cal.getName() + '  —  ' + ids[i]);
+  }
+
+  PropertiesService.getScriptProperties().setProperty('AGENDAS', ids.join(', '));
+  ui.alert('Agenda(s) configurada(s):\n\n' + nomes.join('\n') +
+    '\n\nAgora use "Importar agora".');
+}
+
+function idDaAgenda_(texto) {
+  var t = String(texto).trim();
+  if (!t) return '';
+  var m = t.match(/[?&]cid=([^&#\s]+)/);
+  if (m) {
+    var decodificado = base64Tolerante_(decodeURIComponent(m[1]));
+    // Se não saiu um ID plausível, o cid não era base64 — vale o que veio.
+    return (decodificado.indexOf('@') > 0) ? decodificado : decodeURIComponent(m[1]);
+  }
+  m = t.match(/[?&]src=([^&#\s]+)/);
+  if (m) return decodeURIComponent(m[1]);
+  return t;
+}
+
+/** O cid ora vem em base64 comum, ora em base64 web-safe, e às vezes sem o
+ *  preenchimento final. Os três casos entram aqui. */
+function base64Tolerante_(s) {
+  try {
+    var web = /[-_]/.test(s);
+    var t = String(s).replace(/=+$/, '');
+    while (t.length % 4) t += '=';
+    var bytes = web ? Utilities.base64DecodeWebSafe(t) : Utilities.base64Decode(t);
+    return Utilities.newBlob(bytes).getDataAsString();
+  } catch (e) {
+    return '';
+  }
 }
 
 function conferirConfigAgenda() {
