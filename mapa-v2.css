@@ -1176,3 +1176,79 @@ tr:hover > td,tr.selecionada > td,tr.ativa > td,
 
 /* Linha de meta do Boletim Estatístico: cinza #64748B cravado, 3,37:1. */
 .be-metaline{ color:var(--texto-2) !important; }
+
+/* ─── 16. A FAIXA-TÍTULO DA TELA ──────────────────────────────────────────── */
+
+/* O bloco do topo é UM: marca da rede, menu e, logo abaixo, o nome da tela.
+   A regra 5b já dissolvia a segunda barra quando ela é irmã imediata do
+   cabeçalho — é assim que Boletim, Fluência e Educação Especial ficam.
+
+   ⚠️ Nas Avaliações a faixa está dentro de outro elemento, então 5b não a
+   alcança e ela caía na regra de fundo escuro da seção 13: medido, #101C26
+   opaco contra o fundo #14232F da página, mais o filete de 5px de neon e
+   74px de altura contra 52px das demais telas. Era esse degrau de cor — e o
+   tamanho — que chamava atenção no topo.
+
+   Aqui a faixa vira o que ela é: uma legenda do cabeçalho, não uma segunda
+   barra. Sem fundo próprio, sem filete grosso, tipografia menor. O ícone
+   FICA — é ele que identifica a tela de relance —, só perde o brilho e o
+   corpo de 22px. A altura cai para ~48px nas oito telas que têm a faixa,
+   nas duas grafias que ela tem no HTML (.nav-header e .faixa). */
+.nav-header,.faixa{
+  background:transparent !important;
+  background-image:none !important;
+  box-shadow:none !important;
+  border-bottom:1px solid var(--borda) !important;
+  padding:.35rem 1.4rem .5rem !important;
+}
+/* o ícone continua, discreto: some o halo e o corpo grande */
+.nav-header > div > i,.nav-header i.bi,.faixa .ic{
+  font-size:1rem !important;
+  filter:none !important;
+  color:var(--acento) !important;
+  opacity:.9;
+}
+.nav-header h5,.faixa h5{
+  font-size:.92rem !important;
+  font-weight:500 !important;
+  letter-spacing:.005em !important;
+  color:var(--texto) !important;
+}
+/* a linha de contexto usa a MESMA fonte da assinatura da marca, no topo:
+   são a mesma coisa — metadado — e escrevê-las igual costura as duas partes
+   do bloco em vez de anunciar que são barras diferentes. */
+.nav-header h5 + div,.faixa .sub{
+  font-family:var(--mono) !important;
+  /* .58rem é exatamente o corpo de .mg-brand-sub, a assinatura sob a marca —
+     igualar os dois é o que faz as duas linhas lerem como a mesma voz. */
+  font-size:.58rem !important;
+  font-weight:400 !important;
+  letter-spacing:.14em !important;
+  color:var(--texto-3) !important;
+}
+
+/* A sub-navegação da tela (Rede · Diagnóstica · 1º Bim. …) vem logo abaixo da
+   faixa-título com um azul opaco cravado — `rgba(0,43,94,.95)` mais um filete
+   de neon. Com a faixa-título agora silenciosa, era ELA que passava a gritar
+   no topo: uma tarja azul-marinho de ponta a ponta sobre o fundo petróleo.
+
+   ⚠️ O azul aparece em duas grafias: no `style=` das Avaliações e da
+   Atribuição, e na classe `.toolbar` da Análise de Jornada e do Retrato. As
+   duas entram aqui — corrigir só uma deixaria duas telas irmãs diferentes.
+
+   O bloco do topo termina, então, num filete só: marca, menu, nome da tela e
+   sub-navegação lendo como uma coisa só. Os botões continuam com a borda de
+   acento, que é o que diz onde clicar. */
+[style*="background:rgba(0,43,94" i]{
+  background:transparent !important;
+  border-bottom:1px solid var(--borda) !important;
+}
+/* ⚠️ O .toolbar da Análise de Jornada e do Retrato é `position:sticky`, e
+   barra grudada no topo NÃO pode ser transparente: o conteúdo rolaria por
+   baixo e a barra viraria uma sopa de texto sobreposto. Ali o fundo é o da
+   própria página — opaco, mesma cor, nenhum degrau visível, e o que passa por
+   trás continua escondido. */
+.toolbar{
+  background:var(--fundo) !important;
+  border-bottom:1px solid var(--borda) !important;
+}
