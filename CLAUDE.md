@@ -690,7 +690,14 @@ git fetch origin -q && git rev-parse --short origin/main
 A `develop` carrega uma cópia de cada tela com o sufixo `-v2`, para avaliar o
 visual novo sem tocar nas telas em uso. Elas são **geradas**, não escritas:
 `tools/gerar-v2.py` copia cada página da raiz e acrescenta os atributos de
-tema, o `mapa-v2.css`, o fundo e os defaults do Chart.js. O mesmo comando
+tema, o `mapa-v2.css`, o fundo e os defaults do Chart.js. Ele também **enxuga
+a faixa-título**: tira dela o "SME Ribeirão Preto", que já está sob a marca a
+três centímetros dali, e some com a linha quando não sobra contexto (o Elefante
+Letrado fica só com o nome). ⚠️ O recorte é feito numa **janela de 900
+caracteres** a partir da faixa, nunca no texto da página: a mesma frase aparece
+66 vezes no repositório e quase todas são a assinatura da rede sob "MAPA".
+Tentar casar o bloco inteiro com regex também não serve — `(.*?)</div>` para no
+primeiro fechamento INTERNO, que é o da própria linha de contexto. O mesmo comando
 atualiza, dentro de `mapa-v2.css`, o bloco entre os marcadores
 `>>> INÍCIO DO BLOCO GERADO ... >>>` e `<<< FIM DO BLOCO GERADO <<<`, que
 devolve ao tema escuro as cores claras cravadas no CSS embutido das telas.

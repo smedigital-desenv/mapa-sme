@@ -1252,3 +1252,48 @@ tr:hover > td,tr.selecionada > td,tr.ativa > td,
   background:var(--fundo) !important;
   border-bottom:1px solid var(--borda) !important;
 }
+
+/* ─── 17. GRADIENTES: O PONTO CEGO ────────────────────────────────────────── */
+
+/* ⚠️ Gradiente é `background-image`, não `background-color`. As regras que
+   devolvem fundo claro ao tema escuro trabalham por cor CHAPADA e passam
+   direto por ele — e a auditoria, que lia só background-color, também passava.
+   Foi assim que estes dois ficaram meses ilegíveis sem ninguém medir.
+
+   A faixa-título das telas de avaliação é `linear-gradient(135deg,
+   var(--primary), var(--pri2))`. Como a seção 13 remapeia --primary para TINTA
+   clara e --pri2 continua o azul-petróleo original, o gradiente ia de #E6EEF4
+   a #075F82: claro à esquerda, escuro à direita, com texto branco por cima.
+   Medido: 1,17:1 — o título simplesmente não existia na metade esquerda.
+
+   Ela vira uma superfície do mesmo sistema dos cartões: sem gradiente, com o
+   filete de sempre. O texto passa aos tokens de tinta, e a linha de contexto
+   à direita usa a mesma fonte de metadado do resto do topo. */
+.titbar{
+  background:var(--superficie) !important;
+  background-image:none !important;
+  border:1px solid var(--borda) !important;
+  box-shadow:none !important;
+}
+.titbar .t{ color:var(--texto) !important; font-weight:600 !important; }
+.titbar .meta{
+  font-family:var(--mono) !important;
+  font-weight:400 !important;
+  font-size:.62rem !important;
+  letter-spacing:.1em !important;
+  text-transform:uppercase;
+  color:var(--texto-2) !important;
+  opacity:1 !important;
+}
+
+/* O cabeçalho do Relatório Executivo é o mesmo caso: gradiente de dois azuis
+   que o tema escuro não alcançou, com texto branco por cima — 2,14:1 no
+   título e 2,51:1 na linha de apoio, que ainda é branco a 82% de opacidade.
+   Aqui o azul FICA, porque é a identidade do documento; o que muda é o passo,
+   levado a 60% da luminosidade original. Medido: 4,7:1 no pior texto (a linha
+   de 82%) e 6,1:1 no branco puro. */
+header.report{
+  background:linear-gradient(135deg,#254E78,#366590) !important;
+  box-shadow:none !important;
+  border:1px solid var(--borda) !important;
+}
