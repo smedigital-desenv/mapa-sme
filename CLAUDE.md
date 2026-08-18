@@ -551,6 +551,40 @@ Pontos que **não** são detalhe:
 Secrets: `CODERP_TOKEN` (obrigatório) e `CODERP_URL` (opcional; o padrão é o
 ambiente `dsv`).
 
+#### Desenhado e AINDA NÃO LIGADO: a conferência Rede × Turma
+
+⚠️ **Só ligar depois que os níveis voltarem a fechar entre si.** Hoje eles não
+fecham, e a conferência acusaria em toda abertura de tela — o aviso viraria
+ruído e as pessoas aprenderiam a ignorá-lo, que é o pior estado possível para
+um alerta.
+
+O que está desenhado, para quando fechar:
+
+- `/IndicadorRede` é a **única fonte independente** de total que a API oferece.
+  Toda conferência que existe hoje compara o detalhe por turma contra a soma
+  da própria rota — ou seja, **o dado se confere contra ele mesmo**, e um erro
+  na origem passa inteiro. O comentário em `avaliacao.html` (rota
+  `fichaRedeTotais`) já dizia isso antes de a diferença aparecer.
+- Uma chamada de Rede por bimestre, comparada contra a soma do pacote de
+  Turma. Divergindo além da margem, acende o mesmo selo de
+  `_seloFonteBimestre()` — hoje ele só aparece quando a API **falha**, e não
+  quando ela responde número implausível.
+- Custo: uma consulta leve por bimestre (251 linhas medidas), memoizável junto
+  com o resto do pacote.
+
+⚠️ **A arquitetura alvo, quando os agregados voltarem a fechar:** `IndicadorTurma`
+é superconjunto de Escola e de Rede — uma consulta por bimestre entrega a
+árvore inteira (unidade › ano › turma) e os níveis acima saem de uma soma no
+front. Isso substitui as 5 consultas por ano escolar. Duas condições para
+migrar, e **as duas** precisam valer: `qtd_alunos` agregando, e a consulta sem
+`anoescolar` devolvendo só o nível Turma. `fichaRedeTudo()` já está escrita
+para esse dia e **não é chamada por ninguém** de propósito — ligá-la antes
+disso traz linhas de outro nível para dentro do pacote.
+
+⚠️ Nada disso dispensa `alunosPorItens()`: mesmo com o campo correto, o aluno
+aparece em várias linhas, e continuar sendo preciso somar por item e escolher
+o representativo é próprio do nível agregado, não de defeito nenhum.
+
 **Quem consome em produção é a `avaliacao.html`**: as abas de bimestre
 (`pacoteViaFichaApi`), o **Total** (`fichaGruposTotal`, nível **agregado** —
 4 bimestres × 5 anos via `fichaRedeTurma`, turma `—`; o detalhe por turma de
