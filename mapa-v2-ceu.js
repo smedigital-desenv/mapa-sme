@@ -19,8 +19,8 @@
 
    O terciário é quem pinta rótulo de filtro e cabeçalho de tabela, então
    ele é o teto que vale: DENTRO da coluna de conteúdo nenhuma estrela
-   passa de 0,10. Fora da coluna — a margem lateral, que é área vazia de
-   verdade — o teto sobe e as estrelas ganham halo, que é o que faz o
+   passa de 0,11 (o limite medido). Fora da coluna — a margem lateral, que é
+   área vazia de verdade — o teto sobe e as estrelas ganham halo, que faz o
    fundo parecer céu em vez de chuvisco.
 
    ⚠️ Em tela estreita não existe margem, e a conta devolve o teto baixo
@@ -51,7 +51,7 @@
     }
     return maior;
   }
-  var TETO_TEXTO = 0.10;  // sob a coluna: abaixo do limite medido de 0,11
+  var TETO_TEXTO = 0.11;  // sob a coluna: limite medido para terciário
   var TETO_LIVRE = 0.42;  // na margem vazia
   var COR = "206,236,255";
   var COR_ACENTO = "120,214,242";   // uma minoria puxa para o acento da pele
@@ -79,11 +79,10 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, L, A);
 
-    /* ⚠️ Adensar é seguro; clarear não é. O teto de 0,10 vale POR ESTRELA, e
-       uma letra cobre uma ou duas — então mais pontos não pioram o contraste
-       de nenhuma delas, enquanto mais brilho pioraria o de todas. Aumentado
-       de 4500 para 3200 (~75% mais estrelas) para maior presença visual. */
-    var n = Math.max(160, Math.min(640, Math.round(L * A / 3200)));
+    /* ⚠️ Adensar é seguro; clarear não é. O teto vale POR ESTRELA, e
+       uma letra cobre uma ou duas — então mais pontos não pioram o contraste.
+       Aumentado de 4500 para 2400 (~87% mais estrelas) para presença visual. */
+    var n = Math.max(180, Math.min(720, Math.round(L * A / 2400)));
     var COLUNA = larguraDaColuna();
 
     for (var i = 0; i < n; i++) {
@@ -91,17 +90,16 @@
       var y = Math.random() * A;
       var livre = folga(x, L, COLUNA);
 
-      /* Distribuição de potência: reduzido de 2.6 para 2.1 para maior presença
-         visual de estrelas de médio brilho. Ainda mantém muitos pontos miúdos
-         com poucas grandes se destacando — a forma de parecer céu. */
-      var q = Math.pow(Math.random(), 2.1);
+      /* Distribuição de potência: reduzido de 2.6 para 1.9 para mais presença
+         de estrelas médias e grandes. Mantém os pequenos pontos mas eleva
+         o piso de brilho — mais visível mas ainda céu. */
+      var q = Math.pow(Math.random(), 1.9);
       var teto = TETO_TEXTO + (TETO_LIVRE - TETO_TEXTO) * livre;
-      var a = 0.050 + q * (teto - 0.050);
+      var a = 0.055 + q * (teto - 0.055);
       /* Dentro da coluna a estrela cresce em vez de clarear: área maior no
-         mesmo alfa lê melhor do que um ponto minúsculo e apagado, e não mexe
-         no contraste, que depende só do alfa. Tamanho aumentado para maior
-         presença visual. */
-      var r = 0.5 + q * (livre > 0.5 ? 1.8 : 1.3);
+         mesmo alfa lê melhor, e não mexe no contraste. Tamanho maior para
+         maior presença e visibilidade no fundo. */
+      var r = 0.55 + q * (livre > 0.5 ? 2.0 : 1.4);
       var cor = (Math.random() < 0.18) ? COR_ACENTO : COR;
 
       // halo nas estrelas médias e grandes fora da coluna (reduzido de 0.72)
