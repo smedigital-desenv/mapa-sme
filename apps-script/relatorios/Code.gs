@@ -61,6 +61,12 @@ function doPost(e) {
       case 'excluirDevolutiva':
         resultado = excluirDevolutiva(e.parameter.id);
         break;
+      case 'chat':
+        resultado = chat(e.parameter.pergunta, e.parameter.contexto, e.parameter.historico, e.parameter.usuario);
+        break;
+      case 'chatfn':
+        resultado = chatFn(e.parameter.payload, e.parameter.usuario, e.parameter.contar);
+        break;
       default:
         resultado = { ok: false, erro: 'Ação não reconhecida' };
     }
@@ -382,6 +388,208 @@ function _chamarGemini(prompt, maxOutputTokens) {
 
   // Garante que nunca retorna undefined silenciosamente
   throw new Error("Todas as chaves de API estouraram a cota ou falharam.");
+}
+
+// ════════════════════════════════════════════════════════════════
+//  CHATBOT (assistente) — usa a MESMA chave central (GEMINI_KEYS).
+//  O contexto vem pronto do navegador (dados que o usuário pode ver, montados
+//  pelas RPCs que já filtram por permissão). A chave nunca sai do servidor.
+// ════════════════════════════════════════════════════════════════
+
+// Variante do _chamarGemini para respostas em TEXTO (não JSON). Mesmo pool de
+// chaves, rotação em caso de cota (429). Retorna o texto puro do modelo.
+function _chamarGeminiTexto(prompt, maxOutputTokens) {
+  const props = PropertiesService.getScriptProperties();
+  const chavesRaw = props.getProperty("GEMINI_KEYS");
+  if (!chavesRaw) throw new Error("Nenhuma chave de API configurada na propriedade 'GEMINI_KEYS'.");
+  const pool = chavesRaw.split(",").map(k => k.trim()).filter(Boolean);
+  // Modelo(s) do chat. Por padrão, SÓ o Flash Lite (mais barato/rápido, 500 req/dia
+  // no gratuito). O mecanismo aceita uma LISTA (fallback entre modelos, cada um com
+  // cota separada) via GEMINI_MODELOS_CHAT — mas, por decisão, o padrão é Lite puro,
+  // sem cair para o Flash normal. Para trocar/estender: GEMINI_MODELOS_CHAT (lista)
+  // ou GEMINI_MODELO_CHAT (um só).
+  const modelosRaw = props.getProperty("GEMINI_MODELOS_CHAT")
+                  || props.getProperty("GEMINI_MODELO_CHAT")
+                  || "gemini-flash-lite-latest";
+  const modelos = modelosRaw.split(",").map(m => m.trim()).filter(Boolean);
+  const cache = CacheService.getScriptCache();
+  const idxIni = (parseInt(cache.get("gemini_key_idx") || "0", 10) || 0) % pool.length;
+
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.4, maxOutputTokens: maxOutputTokens || 2000 }
+  };
+
+  let ultimoErro = "";
+  for (let m = 0; m < modelos.length; m++) {
+    const modelo = modelos[m];
+    for (let i = 0; i < pool.length; i++) {
+      const idx = (idxIni + i) % pool.length;
+      const url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelo + ":generateContent?key=" + pool[idx];
+      try {
+        const resp = UrlFetchApp.fetch(url, {
+          method: "post", contentType: "application/json",
+          payload: JSON.stringify(payload), muteHttpExceptions: true
+        });
+        const code = resp.getResponseCode();
+        const j = JSON.parse(resp.getContentText());
+        if (j.error) {
+          const msg = j.error.message || "";
+          if (code === 429 || j.error.code === 429 || /quota/i.test(msg)) {
+            cache.put("gemini_key_idx", String((idx + 1) % pool.length), 3600);
+            ultimoErro = "cota esgotada (" + modelo + ")";
+            continue;                 // próxima CHAVE deste modelo
+          }
+          ultimoErro = "Erro API Gemini [" + code + "] em " + modelo + ": " + msg;
+          break;                      // erro não-cota (ex.: modelo inexistente) → próximo MODELO
+        }
+        const texto = j.candidates && j.candidates[0] && j.candidates[0].content
+          && j.candidates[0].content.parts && j.candidates[0].content.parts[0]
+          && j.candidates[0].content.parts[0].text;
+        return (texto || "").trim();  // sucesso
+      } catch (e) {
+        ultimoErro = e.message;
+        break;                        // falha de rede → tenta o próximo MODELO
+      }
+    }
+    // esgotou as chaves deste modelo (cota/erro) → tenta o próximo modelo da lista
+  }
+  throw new Error("Falha ao chamar o Gemini (todos os modelos/chaves): " + ultimoErro);
+}
+
+// Teto de perguntas por usuário por dia (guarda-custo do pool compartilhado).
+// Contagem persistida por usuário em ScriptProperties, com carimbo de data.
+// O limite é ajustável pela propriedade CHAT_LIMITE_DIARIO (padrão 40).
+// Observação: o e-mail vem do navegador — é guarda de custo entre usuários
+// confiáveis (a tela já é restrita à secretaria), não uma barreira de segurança.
+var CHAT_LIMITE_PADRAO = 40;
+function _limiteChatOk(usuario) {
+  const props = PropertiesService.getScriptProperties();
+  let limite = parseInt(props.getProperty("CHAT_LIMITE_DIARIO") || "", 10);
+  if (isNaN(limite) || limite <= 0) limite = CHAT_LIMITE_PADRAO;
+  const quem = String(usuario || "").trim().toLowerCase() || "anonimo";
+  const hoje = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd");
+  const chave = "chatlim_" + quem;
+  const lock = LockService.getScriptLock();
+  try { lock.waitLock(5000); } catch (e) { return { ok: true }; }   // sem lock: não trava o uso
+  try {
+    const parts = String(props.getProperty(chave) || "").split(":");
+    const count = (parts[0] === hoje) ? (parseInt(parts[1], 10) || 0) : 0;
+    if (count >= limite) {
+      return { ok: false, erro: "Você atingiu o limite de " + limite + " perguntas hoje. Tente novamente amanhã." };
+    }
+    props.setProperty(chave, hoje + ":" + (count + 1));
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Responde perguntas SOMENTE com base no contexto recebido do navegador.
+function chat(pergunta, contexto, historicoJson, usuario) {
+  try {
+    if (!pergunta || !String(pergunta).trim()) return { ok: false, erro: "Pergunta vazia." };
+    const lim = _limiteChatOk(usuario);
+    if (!lim.ok) return lim;
+    let historico = [];
+    try { historico = JSON.parse(historicoJson || "[]"); } catch (e) { historico = []; }
+    const prompt = _promptChat(String(pergunta), String(contexto || ""), historico);
+    const resposta = _chamarGeminiTexto(prompt, 2000);
+    return { ok: true, resposta: resposta };
+  } catch (e) {
+    return { ok: false, erro: "Erro no assistente: " + e.message };
+  }
+}
+
+// ── Chatbot com FUNCTION CALLING ─────────────────────────────────────────────
+// O navegador conduz o laço: manda `contents` (conversa, incluindo chamadas e
+// respostas de função) + `tools` (declaração das funções). Esta função é um proxy
+// sem estado: repassa ao Gemini e devolve as `parts` do candidato (texto e/ou
+// functionCall). As funções em si rodam NO NAVEGADOR (onde estão os dados filtrados
+// por permissão). A chave nunca sai daqui. `contar` só é 'true' na 1ª rodada de cada
+// pergunta, para o teto diário contar 1 por pergunta (não por rodada de ferramenta).
+function chatFn(payloadJson, usuario, contar) {
+  try {
+    if (String(contar) === 'true') {
+      const lim = _limiteChatOk(usuario);
+      if (!lim.ok) return lim;
+    }
+    const reqBody = JSON.parse(payloadJson || '{}');
+    if (!reqBody.contents || !reqBody.contents.length) return { ok: false, erro: 'Sem conteúdo.' };
+    const parts = _chamarGeminiRaw(reqBody);
+    return { ok: true, parts: parts };
+  } catch (e) {
+    return { ok: false, erro: "Erro no assistente: " + e.message };
+  }
+}
+
+// Chamada "crua" ao Gemini: envia contents + (opcional) tools/systemInstruction e
+// devolve as parts do 1º candidato. Mesmo pool de chaves e fallback de modelo.
+function _chamarGeminiRaw(reqBody) {
+  const props = PropertiesService.getScriptProperties();
+  const chavesRaw = props.getProperty("GEMINI_KEYS");
+  if (!chavesRaw) throw new Error("Nenhuma chave de API configurada na propriedade 'GEMINI_KEYS'.");
+  const pool = chavesRaw.split(",").map(k => k.trim()).filter(Boolean);
+  const modelos = (props.getProperty("GEMINI_MODELOS_CHAT")
+                || props.getProperty("GEMINI_MODELO_CHAT")
+                || "gemini-flash-lite-latest").split(",").map(m => m.trim()).filter(Boolean);
+  const cache = CacheService.getScriptCache();
+  const idxIni = (parseInt(cache.get("gemini_key_idx") || "0", 10) || 0) % pool.length;
+
+  const payload = {
+    contents: reqBody.contents,
+    generationConfig: { temperature: 0.3, maxOutputTokens: 2000 }
+  };
+  if (reqBody.systemInstruction) payload.systemInstruction = reqBody.systemInstruction;
+  if (reqBody.tools) payload.tools = reqBody.tools;
+
+  let ultimoErro = "";
+  for (let m = 0; m < modelos.length; m++) {
+    const modelo = modelos[m];
+    for (let i = 0; i < pool.length; i++) {
+      const idx = (idxIni + i) % pool.length;
+      const url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelo + ":generateContent?key=" + pool[idx];
+      try {
+        const resp = UrlFetchApp.fetch(url, {
+          method: "post", contentType: "application/json",
+          payload: JSON.stringify(payload), muteHttpExceptions: true
+        });
+        const code = resp.getResponseCode();
+        const j = JSON.parse(resp.getContentText());
+        if (j.error) {
+          const msg = j.error.message || "";
+          if (code === 429 || j.error.code === 429 || /quota/i.test(msg)) {
+            cache.put("gemini_key_idx", String((idx + 1) % pool.length), 3600);
+            ultimoErro = "cota esgotada (" + modelo + ")"; continue;
+          }
+          ultimoErro = "Erro API Gemini [" + code + "] em " + modelo + ": " + msg; break;
+        }
+        const cand = j.candidates && j.candidates[0];
+        return (cand && cand.content && cand.content.parts) || [];
+      } catch (e) {
+        ultimoErro = e.message; break;
+      }
+    }
+  }
+  throw new Error("Falha ao chamar o Gemini (todos os modelos/chaves): " + ultimoErro);
+}
+
+function _promptChat(pergunta, contexto, historico) {
+  const hist = (historico || []).slice(-6).map(function (m) {
+    return (m.role === 'user' ? 'Usuário' : 'Assistente') + ': ' + m.texto;
+  }).join('\n');
+  return 'Você é o assistente do MAPA, sistema de acompanhamento pedagógico da Secretaria Municipal da Educação de Ribeirão Preto. Você responde a gestores e técnicos com base EXCLUSIVAMENTE nos dados de visitas e devolutivas fornecidos abaixo.\n\n' +
+    'REGRAS:\n' +
+    '- Você PODE e DEVE calcular, somar, contar, agrupar, ordenar, tirar médias/percentuais, ranquear e CRUZAR os dados fornecidos para responder. Isso NÃO é inventar — é usar os dados. Ex.: média de fluência por regional, qual regional está pior/melhor, ranking de escolas por risco, cruzar % de fluentes com o engajamento do Elefante.\n' +
+    '- Cada escola aparece com a sua regional entre colchetes ([Regional X]) nas seções de Fluência, Elefante e Escolas Visitadas. Use isso para agrupar e comparar por regional; se uma pergunta é por regional, agregue as escolas daquela regional a partir das linhas por escola.\n' +
+    '- Só diga que a informação "não consta nos registros" quando o dado BRUTO necessário realmente não estiver presente — NUNCA quando ele apenas precisa ser calculado ou agrupado a partir do que foi fornecido.\n' +
+    '- Não invente escolas, números, datas ou fatos que não estejam nos dados nem sejam deriváveis deles por cálculo/agrupamento.\n' +
+    '- Ao citar uma escola, use o nome exato. Seja objetivo e institucional; pode usar listas e negrito (markdown simples).\n' +
+    '- Não repita o contexto inteiro; responda direto à pergunta. Quando fizer um ranking ou média, mostre os números que sustentam a conclusão.\n\n' +
+    'DADOS DISPONÍVEIS:\n' + contexto + '\n' +
+    (hist ? '\nCONVERSA ATÉ AGORA:\n' + hist + '\n' : '') +
+    '\nPERGUNTA DO USUÁRIO:\n' + pergunta + '\n\n' +
+    'Responda em português, de forma direta e fundamentada nos dados.';
 }
 
 // ════════════════════════════════════════════════════════════════

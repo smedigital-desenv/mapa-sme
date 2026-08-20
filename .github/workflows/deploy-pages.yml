@@ -31,6 +31,31 @@ jobs:
           ref: develop
           path: _src/develop
 
+      # As telas -v2 são cópias das originais com a pele nova por cima. Quando
+      # alguém altera uma tela e não roda o gerador, a cópia publicada em
+      # /teste passa a mostrar uma versão antiga do sistema — e o defeito é
+      # silencioso, porque a página continua abrindo. Gerar aqui tira isso da
+      # memória de quem publica.
+      #
+      # Roda só dentro de _src/develop. Os scripts trabalham sempre na pasta
+      # acima de tools/, então a cópia da main (produção) não é alcançada.
+      - name: Gerar as páginas -v2 da homologação
+        id: v2
+        continue-on-error: true   # falha aqui não pode derrubar a produção
+        run: |
+          if [ -f _src/develop/tools/gerar-v2.py ]; then
+            python3 _src/develop/tools/gerar-v2.py
+          else
+            echo "A develop não tem tools/gerar-v2.py — nada a gerar."
+          fi
+
+      - name: Avisar se a geração falhou
+        if: steps.v2.outcome == 'failure'
+        run: |
+          echo "⚠️ A geração das páginas -v2 falhou." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "O site foi publicado assim mesmo, com as cópias -v2 que estavam versionadas na develop. Elas podem estar atrasadas em relação às telas originais. Veja o log do passo *Gerar as páginas -v2 da homologação*." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Montar o site (main na raiz, develop em /teste)
         run: |
           mkdir -p _site

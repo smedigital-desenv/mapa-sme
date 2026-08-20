@@ -64,20 +64,32 @@
     <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div><div><h4>MAPA</h4><div class="mg-brand-sub">SME Ribeirão Preto</div></div>
   </div>
   <nav class="mg-nav">
-    <div class="mg-dd" data-tela-any="avaliacao,elefante,fluencia">
+    <a class="mg-nav-btn" href="index.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
+    <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
       <a class="mg-nav-btn mg-dd-toggle" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
       <div class="mg-dd-menu">
         <a class="mg-dd-item" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item" href="avaliacao-diagnostica.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+        <a class="mg-dd-item" href="av-oral-matematica.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+        <a class="mg-dd-item" href="saresp.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+        <a class="mg-dd-item" href="ideb.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+        <a class="mg-dd-item" href="iee.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
         <a class="mg-dd-item" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
         <a class="mg-dd-item" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
       </div>
     </div>
     <a class="mg-nav-btn" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
     <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
-    <a class="mg-nav-btn active" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+    <div class="mg-dd" data-tela-any="frequencia,boletim_estatistico">
+      <a class="mg-nav-btn mg-dd-toggle active" href="frequencia.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item active" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+        <a class="mg-dd-item" href="boletim-estatistico.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+      </div>
+    </div>
     <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
     <a class="mg-nav-btn" href="boletim.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
-    <a class="mg-nav-btn mg-nav-icon" href="#" id="btnConfig" style="display:none" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
+    <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none;min-width:auto;padding:6px 10px;" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
   </nav>
   <div><button class="mg-action-btn" onclick="location.reload()" title="Atualizar"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button></div>
 </header>
@@ -608,5 +620,6 @@
 
   carregar();
 </script>
+  <script src="iago.js"></script>
 </body>
 </html>

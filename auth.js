@@ -346,5 +346,153 @@
 
     gateOff();
     document.dispatchEvent(new CustomEvent('mapa-auth-pronto', { detail: api }));
+
+    // ── Cache local das respostas da Ficha CODERP ──────────────────────────
+    // IndexedDB + gzip, compartilhado entre TODAS as telas do MAPA. O
+    // pré-aquecimento grava aqui; a tela de Avaliações lê daqui SEM REDE —
+    // é o que torna a abertura instantânea. TTL de 10 min, o mesmo do cache
+    // da Edge Function: o dado continua "ao vivo", só não é rebuscado a cada
+    // clique. Falha de IndexedDB nunca quebra nada — vira cache-miss.
+    var MapaFichaCache = (function () {
+      var TTL = 10 * 60 * 1000;
+      var abrir = null;
+      function db() {
+        if (!abrir) {
+          abrir = new Promise(function (res, rej) {
+            var r = indexedDB.open('mapa_ficha_cache', 1);
+            r.onupgradeneeded = function () { r.result.createObjectStore('resp'); };
+            r.onsuccess = function () { res(r.result); };
+            r.onerror = function () { rej(r.error); };
+          });
+        }
+        return abrir;
+      }
+      function gzip(texto) {
+        if (typeof CompressionStream === 'undefined') return Promise.resolve(texto);
+        var s = new Blob([texto]).stream().pipeThrough(new CompressionStream('gzip'));
+        return new Response(s).blob();
+      }
+      function gunzip(v) {
+        if (typeof v === 'string') return Promise.resolve(v);
+        var s = v.stream().pipeThrough(new DecompressionStream('gzip'));
+        return new Response(s).text();
+      }
+      function ler(chave) {
+        return db().then(function (d) {
+          return new Promise(function (res) {
+            var t = d.transaction('resp').objectStore('resp').get(chave);
+            t.onsuccess = function () { res(t.result || null); };
+            t.onerror = function () { res(null); };
+          });
+        }).then(function (hit) {
+          if (!hit || (Date.now() - hit.t) > TTL) return null;
+          return gunzip(hit.v);
+        }).catch(function () { return null; });
+      }
+      function gravar(chave, texto) {
+        return gzip(texto).then(function (v) {
+          return db().then(function (d) {
+            d.transaction('resp', 'readwrite').objectStore('resp').put({ t: Date.now(), v: v }, chave);
+          });
+        }).catch(function () {});
+      }
+      function limparVencidos() {
+        db().then(function (d) {
+          var st = d.transaction('resp', 'readwrite').objectStore('resp');
+          var cur = st.openCursor();
+          cur.onsuccess = function () {
+            var c = cur.result;
+            if (!c) return;
+            if (c.value && (Date.now() - c.value.t) > TTL) c.delete();
+            c.continue();
+          };
+        }).catch(function () {});
+      }
+      setTimeout(limparVencidos, 10000);
+      return { ler: ler, gravar: gravar };
+    })();
+    window.MapaFichaCache = MapaFichaCache;
+
+    // ── Pré-aquecimento da Ficha CODERP ────────────────────────────────────
+    // De QUALQUER tela do MAPA (menos a própria Avaliações, que faz as suas
+    // consultas), dispara em segundo plano as consultas da Ficha: rede dos 4
+    // bimestres e, na sequência, as fichas aluno a aluno das escolas com
+    // lançamento no 1º/2º bimestre. Tudo entra no cache de 10 min da Edge
+    // Function coderp-ficha: quando a pessoa abrir Avaliações, até o detalhe
+    // por turma sai na hora, sem esperar o CODERP e sem "números subindo".
+    // Fire-and-forget — falha aqui não afeta tela nenhuma.
+    if (!/avaliacao\.html/i.test(location.pathname) && !api.restritoEscola) {
+      setTimeout(function () {
+        var anoLetivo = new Date().getFullYear();
+        var fila = [];
+        // Os totais da rede vêm PRIMEIRO: são 4 consultas (uma por bimestre),
+        // sem abrir por unidade, e é a única fonte independente dos totais que
+        // a API oferece. Chegam antes da varredura por turma, que é 5x maior.
+        [1, 2, 3, 4].forEach(function (b) {
+          fila.push({ nivel: 'rede', parms: { anoLetivo: anoLetivo, bimestre: b } });
+        });
+        // Depois a varredura por ano escolar, que é o que abre a rede por
+        // unidade (o /IndicadorRede não devolve uni_cod).
+        [1, 2, 3, 4].forEach(function (b) {
+          ['1 ANO', '2 ANO', '3 ANO', '4 ANO', '5 ANO'].forEach(function (a) {
+            fila.push({ nivel: 'turma', parms: { anoLetivo: anoLetivo, bimestre: b, anoescolar: a } });
+          });
+        });
+
+        // Busca e GRAVA no cache local; se já está fresco, nem sai para a rede.
+        function chamar(corpo) {
+          var chave = JSON.stringify(corpo);
+          return MapaFichaCache.ler(chave).then(function (pronto) {
+            if (pronto !== null) return { json: function () { return Promise.resolve(JSON.parse(pronto)); } };
+            return api.token().then(function (tok) {
+              if (!tok) return null;
+              return fetchOriginal(MAPA_CFG.url + '/functions/v1/coderp-ficha', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+                body: JSON.stringify(corpo)
+              }).then(function (r) {
+                if (!r || !r.ok) return r;
+                return r.text().then(function (texto) {
+                  // Só grava resposta com dado real, ou vazio sem Messages —
+                  // erro "HTTP 200" da API não pode envenenar o cache por 10 min.
+                  var resp = null; try { resp = JSON.parse(texto); } catch (e) {}
+                  var temDado = false, temMsg = false, parcial = false;
+                  if (resp) {
+                    for (var k in resp) {
+                      if (k.indexOf('fichasAvaliacoes') === 0 && resp[k] && resp[k].length) { temDado = true; break; }
+                    }
+                    // `detalherede` devolve `linhas`, não `fichasAvaliacoes*`.
+                    if (!temDado && resp.linhas && resp.linhas.length) temDado = true;
+                    temMsg = !!(resp.Messages && resp.Messages.length);
+                    // Rede incompleta não pode ficar 10 min no cache.
+                    parcial = !!resp.parcial;
+                  }
+                  if (resp && !parcial && (temDado || !temMsg)) MapaFichaCache.gravar(chave, texto);
+                  return { json: function () { return Promise.resolve(JSON.parse(texto)) } };
+                });
+              });
+            });
+          });
+        }
+
+        // Depois da rede, o DETALHE da rede (turmas) do 1º e do 2º bimestre.
+        // ⚠️ NÃO enfileirar aqui as fichas aluno-a-aluno escola por escola:
+        // isso baixava ~3 MB por unidade para dentro do navegador a partir de
+        // QUALQUER tela e era a causa da lentidão. O nível `detalherede` faz
+        // esse leque NO SERVIDOR e devolve só o agregado — uma resposta, não
+        // 112. É o que faz a tela de Avaliações abrir com todas as turmas.
+        [1, 2].forEach(function (b) {
+          fila.push({ nivel: 'detalherede', parms: { anoLetivo: anoLetivo, bimestre: b } });
+        });
+
+        function proxima() {
+          var p = fila.shift();
+          if (!p) return;
+          chamar(p).catch(function () {}).then(function () { proxima(); });
+        }
+        // 3 consultas simultâneas: aquece rápido sem disputar rede com a tela.
+        proxima(); proxima(); proxima();
+      }, 2500);
+    }
   })();
 })();
