@@ -1362,6 +1362,19 @@
         </aside>
 
         <section class="avaliacao-main">
+          <!-- Barra de filtro de ano para visão de rede (desaparece ao selecionar unidade) -->
+          <div id="anoFilterBarRede" class="ano-filter-bar d-none mb-3">
+            <span class="ano-filter-label">
+              <i class="bi bi-funnel-fill me-1"></i>Ano escolar
+            </span>
+            <button type="button" class="btn-ano active" data-ano="TODOS" onclick="filtrarPorAnoRede('TODOS', this)">Todos</button>
+            <button type="button" class="btn-ano" data-ano="1º ANO" onclick="filtrarPorAnoRede('1º ANO', this)">1º Ano</button>
+            <button type="button" class="btn-ano" data-ano="2º ANO" onclick="filtrarPorAnoRede('2º ANO', this)">2º Ano</button>
+            <button type="button" class="btn-ano" data-ano="3º ANO" onclick="filtrarPorAnoRede('3º ANO', this)">3º Ano</button>
+            <button type="button" class="btn-ano" data-ano="4º ANO" onclick="filtrarPorAnoRede('4º ANO', this)">4º Ano</button>
+            <button type="button" class="btn-ano" data-ano="5º ANO" onclick="filtrarPorAnoRede('5º ANO', this)">5º Ano</button>
+          </div>
+
           <div class="avaliacao-header-card">
             <div class="row g-3 align-items-center">
               <div class="col-12 col-md-4">
@@ -1447,6 +1460,19 @@
         </aside>
 
         <section class="total-main">
+          <!-- Barra de filtro de ano para visão de rede Total (desaparece ao selecionar unidade) -->
+          <div id="anoFilterBarRedeTotal" class="ano-filter-bar d-none mb-3">
+            <span class="ano-filter-label">
+              <i class="bi bi-funnel-fill me-1"></i>Ano escolar
+            </span>
+            <button type="button" class="btn-ano active" data-ano="TODOS" onclick="filtrarPorAnoRede('TODOS', this)">Todos</button>
+            <button type="button" class="btn-ano" data-ano="1º ANO" onclick="filtrarPorAnoRede('1º ANO', this)">1º Ano</button>
+            <button type="button" class="btn-ano" data-ano="2º ANO" onclick="filtrarPorAnoRede('2º ANO', this)">2º Ano</button>
+            <button type="button" class="btn-ano" data-ano="3º ANO" onclick="filtrarPorAnoRede('3º ANO', this)">3º Ano</button>
+            <button type="button" class="btn-ano" data-ano="4º ANO" onclick="filtrarPorAnoRede('4º ANO', this)">4º Ano</button>
+            <button type="button" class="btn-ano" data-ano="5º ANO" onclick="filtrarPorAnoRede('5º ANO', this)">5º Ano</button>
+          </div>
+
           <div class="avaliacao-header-card">
             <div class="row g-3 align-items-center">
               <div class="col-12 col-md-4">
@@ -5644,6 +5670,7 @@ function selecionarUnidade(unidade, ui) {
   _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
   _setAnoFiltroAtualSeguro('TODOS');
+  _mostrarAnoFilterBarRede(!ja);
   renderHierarquia(_hierArvore);
   _atualizarBreadcrumb();
   aplicarFiltrosAvaliacao();
@@ -5725,6 +5752,7 @@ function limparHierarquiaSel() {
   _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
   _setAnoFiltroAtualSeguro('TODOS');
+  _mostrarAnoFilterBarRede(true);
   renderHierarquia(_hierArvore || {});
   _atualizarBreadcrumb();
   aplicarFiltrosAvaliacao();
@@ -5747,6 +5775,43 @@ function _montarSelectAno(anos) {
   }
 
   sel.value = [...sel.options].some(o => o.value === alvo) ? alvo : 'TODOS';
+}
+
+// ===========================================================
+// FILTRO DE ANO PARA VISÃO DE REDE
+// ===========================================================
+function _mostrarAnoFilterBarRede(show) {
+  const bar = document.getElementById('anoFilterBarRede');
+  const barTotal = document.getElementById('anoFilterBarRedeTotal');
+  if (bar) bar.classList.toggle('d-none', !show);
+  if (barTotal) barTotal.classList.toggle('d-none', !show);
+}
+
+function _resetarAnoFilterBarRede() {
+  anoFiltroAtual = 'TODOS';
+  _hierAnoAtivo = 'TODOS';
+  document.querySelectorAll('#anoFilterBarRede .btn-ano, #anoFilterBarRedeTotal .btn-ano').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.ano === 'TODOS');
+  });
+  const aSel = document.getElementById('filtroAvAno');
+  if (aSel) aSel.value = 'TODOS';
+}
+
+function filtrarPorAnoRede(ano, btn) {
+  if (!btn) return;
+
+  anoFiltroAtual = ano;
+  _hierAnoAtivo = ano;
+  _setAnoFiltroAtualSeguro(ano);
+
+  // Atualizar botões visuais em ambas as barras
+  document.querySelectorAll('#anoFilterBarRede .btn-ano, #anoFilterBarRedeTotal .btn-ano').forEach(b => {
+    b.classList.toggle('active', b.dataset.ano === ano);
+  });
+
+  renderHierarquia(_hierArvore || {});
+  _atualizarBreadcrumb();
+  aplicarFiltrosAvaliacao();
 }
 
 // ===========================================================
@@ -7061,6 +7126,7 @@ function selecionarUnidadeTotal(unidade) {
   _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
   _setAnoFiltroAtualSeguro('TODOS');
+  _mostrarAnoFilterBarRede(!jaSelecionada);
   totalDisciplinaSelecionada = '';
   totalEixoAtual = 'TODOS';
 
@@ -7132,7 +7198,11 @@ function selecionarTurmaTotal(unidade, ano, turma, ev) {
 
 function limparHierarquiaTotal() {
   _hierUnidadeAtiva = 'TODAS';
+  _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
+  _setAnoFiltroAtualSeguro('TODOS');
+  _mostrarAnoFilterBarRede(true);
+  _resetarAnoFilterBarRede();
   totalDisciplinaSelecionada = '';
   totalEixoAtual = 'TODOS';
   renderHierarquiaTotal(_hierArvoreTotal);
@@ -11460,6 +11530,8 @@ function abrirAvaliacao(tipo, btn) {
   // mesmo que a pessoa tenha deixado 2º/5º Ano selecionado em outra aba.
   if (tipo === 'primeiroBimestre' && typeof _setAnoFiltroAtualSeguro === 'function') {
     _setAnoFiltroAtualSeguro('TODOS');
+    _mostrarAnoFilterBarRede(true);
+    _resetarAnoFilterBarRede();
   }
 
   avaliacaoAtual = tipo;
@@ -11471,18 +11543,16 @@ function abrirAvaliacao(tipo, btn) {
     if (el) el.classList.add('d-none');
   });
 
-  // Auditoria tem seus próprios controles de bimestre — não usa a barra de ano global.
+  // Auditoria tem seus próprios controles de bimestre — não usa a barra de ano de rede.
   if (tipo === 'Auditoria') {
-    mostrarAnoFilterBar(false);
+    _mostrarAnoFilterBarRede(false);
     document.getElementById('viewAuditoria').classList.remove('d-none');
     return;
   }
 
-  mostrarAnoFilterBar(true);
-
   if (tipo === 'AnoEscolar') {
     document.getElementById('viewAlunos').classList.remove('d-none');
-    _resetarAnoFilterBar();
+    _mostrarAnoFilterBarRede(false);
 
     if (typeof iniciarDiagnostica === 'function') {
       iniciarDiagnostica();
@@ -11493,11 +11563,15 @@ function abrirAvaliacao(tipo, btn) {
 
   if (tipo === 'Total') {
     document.getElementById('viewTotal').classList.remove('d-none');
+    _mostrarAnoFilterBarRede(true);
+    _resetarAnoFilterBarRede();
     iniciarTotalAvaliacoes();
     return;
   }
 
   document.getElementById('viewBimestre1').classList.remove('d-none');
+  _mostrarAnoFilterBarRede(true);
+  _resetarAnoFilterBarRede();
   limparAreaAvaliacao();
   iniciarBimestreGenerico(tipo, BIMESTRE_LABELS[tipo] || tipo);
 }
