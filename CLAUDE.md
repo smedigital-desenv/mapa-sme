@@ -267,6 +267,44 @@ A partir daí `auth.uid()` existe no banco do MAPA e as policies funcionam.
   personificação real, restrita a super admin do central e registrada no log da
   função. Sem isso não há como testar o isolamento, já que ele vive no Postgres.
 
+#### O cronômetro do login — `MapaAuthTempos`
+
+⚠️ **"O login está lento" não se investiga no olho.** A abertura de sessão é
+um revezamento entre servidores diferentes — jsdelivr (supabase-js), `/central`
+(config + acesso-sme), a Edge Function `central-bridge` — e sem medir não há
+como saber qual perna atrasou.
+
+O `auth.js` imprime no console, ao fim de TODO desfecho, uma linha com o tempo
+de cada perna: `prerender`, `supabase_cdn`, `config`, `acesso_sme`, `central`,
+`sessao_guardada`, `token_central`, `ponte`, `abrir_sessao`. O objeto fica em
+`window.MapaAuthTempos`. Acima de 4 s a linha sai como `warn` — é o limiar em
+que as pessoas recarregam, e recarregar no meio da abertura de sessão é o que
+produz o "só funciona na segunda vez".
+
+⚠️ **Os três scripts carregam em SÉRIE de propósito.** `acesso-sme.js` é
+servido por `/central` (outro repositório) e pode usar `window.supabase` no
+topo do arquivo. Paralelizar pode fazê-lo rodar antes de o CDN responder, e o
+sintoma seria login quebrado para todo mundo. Se a medição mostrar que o CDN
+domina, o caminho seguro é **servir o supabase-js do próprio domínio**, não
+paralelizar no escuro.
+
+⚠️ **Todo caminho de falha cai para `anon`** (`tok || MAPA_CFG.anonKey`, no
+interceptador e em `api.headers`). Como o `anon` não tem permissão em nada, o
+resultado é tela vazia — e recarregar "resolve", porque a sessão já está no
+`localStorage`. Por isso a saída silenciosa de "sem perfil no central" também
+é registrada: sem ela, não há como distinguir redirecionamento legítimo de
+sessão que não abriu.
+
+⚠️ **O pré-aquecimento é ADAPTATIVO, e isso não é detalhe de desempenho.** As
+4 consultas de `rede` (baratas) vêm primeiro e **decidem** o resto: só o
+bimestre que respondeu com linha ganha as 5 consultas por ano escolar mais a
+de `detalherede`. Antes eram 26 chamadas fixas de toda tela, e como 3º e 4º
+bimestre não têm lançamento, **14 delas iam ao CODERP só para receber 404** —
+de todo usuário, a cada 10 minutos. Elas batem na MESMA runtime de Edge
+Function que atende o `central-bridge`, ou seja, atrapalhavam o próprio login.
+Hoje são 16, e voltam a ser 26 sozinhas no dia em que o 3º bimestre for
+lançado.
+
 ### Integração CODERP — Edge Function `coderp-ficha`
 
 A API **ObterFichaAvaliacao** do CODERP (Ficha de Acompanhamento e Avaliação
@@ -825,6 +863,16 @@ resultado antes de publicar, rode localmente:
 python3 tools/gerar-v2.py          # regenera as -v2 e o bloco do CSS
 python3 tools/gerar-v2.py --limpar # apaga as -v2
 ```
+
+⚠️ **O céu de fundo (`mapa-v2-ceu.js`) tem TETO DE BRILHO medido, e ele não é
+enfeite.** Uma estrela atrás de texto clareia aquele pedaço e derruba o
+contraste: sobre `#14232F`, o terciário `--texto-3` aguenta até **alfa 0,11**
+(4,56:1) e é ele quem pinta rótulo de filtro e cabeçalho de tabela. Por isso
+**dentro da coluna de conteúdo nenhuma estrela passa de 0,10**; só na margem
+lateral — medida em tempo de desenho, não cravada — o brilho sobe e as estrelas
+ganham halo. Adensar é seguro (o teto é por estrela, e uma letra cobre uma ou
+duas); clarear não é. ⚠️ Nenhuma auditoria automática pega isso: o canvas fica
+ATRÁS do conteúdo, não é fundo herdado, e some do cálculo de contraste.
 
 ⚠️ **Não edite `*-v2.html` nem o bloco entre os marcadores de `mapa-v2.css`.**
 A próxima publicação reescreve os dois. Ajuste na tela original, ou no CSS
