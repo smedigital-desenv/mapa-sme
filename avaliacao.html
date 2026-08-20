@@ -1257,19 +1257,6 @@
     </div>
   </div>
 
-  <!-- Barra global de ano: usada em Diagnóstica, Bimestres e Total -->
-  <div id="anoFilterBar" class="ano-filter-bar d-none">
-      <span class="ano-filter-label">
-        <i class="bi bi-funnel-fill me-1"></i>Ano escolar
-      </span>
-      <button type="button" class="btn-ano active" onclick="selecionarAnoFiltro('TODOS', this)">Todos</button>
-      <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('1º ANO', this)">1º Ano</button>
-      <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('2º ANO', this)">2º Ano</button>
-      <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('3º ANO', this)">3º Ano</button>
-      <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('4º ANO', this)">4º Ano</button>
-      <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('5º ANO', this)">5º Ano</button>
-    </div>
-
   <main class="container-fluid p-3 p-md-4 view-shell">
 
     <!-- ═════════════════════════════════════════════════════
@@ -1325,6 +1312,19 @@
             <select id="filtroAvAno" class="hidden-technical-select">
               <option value="TODOS">Todos os anos</option>
             </select>
+          </div>
+
+          <!-- Barra global de ano: usada em Diagnóstica, Bimestres e Total -->
+          <div id="anoFilterBar" class="ano-filter-bar d-none">
+            <span class="ano-filter-label">
+              <i class="bi bi-funnel-fill me-1"></i>Ano escolar
+            </span>
+            <button type="button" class="btn-ano active" onclick="selecionarAnoFiltro('TODOS', this)">Todos</button>
+            <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('1º ANO', this)">1º Ano</button>
+            <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('2º ANO', this)">2º Ano</button>
+            <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('3º ANO', this)">3º Ano</button>
+            <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('4º ANO', this)">4º Ano</button>
+            <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('5º ANO', this)">5º Ano</button>
           </div>
 
           <div id="pillsDisciplinasContainer" class="pills-container mb-3"></div>
@@ -1402,6 +1402,19 @@
                 <div id="totalFiltroAtivo" class="small text-muted fst-italic">Toda a rede</div>
               </div>
             </div>
+          </div>
+
+          <!-- Barra de ano para visualização Total -->
+          <div id="anoFilterBarTotal" class="ano-filter-bar d-none">
+            <span class="ano-filter-label">
+              <i class="bi bi-funnel-fill me-1"></i>Ano escolar
+            </span>
+            <button type="button" class="btn-ano active" onclick="selecionarAnoFiltro('TODOS', this)">Todos</button>
+            <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('1º ANO', this)">1º Ano</button>
+            <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('2º ANO', this)">2º Ano</button>
+            <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('3º ANO', this)">3º Ano</button>
+            <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('4º ANO', this)">4º Ano</button>
+            <button type="button" class="btn-ano" onclick="selecionarAnoFiltro('5º ANO', this)">5º Ano</button>
           </div>
 
           <div id="pillsTotalDisciplina" class="pills-container mb-3"></div>
@@ -9737,12 +9750,16 @@ function executarPassoApresentacao() {
 // ===========================================================
 function mostrarAnoFilterBar(show) {
   const bar = document.getElementById('anoFilterBar');
+  const barTotal = document.getElementById('anoFilterBarTotal');
   if (bar) bar.classList.toggle('d-none', !show);
+  if (barTotal) barTotal.classList.toggle('d-none', !show);
 }
 
 function _resetarAnoFilterBar() {
   anoFiltroAtual = 'TODOS';
-  document.querySelectorAll('#anoFilterBar .btn-ano').forEach((b, i) => b.classList.toggle('active', i === 0));
+  document.querySelectorAll('#anoFilterBar .btn-ano, #anoFilterBarTotal .btn-ano').forEach((b, i) => {
+    b.classList.toggle('active', i % 6 === 0);
+  });
   const aSel = document.getElementById('filtroAvAno');
   if (aSel) aSel.value = 'TODOS';
 }
