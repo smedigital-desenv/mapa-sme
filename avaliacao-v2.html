@@ -1,6 +1,6 @@
 
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-bs-theme="dark" data-tema="escuro" data-acento="ciano" data-fundo="medio">
 <head>
 
 <!-- =========================================================
@@ -31,6 +31,27 @@
   <!-- Bibliotecas JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+/* defaults do Chart.js para o visual de teste — acrescentado por gerar-v2.py */
+(function () {
+  if (!window.Chart) return;
+  var C = window.Chart;
+  C.defaults.color = '#94A0AB';
+  C.defaults.borderColor = 'rgba(255,255,255,.10)';
+  C.defaults.font.family = 'DM Sans, system-ui, sans-serif';
+  if (C.defaults.plugins && C.defaults.plugins.legend) {
+    C.defaults.plugins.legend.labels.color = '#94A0AB';
+  }
+  if (C.defaults.scales) {
+    ['linear', 'category', 'radialLinear'].forEach(function (k) {
+      if (!C.defaults.scales[k]) return;
+      if (C.defaults.scales[k].grid) C.defaults.scales[k].grid.color = 'rgba(255,255,255,.08)';
+      if (C.defaults.scales[k].ticks) C.defaults.scales[k].ticks.color = '#8996A3';
+    });
+  }
+})();
+</script>
+
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
   <!-- Supabase -->
@@ -1219,9 +1240,26 @@
       }
     }
   </style>
+
+<!-- ↓↓↓ acrescentado por tools/gerar-v2.py — pele de teste ↓↓↓ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mapa-v2.css">
+<!-- ↑↑↑ -->
 </head>
 
 <body>
+<div class="v2-faixa">
+  <b>VERSÃO 2 · TESTE</b>
+  <span>Esta página é uma cópia para avaliar o visual novo. A que está em uso continua em</span>
+  <a href="avaliacao-v2.html">avaliacao.html</a>
+</div>
+<canvas id="ceu" aria-hidden="true"></canvas>
+<span class="v2-orbita v2-orbita--1" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--2" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--3" aria-hidden="true"></span>
+
 
   <!-- ═══════════════════════════════════════════════════════
        BARRA SUPERIOR
@@ -1255,31 +1293,31 @@
       </div>
     </div>
     <nav class="mg-nav">
-      <a class="mg-nav-btn" href="index.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
+      <a class="mg-nav-btn" href="index-v2.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
       <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
-        <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+        <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao-v2.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
         <div class="mg-dd-menu">
           <a class="mg-dd-item active" style="cursor:pointer" onclick="document.getElementById('navAvaliacoes').checked=true;abrirModuloAvaliacoes();return false;"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
-          <a class="mg-dd-item" href="avaliacao-diagnostica.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
-          <a class="mg-dd-item" href="av-oral-matematica.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
-          <a class="mg-dd-item" href="saresp.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
-          <a class="mg-dd-item" href="ideb.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
-          <a class="mg-dd-item" href="iee.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
-          <a class="mg-dd-item" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
-          <a class="mg-dd-item" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+          <a class="mg-dd-item" href="avaliacao-diagnostica-v2.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+          <a class="mg-dd-item" href="av-oral-matematica-v2.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+          <a class="mg-dd-item" href="saresp-v2.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+          <a class="mg-dd-item" href="ideb-v2.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+          <a class="mg-dd-item" href="iee-v2.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
+          <a class="mg-dd-item" href="elefante-v2.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+          <a class="mg-dd-item" href="fluencia-v2.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
         </div>
       </div>
-      <a class="mg-nav-btn" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
-      <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+      <a class="mg-nav-btn" href="atribuicao-v2.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+      <a class="mg-nav-btn" href="educacao_especial-v2.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
       <div class="mg-dd" data-tela-any="frequencia,boletim_estatistico">
-        <a class="mg-nav-btn mg-dd-toggle" href="frequencia.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+        <a class="mg-nav-btn mg-dd-toggle" href="frequencia-v2.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
         <div class="mg-dd-menu">
-          <a class="mg-dd-item" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
-          <a class="mg-dd-item" href="boletim-estatistico.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+          <a class="mg-dd-item" href="frequencia-v2.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+          <a class="mg-dd-item" href="boletim-estatistico-v2.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
         </div>
       </div>
-      <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
-      <a class="mg-nav-btn" href="boletim.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+      <a class="mg-nav-btn" href="relatorios-v2.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+      <a class="mg-nav-btn" href="boletim-v2.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
       <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none;min-width:auto;padding:6px 10px;" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
     </nav>
     <div class="mg-actions">
@@ -1300,7 +1338,7 @@
       <div>
         <h5 class="m-0 fw-bold text-white">Avaliações</h5>
         <div style="font-size:.63rem;color:rgba(255,255,255,.65);font-weight:800;letter-spacing:.08em;text-transform:uppercase;">
-          SME Ribeirão Preto · Rede · Diagnóstica · Bimestres
+          Rede · Diagnóstica · Bimestres
         </div>
       </div>
     </div>
@@ -1362,19 +1400,6 @@
         </aside>
 
         <section class="avaliacao-main">
-          <!-- Barra de filtro de ano para visão de rede (desaparece ao selecionar unidade) -->
-          <div id="anoFilterBarRede" class="ano-filter-bar d-none mb-3">
-            <span class="ano-filter-label">
-              <i class="bi bi-funnel-fill me-1"></i>Ano escolar
-            </span>
-            <button type="button" class="btn-ano active" data-ano="TODOS" onclick="filtrarPorAnoRede('TODOS', this)">Todos</button>
-            <button type="button" class="btn-ano" data-ano="1º ANO" onclick="filtrarPorAnoRede('1º ANO', this)">1º Ano</button>
-            <button type="button" class="btn-ano" data-ano="2º ANO" onclick="filtrarPorAnoRede('2º ANO', this)">2º Ano</button>
-            <button type="button" class="btn-ano" data-ano="3º ANO" onclick="filtrarPorAnoRede('3º ANO', this)">3º Ano</button>
-            <button type="button" class="btn-ano" data-ano="4º ANO" onclick="filtrarPorAnoRede('4º ANO', this)">4º Ano</button>
-            <button type="button" class="btn-ano" data-ano="5º ANO" onclick="filtrarPorAnoRede('5º ANO', this)">5º Ano</button>
-          </div>
-
           <div class="avaliacao-header-card">
             <div class="row g-3 align-items-center">
               <div class="col-12 col-md-4">
@@ -1460,19 +1485,6 @@
         </aside>
 
         <section class="total-main">
-          <!-- Barra de filtro de ano para visão de rede Total (desaparece ao selecionar unidade) -->
-          <div id="anoFilterBarRedeTotal" class="ano-filter-bar d-none mb-3">
-            <span class="ano-filter-label">
-              <i class="bi bi-funnel-fill me-1"></i>Ano escolar
-            </span>
-            <button type="button" class="btn-ano active" data-ano="TODOS" onclick="filtrarPorAnoRede('TODOS', this)">Todos</button>
-            <button type="button" class="btn-ano" data-ano="1º ANO" onclick="filtrarPorAnoRede('1º ANO', this)">1º Ano</button>
-            <button type="button" class="btn-ano" data-ano="2º ANO" onclick="filtrarPorAnoRede('2º ANO', this)">2º Ano</button>
-            <button type="button" class="btn-ano" data-ano="3º ANO" onclick="filtrarPorAnoRede('3º ANO', this)">3º Ano</button>
-            <button type="button" class="btn-ano" data-ano="4º ANO" onclick="filtrarPorAnoRede('4º ANO', this)">4º Ano</button>
-            <button type="button" class="btn-ano" data-ano="5º ANO" onclick="filtrarPorAnoRede('5º ANO', this)">5º Ano</button>
-          </div>
-
           <div class="avaliacao-header-card">
             <div class="row g-3 align-items-center">
               <div class="col-12 col-md-4">
@@ -5670,7 +5682,6 @@ function selecionarUnidade(unidade, ui) {
   _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
   _setAnoFiltroAtualSeguro('TODOS');
-  _mostrarAnoFilterBarRede(!ja);
   renderHierarquia(_hierArvore);
   _atualizarBreadcrumb();
   aplicarFiltrosAvaliacao();
@@ -5752,7 +5763,6 @@ function limparHierarquiaSel() {
   _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
   _setAnoFiltroAtualSeguro('TODOS');
-  _mostrarAnoFilterBarRede(true);
   renderHierarquia(_hierArvore || {});
   _atualizarBreadcrumb();
   aplicarFiltrosAvaliacao();
@@ -5775,43 +5785,6 @@ function _montarSelectAno(anos) {
   }
 
   sel.value = [...sel.options].some(o => o.value === alvo) ? alvo : 'TODOS';
-}
-
-// ===========================================================
-// FILTRO DE ANO PARA VISÃO DE REDE
-// ===========================================================
-function _mostrarAnoFilterBarRede(show) {
-  const bar = document.getElementById('anoFilterBarRede');
-  const barTotal = document.getElementById('anoFilterBarRedeTotal');
-  if (bar) bar.classList.toggle('d-none', !show);
-  if (barTotal) barTotal.classList.toggle('d-none', !show);
-}
-
-function _resetarAnoFilterBarRede() {
-  anoFiltroAtual = 'TODOS';
-  _hierAnoAtivo = 'TODOS';
-  document.querySelectorAll('#anoFilterBarRede .btn-ano, #anoFilterBarRedeTotal .btn-ano').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.ano === 'TODOS');
-  });
-  const aSel = document.getElementById('filtroAvAno');
-  if (aSel) aSel.value = 'TODOS';
-}
-
-function filtrarPorAnoRede(ano, btn) {
-  if (!btn) return;
-
-  anoFiltroAtual = ano;
-  _hierAnoAtivo = ano;
-  _setAnoFiltroAtualSeguro(ano);
-
-  // Atualizar botões visuais em ambas as barras
-  document.querySelectorAll('#anoFilterBarRede .btn-ano, #anoFilterBarRedeTotal .btn-ano').forEach(b => {
-    b.classList.toggle('active', b.dataset.ano === ano);
-  });
-
-  renderHierarquia(_hierArvore || {});
-  _atualizarBreadcrumb();
-  aplicarFiltrosAvaliacao();
 }
 
 // ===========================================================
@@ -7126,7 +7099,6 @@ function selecionarUnidadeTotal(unidade) {
   _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
   _setAnoFiltroAtualSeguro('TODOS');
-  _mostrarAnoFilterBarRede(!jaSelecionada);
   totalDisciplinaSelecionada = '';
   totalEixoAtual = 'TODOS';
 
@@ -7198,11 +7170,7 @@ function selecionarTurmaTotal(unidade, ano, turma, ev) {
 
 function limparHierarquiaTotal() {
   _hierUnidadeAtiva = 'TODAS';
-  _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
-  _setAnoFiltroAtualSeguro('TODOS');
-  _mostrarAnoFilterBarRede(true);
-  _resetarAnoFilterBarRede();
   totalDisciplinaSelecionada = '';
   totalEixoAtual = 'TODOS';
   renderHierarquiaTotal(_hierArvoreTotal);
@@ -11530,8 +11498,6 @@ function abrirAvaliacao(tipo, btn) {
   // mesmo que a pessoa tenha deixado 2º/5º Ano selecionado em outra aba.
   if (tipo === 'primeiroBimestre' && typeof _setAnoFiltroAtualSeguro === 'function') {
     _setAnoFiltroAtualSeguro('TODOS');
-    _mostrarAnoFilterBarRede(true);
-    _resetarAnoFilterBarRede();
   }
 
   avaliacaoAtual = tipo;
@@ -11543,16 +11509,18 @@ function abrirAvaliacao(tipo, btn) {
     if (el) el.classList.add('d-none');
   });
 
-  // Auditoria tem seus próprios controles de bimestre — não usa a barra de ano de rede.
+  // Auditoria tem seus próprios controles de bimestre — não usa a barra de ano global.
   if (tipo === 'Auditoria') {
-    _mostrarAnoFilterBarRede(false);
+    mostrarAnoFilterBar(false);
     document.getElementById('viewAuditoria').classList.remove('d-none');
     return;
   }
 
+  mostrarAnoFilterBar(true);
+
   if (tipo === 'AnoEscolar') {
     document.getElementById('viewAlunos').classList.remove('d-none');
-    _mostrarAnoFilterBarRede(false);
+    _resetarAnoFilterBar();
 
     if (typeof iniciarDiagnostica === 'function') {
       iniciarDiagnostica();
@@ -11563,15 +11531,11 @@ function abrirAvaliacao(tipo, btn) {
 
   if (tipo === 'Total') {
     document.getElementById('viewTotal').classList.remove('d-none');
-    _mostrarAnoFilterBarRede(true);
-    _resetarAnoFilterBarRede();
     iniciarTotalAvaliacoes();
     return;
   }
 
   document.getElementById('viewBimestre1').classList.remove('d-none');
-  _mostrarAnoFilterBarRede(true);
-  _resetarAnoFilterBarRede();
   limparAreaAvaliacao();
   iniciarBimestreGenerico(tipo, BIMESTRE_LABELS[tipo] || tipo);
 }
@@ -12352,5 +12316,6 @@ function _audRenderDetalhe(tk) {
     }
   </script>
 
+<script src="mapa-v2-ceu.js" defer></script>
 </body>
 </html>

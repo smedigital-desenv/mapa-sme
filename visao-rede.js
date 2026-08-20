@@ -127,6 +127,8 @@ var estado = {ord:'valor', dir:-1, busca:''};
 var filtros = {};        // valores atuais dos filtros da tela
 var montado = false;
 var geracao = 0;         // token contra resposta atrasada de um filtro anterior
+var refRotulo = null;    // a tela pode renomear a coluna de referência por carga
+var aviso = '';          // ...e explicar, na legenda, por que ela mudou
 
 function injetarCSS(){
   if(document.getElementById('vr-css')) return;
@@ -146,8 +148,13 @@ function injetarCSS(){
      casasDif   : casas decimais da diferença
      unidadeDif : ' pp' | ' pts' | ''
      colunas    : [{id, t, v:linha=>número, fmt, ord:bool}]  colunas extras
+                  (ou função (filtros, linhas) => [...], para colunas que
+                  dependem do recorte ou de haver dado)
      filtros    : [{id, rotulo, opcoes:()=>[{v,t}]}]
-     carregar   : filtros => Promise<{linhas:[{escola, valor, ref, cols}]}>
+     carregar   : filtros => Promise<{linhas:[{escola, valor, ref, cols}],
+                                      rotuloRef?, aviso?}>
+                  rotuloRef/aviso: quando a referência NÃO for a rede, renomeiam
+                  a coluna e explicam a troca na legenda
      legenda    : HTML da nota sob a tabela
    }                                                                        */
 function instalar(c){
@@ -275,7 +282,10 @@ function montarControles(){
    ordenação leem daqui, senão saem de sincronia. */
 function extras(){
   var c = cfg.colunas;
-  if(typeof c === 'function') c = c(filtros);
+  // Recebe também as linhas já carregadas: há coluna que só faz sentido quando
+  // ALGUMA unidade tem o dado (a meta do IDEB não existe em toda edição), e uma
+  // coluna inteira de '—' não informa nada — só ocupa a tela e sugere avaria.
+  if(typeof c === 'function') c = c(filtros, LINHAS);
   return c || [];
 }
 
@@ -284,7 +294,7 @@ function colunas(){
            {k:'escola', t:'Unidade', ord:true},
            {k:'valor', t:cfg.rotuloValor || 'Média', ord:true}];
   extras().forEach(function(x){ c.push({k:x.id, t:x.t, ord:x.ord !== false}); });
-  c.push({k:'ref', t:'Rede', ord:true});
+  c.push({k:'ref', t: refRotulo || cfg.rotuloRef || 'Rede', ord:true});
   c.push({k:'dif', t:'Dif.', ord:true});
   return c;
 }
@@ -306,6 +316,11 @@ async function recarregar(){
     var r = await cfg.carregar(filtros);
     if(meu !== geracao) return;
     LINHAS = (r && r.linhas) || [];
+    // Uma referência que não é a rede TEM de se anunciar. Trocar a origem do
+    // número mantendo o cabeçalho "Rede" seria a mentira mais silenciosa que
+    // esta tela poderia contar.
+    refRotulo = (r && r.rotuloRef) || null;
+    aviso = (r && r.aviso) || '';
     // O posto é do RANKING, não da ordenação escolhida: mudar a ordem da
     // tabela não pode renumerar as unidades.
     LINHAS.slice().sort(function(a,b){
@@ -391,7 +406,8 @@ function render(){
   if(chip) chip.textContent = LINHAS.length + ' unidade' + (LINHAS.length === 1 ? '' : 's');
 
   var leg = painel.querySelector('#vrLeg');
-  if(leg) leg.innerHTML = cfg.legenda || '';
+  if(leg) leg.innerHTML = (cfg.legenda || '')
+    + (aviso ? ' <b style="color:#b45309">' + aviso + '</b>' : '');
 
   if(!lin.length){
     painel.querySelector('#vrBody').innerHTML =
