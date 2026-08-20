@@ -63,6 +63,34 @@
       gap: 0.8rem;
     }
 
+    .nav-back {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .btn-back {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      text-decoration: none;
+    }
+
+    .btn-back:hover {
+      background: rgba(255, 255, 255, 0.3);
+      border-color: rgba(255, 255, 255, 0.5);
+      color: white;
+    }
+
     .main-content {
       padding: 2rem;
       max-width: 1400px;
@@ -295,6 +323,12 @@
   <div class="brand-title">
     <i class="bi bi-graph-up-arrow"></i>
     <span>Análise de Desempenho</span>
+  </div>
+  <div class="nav-back">
+    <a href="avaliacao.html" class="btn-back">
+      <i class="bi bi-arrow-left"></i>
+      Voltar para Avaliações
+    </a>
   </div>
 </header>
 
