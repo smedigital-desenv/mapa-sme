@@ -303,6 +303,24 @@
       color: var(--text-3);
     }
 
+    .text-muted { color: var(--text-3); }
+
+    .aviso-sem-fonte {
+      display: flex;
+      gap: .9rem;
+      align-items: flex-start;
+      background: rgba(245, 158, 11, .12);
+      border: 1px solid rgba(245, 158, 11, .45);
+      border-left: 4px solid #d97706;
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 2rem;
+      color: var(--text-1);
+      font-size: .92rem;
+      line-height: 1.55;
+    }
+    .aviso-sem-fonte i { color: #d97706; font-size: 1.2rem; line-height: 1.4; }
+
     @media (max-width: 992px) {
       .filters-section {
         grid-template-columns: 1fr;
@@ -350,6 +368,17 @@
       Comparativo de Desempenho por Escola
     </h1>
     <p class="page-subtitle">Visualize o desempenho das escolas ao longo de todas as avaliações</p>
+  </div>
+
+  <div class="aviso-sem-fonte">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <div>
+      <strong>Tela em construção — sem fonte de dados ligada.</strong>
+      A lista de unidades abaixo é real (vem do catálogo, com o mesmo recorte de
+      acesso das demais telas), mas os percentuais aparecem como <strong>—</strong>
+      porque a apuração ainda não foi conectada. Nenhum número desta tela deve
+      ser usado para leitura da rede.
+    </div>
   </div>
 
   <!-- Filtros -->
@@ -400,46 +429,22 @@ const AVALIACOES = [
   { key: '4-bim', label: '4º Bim' }
 ];
 
-const cacheKey = 'comparativoEscolasCache_v1';
+/* O cache em localStorage foi retirado junto com os dados de exemplo: guardar
+   número por 'ser imutável' só faz sentido depois que ele vier de uma fonte. */
+let UNIDADES = null;
 
-function obterChaveCache(ano, nivel) {
-  return `${cacheKey}_${ano}_${nivel}`;
-}
-
-function obterDoCache(ano, nivel) {
-  try {
-    const cached = localStorage.getItem(obterChaveCache(ano, nivel));
-    return cached ? JSON.parse(cached) : null;
-  } catch (e) {
-    return null;
-  }
-}
-
-function salvarNoCache(ano, nivel, dados) {
-  try {
-    localStorage.setItem(obterChaveCache(ano, nivel), JSON.stringify(dados));
-  } catch (e) {
-    console.warn('Erro ao salvar cache:', e);
-  }
-}
-
-function gerarDadosExemplo(ano, nivel) {
-  const escolas = [
-    'EMEF Afonso Pena', 'EMEF Cecília Meireles', 'EMEF Euclides da Cunha',
-    'EMEF Fagundes Varela', 'EMEF Getúlio Vargas', 'EMEF Hilário Franco'
-  ];
-
-  const seed = (ano + nivel).split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-
-  return escolas.map(escola => ({
-    escola,
-    fluencia: Math.floor(Math.random() * 40 + 20 + seed % 20),
-    diagnostica: Math.floor(Math.random() * 50 + 15 + seed % 20),
-    '1-bim': Math.floor(Math.random() * 55 + 20 + seed % 15),
-    '2-bim': Math.floor(Math.random() * 60 + 25 + seed % 15),
-    '3-bim': Math.floor(Math.random() * 65 + 30 + seed % 10),
-    '4-bim': Math.floor(Math.random() * 70 + 35 + seed % 10)
-  }));
+/* ⚠️ Esta tela ainda NÃO tem fonte de dado ligada.
+   Ela lista as unidades REAIS do catálogo `escolas` (recorte por RLS, igual às
+   demais telas) e deixa os percentuais em '—'. Não invente número aqui: um
+   percentual plausível e falso não se distingue de um medido, e esta tela
+   compara unidades da rede entre si. */
+async function carregarUnidades() {
+  const supa = window.MAPA_SB;
+  if (!supa) throw new Error('Sessão do MAPA indisponível');
+  const { data, error } = await supa
+    .from('escolas').select('nome').eq('ativo', true).order('nome');
+  if (error) throw error;
+  return (data || []).map(e => e.nome);
 }
 
 function getCorPorcentual(valor) {
@@ -449,13 +454,9 @@ function getCorPorcentual(valor) {
 }
 
 function atualizarTabela(ano, nivel) {
-  let dados = obterDoCache(ano, nivel);
-  if (!dados) {
-    dados = gerarDadosExemplo(ano, nivel);
-    salvarNoCache(ano, nivel, dados);
-  }
-
   const container = document.getElementById('tableContainer');
+  if (!UNIDADES) { container.innerHTML = '<div class="loading">Carregando unidades...</div>'; return; }
+  const dados = UNIDADES.map(escola => ({ escola }));
 
   let html = `
     <table>
@@ -479,8 +480,11 @@ function atualizarTabela(ano, nivel) {
 
     AVALIACOES.forEach(av => {
       const valor = linha[av.key];
-      const cor = getCorPorcentual(valor);
-      html += `<td class="percentual ${cor}" style="text-align: center;">${valor}%</td>`;
+      if (valor === null || valor === undefined) {
+        html += '<td class="text-muted" style="text-align: center;">—</td>';
+        return;
+      }
+      html += `<td class="percentual ${getCorPorcentual(valor)}" style="text-align: center;">${valor}%</td>`;
     });
 
     html += `</tr>`;
@@ -524,19 +528,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Carregar dados iniciais
+  try {
+    UNIDADES = await carregarUnidades();
+  } catch (e) {
+    console.error('Falha ao carregar o catálogo de unidades:', e);
+    document.getElementById('tableContainer').innerHTML =
+      '<div class="loading">Não foi possível carregar a lista de unidades. '
+      + 'Recarregue a página; se persistir, verifique a sessão.</div>';
+    return;
+  }
   atualizarTabela('TODOS', 'N1');
-
-  // Pré-carregar dados em background
-  setTimeout(() => {
-    NIVEIS.forEach(nivel => {
-      ['TODOS', '1º ANO', '2º ANO'].forEach(ano => {
-        if (!obterDoCache(ano, nivel)) {
-          const dados = gerarDadosExemplo(ano, nivel);
-          salvarNoCache(ano, nivel, dados);
-        }
-      });
-    });
-  }, 100);
 });
 </script>
 

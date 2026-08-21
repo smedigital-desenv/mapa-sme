@@ -126,6 +126,22 @@
       overflow-wrap: break-word;
     }
 
+    .aviso-sem-fonte {
+      display: flex;
+      gap: .9rem;
+      align-items: flex-start;
+      background: rgba(245, 158, 11, .12);
+      border: 1px solid rgba(245, 158, 11, .45);
+      border-left: 4px solid #d97706;
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 2rem;
+      color: var(--text-1);
+      font-size: .92rem;
+      line-height: 1.55;
+    }
+    .aviso-sem-fonte i { color: #d97706; font-size: 1.2rem; line-height: 1.4; }
+
     .filters-section {
       background: var(--bg-card);
       border: 1px solid var(--border-color);
@@ -350,6 +366,17 @@
     <p class="page-subtitle">Distribuição de alunos por faixa de proficiência e comparativo entre escolas</p>
   </div>
 
+  <div class="aviso-sem-fonte">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <div>
+      <strong>Tela em construção — sem fonte de dados ligada.</strong>
+      A lista de unidades abaixo é real (vem do catálogo, com o mesmo recorte de
+      acesso das demais telas), mas as faixas aparecem como <strong>—</strong>
+      porque a apuração ainda não foi conectada. Nenhum número desta tela deve
+      ser usado para leitura da rede.
+    </div>
+  </div>
+
   <!-- Filtros -->
   <div class="filters-section">
     <div class="filter-group">
@@ -443,74 +470,58 @@ const AVALIACOES = [
 
 let chartDistribuicao = null;
 let chartMedia = null;
-const cacheKey = 'analiseDesempenhoCache_v1';
+/* O cache em localStorage foi retirado junto com os dados de exemplo: guardar
+   número por 'ser imutável' só faz sentido depois que ele vier de uma fonte. */
 
-function obterChaveCache(avaliacao, ano) {
-  return `${cacheKey}_${avaliacao}_${ano}`;
+/* ⚠️ Esta tela ainda NÃO tem fonte de dado ligada.
+   Ela lista as unidades REAIS do catálogo `escolas` (recorte por RLS, igual às
+   demais telas) e deixa as faixas em '—'. Não invente número aqui: uma tela de
+   rede com valor plausível e falso é pior que uma tela vazia, porque ninguém
+   consegue distinguir os dois olhando. Ao ligar a agregação de verdade,
+   preencha `porEscola` com o que vier da fonte e remova o aviso do topo. */
+async function carregarUnidades() {
+  const supa = window.MAPA_SB;
+  if (!supa) throw new Error('Sessão do MAPA indisponível');
+  const { data, error } = await supa
+    .from('escolas').select('nome').eq('ativo', true).order('nome');
+  if (error) throw error;
+  return (data || []).map(e => e.nome);
 }
 
-function obterDoCache(avaliacao, ano) {
-  const chave = obterChaveCache(avaliacao, ano);
-  try {
-    const cached = localStorage.getItem(chave);
-    return cached ? JSON.parse(cached) : null;
-  } catch (e) {
-    console.warn('Erro ao ler cache:', e);
-    return null;
-  }
-}
-
-function salvarNoCache(avaliacao, ano, dados) {
-  const chave = obterChaveCache(avaliacao, ano);
-  try {
-    localStorage.setItem(chave, JSON.stringify(dados));
-  } catch (e) {
-    console.warn('Erro ao salvar cache:', e);
-  }
-}
-
-function gerarDadosExemplo(avaliacao, ano) {
-  const escolas = [
-    'EMEF Afonso Pena', 'EMEF Cecília Meireles', 'EMEF Euclides da Cunha',
-    'EMEF Fagundes Varela', 'EMEF Getúlio Vargas', 'EMEF Hilário Franco'
-  ];
-
-  const distribuicaoGeral = {
-    'nao-proficiente': 0, 'basico': 0, 'proficiente': 0, 'avancado': 0
-  };
+function pacoteSemFonte(avaliacao, ano, escolas) {
   const porEscola = {};
-
-  // Usar seed determinístico baseado na avaliação e ano para evitar mudanças constantes
-  const seed = (avaliacao + ano).split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-  Math.seedrandom = function() { return (Math.sin(seed++) * 10000) % 1; };
-
   escolas.forEach(escola => {
-    const dados = {
+    porEscola[escola] = {
       escola,
-      'nao-proficiente': Math.floor(Math.random() * 50 + 20),
-      'basico': Math.floor(Math.random() * 80 + 40),
-      'proficiente': Math.floor(Math.random() * 60 + 30),
-      'avancado': Math.floor(Math.random() * 40 + 10)
+      'nao-proficiente': null, 'basico': null, 'proficiente': null, 'avancado': null
     };
-    porEscola[escola] = dados;
-    Object.keys(distribuicaoGeral).forEach(nivel => {
-      distribuicaoGeral[nivel] += dados[nivel];
-    });
   });
-
-  return { avaliacao, ano, distribuicaoGeral, porEscola, total: Object.values(distribuicaoGeral).reduce((a, b) => a + b, 0) };
+  return {
+    avaliacao, ano, porEscola, semFonte: true,
+    distribuicaoGeral: { 'nao-proficiente': null, 'basico': null, 'proficiente': null, 'avancado': null }
+  };
 }
+
+const semNumero = v => (v === null || v === undefined ? '—' : v);
 
 function atualizarKPIs(dados) {
   const kpiRow = document.getElementById('kpiRow');
   kpiRow.style.display = 'grid';
-  document.getElementById('kpiNaoProficiente').textContent = dados.distribuicaoGeral['nao-proficiente'];
-  document.getElementById('kpiBasico').textContent = dados.distribuicaoGeral['basico'];
-  document.getElementById('kpiProficiente').textContent = dados.distribuicaoGeral['proficiente'];
-  document.getElementById('kpiAvancado').textContent = dados.distribuicaoGeral['avancado'];
+  document.getElementById('kpiNaoProficiente').textContent = semNumero(dados.distribuicaoGeral['nao-proficiente']);
+  document.getElementById('kpiBasico').textContent = semNumero(dados.distribuicaoGeral['basico']);
+  document.getElementById('kpiProficiente').textContent = semNumero(dados.distribuicaoGeral['proficiente']);
+  document.getElementById('kpiAvancado').textContent = semNumero(dados.distribuicaoGeral['avancado']);
 }
 
 function atualizarGraficos(dados) {
+  // Sem fonte ligada não há o que desenhar: gráfico de zeros parece medição.
+  if (dados.semFonte) {
+    if (chartDistribuicao) { chartDistribuicao.destroy(); chartDistribuicao = null; }
+    if (chartMedia) { chartMedia.destroy(); chartMedia = null; }
+    document.querySelectorAll('.charts-section').forEach(s => s.style.display = 'none');
+    return;
+  }
+  document.querySelectorAll('.charts-section').forEach(s => s.style.display = '');
   // Usar requestAnimationFrame para melhor performance
   requestAnimationFrame(() => {
     const ctxDistribuicao = document.getElementById('chartDistribuicao').getContext('2d');
@@ -552,47 +563,44 @@ function atualizarTabela(dados) {
   let html = '<table><thead><tr><th>Escola</th><th style="text-align: center;">Não Proficiente</th><th style="text-align: center;">Básico</th><th style="text-align: center;">Proficiente</th><th style="text-align: center;">Avançado</th><th style="text-align: center;">Total</th></tr></thead><tbody>';
 
   Object.entries(dados.porEscola).forEach(([escola, d]) => {
-    const total = Object.values(d).filter((_, i) => i > 0).reduce((a, b) => a + b, 0);
+    const valores = Object.keys(NIVEIS).map(n => d[n]);
+    const temNumero = valores.some(v => v !== null && v !== undefined);
+    const total = temNumero ? valores.reduce((a, b) => a + (b || 0), 0) : null;
     html += `<tr><td><strong>${escola}</strong></td>`;
     Object.keys(NIVEIS).forEach(nivel => {
-      html += `<td style="text-align: center;"><span class="nivel-badge ${NIVEIS[nivel].classe}">${d[nivel]}</span></td>`;
+      const v = d[nivel];
+      html += (v === null || v === undefined)
+        ? '<td style="text-align: center;" class="text-muted">—</td>'
+        : `<td style="text-align: center;"><span class="nivel-badge ${NIVEIS[nivel].classe}">${v}</span></td>`;
     });
-    html += `<td style="text-align: center;"><strong>${total}</strong></td></tr>`;
+    html += `<td style="text-align: center;"><strong>${semNumero(total)}</strong></td></tr>`;
   });
 
   html += '</tbody></table>';
   container.innerHTML = html;
 }
 
+let UNIDADES = null;
+
 async function carregarDados() {
   const avaliacao = document.getElementById('avaliacaoSelect').value;
   const ano = document.getElementById('anoSelect').value;
   if (!avaliacao) return;
 
-  // Verificar cache
-  let dados = obterDoCache(avaliacao, ano);
-  if (!dados) {
-    dados = gerarDadosExemplo(avaliacao, ano);
-    salvarNoCache(avaliacao, ano, dados);
+  const container = document.getElementById('tableContainer');
+  try {
+    if (!UNIDADES) UNIDADES = await carregarUnidades();
+  } catch (e) {
+    console.error('Falha ao carregar o catálogo de unidades:', e);
+    container.innerHTML = '<div class="loading">Não foi possível carregar a lista de unidades. '
+      + 'Recarregue a página; se persistir, verifique a sessão.</div>';
+    return;
   }
 
+  const dados = pacoteSemFonte(avaliacao, ano, UNIDADES);
   atualizarKPIs(dados);
   atualizarGraficos(dados);
   atualizarTabela(dados);
-}
-
-// Pré-carregar dados em background para avaliações padrão
-function precarregarDados() {
-  AVALIACOES.forEach(av => {
-    ['TODOS', '1º ANO', '2º ANO'].forEach(ano => {
-      setTimeout(() => {
-        if (!obterDoCache(av.value, ano)) {
-          const dados = gerarDadosExemplo(av.value, ano);
-          salvarNoCache(av.value, ano, dados);
-        }
-      }, 100);
-    });
-  });
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -601,7 +609,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   avaliacaoSelect.innerHTML = AVALIACOES.map(a => `<option value="${a.value}">${a.label}</option>`).join('');
 
   carregarDados();
-  precarregarDados();
 });
 </script>
 
