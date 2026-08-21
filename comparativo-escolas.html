@@ -149,26 +149,13 @@
       flex-wrap: wrap;
     }
 
-    .btn-year {
-      background: var(--bg-light);
-      border: 1px solid var(--border-color);
-      color: var(--text-1);
+    .ano-fixo {
+      background: var(--secondary);
+      color: #fff;
       padding: 0.5rem 1rem;
       border-radius: 20px;
-      cursor: pointer;
       font-size: 0.85rem;
-      font-weight: 600;
-      transition: all 0.2s ease;
-    }
-
-    .btn-year:hover {
-      background: var(--border-color);
-    }
-
-    .btn-year.active {
-      background: var(--secondary);
-      color: white;
-      border-color: var(--secondary);
+      font-weight: 700;
     }
 
     .level-selector {
@@ -380,7 +367,7 @@
 
 <div class="ctx-bar">
   <div class="ctx-tit"><i class="bi bi-building"></i>Comparativo de Escolas</div>
-  <span class="ctx-chip">Percentual de leitores · EMEF · seis avaliações</span>
+  <span class="ctx-chip">Percentual de leitores · 2º ano · EMEF</span>
 </div>
 
 <main class="main-content">
@@ -401,8 +388,8 @@
       do banco, os bimestres da ficha do CODERP. O percentual é sobre os alunos
       <strong>avaliados</strong> no recorte. Célula com <strong>—</strong> é
       recorte sem apuração, nunca zero.
-      <br>A lista traz apenas as <strong>EMEF</strong>: a comparação é de 1º a
-      5º ano, e EMEI e CEI não têm esses anos.
+      <br>O recorte é o <strong>2º ano das EMEF</strong> — os demais anos e as
+      unidades de educação infantil ficam fora desta tela.
     </div>
   </div>
 
@@ -410,14 +397,9 @@
   <div class="filters-section">
     <div class="year-filter">
       <label>📚 Ano Escolar</label>
-      <div class="year-buttons">
-        <button class="btn-year active" data-year="TODOS">Todos</button>
-        <button class="btn-year" data-year="1º ANO">1º Ano</button>
-        <button class="btn-year" data-year="2º ANO">2º Ano</button>
-        <button class="btn-year" data-year="3º ANO">3º Ano</button>
-        <button class="btn-year" data-year="4º ANO">4º Ano</button>
-        <button class="btn-year" data-year="5º ANO">5º Ano</button>
-      </div>
+      <!-- A tela é do 2º ano. Os botões dos outros anos saíram em vez de
+           ficarem desabilitados: botão que não faz nada é convite a clicar. -->
+      <span class="ano-fixo">2º Ano</span>
     </div>
 
     <div>
@@ -552,10 +534,12 @@ function alvoAtivo() {
   const b = document.querySelector('.btn-level.active');
   return b ? b.dataset.nivel : 'leitores';
 }
-function anoAtivo() {
-  const b = document.querySelector('.btn-year.active');
-  return b ? b.dataset.year : 'TODOS';
-}
+/* ⚠️ A tela mostra SÓ o 2º ano — decisão da SME. O ano continua sendo um
+   parâmetro do cálculo (`MapaLeitura.percentual` aceita qualquer um, e
+   'TODOS'), então voltar a abrir os outros anos é trocar esta constante e
+   devolver os botões. */
+const ANO_FIXO = '2º ANO';
+function anoAtivo() { return ANO_FIXO; }
 
 document.addEventListener('DOMContentLoaded', async () => {
   await aguardarAuth();
@@ -575,14 +559,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     levelSelector.appendChild(btn);
   });
 
-  document.querySelectorAll('.btn-year').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.btn-year').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      atualizarTabela(btn.dataset.year, alvoAtivo());
-    });
-  });
-
   const chk = document.getElementById('chkSoComDado');
   if (chk) chk.addEventListener('change', () => {
     SO_COM_DADO = chk.checked;
@@ -599,7 +575,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       + 'Recarregue a página; se persistir, verifique a sessão.</div>';
     return;
   }
-  atualizarTabela('TODOS', 'leitores');
+  atualizarTabela(ANO_FIXO, 'leitores');
 });
 </script>
 
