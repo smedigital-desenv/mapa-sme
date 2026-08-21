@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Análise de Desempenho por Nível — MAPA SME</title>
 
-  <link href="/central/config.js" rel="modulepreload">
+  <script src="auth-guard.js"></script>
+  <script>window.MAPA_SISTEMA = 'mapa';</script>
+  <script src="auth.js" defer></script>
+
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
@@ -421,9 +424,6 @@
   </div>
 </main>
 
-<script src="/central/config.js"></script>
-<script src="/central/acesso-sme.js"></script>
-
 <script>
 const NIVEIS = {
   'nao-proficiente': { label: 'Não Proficiente', cor: '#ef4444', classe: 'nivel-nao-proficiente' },
@@ -596,7 +596,7 @@ function precarregarDados() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await AcessoSME.pronto;
+  await window.MapaAuth.pronto;
   const avaliacaoSelect = document.getElementById('avaliacaoSelect');
   avaliacaoSelect.innerHTML = AVALIACOES.map(a => `<option value="${a.value}">${a.label}</option>`).join('');
 
