@@ -373,11 +373,13 @@
   <div class="aviso-sem-fonte">
     <i class="bi bi-exclamation-triangle-fill"></i>
     <div>
-      <strong>Tela em construção — sem fonte de dados ligada.</strong>
-      A lista de unidades abaixo é real (vem do catálogo, com o mesmo recorte de
-      acesso das demais telas), mas os percentuais aparecem como <strong>—</strong>
-      porque a apuração ainda não foi conectada. Nenhum número desta tela deve
-      ser usado para leitura da rede.
+      <strong>Fluência Leitora e Diagnóstica já vêm do banco.</strong>
+      As colunas de <strong>1º a 4º bimestre</strong> ainda aparecem como
+      <strong>—</strong>: o dado existe na ficha do CODERP, mas o caminho até
+      ele é a mesma rota de rede da tela de Avaliações, que ainda não foi
+      compartilhada com esta tela. As três colunas medem o mesmo nível de
+      leitura, na escala de seis pontos (N1 a N4 Pré-leitor, Iniciante,
+      Fluente). O percentual é sobre os alunos avaliados no recorte.
     </div>
   </div>
 
@@ -419,25 +421,62 @@
 </main>
 
 <script>
-const NIVEIS = ['N1', 'N2', 'N3', 'N4', 'N5'];
-const AVALIACOES = [
-  { key: 'fluencia', label: 'Fluência Leitura' },
-  { key: 'diagnostica', label: 'Diagnóstica' },
-  { key: '1-bim', label: '1º Bim' },
-  { key: '2-bim', label: '2º Bim' },
-  { key: '3-bim', label: '3º Bim' },
-  { key: '4-bim', label: '4º Bim' }
+/* ─────────────────────────────────────────────────────────────────────────
+   FONTES DE DADO DESTA TELA
+
+   As três colunas medem a MESMA grandeza — o nível de leitura do aluno, na
+   escala de 6 pontos (N1 a N4 Pré-leitor, L. Iniciante, L. Fluente) — mas
+   vêm de lugares diferentes:
+
+   • Fluência Leitora → Supabase, view `v_fluencia_por_turma` (uma linha por
+     turma, já com a contagem por nível). É a mesma view que a tela Fluência
+     lê, de propósito: duas contas do mesmo número divergem na primeira
+     correção feita em uma só.
+   • Diagnóstica → Supabase, RPC `alunos_diagnostica` (uma linha por aluno,
+     com o eixo LEITURA em `l_valor`). Mesma RPC da aba Diagnóstica.
+   • 1º a 4º bimestre → API do CODERP, pela Edge Function `coderp-ficha`.
+     ⚠️ AINDA NÃO LIGADO — ver o comentário em `percentuaisBimestre()`.
+
+   ⚠️ A escala é de SEIS níveis, não cinco. Ela é a de `labelRespostaPainel`
+   em `avaliacao.html` (LEITURA: 1..6) e a de `v_fluencia_por_turma`
+   (pre_n1..pre_n4, iniciantes, fluentes). Não invente um 'N5': o que vem
+   depois do N4 Pré-leitor é o Leitor Iniciante, e depois dele o Fluente.
+   ───────────────────────────────────────────────────────────────────────── */
+const NIVEIS = [
+  { key: 'pre_n1',     label: 'N1 Pré-leitor', vl: '1' },
+  { key: 'pre_n2',     label: 'N2 Pré-leitor', vl: '2' },
+  { key: 'pre_n3',     label: 'N3 Pré-leitor', vl: '3' },
+  { key: 'pre_n4',     label: 'N4 Pré-leitor', vl: '4' },
+  { key: 'iniciantes', label: 'L. Iniciante',  vl: '5' },
+  { key: 'fluentes',   label: 'L. Fluente',    vl: '6' },
 ];
 
-/* O cache em localStorage foi retirado junto com os dados de exemplo: guardar
-   número por 'ser imutável' só faz sentido depois que ele vier de uma fonte. */
-let UNIDADES = null;
+const AVALIACOES = [
+  { key: 'fluencia',    label: 'Fluência Leitora' },
+  { key: 'diagnostica', label: 'Diagnóstica' },
+  { key: '1-bim',       label: '1º Bim' },
+  { key: '2-bim',       label: '2º Bim' },
+  { key: '3-bim',       label: '3º Bim' },
+  { key: '4-bim',       label: '4º Bim' },
+];
 
-/* ⚠️ Esta tela ainda NÃO tem fonte de dado ligada.
-   Ela lista as unidades REAIS do catálogo `escolas` (recorte por RLS, igual às
-   demais telas) e deixa os percentuais em '—'. Não invente número aqui: um
-   percentual plausível e falso não se distingue de um medido, e esta tela
-   compara unidades da rede entre si. */
+/* Normaliza nome de unidade e ano escolar do mesmo jeito nas duas fontes —
+   sem isto 'EMEF X' e 'EMEF  X' viram duas linhas na tabela. */
+function norm(s) {
+  return String(s || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/\s+/g, ' ').trim();
+}
+
+/* '2º ANO', '2 ANO', '2' → '2'. Devolve '' quando não há dígito. */
+function digitoAno(s) {
+  const m = String(s || '').match(/(\d)/);
+  return m ? m[1] : '';
+}
+
+let UNIDADES = null;   // nomes oficiais do catálogo, na grafia de exibição
+let DADOS = null;      // { chaveUnidade: { fluencia: {ano: {nivel: n, _tot: n}}, ... } }
+
 async function carregarUnidades() {
   const supa = window.MAPA_SB;
   if (!supa) throw new Error('Sessão do MAPA indisponível');
@@ -447,97 +486,190 @@ async function carregarUnidades() {
   return (data || []).map(e => e.nome);
 }
 
+/* O PostgREST corta em 1.000 linhas e não avisa. Toda consulta vai paginada e
+   COM order() — sem ordem estável as páginas repetem linhas e perdem outras. */
+async function buscarTudo(tabela, colunas, ordem) {
+  const supa = window.MAPA_SB;
+  const PAG = 1000;
+  let de = 0, saida = [];
+  for (;;) {
+    let q = supa.from(tabela).select(colunas);
+    ordem.forEach(c => { q = q.order(c); });
+    const { data, error } = await q.range(de, de + PAG - 1);
+    if (error) throw error;
+    saida = saida.concat(data || []);
+    if (!data || data.length < PAG) return saida;
+    de += PAG;
+  }
+}
+
+/* Acumula um aluno num balde unidade × ano × nível. */
+function somar(mapa, unidade, ano, nivelKey, qtd) {
+  if (!qtd) return;
+  const u = norm(unidade);
+  const a = digitoAno(ano);
+  if (!u || !a) return;
+  mapa[u] = mapa[u] || {};
+  mapa[u][a] = mapa[u][a] || { _tot: 0 };
+  mapa[u][a][nivelKey] = (mapa[u][a][nivelKey] || 0) + qtd;
+  mapa[u][a]._tot += qtd;
+}
+
+/* ── Fluência Leitora ─────────────────────────────────────────────────────
+   A view já vem contada por turma; só somamos as turmas da unidade.
+   `ausentes` fica FORA do denominador de propósito: o percentual é sobre
+   quem foi avaliado, senão a unidade que faltou mais parece pior no nível. */
+async function carregarFluencia() {
+  const linhas = await buscarTudo(
+    'v_fluencia_por_turma',
+    'escola,ano_escolar,avaliados,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1',
+    ['escola', 'ano_escolar']
+  );
+  const mapa = {};
+  linhas.forEach(l => {
+    NIVEIS.forEach(n => somar(mapa, l.escola, l.ano_escolar, n.key, Number(l[n.key]) || 0));
+  });
+  return mapa;
+}
+
+/* ── Diagnóstica ──────────────────────────────────────────────────────────
+   A RPC devolve uma linha por aluno; o eixo LEITURA é `l_valor` (posição 7
+   na forma de array). 'Não Avaliado' não entra: mesmo critério da Fluência. */
+async function carregarDiagnostica() {
+  const supa = window.MAPA_SB;
+  const { data, error } = await supa.rpc('alunos_diagnostica');
+  if (error) throw error;
+
+  const porVl = {};
+  NIVEIS.forEach(n => { porVl[n.vl] = n.key; });
+
+  const mapa = {};
+  (data || []).forEach(r => {
+    const arr = Array.isArray(r);
+    const unidade = arr ? r[0] : r.nome_unidade;
+    const ano     = arr ? r[1] : r.ano_escolar;
+    const lValor  = arr ? r[7] : r.l_valor;
+    const chave = porVl[String(lValor || '').trim()];
+    if (chave) somar(mapa, unidade, ano, chave, 1);
+  });
+  return mapa;
+}
+
+/* ── 1º a 4º bimestre ─────────────────────────────────────────────────────
+   ⚠️ AINDA NÃO LIGADO. O dado existe: a ficha do CODERP traz o eixo LEITURA
+   na mesma escala de 6 pontos (ver `labelRespostaPainel` em avaliacao.html).
+   O que falta não é a fonte, é o caminho até ela — a rota de rede por
+   bimestre é a máquina inteira da tela de Avaliações (Edge Function
+   `coderp-ficha`, uma consulta por ano escolar, conferência da soma por
+   unidade, cache). Reescrever isso aqui criaria uma segunda contagem que
+   diverge da primeira na primeira correção feita em uma só.
+   O caminho certo é extrair aquela rota para um módulo compartilhado, como
+   foi feito com `visao-rede.js`, e chamá-la das duas telas. */
+function percentuaisBimestre() {
+  return null;
+}
 function getCorPorcentual(valor) {
   if (valor >= 60) return 'alto';
   if (valor >= 40) return 'medio';
   return 'baixo';
 }
 
-function atualizarTabela(ano, nivel) {
+/* Percentual do nível escolhido dentro da unidade × ano.
+   Denominador = alunos COM nível de leitura apurado naquela avaliação; quem
+   não foi avaliado fica fora dos dois lados. Sem dado apurado devolve null,
+   que a tabela mostra como '—' — nunca 0%, que se leria como "ninguém está
+   nesse nível" quando a verdade é "não foi medido". */
+function percentual(mapaFonte, unidade, ano, nivelKey) {
+  const u = (mapaFonte || {})[norm(unidade)];
+  if (!u) return null;
+
+  const anos = ano === 'TODOS' ? Object.keys(u) : [digitoAno(ano)];
+  let noNivel = 0, total = 0;
+  anos.forEach(a => {
+    const balde = u[a];
+    if (!balde) return;
+    noNivel += balde[nivelKey] || 0;
+    total   += balde._tot || 0;
+  });
+  if (!total) return null;
+  return Math.round((noNivel / total) * 100);
+}
+
+function atualizarTabela(ano, nivelKey) {
   const container = document.getElementById('tableContainer');
   if (!UNIDADES) { container.innerHTML = '<div class="loading">Carregando unidades...</div>'; return; }
-  const dados = UNIDADES.map(escola => ({ escola }));
 
-  let html = `
-    <table>
-      <thead>
-        <tr>
-          <th>Escola / Turma</th>
-  `;
+  let html = '<table><thead><tr><th>Escola</th>';
+  AVALIACOES.forEach(av => { html += `<th style="text-align: center;">${av.label}</th>`; });
+  html += '</tr></thead><tbody>';
 
-  AVALIACOES.forEach(av => {
-    html += `<th style="text-align: center;">${av.label}</th>`;
-  });
-
-  html += `
-        </tr>
-      </thead>
-      <tbody>
-  `;
-
-  dados.forEach(linha => {
-    html += `<tr><td class="escola-nome">${linha.escola}</td>`;
-
+  UNIDADES.forEach(escola => {
+    html += `<tr><td class="escola-nome">${escola}</td>`;
     AVALIACOES.forEach(av => {
-      const valor = linha[av.key];
-      if (valor === null || valor === undefined) {
-        html += '<td class="text-muted" style="text-align: center;">—</td>';
-        return;
-      }
-      html += `<td class="percentual ${getCorPorcentual(valor)}" style="text-align: center;">${valor}%</td>`;
+      const valor = av.key === 'fluencia'    ? percentual(DADOS.fluencia, escola, ano, nivelKey)
+                  : av.key === 'diagnostica' ? percentual(DADOS.diagnostica, escola, ano, nivelKey)
+                  : percentuaisBimestre();
+      html += (valor === null || valor === undefined)
+        ? '<td class="text-muted" style="text-align: center;" title="sem dado apurado para este recorte">—</td>'
+        : `<td class="percentual ${getCorPorcentual(valor)}" style="text-align: center;">${valor}%</td>`;
     });
-
-    html += `</tr>`;
+    html += '</tr>';
   });
 
-  html += `
-      </tbody>
-    </table>
-  `;
-
+  html += '</tbody></table>';
   container.innerHTML = html;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
   await window.MapaAuth.pronto;
 
-  // Gerar botões de nível
+  const container = document.getElementById('tableContainer');
+
+  // Botões de nível — o rótulo vem da escala real (6 níveis de leitura)
   const levelSelector = document.getElementById('levelSelector');
-  NIVEIS.forEach(nivel => {
+  NIVEIS.forEach((nivel, i) => {
     const btn = document.createElement('button');
-    btn.className = `btn-level ${nivel === 'N1' ? 'active' : ''}`;
-    btn.textContent = nivel;
-    btn.dataset.nivel = nivel;
+    btn.className = 'btn-level' + (i === 0 ? ' active' : '');
+    btn.textContent = nivel.label;
+    btn.dataset.nivel = nivel.key;
     btn.addEventListener('click', () => {
       document.querySelectorAll('.btn-level').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      const anoAtivo = document.querySelector('.btn-year.active').dataset.year;
-      atualizarTabela(anoAtivo, nivel);
+      atualizarTabela(document.querySelector('.btn-year.active').dataset.year, nivel.key);
     });
     levelSelector.appendChild(btn);
   });
 
-  // Event listeners para anos
   document.querySelectorAll('.btn-year').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.btn-year').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      const nivelAtivo = document.querySelector('.btn-level.active').dataset.nivel;
-      atualizarTabela(btn.dataset.year, nivelAtivo);
+      atualizarTabela(btn.dataset.year, document.querySelector('.btn-level.active').dataset.nivel);
     });
   });
 
-  // Carregar dados iniciais
+  // As três consultas são independentes: uma falhar não pode zerar as outras.
+  // Fonte que falha fica sem mapa, e a coluna dela sai '—' — mas o console diz
+  // qual falhou, senão '—' vira "não tem dado" quando é "não consegui ler".
   try {
     UNIDADES = await carregarUnidades();
   } catch (e) {
-    console.error('Falha ao carregar o catálogo de unidades:', e);
-    document.getElementById('tableContainer').innerHTML =
-      '<div class="loading">Não foi possível carregar a lista de unidades. '
+    console.error('[comparativo] catálogo de unidades falhou:', e);
+    container.innerHTML = '<div class="loading">Não foi possível carregar a lista de unidades. '
       + 'Recarregue a página; se persistir, verifique a sessão.</div>';
     return;
   }
-  atualizarTabela('TODOS', 'N1');
+
+  const [flu, diag] = await Promise.allSettled([carregarFluencia(), carregarDiagnostica()]);
+  if (flu.status === 'rejected')  console.error('[comparativo] Fluência falhou:', flu.reason);
+  if (diag.status === 'rejected') console.error('[comparativo] Diagnóstica falhou:', diag.reason);
+
+  DADOS = {
+    fluencia:    flu.status  === 'fulfilled' ? flu.value  : null,
+    diagnostica: diag.status === 'fulfilled' ? diag.value : null,
+  };
+
+  atualizarTabela('TODOS', NIVEIS[0].key);
 });
 </script>
 
