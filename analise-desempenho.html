@@ -184,6 +184,8 @@
       margin: 0.5rem 0;
     }
 
+    .text-muted { color: var(--text-3); }
+
     .kpi-pct { font-size:.78rem; color:var(--text-3); font-weight:700; }
 
     .kpi-label {
@@ -548,16 +550,25 @@ function montar() {
   const geral = { _tot: 0 };
   FAIXAS.forEach(f => { geral[f.key] = 0; });
 
+  /* ⚠️ Esta tela lista TODAS as unidades, inclusive as sem apuração no
+     recorte — decisão da SME. Quem não tem apuração entra com as faixas em
+     '—' (nunca 0) e NÃO entra nos totais nem nos gráficos: somar zero
+     rebaixaria a média da rede por ausência, não por aprendizagem.
+     (O Comparativo de Escolas faz o oposto e esconde essas linhas; lá o
+     recorte é só o 2º ano das EMEF.) */
+  let comApuracao = 0;
   (DADOS ? DADOS.unidades : []).forEach(u => {
     const f = faixasDaUnidade(fonte, u, ano);
+    linhas.push({ escola: u, f: f });
     if (!f) return;
-    linhas.push({ escola: u, f });
+    comApuracao++;
     FAIXAS.forEach(x => { geral[x.key] += f[x.key]; });
     geral._tot += f._tot;
   });
+  geral._unidades = comApuracao;
 
   atualizarKPIs(geral);
-  atualizarGraficos(geral, linhas.length);
+  atualizarGraficos(geral, geral._unidades);
   atualizarTabela(linhas, ano);
 }
 
@@ -608,8 +619,7 @@ function atualizarGraficos(geral, qtdUnidades) {
 function atualizarTabela(linhas, ano) {
   const c = document.getElementById('tableContainer');
   if (!linhas.length) {
-    c.innerHTML = '<div class="loading">Nenhuma unidade tem apuração neste recorte. '
-      + 'A rede tem EMEI e CEI, que não têm 1º a 5º ano.</div>';
+    c.innerHTML = '<div class="loading">Nenhuma unidade foi devolvida pelo catálogo.</div>';
     return;
   }
   let html = '<table><thead><tr><th>Escola</th>';
@@ -618,6 +628,13 @@ function atualizarTabela(linhas, ano) {
 
   linhas.forEach(l => {
     html += `<tr><td><strong>${esc(l.escola)}</strong></td>`;
+    if (!l.f) {
+      FAIXAS.forEach(() => {
+        html += '<td style="text-align:center;" class="text-muted" title="sem apuração neste recorte">—</td>';
+      });
+      html += '<td style="text-align:center;" class="text-muted">—</td></tr>';
+      return;
+    }
     FAIXAS.forEach(f => {
       html += `<td style="text-align:center;"><span class="nivel-badge ${f.classe}">${fmt(l.f[f.key])}</span></td>`;
     });
@@ -625,7 +642,9 @@ function atualizarTabela(linhas, ano) {
   });
   html += '</tbody></table>';
 
-  const nota = [`${linhas.length} unidade(s) com apuração neste recorte.`];
+  const comAp = linhas.filter(l => l.f).length;
+  const nota = [`${linhas.length} unidade(s) listadas; ${comAp} com apuração neste recorte. `
+    + `As demais aparecem com — e ficam fora dos totais e dos gráficos.`];
   if (DADOS.falhas.length) {
     nota.push(`Fonte(s) que não responderam: ${esc(DADOS.falhas.join(', '))}.`);
   }
