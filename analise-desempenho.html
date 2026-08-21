@@ -14,6 +14,39 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
 
   <style>
+    /* Cabeçalho padrão da rede — copiado das demais telas.
+       ⚠️ Não há include: item novo no menu precisa entrar em cada .html. */
+    .mg-header{background:var(--primary);color:#fff;border-bottom:5px solid var(--neon-blue);
+      padding:.95rem 1.6rem;display:flex;align-items:center;justify-content:space-between;
+      gap:1rem;flex-wrap:wrap;position:sticky;top:0;z-index:1050;box-shadow:0 6px 18px rgba(0,43,94,.18);}
+    .mg-brand{display:flex;align-items:center;gap:.6rem;min-width:180px;}
+    .mg-brand-icon{width:34px;height:34px;display:grid;place-items:center;color:var(--neon-blue);
+      font-size:1.4rem;filter:drop-shadow(0 0 6px rgba(0,229,255,.55));}
+    .mg-brand h4{margin:0;font-weight:900;letter-spacing:.03em;font-size:1.4rem;line-height:1;}
+    .mg-brand-sub{font-size:.63rem;color:rgba(255,255,255,.68);font-weight:800;
+      letter-spacing:.08em;text-transform:uppercase;margin-top:2px;}
+    .mg-nav{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;flex:1;min-width:280px;}
+    .mg-nav-btn{display:inline-flex;align-items:center;gap:.4rem;justify-content:center;min-width:130px;
+      font-size:.78rem;font-weight:900;padding:6px 14px;border-radius:8px;border:2px solid transparent;
+      color:#fff;text-decoration:none;transition:.2s;white-space:nowrap;}
+    .mg-nav-btn:hover{border-color:rgba(255,255,255,.4);}
+    .mg-nav-btn.active{background:#fff;color:var(--primary);box-shadow:0 2px 10px rgba(0,0,0,.18);}
+    .mg-actions{min-width:86px;display:flex;justify-content:flex-end;align-items:center;}
+    .mg-action-btn{display:inline-flex;align-items:center;gap:.35rem;font-size:.76rem;font-weight:800;
+      padding:5px 12px;border-radius:8px;border:1.5px solid rgba(255,255,255,.45);
+      background:transparent;color:#fff;cursor:pointer;transition:.2s;}
+    .mg-action-btn:hover{background:rgba(255,255,255,.12);border-color:#fff;}
+    @media (max-width:992px){.mg-nav-btn{min-width:auto;}}
+
+    /* Faixa de contexto sob o cabeçalho, no padrão da tela de Boletim
+       Estatístico: fica colada logo abaixo do menu e diz onde a pessoa está. */
+    .ctx-bar{background:#013a7a;padding:.55rem 1.4rem;display:flex;gap:12px;
+      align-items:center;flex-wrap:wrap;position:sticky;top:64px;z-index:900;}
+    .ctx-bar .ctx-tit{color:#fff;font-weight:900;font-size:.95rem;display:flex;
+      align-items:center;gap:.5rem;}
+    .ctx-chip{background:rgba(255,255,255,.16);color:#fff;border-radius:99px;
+      padding:.15rem .7rem;font-size:.72rem;font-weight:800;letter-spacing:.03em;}
+
     :root {
       --primary: #002b5e;
       --secondary: #0062ff;
@@ -46,52 +79,6 @@
       background-color: var(--bg-light);
       color: var(--text-1);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-
-    .nav-header {
-      background: linear-gradient(135deg, var(--primary) 0%, #003d7a 100%);
-      color: white;
-      padding: 1rem 2rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 2rem;
-    }
-
-    .brand-title {
-      font-size: 1.3rem;
-      font-weight: 900;
-      display: flex;
-      align-items: center;
-      gap: 0.8rem;
-    }
-
-    .nav-back {
-      display: flex;
-      gap: 1rem;
-      align-items: center;
-    }
-
-    .btn-back {
-      background: rgba(255, 255, 255, 0.2);
-      color: white;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      padding: 0.6rem 1.2rem;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.9rem;
-      font-weight: 600;
-      transition: all 0.3s ease;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      text-decoration: none;
-    }
-
-    .btn-back:hover {
-      background: rgba(255, 255, 255, 0.3);
-      border-color: rgba(255, 255, 255, 0.5);
-      color: white;
     }
 
     .main-content {
@@ -331,11 +318,6 @@
         grid-template-columns: 1fr;
       }
 
-      .nav-header {
-        flex-direction: column;
-        gap: 1rem;
-      }
-
       .main-content {
         padding: 1rem;
       }
@@ -344,18 +326,48 @@
 </head>
 <body>
 
-<header class="nav-header">
-  <div class="brand-title">
-    <i class="bi bi-graph-up-arrow"></i>
-    <span>Análise de Desempenho</span>
+<header class="mg-header">
+  <div class="mg-brand" style="cursor:pointer;" onclick="location.href='index.html'" title="Página inicial do MAPA">
+    <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div>
+    <div><h4>MAPA</h4><div class="mg-brand-sub">SME Ribeirão Preto</div></div>
   </div>
-  <div class="nav-back">
-    <a href="avaliacao.html" class="btn-back">
-      <i class="bi bi-arrow-left"></i>
-      Voltar para Avaliações
-    </a>
+  <nav class="mg-nav">
+    <a class="mg-nav-btn" href="index.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
+    <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
+      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item" href="avaliacao-diagnostica.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+        <a class="mg-dd-item" href="av-oral-matematica.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+        <a class="mg-dd-item" href="saresp.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+        <a class="mg-dd-item" href="ideb.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+        <a class="mg-dd-item" href="iee.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
+        <a class="mg-dd-item" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+        <a class="mg-dd-item" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <div class="mg-dd" data-tela-any="frequencia,boletim_estatistico">
+      <a class="mg-nav-btn mg-dd-toggle" href="frequencia.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+        <a class="mg-dd-item" href="boletim-estatistico.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+    <a class="mg-nav-btn" href="boletim.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+    <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none;min-width:auto;padding:6px 10px;" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
+  </nav>
+  <div class="mg-actions">
+    <button class="mg-action-btn" onclick="location.reload()" title="Atualizar"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button>
   </div>
 </header>
+
+<div class="ctx-bar">
+  <div class="ctx-tit"><i class="bi bi-bar-chart-fill"></i>Análise de Desempenho</div>
+  <span class="ctx-chip">Distribuição por faixa de proficiência</span>
+</div>
 
 <main class="main-content">
   <div class="page-header">
@@ -510,6 +522,22 @@ function esc(s) {
     c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+/* ⚠️ NÃO use `await window.MapaAuth.pronto` aqui. O `auth.js` cria um STUB de
+   `window.MapaAuth` logo no início, para que quem o leia cedo não quebre — e
+   esse stub NÃO tem `.pronto`. Como `await undefined` resolve na hora, a tela
+   seguia antes de a sessão abrir e `window.MAPA_SB` ainda não existia: a
+   consulta caía no catch e a tela dizia "não foi possível carregar a lista de
+   unidades" com a sessão perfeitamente válida.
+   O sinal correto é o evento `mapa-auth-pronto`, que é o padrão das demais
+   telas (atribuicao.html, analise-jornada.html). */
+function aguardarAuth() {
+  return new Promise(resolve => {
+    if (window.MapaAuth && window.MapaAuth.perfil) return resolve();
+    document.addEventListener('mapa-auth-pronto', () => resolve(), { once: true });
+    setTimeout(resolve, 8000);   // fallback: nunca trava a página
+  });
+}
+
 const semNumero = v => (v === null || v === undefined ? '—' : v);
 
 function atualizarKPIs(dados) {
@@ -612,7 +640,7 @@ async function carregarDados() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await window.MapaAuth.pronto;
+  await aguardarAuth();
   const avaliacaoSelect = document.getElementById('avaliacaoSelect');
   avaliacaoSelect.innerHTML = AVALIACOES.map(a => `<option value="${a.value}">${a.label}</option>`).join('');
 
