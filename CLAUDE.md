@@ -119,7 +119,11 @@ dos pré-leitores é proposta e aguarda confirmação da SME.
 com tudo `'—'` é ruído; as telas escondem quem não tem apuração no recorte,
 mas **dizem quantas** esconderam. Esconder sem contar transformaria "não casei
 o nome" em "não tem dado". O **Comparativo** vai além e lista só as **EMEF**
-(`carregar({tipos:['EMEF']})`); a Análise de Desempenho segue com todas.
+(`carregar({tipos:['EMEF']})`), e só o **2º ano** (`ANO_FIXO`); a Análise de
+Desempenho segue com todas as unidades e todos os anos. Os botões dos demais
+anos foram removidos em vez de desabilitados — botão que não faz nada é convite
+a clicar. O ano continua sendo parâmetro do cálculo, então reabrir é trocar a
+constante e devolver os botões.
 
 ⚠️ **O tipo da unidade sai do nome por TOKEN INTEIRO** (`tipoUnidade`), nunca
 por substring: `CONCEICAO` contém `CEI`, e a unidade viraria creche. A ordem
