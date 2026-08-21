@@ -444,7 +444,6 @@ const AVALIACOES = [
 let chartDistribuicao = null;
 let chartMedia = null;
 const cacheKey = 'analiseDesempenhoCache_v1';
-const cacheTTL = 5 * 60 * 1000; // 5 minutos
 
 function obterChaveCache(avaliacao, ano) {
   return `${cacheKey}_${avaliacao}_${ano}`;
@@ -452,19 +451,22 @@ function obterChaveCache(avaliacao, ano) {
 
 function obterDoCache(avaliacao, ano) {
   const chave = obterChaveCache(avaliacao, ano);
-  const cached = sessionStorage.getItem(chave);
-  if (!cached) return null;
-  const { dados, timestamp } = JSON.parse(cached);
-  if (Date.now() - timestamp > cacheTTL) {
-    sessionStorage.removeItem(chave);
+  try {
+    const cached = localStorage.getItem(chave);
+    return cached ? JSON.parse(cached) : null;
+  } catch (e) {
+    console.warn('Erro ao ler cache:', e);
     return null;
   }
-  return dados;
 }
 
 function salvarNoCache(avaliacao, ano, dados) {
   const chave = obterChaveCache(avaliacao, ano);
-  sessionStorage.setItem(chave, JSON.stringify({ dados, timestamp: Date.now() }));
+  try {
+    localStorage.setItem(chave, JSON.stringify(dados));
+  } catch (e) {
+    console.warn('Erro ao salvar cache:', e);
+  }
 }
 
 function gerarDadosExemplo(avaliacao, ano) {
