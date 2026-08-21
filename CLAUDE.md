@@ -1028,11 +1028,57 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
   fontes (view de fluência, RPC da diagnóstica, ficha do CODERP) numa grandeza
   só, e é onde vivem o casamento de grafia, o agrupamento "leitores" e o
   recorte por tipo de unidade.
+- `unidades.js` expõe `window.MapaUnidades`, o **resolvedor do nome da
+  unidade** pelo catálogo `escolas_catalogo`. Quarta exceção deliberada.
+
+  ⚠️ **REGRA: todo sistema novo integrado ao MAPA passa o nome da unidade por
+  `MapaUnidades.oficial()` antes de exibir ou agregar.** Não escreva uma
+  normalização própria — já houve SEIS, e elas discordavam entre si.
+
+  ⚠️ **Isto NÃO é segurança.** Quem recorta por unidade é o Postgres (RLS:
+  `escolas` + `escola_alias` + `mapa_norm`). O módulo resolve o NOME para
+  exibir e agregar. **A lista de QUEM aparece continua vindo de `escolas`**,
+  com o RLS de sempre — trocar por `escolas_catalogo` mostraria as 112
+  unidades a um perfil de escola.
+
+  ⚠️ `oficial()` **nunca descarta um nome**: o que o catálogo não reconhece
+  volta intacto. É o que garante que adotar o módulo numa tela só possa
+  canonizar grafia, nunca fazer unidade sumir — o defeito mais grave porque é
+  invisível. O que não casou fica em `naoResolvidos()`, e é candidato a
+  `escola_alias`.
+
+  A sonda **`MapaDiagUnidades('EMEF')`** responde, no console: quantas
+  unidades o catálogo tem por tipo, quais nomes chegaram sem casar, e — nas
+  telas que publicam `window.MapaTelaUnidades()` — **quais unidades do
+  catálogo não apareceram na tela**.
 - `auth.js` publica `window.MAPA_SUPABASE` quando a página não traz a sua, para
   que uma segunda tela não precise repetir a URL do projeto. Página que declara
   a própria (como a `avaliacao.html`) continua mandando.
 - `?demo=0` desliga o modo demonstração, que também intercepta `fetch` e
   atrapalha diagnóstico de autenticação.
+
+### As SEIS normalizações de nome de unidade — e a migração
+
+Levantado em 2026-08: o repositório respondia "que unidade é esta?" de seis
+formas diferentes, que discordavam entre si.
+
+| onde | como | situação |
+|---|---|---|
+| `unidades.js` | catálogo `escolas_catalogo`, tokens ordenados sem título | **o padrão** |
+| `leitura-rede.js` | delega ao `unidades.js` | migrado |
+| `avaliacao.html` | `tokensUnidade` — tokens ordenados | equivalente; migrar |
+| `atribuicao.html` | `cleanUnit` — só trim/colapso de espaço | **não casa nada**; migrar |
+| `retrato-atribuicao.html` | idem | **não casa nada**; migrar |
+| `fluencia.html` | `_normEscola` + `_ESCOLA_ALIAS` cravado no front | migrar; o apelido pertence a `escola_alias`, no banco |
+| `boletim.html` | `matchEscola` — casamento por SUBCONJUNTO de tokens | **o mais arriscado**; migrar |
+
+⚠️ O de `boletim.html` merece atenção: subconjunto de 2 tokens já casa, então
+duas unidades que compartilham dois tokens do núcleo podem virar a mesma. Não
+é um defeito hipotético de estilo — é casamento errado silencioso.
+
+⚠️ A migração é segura por construção (`oficial()` nunca descarta nome), mas
+**cada tela migrada precisa ser vista com dado real**: o sintoma de um erro
+aqui é unidade sumindo da tela, que ninguém percebe olhando o console.
 
 ### O cabeçalho é copiado em cada tela — e isso tem consequência
 
