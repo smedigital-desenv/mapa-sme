@@ -8,7 +8,7 @@
   <link href="/central/config.js" rel="modulepreload">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
 
   <style>
     :root {
@@ -102,19 +102,25 @@
     }
 
     .page-title {
-      font-size: 1.8rem;
+      font-size: 1.6rem;
       font-weight: 900;
       color: var(--secondary);
       margin: 0;
       display: flex;
       align-items: center;
       gap: 1rem;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      hyphens: auto;
     }
 
     .page-subtitle {
       color: var(--text-3);
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       margin-top: 0.5rem;
+      line-height: 1.5;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
 
     .filters-section {
@@ -419,7 +425,6 @@
 <script src="/central/acesso-sme.js"></script>
 
 <script>
-// Dados de exemplo - será substituído por dados reais da API
 const NIVEIS = {
   'nao-proficiente': { label: 'Não Proficiente', cor: '#ef4444', classe: 'nivel-nao-proficiente' },
   'basico': { label: 'Básico', cor: '#f59e0b', classe: 'nivel-basico' },
@@ -438,57 +443,44 @@ const AVALIACOES = [
 
 let chartDistribuicao = null;
 let chartMedia = null;
+const cacheKey = 'analiseDesempenhoCache_v1';
+const cacheTTL = 5 * 60 * 1000; // 5 minutos
 
-// Inicializar
-document.addEventListener('DOMContentLoaded', async () => {
-  await AcessoSME.pronto;
+function obterChaveCache(avaliacao, ano) {
+  return `${cacheKey}_${avaliacao}_${ano}`;
+}
 
-  // Preencher select de avaliações
-  const avaliacaoSelect = document.getElementById('avaliacaoSelect');
-  avaliacaoSelect.innerHTML = AVALIACOES
-    .map(a => `<option value="${a.value}">${a.label}</option>`)
-    .join('');
-
-  carregarDados();
-});
-
-async function carregarDados() {
-  const avaliacao = document.getElementById('avaliacaoSelect').value;
-  const ano = document.getElementById('anoSelect').value;
-
-  if (!avaliacao) return;
-
-  try {
-    // Simular dados - em produção, vir da API
-    const dados = gerarDadosExemplo(avaliacao, ano);
-
-    atualizarKPIs(dados);
-    atualizarGraficos(dados);
-    atualizarTabela(dados);
-  } catch (erro) {
-    console.error('Erro ao carregar dados:', erro);
+function obterDoCache(avaliacao, ano) {
+  const chave = obterChaveCache(avaliacao, ano);
+  const cached = sessionStorage.getItem(chave);
+  if (!cached) return null;
+  const { dados, timestamp } = JSON.parse(cached);
+  if (Date.now() - timestamp > cacheTTL) {
+    sessionStorage.removeItem(chave);
+    return null;
   }
+  return dados;
+}
+
+function salvarNoCache(avaliacao, ano, dados) {
+  const chave = obterChaveCache(avaliacao, ano);
+  sessionStorage.setItem(chave, JSON.stringify({ dados, timestamp: Date.now() }));
 }
 
 function gerarDadosExemplo(avaliacao, ano) {
-  // Gerar dados de exemplo para teste
   const escolas = [
-    'EMEF Afonso Pena',
-    'EMEF Cecília Meireles',
-    'EMEF Euclides da Cunha',
-    'EMEF Fagundes Varela',
-    'EMEF Getúlio Vargas',
-    'EMEF Hilário Franco'
+    'EMEF Afonso Pena', 'EMEF Cecília Meireles', 'EMEF Euclides da Cunha',
+    'EMEF Fagundes Varela', 'EMEF Getúlio Vargas', 'EMEF Hilário Franco'
   ];
 
   const distribuicaoGeral = {
-    'nao-proficiente': 0,
-    'basico': 0,
-    'proficiente': 0,
-    'avancado': 0
+    'nao-proficiente': 0, 'basico': 0, 'proficiente': 0, 'avancado': 0
   };
-
   const porEscola = {};
+
+  // Usar seed determinístico baseado na avaliação e ano para evitar mudanças constantes
+  const seed = (avaliacao + ano).split('').reduce((a, b) => a + b.charCodeAt(0), 0);
+  Math.seedrandom = function() { return (Math.sin(seed++) * 10000) % 1; };
 
   escolas.forEach(escola => {
     const dados = {
@@ -498,27 +490,18 @@ function gerarDadosExemplo(avaliacao, ano) {
       'proficiente': Math.floor(Math.random() * 60 + 30),
       'avancado': Math.floor(Math.random() * 40 + 10)
     };
-
     porEscola[escola] = dados;
-
     Object.keys(distribuicaoGeral).forEach(nivel => {
       distribuicaoGeral[nivel] += dados[nivel];
     });
   });
 
-  return {
-    avaliacao,
-    ano,
-    distribuicaoGeral,
-    porEscola,
-    total: Object.values(distribuicaoGeral).reduce((a, b) => a + b, 0)
-  };
+  return { avaliacao, ano, distribuicaoGeral, porEscola, total: Object.values(distribuicaoGeral).reduce((a, b) => a + b, 0) };
 }
 
 function atualizarKPIs(dados) {
   const kpiRow = document.getElementById('kpiRow');
   kpiRow.style.display = 'grid';
-
   document.getElementById('kpiNaoProficiente').textContent = dados.distribuicaoGeral['nao-proficiente'];
   document.getElementById('kpiBasico').textContent = dados.distribuicaoGeral['basico'];
   document.getElementById('kpiProficiente').textContent = dados.distribuicaoGeral['proficiente'];
@@ -526,133 +509,98 @@ function atualizarKPIs(dados) {
 }
 
 function atualizarGraficos(dados) {
-  const ctxDistribuicao = document.getElementById('chartDistribuicao').getContext('2d');
-  const ctxMedia = document.getElementById('chartMedia').getContext('2d');
+  // Usar requestAnimationFrame para melhor performance
+  requestAnimationFrame(() => {
+    const ctxDistribuicao = document.getElementById('chartDistribuicao').getContext('2d');
+    const ctxMedia = document.getElementById('chartMedia').getContext('2d');
 
-  // Destruir gráficos anteriores
-  if (chartDistribuicao) chartDistribuicao.destroy();
-  if (chartMedia) chartMedia.destroy();
+    if (chartDistribuicao) chartDistribuicao.destroy();
+    if (chartMedia) chartMedia.destroy();
 
-  const cores = Object.values(NIVEIS).map(n => n.cor);
-  const labels = Object.values(NIVEIS).map(n => n.label);
-  const valores = Object.values(dados.distribuicaoGeral);
+    const cores = Object.values(NIVEIS).map(n => n.cor);
+    const labels = Object.values(NIVEIS).map(n => n.label);
+    const valores = Object.values(dados.distribuicaoGeral);
 
-  // Gráfico de Pizza
-  chartDistribuicao = new Chart(ctxDistribuicao, {
-    type: 'doughnut',
-    data: {
-      labels,
-      datasets: [{
-        data: valores,
-        backgroundColor: cores,
-        borderColor: 'var(--bg-card)',
-        borderWidth: 2
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      plugins: {
-        legend: { position: 'bottom' }
-      }
-    }
-  });
+    chartDistribuicao = new Chart(ctxDistribuicao, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data: valores, backgroundColor: cores, borderColor: 'var(--bg-card)', borderWidth: 2 }] },
+      options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom' } } }
+    });
 
-  // Gráfico de Barras - Média
-  const mediasPorNivel = Object.entries(dados.distribuicaoGeral).map(([nivel, total]) => {
-    const qtdEscolas = Object.keys(dados.porEscola).length;
-    return Math.round(total / qtdEscolas);
-  });
+    const mediasPorNivel = Object.entries(dados.distribuicaoGeral).map(([_, total]) =>
+      Math.round(total / Object.keys(dados.porEscola).length)
+    );
 
-  chartMedia = new Chart(ctxMedia, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Média de Alunos',
-        data: mediasPorNivel,
-        backgroundColor: cores,
-        borderRadius: 6
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      indexAxis: 'y',
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        x: {
-          beginAtZero: true,
-          ticks: { color: 'var(--text-2)' },
-          grid: { color: 'var(--border-color)' }
-        },
-        y: {
-          ticks: { color: 'var(--text-2)' },
-          grid: { display: false }
+    chartMedia = new Chart(ctxMedia, {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'Média de Alunos', data: mediasPorNivel, backgroundColor: cores, borderRadius: 6 }] },
+      options: {
+        responsive: true, maintainAspectRatio: true, indexAxis: 'y', plugins: { legend: { display: false } },
+        scales: {
+          x: { beginAtZero: true, ticks: { color: 'var(--text-2)' }, grid: { color: 'var(--border-color)' } },
+          y: { ticks: { color: 'var(--text-2)' }, grid: { display: false } }
         }
       }
-    }
+    });
   });
 }
 
 function atualizarTabela(dados) {
   const container = document.getElementById('tableContainer');
+  let html = '<table><thead><tr><th>Escola</th><th style="text-align: center;">Não Proficiente</th><th style="text-align: center;">Básico</th><th style="text-align: center;">Proficiente</th><th style="text-align: center;">Avançado</th><th style="text-align: center;">Total</th></tr></thead><tbody>';
 
-  let html = `
-    <table>
-      <thead>
-        <tr>
-          <th>Escola</th>
-          <th style="text-align: center;">Não Proficiente</th>
-          <th style="text-align: center;">Básico</th>
-          <th style="text-align: center;">Proficiente</th>
-          <th style="text-align: center;">Avançado</th>
-          <th style="text-align: center;">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
-
-  Object.entries(dados.porEscola).forEach(([escola, dados]) => {
-    const total = Object.values(dados).filter((_, i) => i > 0).reduce((a, b) => a + b, 0);
-
-    html += `
-      <tr>
-        <td><strong>${escola}</strong></td>
-        <td style="text-align: center;">
-          <span class="nivel-badge ${NIVEIS['nao-proficiente'].classe}">
-            ${dados['nao-proficiente']}
-          </span>
-        </td>
-        <td style="text-align: center;">
-          <span class="nivel-badge ${NIVEIS['basico'].classe}">
-            ${dados['basico']}
-          </span>
-        </td>
-        <td style="text-align: center;">
-          <span class="nivel-badge ${NIVEIS['proficiente'].classe}">
-            ${dados['proficiente']}
-          </span>
-        </td>
-        <td style="text-align: center;">
-          <span class="nivel-badge ${NIVEIS['avancado'].classe}">
-            ${dados['avancado']}
-          </span>
-        </td>
-        <td style="text-align: center;"><strong>${total}</strong></td>
-      </tr>
-    `;
+  Object.entries(dados.porEscola).forEach(([escola, d]) => {
+    const total = Object.values(d).filter((_, i) => i > 0).reduce((a, b) => a + b, 0);
+    html += `<tr><td><strong>${escola}</strong></td>`;
+    Object.keys(NIVEIS).forEach(nivel => {
+      html += `<td style="text-align: center;"><span class="nivel-badge ${NIVEIS[nivel].classe}">${d[nivel]}</span></td>`;
+    });
+    html += `<td style="text-align: center;"><strong>${total}</strong></td></tr>`;
   });
 
-  html += `
-      </tbody>
-    </table>
-  `;
-
+  html += '</tbody></table>';
   container.innerHTML = html;
 }
+
+async function carregarDados() {
+  const avaliacao = document.getElementById('avaliacaoSelect').value;
+  const ano = document.getElementById('anoSelect').value;
+  if (!avaliacao) return;
+
+  // Verificar cache
+  let dados = obterDoCache(avaliacao, ano);
+  if (!dados) {
+    dados = gerarDadosExemplo(avaliacao, ano);
+    salvarNoCache(avaliacao, ano, dados);
+  }
+
+  atualizarKPIs(dados);
+  atualizarGraficos(dados);
+  atualizarTabela(dados);
+}
+
+// Pré-carregar dados em background para avaliações padrão
+function precarregarDados() {
+  AVALIACOES.forEach(av => {
+    ['TODOS', '1º ANO', '2º ANO'].forEach(ano => {
+      setTimeout(() => {
+        if (!obterDoCache(av.value, ano)) {
+          const dados = gerarDadosExemplo(av.value, ano);
+          salvarNoCache(av.value, ano, dados);
+        }
+      }, 100);
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await AcessoSME.pronto;
+  const avaliacaoSelect = document.getElementById('avaliacaoSelect');
+  avaliacaoSelect.innerHTML = AVALIACOES.map(a => `<option value="${a.value}">${a.label}</option>`).join('');
+
+  carregarDados();
+  precarregarDados();
+});
 </script>
 
 </body>
