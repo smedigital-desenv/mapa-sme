@@ -12,6 +12,7 @@
   <script src="auth-guard.js"></script>
   <script>window.MAPA_SISTEMA = 'mapa';</script>
   <script src="auth.js" defer></script>
+  <script src="ficha-coderp.js"></script>
   <script src="config-central.js" defer></script>
   <script src="demo-mode.js"></script>
   <script src="iago.js"></script>
@@ -99,14 +100,24 @@
     border: 2px solid transparent;
     transition: 0.2s;
   }
+  /* O box model fica explícito porque a barra mistura <button> e <a>: o
+     <button> ganha padding do agente do usuário e o <a> não ganha nada, então
+     sem isto o texto do link encosta na borda. */
   .btn-toggle {
+    display: inline-block;
+    padding: .35rem .75rem;
+    line-height: 1.35;
     border: 2px solid var(--neon-blue);
     color: white;
     font-weight: 700;
     border-radius: 8px;
     transition: 0.3s;
     background: transparent;
+    text-decoration: none;
+    cursor: pointer;
   }
+  .btn-toggle:hover { color: white; }
+  .btn-toggle.active:hover { color: var(--primary); }
   .btn-toggle.active {
     background: var(--neon-blue);
     color: var(--primary);
@@ -1354,6 +1365,8 @@
       <button type="button" class="btn-toggle" data-avaliacao="terceiroBimestre" onclick="abrirAvaliacao('terceiroBimestre', this)">3º Bim.</button>
       <button type="button" class="btn-toggle" data-avaliacao="quartoBimestre" onclick="abrirAvaliacao('quartoBimestre', this)">4º Bim.</button>
       <button type="button" class="btn-toggle" data-avaliacao="Total" onclick="abrirAvaliacao('Total', this)">Total</button>
+      <a href="analise-desempenho-v2.html" class="btn-toggle"><i class="bi bi-bar-chart-fill me-1"></i>Análise de Desempenho</a>
+      <a href="comparativo-escolas-v2.html" class="btn-toggle"><i class="bi bi-table me-1"></i>Comparativo de Escolas</a>
       <button type="button" class="btn-toggle" data-avaliacao="Auditoria" onclick="abrirAvaliacao('Auditoria', this)"><i class="bi bi-shield-check me-1"></i>Análise de Consistência</button>
     </div>
   </div>
@@ -1400,6 +1413,19 @@
         </aside>
 
         <section class="avaliacao-main">
+          <!-- Barra de filtro de ano para visão de rede (desaparece ao selecionar unidade) -->
+          <div id="anoFilterBarRede" class="ano-filter-bar d-none mb-3">
+            <span class="ano-filter-label">
+              <i class="bi bi-funnel-fill me-1"></i>Ano escolar
+            </span>
+            <button type="button" class="btn-ano active" data-ano="TODOS" onclick="filtrarPorAnoRede('TODOS', this)">Todos</button>
+            <button type="button" class="btn-ano" data-ano="1º ANO" onclick="filtrarPorAnoRede('1º ANO', this)">1º Ano</button>
+            <button type="button" class="btn-ano" data-ano="2º ANO" onclick="filtrarPorAnoRede('2º ANO', this)">2º Ano</button>
+            <button type="button" class="btn-ano" data-ano="3º ANO" onclick="filtrarPorAnoRede('3º ANO', this)">3º Ano</button>
+            <button type="button" class="btn-ano" data-ano="4º ANO" onclick="filtrarPorAnoRede('4º ANO', this)">4º Ano</button>
+            <button type="button" class="btn-ano" data-ano="5º ANO" onclick="filtrarPorAnoRede('5º ANO', this)">5º Ano</button>
+          </div>
+
           <div class="avaliacao-header-card">
             <div class="row g-3 align-items-center">
               <div class="col-12 col-md-4">
@@ -1485,6 +1511,19 @@
         </aside>
 
         <section class="total-main">
+          <!-- Barra de filtro de ano para visão de rede Total (desaparece ao selecionar unidade) -->
+          <div id="anoFilterBarRedeTotal" class="ano-filter-bar d-none mb-3">
+            <span class="ano-filter-label">
+              <i class="bi bi-funnel-fill me-1"></i>Ano escolar
+            </span>
+            <button type="button" class="btn-ano active" data-ano="TODOS" onclick="filtrarPorAnoRede('TODOS', this)">Todos</button>
+            <button type="button" class="btn-ano" data-ano="1º ANO" onclick="filtrarPorAnoRede('1º ANO', this)">1º Ano</button>
+            <button type="button" class="btn-ano" data-ano="2º ANO" onclick="filtrarPorAnoRede('2º ANO', this)">2º Ano</button>
+            <button type="button" class="btn-ano" data-ano="3º ANO" onclick="filtrarPorAnoRede('3º ANO', this)">3º Ano</button>
+            <button type="button" class="btn-ano" data-ano="4º ANO" onclick="filtrarPorAnoRede('4º ANO', this)">4º Ano</button>
+            <button type="button" class="btn-ano" data-ano="5º ANO" onclick="filtrarPorAnoRede('5º ANO', this)">5º Ano</button>
+          </div>
+
           <div class="avaliacao-header-card">
             <div class="row g-3 align-items-center">
               <div class="col-12 col-md-4">
@@ -5682,6 +5721,7 @@ function selecionarUnidade(unidade, ui) {
   _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
   _setAnoFiltroAtualSeguro('TODOS');
+  _mostrarAnoFilterBarRede(!ja);
   renderHierarquia(_hierArvore);
   _atualizarBreadcrumb();
   aplicarFiltrosAvaliacao();
@@ -5763,6 +5803,7 @@ function limparHierarquiaSel() {
   _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
   _setAnoFiltroAtualSeguro('TODOS');
+  _mostrarAnoFilterBarRede(true);
   renderHierarquia(_hierArvore || {});
   _atualizarBreadcrumb();
   aplicarFiltrosAvaliacao();
@@ -5785,6 +5826,43 @@ function _montarSelectAno(anos) {
   }
 
   sel.value = [...sel.options].some(o => o.value === alvo) ? alvo : 'TODOS';
+}
+
+// ===========================================================
+// FILTRO DE ANO PARA VISÃO DE REDE
+// ===========================================================
+function _mostrarAnoFilterBarRede(show) {
+  const bar = document.getElementById('anoFilterBarRede');
+  const barTotal = document.getElementById('anoFilterBarRedeTotal');
+  if (bar) bar.classList.toggle('d-none', !show);
+  if (barTotal) barTotal.classList.toggle('d-none', !show);
+}
+
+function _resetarAnoFilterBarRede() {
+  anoFiltroAtual = 'TODOS';
+  _hierAnoAtivo = 'TODOS';
+  document.querySelectorAll('#anoFilterBarRede .btn-ano, #anoFilterBarRedeTotal .btn-ano').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.ano === 'TODOS');
+  });
+  const aSel = document.getElementById('filtroAvAno');
+  if (aSel) aSel.value = 'TODOS';
+}
+
+function filtrarPorAnoRede(ano, btn) {
+  if (!btn) return;
+
+  anoFiltroAtual = ano;
+  _hierAnoAtivo = ano;
+  _setAnoFiltroAtualSeguro(ano);
+
+  // Atualizar botões visuais em ambas as barras
+  document.querySelectorAll('#anoFilterBarRede .btn-ano, #anoFilterBarRedeTotal .btn-ano').forEach(b => {
+    b.classList.toggle('active', b.dataset.ano === ano);
+  });
+
+  renderHierarquia(_hierArvore || {});
+  _atualizarBreadcrumb();
+  aplicarFiltrosAvaliacao();
 }
 
 // ===========================================================
@@ -7099,6 +7177,7 @@ function selecionarUnidadeTotal(unidade) {
   _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
   _setAnoFiltroAtualSeguro('TODOS');
+  _mostrarAnoFilterBarRede(!jaSelecionada);
   totalDisciplinaSelecionada = '';
   totalEixoAtual = 'TODOS';
 
@@ -7170,7 +7249,11 @@ function selecionarTurmaTotal(unidade, ano, turma, ev) {
 
 function limparHierarquiaTotal() {
   _hierUnidadeAtiva = 'TODAS';
+  _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
+  _setAnoFiltroAtualSeguro('TODOS');
+  _mostrarAnoFilterBarRede(true);
+  _resetarAnoFilterBarRede();
   totalDisciplinaSelecionada = '';
   totalEixoAtual = 'TODOS';
   renderHierarquiaTotal(_hierArvoreTotal);
@@ -8298,90 +8381,22 @@ function _renderTabelaTotal(linhas) {
   // guarda o token e refaz a checagem de permissão no banco. NADA é gravado
   // no banco do MAPA: a API existe para não inflar o consumo da instância.
   // `?coderp=0` desliga e volta para a RPC do banco (dados importados).
-  const FICHA_FN_URL = supabaseUrl + '/functions/v1/coderp-ficha';
-  const FICHA_ANOS_ESCOLARES = ['1 ANO', '2 ANO', '3 ANO', '4 ANO', '5 ANO'];
-
-  // ── O que o `per_cod` do CODERP pode trazer, e o que fica de fora ─────────
-  // Medido em 2026-08 (bim 1, rede inteira sem filtro): 18 valores distintos.
-  // A tela consultava só os cinco primeiros, então 36% das linhas da ficha
-  // nunca chegavam aqui. Definido com a SME o que entra:
-  //
-  //   1 ANO … 9 ANO   Ensino Fundamental — é o objeto destas telas.
-  //
-  //   CIC 2/3/4       Educação Infantil, ciclos 2, 3 e 4 ─┐
-  //   ETP 1/2         Educação Infantil, Etapas I e II     │ fora da contagem
-  //   PECAI           PEC dos Anos Iniciais                │
-  //   TAIMS           Termos Anos Iniciais Multi Seriados  │ turmas de
-  //   TAFMS           Termos Anos Finais Multi Seriados    │ treinamento
-  //   TREIN           Prática Desportiva masc./fem.       ─┘
-  //
-  // ⚠️ A lista é de EXCLUSÃO, não de inclusão, e isso é de propósito: um
-  // per_cod novo que o CODERP passe a devolver entra na contagem e aparece na
-  // tela, em vez de sumir em silêncio. Some quem for explicitamente excluído.
-  const PER_COD_FORA = new Set([
-    'CIC 2', 'CIC 3', 'CIC 4',      // Educação Infantil
-    'ETP 1', 'ETP 2',               // Educação Infantil
-    'PECAI',                        // PEC Anos Iniciais
-    'TAIMS', 'TAFMS', 'TREIN',      // turmas de treinamento
-  ]);
-  const perCodContavel = p => {
-    const v = String(p == null ? '' : p).trim().toUpperCase();
-    return !!v && !PER_COD_FORA.has(v);
-  };
-
-  function fichaApiAtiva() {
-    try {
-      if (new URLSearchParams(location.search).get('coderp') === '0') return false;
-    } catch (e) { /* URLSearchParams sempre existe nos navegadores atendidos */ }
-    return true;
-  }
-
-  async function chamarFichaApi(nivel, parms) {
-    // Cache local primeiro (IndexedDB do auth.js, aquecido pelas outras
-    // telas): resposta fresca sai daqui SEM REDE — é a instantaneidade.
-    const corpo = JSON.stringify({ nivel, parms });
-    if (window.MapaFichaCache) {
-      const pronto = await window.MapaFichaCache.ler(corpo).catch(() => null);
-      if (pronto !== null) { try { return JSON.parse(pronto); } catch (e) { /* cai para a rede */ } }
-    }
-
-    const tok = window.MapaAuth && window.MapaAuth.token ? await window.MapaAuth.token() : null;
-    if (!tok) throw new Error('sessão do MAPA indisponível');
-    const r = await fetch(FICHA_FN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
-      body: corpo
-    });
-    const texto = await r.text();
-    let resp = null;
-    try { resp = JSON.parse(texto); } catch (e) { /* resposta não-JSON tratada abaixo */ }
-    if (!r.ok) {
-      // O status DO CODERP vai junto: sem ele, "502 coderp_recusou" não
-      // distingue "não existe / sem lançamento" (404) de indisponibilidade.
-      const dentro = resp && resp.status ? ' (CODERP ' + resp.status + ')' : '';
-      const erro = new Error('coderp-ficha ' + r.status + ' ' + ((resp && resp.erro) || '') + dentro);
-      // Exposto para quem chama poder tratar 404 como "vazio", e não como falha.
-      erro.coderpStatus = (resp && resp.status) || 0;
-      throw erro;
-    }
-    // Só entra no cache local resposta com dado real, ou vazio SEM Messages
-    // (bimestre sem lançamento é legítimo; vazio COM aviso é suspeito e não
-    // pode ficar "colado" por 10 min).
-    const temDado = !!resp && (
-      Object.keys(resp).some(k =>
-        k.indexOf('fichasAvaliacoes') === 0 && Array.isArray(resp[k]) && resp[k].length)
-      // O nível sintético `detalherede` devolve `linhas`, não `fichasAvaliacoes*`.
-      || (Array.isArray(resp.linhas) && resp.linhas.length));
-    const msgs = ((resp && resp.Messages) || []).filter(m => m && m.Description);
-    // Resposta PARCIAL (leque incompleto) não vai para o cache: guardar uma
-    // rede pela metade por 10 min esconderia unidades sem nenhum aviso.
-    const parcial = !!(resp && resp.parcial);
-    if (window.MapaFichaCache && resp && !parcial && (temDado || !msgs.length)) {
-      window.MapaFichaCache.gravar(corpo, texto);
-    }
-    if (msgs.length) console.warn('[MAPA CODERP] Messages da API:', msgs);
-    return resp || {};
-  }
+  // ── A camada de transporte da ficha vive em `ficha-coderp.js` ────────────
+  // Ela foi extraída daqui quando a tela Comparativo de Escolas passou a
+  // precisar do mesmo dado de bimestre. Os nomes abaixo são os MESMOS de
+  // antes, de propósito: os pontos de chamada desta tela não mudaram, e o
+  // diff fica restrito a quem DEFINE, não a quem usa.
+  // ⚠️ Sem fallback de propósito. Se o módulo não carregar, esta tela precisa
+  // falhar alto: um caminho reserva silencioso reintroduziria a segunda
+  // contagem que a extração existe para impedir.
+  if (!window.MapaFicha) throw new Error('ficha-coderp.js não carregou');
+  const _FICHA = window.MapaFicha.criar(supabaseUrl);
+  const FICHA_FN_URL          = _FICHA.FICHA_FN_URL;
+  const FICHA_ANOS_ESCOLARES  = _FICHA.FICHA_ANOS_ESCOLARES;
+  const PER_COD_FORA          = _FICHA.PER_COD_FORA;
+  const perCodContavel        = _FICHA.perCodContavel;
+  const fichaApiAtiva         = _FICHA.fichaApiAtiva;
+  const chamarFichaApi        = _FICHA.chamarFichaApi;
 
   // Catálogo código CODERP -> nome da unidade (uma busca por sessão). A
   // tradução para a grafia oficial acontece no cleanUnit, para TODAS as fontes.
@@ -8400,11 +8415,8 @@ function _renderTabelaTotal(linhas) {
     return _fichaCatalogoPromise;
   }
 
-  function fichaAnoLetivo() { return new Date().getFullYear(); }
+  const fichaAnoLetivo = _FICHA.fichaAnoLetivo;
 
-  // Memo das consultas de rede por (bimestre, ano escolar): bimestres, Total e
-  // árvore compartilham as mesmas respostas sem repetir chamadas à API.
-  const _fichaTurmaMemo = new Map();
   // Memo do pacote do Total por filtro (TTL 10 min, alinhado às outras camadas).
   const _totalPacoteMemo = new Map();
   // ── Rede inteira numa consulta só, recortada por per_cod ──────────────────
@@ -8432,16 +8444,7 @@ function _renderTabelaTotal(linhas) {
     return _fichaTudoMemo.get(k);
   }
 
-  function fichaRedeTurma(bimestre, anoEsc) {
-    const k = bimestre + '|' + anoEsc;
-    if (!_fichaTurmaMemo.has(k)) {
-      _fichaTurmaMemo.set(k,
-        chamarFichaApi('turma', { anoLetivo: fichaAnoLetivo(), bimestre: bimestre, anoescolar: anoEsc })
-          .then(r => r.fichasAvaliacoesTurma || [])
-          .catch(err => { _fichaTurmaMemo.delete(k); throw err; }));
-    }
-    return _fichaTurmaMemo.get(k);
-  }
+  const fichaRedeTurma = _FICHA.fichaRedeTurma;
 
   // ── Totais oficiais da REDE (/IndicadorRede) ──────────────────────────────
   // É a ÚNICA fonte independente dos totais que a API oferece: uma chamada por
@@ -11498,6 +11501,8 @@ function abrirAvaliacao(tipo, btn) {
   // mesmo que a pessoa tenha deixado 2º/5º Ano selecionado em outra aba.
   if (tipo === 'primeiroBimestre' && typeof _setAnoFiltroAtualSeguro === 'function') {
     _setAnoFiltroAtualSeguro('TODOS');
+    _mostrarAnoFilterBarRede(true);
+    _resetarAnoFilterBarRede();
   }
 
   avaliacaoAtual = tipo;
@@ -11509,18 +11514,16 @@ function abrirAvaliacao(tipo, btn) {
     if (el) el.classList.add('d-none');
   });
 
-  // Auditoria tem seus próprios controles de bimestre — não usa a barra de ano global.
+  // Auditoria tem seus próprios controles de bimestre — não usa a barra de ano de rede.
   if (tipo === 'Auditoria') {
-    mostrarAnoFilterBar(false);
+    _mostrarAnoFilterBarRede(false);
     document.getElementById('viewAuditoria').classList.remove('d-none');
     return;
   }
 
-  mostrarAnoFilterBar(true);
-
   if (tipo === 'AnoEscolar') {
     document.getElementById('viewAlunos').classList.remove('d-none');
-    _resetarAnoFilterBar();
+    _mostrarAnoFilterBarRede(false);
 
     if (typeof iniciarDiagnostica === 'function') {
       iniciarDiagnostica();
@@ -11531,11 +11534,15 @@ function abrirAvaliacao(tipo, btn) {
 
   if (tipo === 'Total') {
     document.getElementById('viewTotal').classList.remove('d-none');
+    _mostrarAnoFilterBarRede(true);
+    _resetarAnoFilterBarRede();
     iniciarTotalAvaliacoes();
     return;
   }
 
   document.getElementById('viewBimestre1').classList.remove('d-none');
+  _mostrarAnoFilterBarRede(true);
+  _resetarAnoFilterBarRede();
   limparAreaAvaliacao();
   iniciarBimestreGenerico(tipo, BIMESTRE_LABELS[tipo] || tipo);
 }

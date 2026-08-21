@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-tema="claro" data-acento="neon-blue" data-fundo="vazio" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comparativo de Escolas — MAPA SME</title>
+
+  <script src="auth-guard.js"></script>
+  <script>window.MAPA_SISTEMA = 'mapa';</script>
+  <script src="auth.js" defer></script>
+  <script src="ficha-coderp.js"></script>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+<script>
+/* defaults do Chart.js para o visual de teste — acrescentado por gerar-v2.py */
+(function () {
+  if (!window.Chart) return;
+  var C = window.Chart;
+  C.defaults.color = '#94A0AB';
+  C.defaults.borderColor = 'rgba(255,255,255,.10)';
+  C.defaults.font.family = 'DM Sans, system-ui, sans-serif';
+  if (C.defaults.plugins && C.defaults.plugins.legend) {
+    C.defaults.plugins.legend.labels.color = '#94A0AB';
+  }
+  if (C.defaults.scales) {
+    ['linear', 'category', 'radialLinear'].forEach(function (k) {
+      if (!C.defaults.scales[k]) return;
+      if (C.defaults.scales[k].grid) C.defaults.scales[k].grid.color = 'rgba(255,255,255,.08)';
+      if (C.defaults.scales[k].ticks) C.defaults.scales[k].ticks.color = '#8996A3';
+    });
+  }
+})();
+</script>
+
+
+  <style>
+    :root {
+      --primary: #002b5e;
+      --secondary: #0062ff;
+      --neon-blue: #00e5ff;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --info: #3b82f6;
+      --text-1: #1e293b;
+      --text-2: #475569;
+      --text-3: #94a3b8;
+      --bg-light: #f8fafc;
+      --bg-card: #ffffff;
+      --border-color: #e2e8f0;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-tema="claro"]) {
+        --primary: #1e3a5f;
+        --text-1: #f1f5f9;
+        --text-2: #cbd5e1;
+        --text-3: #64748b;
+        --bg-light: #0f172a;
+        --bg-card: #1e293b;
+        --border-color: #334155;
+      }
+    }
+
+    body {
+      background-color: var(--bg-light);
+      color: var(--text-1);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .nav-header {
+      background: linear-gradient(135deg, var(--primary) 0%, #003d7a 100%);
+      color: white;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 2rem;
+    }
+
+    .brand-title {
+      font-size: 1.3rem;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .nav-back {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .btn-back {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      text-decoration: none;
+    }
+
+    .btn-back:hover {
+      background: rgba(255, 255, 255, 0.3);
+      border-color: rgba(255, 255, 255, 0.5);
+      color: white;
+    }
+
+    .main-content {
+      padding: 2rem;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .page-header {
+      margin-bottom: 2rem;
+    }
+
+    .page-title {
+      font-size: 1.6rem;
+      font-weight: 900;
+      color: var(--secondary);
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      hyphens: auto;
+    }
+
+    .page-subtitle {
+      color: var(--text-3);
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+      line-height: 1.5;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .filters-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 2rem;
+      align-items: start;
+    }
+
+    .year-filter {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .year-filter label {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-2);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    .year-buttons {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .btn-year {
+      background: var(--bg-light);
+      border: 1px solid var(--border-color);
+      color: var(--text-1);
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .btn-year:hover {
+      background: var(--border-color);
+    }
+
+    .btn-year.active {
+      background: var(--secondary);
+      color: white;
+      border-color: var(--secondary);
+    }
+
+    .level-selector {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .btn-level {
+      background: var(--bg-light);
+      border: 1px solid var(--border-color);
+      color: var(--text-1);
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .btn-level:hover {
+      background: var(--border-color);
+    }
+
+    .btn-level.active {
+      background: var(--secondary);
+      color: white;
+      border-color: var(--secondary);
+    }
+
+    .level-label {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-2);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .table-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+
+    .table-header {
+      background: linear-gradient(135deg, var(--primary) 0%, #003d7a 100%);
+      color: white;
+      padding: 1.5rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1000px;
+    }
+
+    thead {
+      background-color: var(--bg-light);
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    th {
+      padding: 1rem;
+      text-align: left;
+      font-weight: 700;
+      color: var(--text-1);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.9rem;
+    }
+
+    tbody tr:hover {
+      background-color: var(--bg-light);
+    }
+
+    .escola-nome {
+      font-weight: 700;
+      color: var(--primary);
+      max-width: 200px;
+      overflow-wrap: break-word;
+    }
+
+    .percentual {
+      font-weight: 600;
+      text-align: center;
+      min-width: 80px;
+    }
+
+    .percentual.alto {
+      color: #059669;
+    }
+
+    .percentual.medio {
+      color: #d97706;
+    }
+
+    .percentual.baixo {
+      color: #dc2626;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-3);
+    }
+
+    .text-muted { color: var(--text-3); }
+
+    .aviso-sem-fonte {
+      display: flex;
+      gap: .9rem;
+      align-items: flex-start;
+      background: rgba(245, 158, 11, .12);
+      border: 1px solid rgba(245, 158, 11, .45);
+      border-left: 4px solid #d97706;
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 2rem;
+      color: var(--text-1);
+      font-size: .92rem;
+      line-height: 1.55;
+    }
+    .aviso-sem-fonte i { color: #d97706; font-size: 1.2rem; line-height: 1.4; }
+
+    @media (max-width: 992px) {
+      .filters-section {
+        grid-template-columns: 1fr;
+      }
+
+      .nav-header {
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .main-content {
+        padding: 1rem;
+      }
+
+      th, td {
+        padding: 0.75rem;
+        font-size: 0.8rem;
+      }
+
+      .percentual {
+        min-width: 60px;
+      }
+    }
+  </style>
+
+<!-- ↓↓↓ acrescentado por tools/gerar-v2.py — pele de teste ↓↓↓ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mapa-v2.css">
+<!-- ↑↑↑ -->
+</head>
+<body>
+<div class="v2-faixa">
+  <b>VERSÃO 2 · TESTE</b>
+  <span>Esta página é uma cópia para avaliar o visual novo. A que está em uso continua em</span>
+  <a href="comparativo-escolas-v2.html">comparativo-escolas.html</a>
+</div>
+<canvas id="ceu" aria-hidden="true"></canvas>
+<span class="v2-orbita v2-orbita--1" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--2" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--3" aria-hidden="true"></span>
+
+
+<header class="nav-header">
+  <div class="brand-title">
+    <i class="bi bi-graph-up-arrow"></i>
+    <span>Comparativo de Escolas</span>
+  </div>
+  <div class="nav-back">
+    <a href="avaliacao-v2.html" class="btn-back">
+      <i class="bi bi-arrow-left"></i>
+      Voltar para Avaliações
+    </a>
+  </div>
+</header>
+
+<main class="main-content">
+  <div class="page-header">
+    <h1 class="page-title">
+      <i class="bi bi-building"></i>
+      Comparativo de Desempenho por Escola
+    </h1>
+    <p class="page-subtitle">Visualize o desempenho das escolas ao longo de todas as avaliações</p>
+  </div>
+
+  <div class="aviso-sem-fonte">
+    <i class="bi bi-info-circle-fill"></i>
+    <div>
+      As seis colunas medem o <strong>mesmo nível de leitura</strong>, na escala
+      de seis pontos da rede (N1 a N4 Pré-leitor, Iniciante, Fluente). Fluência
+      e Diagnóstica vêm do banco; os bimestres vêm da ficha do CODERP, ao vivo.
+      O percentual é sobre os alunos <strong>avaliados</strong> naquele recorte —
+      quem não foi avaliado fica fora da conta. Célula com <strong>—</strong>
+      é recorte sem apuração, nunca zero.
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="filters-section">
+    <div class="year-filter">
+      <label>📚 Ano Escolar</label>
+      <div class="year-buttons">
+        <button class="btn-year active" data-year="TODOS">Todos</button>
+        <button class="btn-year" data-year="1º ANO">1º Ano</button>
+        <button class="btn-year" data-year="2º ANO">2º Ano</button>
+        <button class="btn-year" data-year="3º ANO">3º Ano</button>
+        <button class="btn-year" data-year="4º ANO">4º Ano</button>
+        <button class="btn-year" data-year="5º ANO">5º Ano</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="level-label">🎯 Selecione o Nível</div>
+      <div class="level-selector" id="levelSelector"></div>
+    </div>
+  </div>
+
+  <!-- Tabela de Escolas -->
+  <div class="table-container">
+    <div class="table-header">
+      <i class="bi bi-building"></i>
+      <span>Percentual de Leitores por Avaliação</span>
+    </div>
+    <div class="table-wrapper">
+      <div id="tableContainer" style="padding: 2rem; text-align: center;">
+        <div class="loading">
+          <div class="spinner-border spinner-border-sm mb-2"></div><br>
+          Carregando dados...
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ─────────────────────────────────────────────────────────────────────────
+   FONTES DE DADO DESTA TELA
+
+   As três colunas medem a MESMA grandeza — o nível de leitura do aluno, na
+   escala de 6 pontos (N1 a N4 Pré-leitor, L. Iniciante, L. Fluente) — mas
+   vêm de lugares diferentes:
+
+   • Fluência Leitora → Supabase, view `v_fluencia_por_turma` (uma linha por
+     turma, já com a contagem por nível). É a mesma view que a tela Fluência
+     lê, de propósito: duas contas do mesmo número divergem na primeira
+     correção feita em uma só.
+   • Diagnóstica → Supabase, RPC `alunos_diagnostica` (uma linha por aluno,
+     com o eixo LEITURA em `l_valor`). Mesma RPC da aba Diagnóstica.
+   • 1º a 4º bimestre → API do CODERP, pela Edge Function `coderp-ficha`,
+     através da camada compartilhada `ficha-coderp.js` (a MESMA que a tela de
+     Avaliações usa). Ver `carregarBimestre()`.
+
+   ⚠️ A escala é de SEIS níveis, não cinco. Ela é a de `labelRespostaPainel`
+   em `avaliacao.html` (LEITURA: 1..6) e a de `v_fluencia_por_turma`
+   (pre_n1..pre_n4, iniciantes, fluentes). Não invente um 'N5': o que vem
+   depois do N4 Pré-leitor é o Leitor Iniciante, e depois dele o Fluente.
+   ───────────────────────────────────────────────────────────────────────── */
+const NIVEIS = [
+  { key: 'pre_n1',     label: 'N1 Pré-leitor', vl: '1' },
+  { key: 'pre_n2',     label: 'N2 Pré-leitor', vl: '2' },
+  { key: 'pre_n3',     label: 'N3 Pré-leitor', vl: '3' },
+  { key: 'pre_n4',     label: 'N4 Pré-leitor', vl: '4' },
+  { key: 'iniciantes', label: 'L. Iniciante',  vl: '5' },
+  { key: 'fluentes',   label: 'L. Fluente',    vl: '6' },
+];
+
+const AVALIACOES = [
+  { key: 'fluencia',    label: 'Fluência Leitora' },
+  { key: 'diagnostica', label: 'Diagnóstica' },
+  { key: '1-bim',       label: '1º Bim' },
+  { key: '2-bim',       label: '2º Bim' },
+  { key: '3-bim',       label: '3º Bim' },
+  { key: '4-bim',       label: '4º Bim' },
+];
+
+/* Normaliza nome de unidade e ano escolar do mesmo jeito nas duas fontes —
+   sem isto 'EMEF X' e 'EMEF  X' viram duas linhas na tabela. */
+function norm(s) {
+  return String(s || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/\s+/g, ' ').trim();
+}
+
+/* '2º ANO', '2 ANO', '2' → '2'. Devolve '' quando não há dígito. */
+function digitoAno(s) {
+  const m = String(s || '').match(/(\d)/);
+  return m ? m[1] : '';
+}
+
+let UNIDADES = null;   // nomes oficiais do catálogo, na grafia de exibição
+let DADOS = null;      // { chaveUnidade: { fluencia: {ano: {nivel: n, _tot: n}}, ... } }
+
+async function carregarUnidades() {
+  const supa = window.MAPA_SB;
+  if (!supa) throw new Error('Sessão do MAPA indisponível');
+  const { data, error } = await supa
+    .from('escolas').select('nome').eq('ativo', true).order('nome');
+  if (error) throw error;
+  return (data || []).map(e => e.nome);
+}
+
+/* O PostgREST corta em 1.000 linhas e não avisa. Toda consulta vai paginada e
+   COM order() — sem ordem estável as páginas repetem linhas e perdem outras. */
+async function buscarTudo(tabela, colunas, ordem) {
+  const supa = window.MAPA_SB;
+  const PAG = 1000;
+  let de = 0, saida = [];
+  for (;;) {
+    let q = supa.from(tabela).select(colunas);
+    ordem.forEach(c => { q = q.order(c); });
+    const { data, error } = await q.range(de, de + PAG - 1);
+    if (error) throw error;
+    saida = saida.concat(data || []);
+    if (!data || data.length < PAG) return saida;
+    de += PAG;
+  }
+}
+
+/* Acumula um aluno num balde unidade × ano × nível. */
+function somar(mapa, unidade, ano, nivelKey, qtd) {
+  if (!qtd) return;
+  const u = norm(unidade);
+  const a = digitoAno(ano);
+  if (!u || !a) return;
+  mapa[u] = mapa[u] || {};
+  mapa[u][a] = mapa[u][a] || { _tot: 0 };
+  mapa[u][a][nivelKey] = (mapa[u][a][nivelKey] || 0) + qtd;
+  mapa[u][a]._tot += qtd;
+}
+
+/* ── Fluência Leitora ─────────────────────────────────────────────────────
+   A view já vem contada por turma; só somamos as turmas da unidade.
+   `ausentes` fica FORA do denominador de propósito: o percentual é sobre
+   quem foi avaliado, senão a unidade que faltou mais parece pior no nível. */
+async function carregarFluencia() {
+  const linhas = await buscarTudo(
+    'v_fluencia_por_turma',
+    'escola,ano_escolar,avaliados,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1',
+    ['escola', 'ano_escolar']
+  );
+  const mapa = {};
+  linhas.forEach(l => {
+    NIVEIS.forEach(n => somar(mapa, l.escola, l.ano_escolar, n.key, Number(l[n.key]) || 0));
+  });
+  return mapa;
+}
+
+/* ── Diagnóstica ──────────────────────────────────────────────────────────
+   A RPC devolve uma linha por aluno; o eixo LEITURA é `l_valor` (posição 7
+   na forma de array). 'Não Avaliado' não entra: mesmo critério da Fluência. */
+async function carregarDiagnostica() {
+  const supa = window.MAPA_SB;
+  const { data, error } = await supa.rpc('alunos_diagnostica');
+  if (error) throw error;
+
+  const porVl = {};
+  NIVEIS.forEach(n => { porVl[n.vl] = n.key; });
+
+  const mapa = {};
+  (data || []).forEach(r => {
+    const arr = Array.isArray(r);
+    const unidade = arr ? r[0] : r.nome_unidade;
+    const ano     = arr ? r[1] : r.ano_escolar;
+    const lValor  = arr ? r[7] : r.l_valor;
+    const chave = porVl[String(lValor || '').trim()];
+    if (chave) somar(mapa, unidade, ano, chave, 1);
+  });
+  return mapa;
+}
+
+/* ── 1º a 4º bimestre ─────────────────────────────────────────────────────
+   Vem da API do CODERP, pela camada de transporte compartilhada
+   (`ficha-coderp.js`) — a MESMA que a tela de Avaliações usa. O eixo LEITURA
+   da ficha está na mesma escala de 6 pontos das outras duas colunas.
+
+   ⚠️ Aqui NÃO se usa `alunosPorItens()`, e isso é o ponto que torna esta
+   coluna barata e exata. Aquela regra existe para descobrir quantos alunos
+   uma turma tem quando se olha VÁRIOS itens de uma vez, sem saber quantas
+   perguntas cada um vale. O problema aqui é outro: dentro de UM único item
+   (o eixo LEITURA), `qtd_alunos` já conta alunos DISTINTOS por resposta.
+   Somar as respostas daquele item dá exatamente quantos alunos estão em cada
+   nível — sem heurística e sem margem de erro.
+
+   ⚠️ Por isso não replique este atalho para "quantos alunos tem a turma": ali
+   a premissa cai e a regra calibrada volta a ser necessária.
+
+   Respostas fora da escala 1..6 (o 'X' de não avaliado, entre outras) ficam
+   FORA dos dois lados da fração — mesmo critério das outras duas colunas. */
+const EIXO_LEITURA = 'LEITURA';
+
+/* A fábrica é chamada UMA vez: cada instância tem o próprio memo, e criar uma
+   por bimestre jogaria fora o compartilhamento entre as quatro consultas. */
+let _F = null;
+function _ficha() {
+  if (!window.MapaFicha) throw new Error('ficha-coderp.js não carregou');
+  const cfg = window.MAPA_SUPABASE || {};
+  if (!_F) _F = window.MapaFicha.criar(cfg.url || '');
+  return _F;
+}
+
+function _ehLeitura(fneDes) {
+  return String(fneDes || '')
+    .toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .includes(EIXO_LEITURA);
+}
+
+async function carregarBimestre(bimestre, catalogo) {
+  const F = _ficha();
+  const porVl = {};
+  NIVEIS.forEach(n => { porVl[n.vl] = n.key; });
+
+  // Uma consulta por ano escolar, como na tela de Avaliações. 404 é RESPOSTA
+  // ("bimestre sem lançamento"), não avaria — vira lista vazia.
+  const porAno = await Promise.all(F.FICHA_ANOS_ESCOLARES.map(ano =>
+    F.fichaRedeTurma(bimestre, ano).catch(err => {
+      if (err && err.coderpStatus === 404) return [];
+      console.warn('[comparativo] bim ' + bimestre + ' / ' + ano + ':', err && err.message);
+      return null;   // falha de verdade: este ano fica de fora, não zerado
+    })));
+
+  if (porAno.every(r => r === null)) return null;   // nenhum ano respondeu
+
+  const mapa = {};
+  porAno.forEach(linhas => {
+    (linhas || []).forEach(l => {
+      if (!F.perCodContavel(l.per_cod)) return;
+      if (!_ehLeitura(l.fne_des)) return;
+      const chave = porVl[String(l.fqr_vl || '').trim()];
+      if (!chave) return;
+      const unidade = catalogo.get(Number(l.uni_cod));
+      if (!unidade) return;                        // código fora do catálogo
+      somar(mapa, unidade, l.per_cod, chave, Number(l.qtd_alunos) || 0);
+    });
+  });
+  return mapa;
+}
+
+/* Código CODERP (`uni_cod`) → nome da unidade. Vem de `escolas_catalogo`, que
+   é o catálogo da fonte CODERP/SAE — separado do `escolas` do RLS de
+   propósito. Unidade cujo código não estiver aqui não entra: melhor faltar
+   linha visível que somar no lugar errado. */
+async function carregarCatalogoCoderp() {
+  const supa = window.MAPA_SB;
+  const { data, error } = await supa.from('escolas_catalogo').select('codigo,nome');
+  if (error) throw error;
+  const m = new Map();
+  (data || []).forEach(e => m.set(Number(e.codigo), String(e.nome || '').trim()));
+  return m;
+}
+/* Mesmo escape das demais telas: o nome da unidade vem do catálogo `escolas`,
+   que é escrito pelo painel — sem escapar, um nome com marcação vira HTML
+   executado na tela de quem abrir o comparativo. */
+function esc(s) {
+  return String(s??'').replace(/[&<>"']/g,
+    c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function getCorPorcentual(valor) {
+  if (valor >= 60) return 'alto';
+  if (valor >= 40) return 'medio';
+  return 'baixo';
+}
+
+/* Percentual do nível escolhido dentro da unidade × ano.
+   Denominador = alunos COM nível de leitura apurado naquela avaliação; quem
+   não foi avaliado fica fora dos dois lados. Sem dado apurado devolve null,
+   que a tabela mostra como '—' — nunca 0%, que se leria como "ninguém está
+   nesse nível" quando a verdade é "não foi medido". */
+function percentual(mapaFonte, unidade, ano, nivelKey) {
+  const u = (mapaFonte || {})[norm(unidade)];
+  if (!u) return null;
+
+  const anos = ano === 'TODOS' ? Object.keys(u) : [digitoAno(ano)];
+  let noNivel = 0, total = 0;
+  anos.forEach(a => {
+    const balde = u[a];
+    if (!balde) return;
+    noNivel += balde[nivelKey] || 0;
+    total   += balde._tot || 0;
+  });
+  if (!total) return null;
+  return Math.round((noNivel / total) * 100);
+}
+
+function atualizarTabela(ano, nivelKey) {
+  const container = document.getElementById('tableContainer');
+  if (!UNIDADES) { container.innerHTML = '<div class="loading">Carregando unidades...</div>'; return; }
+
+  let html = '<table><thead><tr><th>Escola</th>';
+  AVALIACOES.forEach(av => { html += `<th style="text-align: center;">${esc(av.label)}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  UNIDADES.forEach(escola => {
+    html += `<tr><td class="escola-nome">${esc(escola)}</td>`;
+    AVALIACOES.forEach(av => {
+      const valor = percentual(DADOS[av.key], escola, ano, nivelKey);
+      html += (valor === null || valor === undefined)
+        ? '<td class="text-muted" style="text-align: center;" title="sem dado apurado para este recorte">—</td>'
+        : `<td class="percentual ${getCorPorcentual(valor)}" style="text-align: center;">${valor}%</td>`;
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await window.MapaAuth.pronto;
+
+  const container = document.getElementById('tableContainer');
+
+  // Botões de nível — o rótulo vem da escala real (6 níveis de leitura)
+  const levelSelector = document.getElementById('levelSelector');
+  NIVEIS.forEach((nivel, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'btn-level' + (i === 0 ? ' active' : '');
+    btn.textContent = nivel.label;
+    btn.dataset.nivel = nivel.key;
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-level').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      atualizarTabela(document.querySelector('.btn-year.active').dataset.year, nivel.key);
+    });
+    levelSelector.appendChild(btn);
+  });
+
+  document.querySelectorAll('.btn-year').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-year').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      atualizarTabela(btn.dataset.year, document.querySelector('.btn-level.active').dataset.nivel);
+    });
+  });
+
+  // As três consultas são independentes: uma falhar não pode zerar as outras.
+  // Fonte que falha fica sem mapa, e a coluna dela sai '—' — mas o console diz
+  // qual falhou, senão '—' vira "não tem dado" quando é "não consegui ler".
+  try {
+    UNIDADES = await carregarUnidades();
+  } catch (e) {
+    console.error('[comparativo] catálogo de unidades falhou:', e);
+    container.innerHTML = '<div class="loading">Não foi possível carregar a lista de unidades. '
+      + 'Recarregue a página; se persistir, verifique a sessão.</div>';
+    return;
+  }
+
+  // O catálogo do CODERP é pré-requisito só dos bimestres; sem ele as duas
+  // primeiras colunas ainda funcionam.
+  const catalogo = await carregarCatalogoCoderp().catch(err => {
+    console.error('[comparativo] escolas_catalogo falhou:', err);
+    return null;
+  });
+
+  const tarefas = [
+    ['fluencia',    carregarFluencia()],
+    ['diagnostica', carregarDiagnostica()],
+  ];
+  if (catalogo) {
+    [1, 2, 3, 4].forEach(b => tarefas.push([b + '-bim', carregarBimestre(b, catalogo)]));
+  }
+
+  const res = await Promise.allSettled(tarefas.map(t => t[1]));
+  DADOS = {};
+  res.forEach((r, i) => {
+    const chave = tarefas[i][0];
+    if (r.status === 'fulfilled') { DADOS[chave] = r.value; return; }
+    console.error('[comparativo] ' + chave + ' falhou:', r.reason);
+    DADOS[chave] = null;   // coluna sai '—'; o console diz que foi falha
+  });
+
+  atualizarTabela('TODOS', NIVEIS[0].key);
+});
+</script>
+
+<script src="mapa-v2-ceu.js" defer></script>
+</body>
+</html>
