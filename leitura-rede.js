@@ -77,6 +77,19 @@
       .sort().join(' ');
   }
 
+  /* Tipo da unidade pelo TOKEN inteiro do nome (CEI / EMEI / EMEF / …).
+     ⚠️ Casar por substring não serve: 'CONCEICAO' contém 'CEI', e a unidade
+     viraria creche. Esta é a forma da `analise-jornada.html`, que já trata
+     isso; a de `atribuicao.html` usa `includes` e tem esse defeito.
+     A ordem importa: EMEIEF precisa ser testado antes de EMEI e de EMEF,
+     senão uma unidade que atende as duas etapas cai na primeira que casar. */
+  function tipoUnidade(nome) {
+    var toks = new Set(normalizar(nome).split(/[^A-Z0-9]+/).filter(Boolean));
+    var ordem = ['CEMEI', 'EMEIEF', 'CEEEF', 'EMEF', 'EMEI', 'CEI'];
+    for (var i = 0; i < ordem.length; i++) if (toks.has(ordem[i])) return ordem[i];
+    return 'Outras';
+  }
+
   /* '2º ANO', '2 ANO', '2' -> '2'. Vazio quando não há dígito. */
   function digitoAno(s) {
     var m = String(s || '').match(/(\d)/);
@@ -202,12 +215,19 @@
     });
   }
 
-  /* Lista oficial de unidades — com o recorte de RLS de sempre. */
-  function carregarUnidades() {
+  /* Lista oficial de unidades — com o recorte de RLS de sempre.
+     `tipos` recorta por tipo de unidade (ex.: ['EMEF']). Isso é CONFORTO
+     VISUAL, não segurança: quem entrega a lista é o RLS. Serve para tirar da
+     tabela quem não tem 1º a 5º ano — EMEI e CEI não têm, e apareceriam com
+     tudo '—'. */
+  function carregarUnidades(tipos) {
     return window.MAPA_SB.from('escolas').select('nome').eq('ativo', true)
       .order('nome').then(function (r) {
         if (r.error) throw r.error;
-        return (r.data || []).map(function (e) { return e.nome; });
+        var nomes = (r.data || []).map(function (e) { return e.nome; });
+        if (!tipos || !tipos.length) return nomes;
+        var alvo = new Set(tipos);
+        return nomes.filter(function (n) { return alvo.has(tipoUnidade(n)); });
       });
   }
 
@@ -255,10 +275,11 @@
      Cada fonte é independente: uma falhar não pode zerar as outras. Fonte que
      falha fica `null` e a coluna dela sai '—' — mas o console diz QUAL falhou,
      senão o traço esconde "não consegui ler" como se fosse "não tem dado". */
-  function carregar() {
+  function carregar(opcoes) {
+    var opts = opcoes || {};
     var saida = { unidades: [], porAvaliacao: {}, falhas: [] };
 
-    return carregarUnidades().then(function (unidades) {
+    return carregarUnidades(opts.tipos).then(function (unidades) {
       saida.unidades = unidades;
 
       return carregarCatalogoCoderp().catch(function (err) {
@@ -304,6 +325,7 @@
     GRUPOS: GRUPOS,
     AVALIACOES: AVALIACOES,
     chaveUnidade: chaveUnidade,
+    tipoUnidade: tipoUnidade,
     digitoAno: digitoAno,
     carregar: carregar,
     percentual: percentual,

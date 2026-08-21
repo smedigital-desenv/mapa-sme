@@ -220,8 +220,8 @@
       border-color: var(--secondary);
     }
 
-    /* "Leitores" é o agrupamento que a tela existe para mostrar; os seis
-       níveis avulsos vêm depois, para quem quiser abrir. */
+    /* "Leitores" é o agrupamento que a tela existe para mostrar; os
+       pré-leitores vêm depois, para quem quiser abrir. */
     .btn-level-destaque { border-color: var(--secondary); color: var(--secondary); }
     .btn-level-destaque.active { color: #fff; }
 
@@ -418,7 +418,7 @@
 
 <div class="ctx-bar">
   <div class="ctx-tit"><i class="bi bi-building"></i>Comparativo de Escolas</div>
-  <span class="ctx-chip">Percentual por nível de leitura · seis avaliações</span>
+  <span class="ctx-chip">Percentual de leitores · EMEF · seis avaliações</span>
 </div>
 
 <main class="main-content">
@@ -433,12 +433,14 @@
   <div class="aviso-sem-fonte">
     <i class="bi bi-info-circle-fill"></i>
     <div>
-      As seis colunas medem o <strong>mesmo nível de leitura</strong>, na escala
-      de seis pontos da rede (N1 a N4 Pré-leitor, Iniciante, Fluente). Fluência
-      e Diagnóstica vêm do banco; os bimestres vêm da ficha do CODERP, ao vivo.
-      O percentual é sobre os alunos <strong>avaliados</strong> naquele recorte —
-      quem não foi avaliado fica fora da conta. Célula com <strong>—</strong>
-      é recorte sem apuração, nunca zero.
+      <strong>Leitores = L. Iniciante + L. Fluente</strong>, o mesmo corte que
+      decide o selo Adequado/Alerta/Crítico nas telas de bimestre. As seis
+      colunas medem esse nível nas seis avaliações — Fluência e Diagnóstica vêm
+      do banco, os bimestres da ficha do CODERP. O percentual é sobre os alunos
+      <strong>avaliados</strong> no recorte. Célula com <strong>—</strong> é
+      recorte sem apuração, nunca zero.
+      <br>A lista traz apenas as <strong>EMEF</strong>: a comparação é de 1º a
+      5º ano, e EMEI e CEI não têm esses anos.
     </div>
   </div>
 
@@ -510,9 +512,17 @@ const L = () => window.MapaLeitura;
    a tela se chama "Percentual de Leitores", e a pergunta da SME é "quantos
    já leem", não "quantos estão no N3". O corte é o mesmo de
    `ehRespostaAdequada()` em avaliacao.html: Iniciante + Fluente. */
+/* Os níveis avulsos do seletor são só os PRÉ-LEITORES. L. Iniciante e
+   L. Fluente saíram de propósito: eles são exatamente o que o agrupamento
+   "Leitores" já mostra, e tê-los soltos ao lado convidava a ler uma metade
+   como se fosse o todo. Eles continuam existindo no cálculo — o módulo
+   precisa deles para somar "Leitores" e para as faixas da Análise de
+   Desempenho —, o que saiu foi o botão. */
 function alvos() {
+  const PRE = ['pre_n1', 'pre_n2', 'pre_n3', 'pre_n4'];
   return [{ key: 'leitores', label: 'Leitores', destaque: true }]
-    .concat(L().NIVEIS.map(n => ({ key: n.key, label: n.label })));
+    .concat(L().NIVEIS.filter(n => PRE.includes(n.key))
+                      .map(n => ({ key: n.key, label: n.label })));
 }
 
 let DADOS = null;
@@ -618,7 +628,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   try {
-    DADOS = await L().carregar();
+    // Só EMEF: esta tela compara 1º a 5º ano, e EMEI/CEI não têm
+    // esses anos. Conforto visual — quem entrega a lista é o RLS.
+    DADOS = await L().carregar({ tipos: ['EMEF'] });
   } catch (e) {
     console.error('[comparativo] carga falhou:', e);
     container.innerHTML = '<div class="loading">Não foi possível carregar os dados. '

@@ -118,7 +118,14 @@ dos pré-leitores é proposta e aguarda confirmação da SME.
 ⚠️ **A rede tem EMEI e CEI, que não têm 1º a 5º ano.** Listar as 112 unidades
 com tudo `'—'` é ruído; as telas escondem quem não tem apuração no recorte,
 mas **dizem quantas** esconderam. Esconder sem contar transformaria "não casei
-o nome" em "não tem dado".
+o nome" em "não tem dado". O **Comparativo** vai além e lista só as **EMEF**
+(`carregar({tipos:['EMEF']})`); a Análise de Desempenho segue com todas.
+
+⚠️ **O tipo da unidade sai do nome por TOKEN INTEIRO** (`tipoUnidade`), nunca
+por substring: `CONCEICAO` contém `CEI`, e a unidade viraria creche. A ordem
+de teste também importa — `EMEIEF` antes de `EMEI` e de `EMEF`, senão quem
+atende as duas etapas cai na primeira que casar. A `atribuicao.html` usa
+`includes` e tem esse defeito; a `analise-jornada.html` é a forma correta.
 
 #### A tela Comparativo de Escolas
 
@@ -1015,7 +1022,8 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
   leitura por unidade × ano, compartilhado por `comparativo-escolas.html` e
   `analise-desempenho.html`. Terceira exceção deliberada. Ele junta as três
   fontes (view de fluência, RPC da diagnóstica, ficha do CODERP) numa grandeza
-  só, e é onde vivem o casamento de grafia e o agrupamento "leitores".
+  só, e é onde vivem o casamento de grafia, o agrupamento "leitores" e o
+  recorte por tipo de unidade.
 - `auth.js` publica `window.MAPA_SUPABASE` quando a página não traz a sua, para
   que uma segunda tela não precise repetir a URL do projeto. Página que declara
   a própria (como a `avaliacao.html`) continua mandando.
