@@ -1047,6 +1047,19 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
   invisível. O que não casou fica em `naoResolvidos()`, e é candidato a
   `escola_alias`.
 
+  ⚠️ **A coluna `tipo` de `escolas_catalogo` NÃO é a sigla — é a descrição por
+  extenso** (`ESCOLA MUNICIPAL DE ENSINO FUNDAMENTAL`). Presumir que ali vinha
+  `EMEF` fez o filtro casar com ZERO e a tela do Comparativo ficar vazia em
+  homologação. `siglaDoTipo()` faz a conversão; descrição que ele não conhece
+  cai para a dedução pelo nome, para a unidade não sumir.
+
+  ⚠️ **O catálogo é MUITO mais amplo que a rede municipal.** Medido em 2026-08:
+  **258 unidades em 15 tipos** — EMEF 34, EMEI 43, CEI 36, mais 70 estaduais,
+  43 de convênio, 13 de OSC, parcerias e extensões. Os ~112 da rede são só as
+  três primeiras. É mais uma razão para a LISTA continuar vindo de `escolas`
+  com o RLS: usar o catálogo como lista traria escola estadual para dentro da
+  tela.
+
   A sonda **`MapaDiagUnidades('EMEF')`** responde, no console: quantas
   unidades o catálogo tem por tipo, quais nomes chegaram sem casar, e — nas
   telas que publicam `window.MapaTelaUnidades()` — **quais unidades do

@@ -93,8 +93,47 @@
       .sort().join(' ');
   }
 
+  /* ⚠️ A coluna `tipo` de `escolas_catalogo` NÃO é a sigla: é a descrição por
+     extenso ('ESCOLA MUNICIPAL DE ENSINO FUNDAMENTAL'). Medido em 2026-08:
+     258 unidades em 15 tipos. Presumir que ali vinha 'EMEF' fez o filtro casar
+     com ZERO e a tela do Comparativo ficar vazia.
+
+     ⚠️ E o catálogo é MUITO mais amplo que a rede municipal — traz estaduais
+     (70), convênios (43), OSC (13), parcerias (2). Os ~112 da rede são as três
+     primeiras linhas desta tabela. Por isso a LISTA de quem aparece continua
+     vindo de `escolas` (RLS): este catálogo serve para resolver NOME e TIPO,
+     não para decidir quem entra na tela.
+
+       descrição                                          sigla   qtd
+       CENTRO DE EDUCACAO INFANTIL                        CEI      36
+       ESCOLA MUNICIPAL DE EDUCACAO INFANTIL              EMEI     43
+       ESCOLA MUNICIPAL DE ENSINO FUNDAMENTAL             EMEF     34
+       ESCOLA MUNICIPAL DE ENSINO PROFISSIONAL E BASICO   EMEPB     1
+       CENTRO EDUCACIONAL JORNADA AMPLIADA                CEJA      1
+       ESCOLAS ESTADUAIS DO 1/5, 1/9, 6/9                 ESTADUAL 70
+       CONVENIO (+ EDUCACAO ESPECIAL)                     CONVENIO 43
+       ESCOLA VINCULADA / EXTENSOES SME                   EXTENSAO 11
+       ORGANIZACAO DA SOCIEDADE CIVIL                     OSC      13
+       PARCERIA / OUTRAS                                  OUTRAS    6 */
+  function siglaDoTipo(descricao) {
+    var d = normalizar(descricao);
+    if (!d) return '';
+    if (d.indexOf('ENSINO FUNDAMENTAL') >= 0 && d.indexOf('MUNICIPAL') >= 0) return 'EMEF';
+    if (d.indexOf('EDUCACAO INFANTIL') >= 0 && d.indexOf('MUNICIPAL') >= 0) return 'EMEI';
+    if (d.indexOf('CENTRO DE EDUCACAO INFANTIL') >= 0) return 'CEI';
+    if (d.indexOf('PROFISSIONAL') >= 0) return 'EMEPB';
+    if (d.indexOf('JORNADA AMPLIADA') >= 0) return 'CEJA';
+    if (d.indexOf('ESTADUAL') >= 0 || d.indexOf('ESTADUAIS') >= 0) return 'ESTADUAL';
+    if (d.indexOf('CONVENIO') >= 0) return 'CONVENIO';
+    if (d.indexOf('VINCULADA') >= 0 || d.indexOf('EXTENSOES') >= 0) return 'EXTENSAO';
+    if (d.indexOf('SOCIEDADE CIVIL') >= 0) return 'OSC';
+    if (d.indexOf('PARCERIA') >= 0) return 'PARCERIA';
+    return '';   // desconhecido: quem chama cai para a dedução pelo nome
+  }
+
   /* Tipo pelo TOKEN inteiro do nome — reserva para quando o catálogo não
-     traz `tipo`. ⚠️ Por substring não serve: 'CONCEICAO' contém 'CEI'.
+     traz `tipo`, ou traz uma descrição que ainda não sabemos mapear.
+     ⚠️ Por substring não serve: 'CONCEICAO' contém 'CEI'.
      A ordem importa: EMEIEF antes de EMEI e de EMEF. */
   function tipoPeloNome(nome) {
     var toks = new Set(normalizar(nome).split(/[^A-Z0-9]+/).filter(Boolean));
@@ -113,7 +152,10 @@
           return {
             codigo: Number(e.codigo),
             nome: String(e.nome || '').trim(),
-            tipo: String(e.tipo || '').trim().toUpperCase() || tipoPeloNome(e.nome),
+            // `tipo` é a SIGLA (o que o resto do sistema usa); a descrição
+            // crua fica em `tipoDescricao` para diagnóstico.
+            tipo: siglaDoTipo(e.tipo) || tipoPeloNome(e.nome),
+            tipoDescricao: String(e.tipo || '').trim(),
             setor: e.setor
           };
         });
@@ -195,6 +237,7 @@
     todas: todas,
     chave: chave,
     tipoPeloNome: tipoPeloNome,
+    siglaDoTipo: siglaDoTipo,
     naoResolvidos: naoResolvidos,
     catalogo: function () { return (_catalogo || []).slice(); }
   };
@@ -208,16 +251,29 @@
     return carregar().then(function () {
       var cat = _catalogo.slice();
       var porTipo = {};
-      cat.forEach(function (u) { porTipo[u.tipo] = (porTipo[u.tipo] || 0) + 1; });
-      console.info('[MapaDiagUnidades] catálogo escolas_catalogo:', cat.length, 'unidades');
-      console.table(Object.keys(porTipo).sort().map(function (t) {
-        return { tipo: t, unidades: porTipo[t] };
+      cat.forEach(function (u) {
+        var k = u.tipo + ' | ' + (u.tipoDescricao || '');
+        porTipo[k] = (porTipo[k] || 0) + 1;
+      });
+      console.info('[MapaDiagUnidades] catálogo escolas_catalogo:', cat.length,
+        'unidades. ⚠️ Ele é mais amplo que a rede municipal — traz estadual, '
+        + 'convênio, OSC. Quem entra na tela é a lista do RLS, não este catálogo.');
+      console.table(Object.keys(porTipo).sort().map(function (k) {
+        var p = k.split(' | ');
+        return { sigla: p[0], descricao_no_catalogo: p[1], unidades: porTipo[k] };
       }));
 
       var alvo = tipoAlvo
         ? cat.filter(function (u) { return u.tipo === String(tipoAlvo).toUpperCase(); })
         : cat;
-      if (tipoAlvo) console.info('[MapaDiagUnidades]', alvo.length, String(tipoAlvo).toUpperCase(), 'no catálogo');
+      if (tipoAlvo) {
+        console.info('[MapaDiagUnidades]', alvo.length, String(tipoAlvo).toUpperCase(), 'no catálogo');
+        if (!alvo.length) {
+          console.warn('[MapaDiagUnidades] nenhum "' + tipoAlvo + '" no catálogo. '
+            + 'As siglas válidas são as da coluna `sigla` da tabela acima — '
+            + 'a coluna `tipo` do banco guarda a descrição por extenso.');
+        }
+      }
 
       // O que a tela listou, se ela publicar isso
       var naTela = null;
@@ -241,8 +297,12 @@
         console.warn('[MapaDiagUnidades] nomes que NÃO casaram com o catálogo '
           + '(candidatos a escola_alias):');
         console.table(nr);
-      } else {
+      } else if (naTela && naTela.length) {
         console.info('[MapaDiagUnidades] todos os nomes vistos até agora casaram.');
+      } else {
+        console.info('[MapaDiagUnidades] nenhum nome foi resolvido ainda — '
+          + 'a tela não carregou dado, ou o filtro não casou com nada. '
+          + 'Isto NÃO quer dizer que está tudo certo.');
       }
       return { catalogo: cat.length, alvo: alvo.length, naoResolvidos: nr };
     });
