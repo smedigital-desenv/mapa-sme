@@ -502,6 +502,14 @@ function pacoteSemFonte(avaliacao, ano, escolas) {
   };
 }
 
+/* Mesmo escape das demais telas: o nome da unidade vem do catálogo `escolas`,
+   que é escrito pelo painel — sem escapar, um nome com marcação vira HTML
+   executado na tela de quem abrir o comparativo. */
+function esc(s) {
+  return String(s??'').replace(/[&<>"']/g,
+    c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 const semNumero = v => (v === null || v === undefined ? '—' : v);
 
 function atualizarKPIs(dados) {
@@ -566,7 +574,7 @@ function atualizarTabela(dados) {
     const valores = Object.keys(NIVEIS).map(n => d[n]);
     const temNumero = valores.some(v => v !== null && v !== undefined);
     const total = temNumero ? valores.reduce((a, b) => a + (b || 0), 0) : null;
-    html += `<tr><td><strong>${escola}</strong></td>`;
+    html += `<tr><td><strong>${esc(escola)}</strong></td>`;
     Object.keys(NIVEIS).forEach(nivel => {
       const v = d[nivel];
       html += (v === null || v === undefined)

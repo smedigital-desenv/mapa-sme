@@ -568,6 +568,14 @@ async function carregarDiagnostica() {
 function percentuaisBimestre() {
   return null;
 }
+/* Mesmo escape das demais telas: o nome da unidade vem do catálogo `escolas`,
+   que é escrito pelo painel — sem escapar, um nome com marcação vira HTML
+   executado na tela de quem abrir o comparativo. */
+function esc(s) {
+  return String(s??'').replace(/[&<>"']/g,
+    c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 function getCorPorcentual(valor) {
   if (valor >= 60) return 'alto';
   if (valor >= 40) return 'medio';
@@ -600,11 +608,11 @@ function atualizarTabela(ano, nivelKey) {
   if (!UNIDADES) { container.innerHTML = '<div class="loading">Carregando unidades...</div>'; return; }
 
   let html = '<table><thead><tr><th>Escola</th>';
-  AVALIACOES.forEach(av => { html += `<th style="text-align: center;">${av.label}</th>`; });
+  AVALIACOES.forEach(av => { html += `<th style="text-align: center;">${esc(av.label)}</th>`; });
   html += '</tr></thead><tbody>';
 
   UNIDADES.forEach(escola => {
-    html += `<tr><td class="escola-nome">${escola}</td>`;
+    html += `<tr><td class="escola-nome">${esc(escola)}</td>`;
     AVALIACOES.forEach(av => {
       const valor = av.key === 'fluencia'    ? percentual(DADOS.fluencia, escola, ano, nivelKey)
                   : av.key === 'diagnostica' ? percentual(DADOS.diagnostica, escola, ano, nivelKey)
