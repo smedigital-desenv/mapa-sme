@@ -12,6 +12,7 @@
   <script src="auth-guard.js"></script>
   <script>window.MAPA_SISTEMA = 'mapa';</script>
   <script src="auth.js" defer></script>
+  <script src="ficha-coderp.js"></script>
   <script src="config-central.js" defer></script>
   <script src="demo-mode.js"></script>
   <script src="iago.js"></script>
@@ -8342,90 +8343,22 @@ function _renderTabelaTotal(linhas) {
   // guarda o token e refaz a checagem de permissão no banco. NADA é gravado
   // no banco do MAPA: a API existe para não inflar o consumo da instância.
   // `?coderp=0` desliga e volta para a RPC do banco (dados importados).
-  const FICHA_FN_URL = supabaseUrl + '/functions/v1/coderp-ficha';
-  const FICHA_ANOS_ESCOLARES = ['1 ANO', '2 ANO', '3 ANO', '4 ANO', '5 ANO'];
-
-  // ── O que o `per_cod` do CODERP pode trazer, e o que fica de fora ─────────
-  // Medido em 2026-08 (bim 1, rede inteira sem filtro): 18 valores distintos.
-  // A tela consultava só os cinco primeiros, então 36% das linhas da ficha
-  // nunca chegavam aqui. Definido com a SME o que entra:
-  //
-  //   1 ANO … 9 ANO   Ensino Fundamental — é o objeto destas telas.
-  //
-  //   CIC 2/3/4       Educação Infantil, ciclos 2, 3 e 4 ─┐
-  //   ETP 1/2         Educação Infantil, Etapas I e II     │ fora da contagem
-  //   PECAI           PEC dos Anos Iniciais                │
-  //   TAIMS           Termos Anos Iniciais Multi Seriados  │ turmas de
-  //   TAFMS           Termos Anos Finais Multi Seriados    │ treinamento
-  //   TREIN           Prática Desportiva masc./fem.       ─┘
-  //
-  // ⚠️ A lista é de EXCLUSÃO, não de inclusão, e isso é de propósito: um
-  // per_cod novo que o CODERP passe a devolver entra na contagem e aparece na
-  // tela, em vez de sumir em silêncio. Some quem for explicitamente excluído.
-  const PER_COD_FORA = new Set([
-    'CIC 2', 'CIC 3', 'CIC 4',      // Educação Infantil
-    'ETP 1', 'ETP 2',               // Educação Infantil
-    'PECAI',                        // PEC Anos Iniciais
-    'TAIMS', 'TAFMS', 'TREIN',      // turmas de treinamento
-  ]);
-  const perCodContavel = p => {
-    const v = String(p == null ? '' : p).trim().toUpperCase();
-    return !!v && !PER_COD_FORA.has(v);
-  };
-
-  function fichaApiAtiva() {
-    try {
-      if (new URLSearchParams(location.search).get('coderp') === '0') return false;
-    } catch (e) { /* URLSearchParams sempre existe nos navegadores atendidos */ }
-    return true;
-  }
-
-  async function chamarFichaApi(nivel, parms) {
-    // Cache local primeiro (IndexedDB do auth.js, aquecido pelas outras
-    // telas): resposta fresca sai daqui SEM REDE — é a instantaneidade.
-    const corpo = JSON.stringify({ nivel, parms });
-    if (window.MapaFichaCache) {
-      const pronto = await window.MapaFichaCache.ler(corpo).catch(() => null);
-      if (pronto !== null) { try { return JSON.parse(pronto); } catch (e) { /* cai para a rede */ } }
-    }
-
-    const tok = window.MapaAuth && window.MapaAuth.token ? await window.MapaAuth.token() : null;
-    if (!tok) throw new Error('sessão do MAPA indisponível');
-    const r = await fetch(FICHA_FN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
-      body: corpo
-    });
-    const texto = await r.text();
-    let resp = null;
-    try { resp = JSON.parse(texto); } catch (e) { /* resposta não-JSON tratada abaixo */ }
-    if (!r.ok) {
-      // O status DO CODERP vai junto: sem ele, "502 coderp_recusou" não
-      // distingue "não existe / sem lançamento" (404) de indisponibilidade.
-      const dentro = resp && resp.status ? ' (CODERP ' + resp.status + ')' : '';
-      const erro = new Error('coderp-ficha ' + r.status + ' ' + ((resp && resp.erro) || '') + dentro);
-      // Exposto para quem chama poder tratar 404 como "vazio", e não como falha.
-      erro.coderpStatus = (resp && resp.status) || 0;
-      throw erro;
-    }
-    // Só entra no cache local resposta com dado real, ou vazio SEM Messages
-    // (bimestre sem lançamento é legítimo; vazio COM aviso é suspeito e não
-    // pode ficar "colado" por 10 min).
-    const temDado = !!resp && (
-      Object.keys(resp).some(k =>
-        k.indexOf('fichasAvaliacoes') === 0 && Array.isArray(resp[k]) && resp[k].length)
-      // O nível sintético `detalherede` devolve `linhas`, não `fichasAvaliacoes*`.
-      || (Array.isArray(resp.linhas) && resp.linhas.length));
-    const msgs = ((resp && resp.Messages) || []).filter(m => m && m.Description);
-    // Resposta PARCIAL (leque incompleto) não vai para o cache: guardar uma
-    // rede pela metade por 10 min esconderia unidades sem nenhum aviso.
-    const parcial = !!(resp && resp.parcial);
-    if (window.MapaFichaCache && resp && !parcial && (temDado || !msgs.length)) {
-      window.MapaFichaCache.gravar(corpo, texto);
-    }
-    if (msgs.length) console.warn('[MAPA CODERP] Messages da API:', msgs);
-    return resp || {};
-  }
+  // ── A camada de transporte da ficha vive em `ficha-coderp.js` ────────────
+  // Ela foi extraída daqui quando a tela Comparativo de Escolas passou a
+  // precisar do mesmo dado de bimestre. Os nomes abaixo são os MESMOS de
+  // antes, de propósito: os pontos de chamada desta tela não mudaram, e o
+  // diff fica restrito a quem DEFINE, não a quem usa.
+  // ⚠️ Sem fallback de propósito. Se o módulo não carregar, esta tela precisa
+  // falhar alto: um caminho reserva silencioso reintroduziria a segunda
+  // contagem que a extração existe para impedir.
+  if (!window.MapaFicha) throw new Error('ficha-coderp.js não carregou');
+  const _FICHA = window.MapaFicha.criar(supabaseUrl);
+  const FICHA_FN_URL          = _FICHA.FICHA_FN_URL;
+  const FICHA_ANOS_ESCOLARES  = _FICHA.FICHA_ANOS_ESCOLARES;
+  const PER_COD_FORA          = _FICHA.PER_COD_FORA;
+  const perCodContavel        = _FICHA.perCodContavel;
+  const fichaApiAtiva         = _FICHA.fichaApiAtiva;
+  const chamarFichaApi        = _FICHA.chamarFichaApi;
 
   // Catálogo código CODERP -> nome da unidade (uma busca por sessão). A
   // tradução para a grafia oficial acontece no cleanUnit, para TODAS as fontes.
@@ -8444,11 +8377,8 @@ function _renderTabelaTotal(linhas) {
     return _fichaCatalogoPromise;
   }
 
-  function fichaAnoLetivo() { return new Date().getFullYear(); }
+  const fichaAnoLetivo = _FICHA.fichaAnoLetivo;
 
-  // Memo das consultas de rede por (bimestre, ano escolar): bimestres, Total e
-  // árvore compartilham as mesmas respostas sem repetir chamadas à API.
-  const _fichaTurmaMemo = new Map();
   // Memo do pacote do Total por filtro (TTL 10 min, alinhado às outras camadas).
   const _totalPacoteMemo = new Map();
   // ── Rede inteira numa consulta só, recortada por per_cod ──────────────────
@@ -8476,16 +8406,7 @@ function _renderTabelaTotal(linhas) {
     return _fichaTudoMemo.get(k);
   }
 
-  function fichaRedeTurma(bimestre, anoEsc) {
-    const k = bimestre + '|' + anoEsc;
-    if (!_fichaTurmaMemo.has(k)) {
-      _fichaTurmaMemo.set(k,
-        chamarFichaApi('turma', { anoLetivo: fichaAnoLetivo(), bimestre: bimestre, anoescolar: anoEsc })
-          .then(r => r.fichasAvaliacoesTurma || [])
-          .catch(err => { _fichaTurmaMemo.delete(k); throw err; }));
-    }
-    return _fichaTurmaMemo.get(k);
-  }
+  const fichaRedeTurma = _FICHA.fichaRedeTurma;
 
   // ── Totais oficiais da REDE (/IndicadorRede) ──────────────────────────────
   // É a ÚNICA fonte independente dos totais que a API oferece: uma chamada por

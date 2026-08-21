@@ -8,6 +8,7 @@
   <script src="auth-guard.js"></script>
   <script>window.MAPA_SISTEMA = 'mapa';</script>
   <script src="auth.js" defer></script>
+  <script src="ficha-coderp.js"></script>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
@@ -371,15 +372,14 @@
   </div>
 
   <div class="aviso-sem-fonte">
-    <i class="bi bi-exclamation-triangle-fill"></i>
+    <i class="bi bi-info-circle-fill"></i>
     <div>
-      <strong>Fluência Leitora e Diagnóstica já vêm do banco.</strong>
-      As colunas de <strong>1º a 4º bimestre</strong> ainda aparecem como
-      <strong>—</strong>: o dado existe na ficha do CODERP, mas o caminho até
-      ele é a mesma rota de rede da tela de Avaliações, que ainda não foi
-      compartilhada com esta tela. As três colunas medem o mesmo nível de
-      leitura, na escala de seis pontos (N1 a N4 Pré-leitor, Iniciante,
-      Fluente). O percentual é sobre os alunos avaliados no recorte.
+      As seis colunas medem o <strong>mesmo nível de leitura</strong>, na escala
+      de seis pontos da rede (N1 a N4 Pré-leitor, Iniciante, Fluente). Fluência
+      e Diagnóstica vêm do banco; os bimestres vêm da ficha do CODERP, ao vivo.
+      O percentual é sobre os alunos <strong>avaliados</strong> naquele recorte —
+      quem não foi avaliado fica fora da conta. Célula com <strong>—</strong>
+      é recorte sem apuração, nunca zero.
     </div>
   </div>
 
@@ -434,8 +434,9 @@
      correção feita em uma só.
    • Diagnóstica → Supabase, RPC `alunos_diagnostica` (uma linha por aluno,
      com o eixo LEITURA em `l_valor`). Mesma RPC da aba Diagnóstica.
-   • 1º a 4º bimestre → API do CODERP, pela Edge Function `coderp-ficha`.
-     ⚠️ AINDA NÃO LIGADO — ver o comentário em `percentuaisBimestre()`.
+   • 1º a 4º bimestre → API do CODERP, pela Edge Function `coderp-ficha`,
+     através da camada compartilhada `ficha-coderp.js` (a MESMA que a tela de
+     Avaliações usa). Ver `carregarBimestre()`.
 
    ⚠️ A escala é de SEIS níveis, não cinco. Ela é a de `labelRespostaPainel`
    em `avaliacao.html` (LEITURA: 1..6) e a de `v_fluencia_por_turma`
@@ -556,17 +557,83 @@ async function carregarDiagnostica() {
 }
 
 /* ── 1º a 4º bimestre ─────────────────────────────────────────────────────
-   ⚠️ AINDA NÃO LIGADO. O dado existe: a ficha do CODERP traz o eixo LEITURA
-   na mesma escala de 6 pontos (ver `labelRespostaPainel` em avaliacao.html).
-   O que falta não é a fonte, é o caminho até ela — a rota de rede por
-   bimestre é a máquina inteira da tela de Avaliações (Edge Function
-   `coderp-ficha`, uma consulta por ano escolar, conferência da soma por
-   unidade, cache). Reescrever isso aqui criaria uma segunda contagem que
-   diverge da primeira na primeira correção feita em uma só.
-   O caminho certo é extrair aquela rota para um módulo compartilhado, como
-   foi feito com `visao-rede.js`, e chamá-la das duas telas. */
-function percentuaisBimestre() {
-  return null;
+   Vem da API do CODERP, pela camada de transporte compartilhada
+   (`ficha-coderp.js`) — a MESMA que a tela de Avaliações usa. O eixo LEITURA
+   da ficha está na mesma escala de 6 pontos das outras duas colunas.
+
+   ⚠️ Aqui NÃO se usa `alunosPorItens()`, e isso é o ponto que torna esta
+   coluna barata e exata. Aquela regra existe para descobrir quantos alunos
+   uma turma tem quando se olha VÁRIOS itens de uma vez, sem saber quantas
+   perguntas cada um vale. O problema aqui é outro: dentro de UM único item
+   (o eixo LEITURA), `qtd_alunos` já conta alunos DISTINTOS por resposta.
+   Somar as respostas daquele item dá exatamente quantos alunos estão em cada
+   nível — sem heurística e sem margem de erro.
+
+   ⚠️ Por isso não replique este atalho para "quantos alunos tem a turma": ali
+   a premissa cai e a regra calibrada volta a ser necessária.
+
+   Respostas fora da escala 1..6 (o 'X' de não avaliado, entre outras) ficam
+   FORA dos dois lados da fração — mesmo critério das outras duas colunas. */
+const EIXO_LEITURA = 'LEITURA';
+
+/* A fábrica é chamada UMA vez: cada instância tem o próprio memo, e criar uma
+   por bimestre jogaria fora o compartilhamento entre as quatro consultas. */
+let _F = null;
+function _ficha() {
+  if (!window.MapaFicha) throw new Error('ficha-coderp.js não carregou');
+  const cfg = window.MAPA_SUPABASE || {};
+  if (!_F) _F = window.MapaFicha.criar(cfg.url || '');
+  return _F;
+}
+
+function _ehLeitura(fneDes) {
+  return String(fneDes || '')
+    .toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .includes(EIXO_LEITURA);
+}
+
+async function carregarBimestre(bimestre, catalogo) {
+  const F = _ficha();
+  const porVl = {};
+  NIVEIS.forEach(n => { porVl[n.vl] = n.key; });
+
+  // Uma consulta por ano escolar, como na tela de Avaliações. 404 é RESPOSTA
+  // ("bimestre sem lançamento"), não avaria — vira lista vazia.
+  const porAno = await Promise.all(F.FICHA_ANOS_ESCOLARES.map(ano =>
+    F.fichaRedeTurma(bimestre, ano).catch(err => {
+      if (err && err.coderpStatus === 404) return [];
+      console.warn('[comparativo] bim ' + bimestre + ' / ' + ano + ':', err && err.message);
+      return null;   // falha de verdade: este ano fica de fora, não zerado
+    })));
+
+  if (porAno.every(r => r === null)) return null;   // nenhum ano respondeu
+
+  const mapa = {};
+  porAno.forEach(linhas => {
+    (linhas || []).forEach(l => {
+      if (!F.perCodContavel(l.per_cod)) return;
+      if (!_ehLeitura(l.fne_des)) return;
+      const chave = porVl[String(l.fqr_vl || '').trim()];
+      if (!chave) return;
+      const unidade = catalogo.get(Number(l.uni_cod));
+      if (!unidade) return;                        // código fora do catálogo
+      somar(mapa, unidade, l.per_cod, chave, Number(l.qtd_alunos) || 0);
+    });
+  });
+  return mapa;
+}
+
+/* Código CODERP (`uni_cod`) → nome da unidade. Vem de `escolas_catalogo`, que
+   é o catálogo da fonte CODERP/SAE — separado do `escolas` do RLS de
+   propósito. Unidade cujo código não estiver aqui não entra: melhor faltar
+   linha visível que somar no lugar errado. */
+async function carregarCatalogoCoderp() {
+  const supa = window.MAPA_SB;
+  const { data, error } = await supa.from('escolas_catalogo').select('codigo,nome');
+  if (error) throw error;
+  const m = new Map();
+  (data || []).forEach(e => m.set(Number(e.codigo), String(e.nome || '').trim()));
+  return m;
 }
 /* Mesmo escape das demais telas: o nome da unidade vem do catálogo `escolas`,
    que é escrito pelo painel — sem escapar, um nome com marcação vira HTML
@@ -614,9 +681,7 @@ function atualizarTabela(ano, nivelKey) {
   UNIDADES.forEach(escola => {
     html += `<tr><td class="escola-nome">${esc(escola)}</td>`;
     AVALIACOES.forEach(av => {
-      const valor = av.key === 'fluencia'    ? percentual(DADOS.fluencia, escola, ano, nivelKey)
-                  : av.key === 'diagnostica' ? percentual(DADOS.diagnostica, escola, ano, nivelKey)
-                  : percentuaisBimestre();
+      const valor = percentual(DADOS[av.key], escola, ano, nivelKey);
       html += (valor === null || valor === undefined)
         ? '<td class="text-muted" style="text-align: center;" title="sem dado apurado para este recorte">—</td>'
         : `<td class="percentual ${getCorPorcentual(valor)}" style="text-align: center;">${valor}%</td>`;
@@ -668,14 +733,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  const [flu, diag] = await Promise.allSettled([carregarFluencia(), carregarDiagnostica()]);
-  if (flu.status === 'rejected')  console.error('[comparativo] Fluência falhou:', flu.reason);
-  if (diag.status === 'rejected') console.error('[comparativo] Diagnóstica falhou:', diag.reason);
+  // O catálogo do CODERP é pré-requisito só dos bimestres; sem ele as duas
+  // primeiras colunas ainda funcionam.
+  const catalogo = await carregarCatalogoCoderp().catch(err => {
+    console.error('[comparativo] escolas_catalogo falhou:', err);
+    return null;
+  });
 
-  DADOS = {
-    fluencia:    flu.status  === 'fulfilled' ? flu.value  : null,
-    diagnostica: diag.status === 'fulfilled' ? diag.value : null,
-  };
+  const tarefas = [
+    ['fluencia',    carregarFluencia()],
+    ['diagnostica', carregarDiagnostica()],
+  ];
+  if (catalogo) {
+    [1, 2, 3, 4].forEach(b => tarefas.push([b + '-bim', carregarBimestre(b, catalogo)]));
+  }
+
+  const res = await Promise.allSettled(tarefas.map(t => t[1]));
+  DADOS = {};
+  res.forEach((r, i) => {
+    const chave = tarefas[i][0];
+    if (r.status === 'fulfilled') { DADOS[chave] = r.value; return; }
+    console.error('[comparativo] ' + chave + ' falhou:', r.reason);
+    DADOS[chave] = null;   // coluna sai '—'; o console diz que foi falha
+  });
 
   atualizarTabela('TODOS', NIVEIS[0].key);
 });

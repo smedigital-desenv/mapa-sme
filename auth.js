@@ -27,6 +27,12 @@
     url: 'https://gmwotfulohkmuqrezeef.supabase.co',
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk'
   };
+  // Publica a config para quem precisa da URL do projeto sem repetir a chave
+  // numa segunda página (a `ficha-coderp.js` precisa dela para montar o
+  // endereço da Edge Function). Só preenche se a página NÃO trouxer a sua:
+  // `avaliacao.html` declara a dela antes daqui, e continua mandando.
+  window.MAPA_SUPABASE = window.MAPA_SUPABASE || MAPA_CFG;
+
   var SISTEMA_SLUG = window.MAPA_SISTEMA || 'mapa';
 
   // ── Ponte de identidade para TODA chamada ao banco do MAPA ────────────────

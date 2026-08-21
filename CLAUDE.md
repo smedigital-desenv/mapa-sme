@@ -92,6 +92,43 @@ médios (`#65a30d`, `#ca8a04`, `#ea580c`) o texto branco fica em 2,94–3,56:1,
 abaixo do mínimo de 4,5:1; com tinta escura sobe para 5,0–6,1:1. A paleta é a
 mesma — não volte o texto para branco "para uniformizar".
 
+#### A tela Comparativo de Escolas
+
+Lista as unidades com o **percentual de alunos em um nível de leitura**, lado a
+lado nas seis avaliações: Fluência, Diagnóstica e 1º a 4º bimestre. Filtro de
+ano escolar (1º a 5º) e seleção do nível.
+
+As três fontes são diferentes e a tela as trata como a mesma grandeza porque
+**são** a mesma: o nível de leitura na escala de seis pontos (N1 a N4
+Pré-leitor, L. Iniciante, L. Fluente).
+
+| coluna | fonte |
+|---|---|
+| Fluência Leitora | Supabase, view `v_fluencia_por_turma` |
+| Diagnóstica | Supabase, RPC `alunos_diagnostica` (eixo LEITURA) |
+| 1º a 4º bimestre | CODERP, via `ficha-coderp.js` (eixo LEITURA) |
+
+⚠️ **A escala tem SEIS níveis, não cinco.** Ela é a de `labelRespostaPainel`
+(LEITURA 1..6) e a das colunas de `v_fluencia_por_turma`. Não invente um 'N5':
+depois do N4 Pré-leitor vem o Leitor Iniciante, e depois dele o Fluente.
+
+⚠️ **Os bimestres NÃO usam `alunosPorItens()`, e isso é correto.** Aquela regra
+existe para descobrir quantos alunos uma turma tem olhando VÁRIOS itens sem
+saber quantas perguntas cada um vale. Aqui a pergunta é outra: dentro de UM
+item (o eixo LEITURA), `qtd_alunos` já conta alunos distintos por resposta, e
+somar as respostas daquele item dá o número exato em cada nível. 🚫 Não
+replique esse atalho para "quantos alunos tem a turma" — ali a premissa cai e a
+regra calibrada volta a ser necessária.
+
+⚠️ **O denominador é quem foi AVALIADO no recorte.** Ausente e não avaliado
+ficam fora dos dois lados da fração; senão a unidade que faltou mais aparece
+melhor ou pior por ausência, não por aprendizagem.
+
+⚠️ **Célula sem apuração sai `'—'`, nunca 0%.** Zero por cento se lê como
+"ninguém está nesse nível" quando a verdade é "não foi medido". Fonte que falha
+também sai `'—'`, e o console registra qual falhou — sem isso o traço esconde
+"não consegui ler" como se fosse "não tem dado".
+
 ### A tela AVISA quando o dado não veio da API
 
 ⚠️ O pacote do bimestre carrega `origem` (`'coderp'` ou `'banco'`) e
@@ -938,6 +975,17 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
   compartilhado pelas telas de avaliação externa (seção 1). É a exceção
   deliberada ao "cada tela é autocontida": eram 200 linhas iguais em cinco
   arquivos, que divergiriam na primeira correção feita em quatro deles.
+- `ficha-coderp.js` expõe `window.MapaFicha.criar(url)`, a **camada de
+  transporte** da ficha do CODERP, compartilhada por `avaliacao.html` e
+  `comparativo-escolas.html`. Segunda exceção deliberada, pelo mesmo motivo.
+  ⚠️ O que mora nela é transporte — chamada à Edge Function, cache local,
+  404 × falha, `PER_COD_FORA`, memo por (bimestre, ano). **`alunosPorItens()`
+  NÃO subiu para lá** e não deve subir: a regra de contar aluno é específica
+  do que cada tela pergunta. Ao mexer no módulo, lembre que conserta (ou
+  quebra) as duas telas ao mesmo tempo.
+- `auth.js` publica `window.MAPA_SUPABASE` quando a página não traz a sua, para
+  que uma segunda tela não precise repetir a URL do projeto. Página que declara
+  a própria (como a `avaliacao.html`) continua mandando.
 - `?demo=0` desliga o modo demonstração, que também intercepta `fetch` e
   atrapalha diagnóstico de autenticação.
 
