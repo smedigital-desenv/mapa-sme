@@ -8,6 +8,8 @@
   <script src="auth-guard.js"></script>
   <script>window.MAPA_SISTEMA = 'mapa';</script>
   <script src="auth.js" defer></script>
+  <script src="ficha-coderp.js"></script>
+  <script src="leitura-rede.js"></script>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
@@ -202,6 +204,8 @@
       color: var(--secondary);
       margin: 0.5rem 0;
     }
+
+    .kpi-pct { font-size:.78rem; color:var(--text-3); font-weight:700; }
 
     .kpi-label {
       font-size: 0.85rem;
@@ -417,13 +421,17 @@
   </div>
 
   <div class="aviso-sem-fonte">
-    <i class="bi bi-exclamation-triangle-fill"></i>
+    <i class="bi bi-info-circle-fill"></i>
     <div>
-      <strong>Tela em construção — sem fonte de dados ligada.</strong>
-      A lista de unidades abaixo é real (vem do catálogo, com o mesmo recorte de
-      acesso das demais telas), mas as faixas aparecem como <strong>—</strong>
-      porque a apuração ainda não foi conectada. Nenhum número desta tela deve
-      ser usado para leitura da rede.
+      <strong>As quatro faixas são um agrupamento da escala real de leitura,
+      não uma escala nova.</strong> A rede mede leitura em seis pontos; aqui
+      eles viram quatro, na mesma ordem: N1+N2 Pré-leitor → Não Proficiente,
+      N3+N4 → Básico, L. Iniciante → Proficiente, L. Fluente → Avançado.
+      O corte entre Básico e Proficiente é o mesmo que decide o selo
+      Adequado/Alerta/Crítico nas telas de bimestre — ou seja,
+      Proficiente + Avançado é o "adequado" que a rede já usa.
+      ⚠️ O corte dentro dos pré-leitores (N1+N2 × N3+N4) é proposta desta tela
+      e precisa de confirmação da SME.
     </div>
   </div>
 
@@ -450,21 +458,25 @@
 
   <!-- KPIs -->
   <div class="kpi-row" id="kpiRow" style="display: none;">
-    <div class="kpi-card nao-proficiente">
+    <div class="kpi-card nao-proficiente" id="kpi-nao-proficiente">
       <div class="kpi-label">Não Proficiente</div>
-      <div class="kpi-value" id="kpiNaoProficiente">-</div>
+      <div class="kpi-value">—</div>
+      <div class="kpi-pct"></div>
     </div>
-    <div class="kpi-card basico">
+    <div class="kpi-card basico" id="kpi-basico">
       <div class="kpi-label">Básico</div>
-      <div class="kpi-value" id="kpiBasico">-</div>
+      <div class="kpi-value">—</div>
+      <div class="kpi-pct"></div>
     </div>
-    <div class="kpi-card proficiente">
+    <div class="kpi-card proficiente" id="kpi-proficiente">
       <div class="kpi-label">Proficiente</div>
-      <div class="kpi-value" id="kpiProficiente">-</div>
+      <div class="kpi-value">—</div>
+      <div class="kpi-pct"></div>
     </div>
-    <div class="kpi-card avancado">
+    <div class="kpi-card avancado" id="kpi-avancado">
       <div class="kpi-label">Avançado</div>
-      <div class="kpi-value" id="kpiAvancado">-</div>
+      <div class="kpi-value">—</div>
+      <div class="kpi-pct"></div>
     </div>
   </div>
 
@@ -502,187 +514,181 @@
 </main>
 
 <script>
-const NIVEIS = {
-  'nao-proficiente': { label: 'Não Proficiente', cor: '#ef4444', classe: 'nivel-nao-proficiente' },
-  'basico': { label: 'Básico', cor: '#f59e0b', classe: 'nivel-basico' },
-  'proficiente': { label: 'Proficiente', cor: '#10b981', classe: 'nivel-proficiente' },
-  'avancado': { label: 'Avançado', cor: '#8b5cf6', classe: 'nivel-avancado' }
-};
+/* ============================================================================
+   Esta tela responde "como a rede está distribuída nas faixas de leitura".
+   O CÁLCULO vive em `leitura-rede.js`, compartilhado com o Comparativo de
+   Escolas — as duas telas fazem a MESMA conta e perguntam coisas diferentes.
 
-const AVALIACOES = [
-  { value: 'diagnostica', label: 'Diagnóstica' },
-  { value: '1-bimestre', label: '1º Bimestre' },
-  { value: '2-bimestre', label: '2º Bimestre' },
-  { value: '3-bimestre', label: '3º Bimestre' },
-  { value: '4-bimestre', label: '4º Bimestre' },
-  { value: 'total', label: 'Total' }
+   ⚠️ AS QUATRO FAIXAS SÃO UM AGRUPAMENTO DA ESCALA REAL, NÃO UMA ESCALA NOVA.
+   O sistema não tem "Não Proficiente / Básico / Proficiente / Avançado" em
+   lugar nenhum; o que ele tem é a escala de leitura de SEIS pontos. Aqui os
+   seis viram quatro, mantendo a ordem:
+
+     N1 + N2 Pré-leitor  -> Não Proficiente
+     N3 + N4 Pré-leitor  -> Básico
+     L. Iniciante        -> Proficiente
+     L. Fluente          -> Avançado
+
+   ⚠️ O corte entre Básico e Proficiente NÃO foi escolhido a dedo: é exatamente
+   a fronteira de `ehRespostaAdequada()` em avaliacao.html, que decide o selo
+   Adequado/Alerta/Crítico das telas de bimestre. Ou seja,
+   Proficiente + Avançado = o "adequado" que a rede já usa. Se a SME quiser
+   outro corte, mude nos DOIS lugares — senão a mesma unidade aparece adequada
+   numa tela e básica na outra.
+   ========================================================================== */
+const FAIXAS = [
+  { key:'nao-proficiente', label:'Não Proficiente', cor:'#ef4444', classe:'nivel-nao-proficiente', niveis:['pre_n1','pre_n2'] },
+  { key:'basico',          label:'Básico',          cor:'#f59e0b', classe:'nivel-basico',          niveis:['pre_n3','pre_n4'] },
+  { key:'proficiente',     label:'Proficiente',     cor:'#10b981', classe:'nivel-proficiente',     niveis:['iniciantes'] },
+  { key:'avancado',        label:'Avançado',        cor:'#8b5cf6', classe:'nivel-avancado',        niveis:['fluentes'] },
 ];
 
-let chartDistribuicao = null;
-let chartMedia = null;
-/* O cache em localStorage foi retirado junto com os dados de exemplo: guardar
-   número por 'ser imutável' só faz sentido depois que ele vier de uma fonte. */
-
-/* ⚠️ Esta tela ainda NÃO tem fonte de dado ligada.
-   Ela lista as unidades REAIS do catálogo `escolas` (recorte por RLS, igual às
-   demais telas) e deixa as faixas em '—'. Não invente número aqui: uma tela de
-   rede com valor plausível e falso é pior que uma tela vazia, porque ninguém
-   consegue distinguir os dois olhando. Ao ligar a agregação de verdade,
-   preencha `porEscola` com o que vier da fonte e remova o aviso do topo. */
-async function carregarUnidades() {
-  const supa = window.MAPA_SB;
-  if (!supa) throw new Error('Sessão do MAPA indisponível');
-  const { data, error } = await supa
-    .from('escolas').select('nome').eq('ativo', true).order('nome');
-  if (error) throw error;
-  return (data || []).map(e => e.nome);
-}
-
-function pacoteSemFonte(avaliacao, ano, escolas) {
-  const porEscola = {};
-  escolas.forEach(escola => {
-    porEscola[escola] = {
-      escola,
-      'nao-proficiente': null, 'basico': null, 'proficiente': null, 'avancado': null
-    };
-  });
-  return {
-    avaliacao, ano, porEscola, semFonte: true,
-    distribuicaoGeral: { 'nao-proficiente': null, 'basico': null, 'proficiente': null, 'avancado': null }
-  };
-}
-
-/* Mesmo escape das demais telas: o nome da unidade vem do catálogo `escolas`,
-   que é escrito pelo painel — sem escapar, um nome com marcação vira HTML
-   executado na tela de quem abrir o comparativo. */
 function esc(s) {
   return String(s??'').replace(/[&<>"']/g,
     c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-/* ⚠️ NÃO use `await window.MapaAuth.pronto` aqui. O `auth.js` cria um STUB de
-   `window.MapaAuth` logo no início, para que quem o leia cedo não quebre — e
-   esse stub NÃO tem `.pronto`. Como `await undefined` resolve na hora, a tela
-   seguia antes de a sessão abrir e `window.MAPA_SB` ainda não existia: a
-   consulta caía no catch e a tela dizia "não foi possível carregar a lista de
-   unidades" com a sessão perfeitamente válida.
-   O sinal correto é o evento `mapa-auth-pronto`, que é o padrão das demais
-   telas (atribuicao.html, analise-jornada.html). */
+/* ⚠️ NÃO use `await window.MapaAuth.pronto`: o stub inicial do auth.js não tem
+   `.pronto`, e `await undefined` resolve antes de a sessão abrir. */
 function aguardarAuth() {
   return new Promise(resolve => {
     if (window.MapaAuth && window.MapaAuth.perfil) return resolve();
     document.addEventListener('mapa-auth-pronto', () => resolve(), { once: true });
-    setTimeout(resolve, 8000);   // fallback: nunca trava a página
+    setTimeout(resolve, 8000);
   });
 }
 
-const semNumero = v => (v === null || v === undefined ? '—' : v);
+const L = () => window.MapaLeitura;
+let DADOS = null, chartDistribuicao = null, chartMedia = null;
 
-function atualizarKPIs(dados) {
-  const kpiRow = document.getElementById('kpiRow');
-  kpiRow.style.display = 'grid';
-  document.getElementById('kpiNaoProficiente').textContent = semNumero(dados.distribuicaoGeral['nao-proficiente']);
-  document.getElementById('kpiBasico').textContent = semNumero(dados.distribuicaoGeral['basico']);
-  document.getElementById('kpiProficiente').textContent = semNumero(dados.distribuicaoGeral['proficiente']);
-  document.getElementById('kpiAvancado').textContent = semNumero(dados.distribuicaoGeral['avancado']);
+/* Soma os níveis de cada faixa, para uma unidade × ano. Devolve null quando a
+   unidade não tem apuração no recorte — '—' na tela, nunca 0. */
+function faixasDaUnidade(mapaFonte, unidade, ano) {
+  const c = L().contagem(mapaFonte, unidade, ano);
+  if (!c) return null;
+  const saida = { _tot: c._tot };
+  FAIXAS.forEach(f => {
+    saida[f.key] = f.niveis.reduce((s, n) => s + (c[n] || 0), 0);
+  });
+  return saida;
 }
 
-function atualizarGraficos(dados) {
-  // Sem fonte ligada não há o que desenhar: gráfico de zeros parece medição.
-  if (dados.semFonte) {
-    if (chartDistribuicao) { chartDistribuicao.destroy(); chartDistribuicao = null; }
-    if (chartMedia) { chartMedia.destroy(); chartMedia = null; }
-    document.querySelectorAll('.charts-section').forEach(s => s.style.display = 'none');
-    return;
-  }
-  document.querySelectorAll('.charts-section').forEach(s => s.style.display = '');
-  // Usar requestAnimationFrame para melhor performance
+function fonteAtual() {
+  const av = document.getElementById('avaliacaoSelect').value;
+  return DADOS ? DADOS.porAvaliacao[av] : null;
+}
+
+function montar() {
+  const ano = document.getElementById('anoSelect').value;
+  const fonte = fonteAtual();
+
+  const linhas = [];
+  const geral = { _tot: 0 };
+  FAIXAS.forEach(f => { geral[f.key] = 0; });
+
+  (DADOS ? DADOS.unidades : []).forEach(u => {
+    const f = faixasDaUnidade(fonte, u, ano);
+    if (!f) return;
+    linhas.push({ escola: u, f });
+    FAIXAS.forEach(x => { geral[x.key] += f[x.key]; });
+    geral._tot += f._tot;
+  });
+
+  atualizarKPIs(geral);
+  atualizarGraficos(geral, linhas.length);
+  atualizarTabela(linhas, ano);
+}
+
+const fmt = n => (n === null || n === undefined) ? '—' : Number(n).toLocaleString('pt-BR');
+
+function atualizarKPIs(geral) {
+  document.getElementById('kpiRow').style.display = 'grid';
+  const temDado = geral._tot > 0;
+  FAIXAS.forEach(f => {
+    const el = document.getElementById('kpi-' + f.key);
+    if (!el) return;
+    const pct = temDado ? Math.round((geral[f.key] / geral._tot) * 100) : null;
+    el.querySelector('.kpi-value').textContent = temDado ? fmt(geral[f.key]) : '—';
+    el.querySelector('.kpi-pct').textContent   = temDado ? pct + '% dos avaliados' : 'sem apuração';
+  });
+}
+
+function atualizarGraficos(geral, qtdUnidades) {
+  const secao = document.querySelector('.charts-section');
+  if (!geral._tot) { if (secao) secao.style.display = 'none'; return; }
+  if (secao) secao.style.display = '';
+
   requestAnimationFrame(() => {
-    const ctxDistribuicao = document.getElementById('chartDistribuicao').getContext('2d');
-    const ctxMedia = document.getElementById('chartMedia').getContext('2d');
+    if (!window.Chart) return;
+    const labels = FAIXAS.map(f => f.label);
+    const cores  = FAIXAS.map(f => f.cor);
+    const vals   = FAIXAS.map(f => geral[f.key]);
 
     if (chartDistribuicao) chartDistribuicao.destroy();
-    if (chartMedia) chartMedia.destroy();
-
-    const cores = Object.values(NIVEIS).map(n => n.cor);
-    const labels = Object.values(NIVEIS).map(n => n.label);
-    const valores = Object.values(dados.distribuicaoGeral);
-
-    chartDistribuicao = new Chart(ctxDistribuicao, {
+    chartDistribuicao = new Chart(document.getElementById('chartDistribuicao'), {
       type: 'doughnut',
-      data: { labels, datasets: [{ data: valores, backgroundColor: cores, borderColor: 'var(--bg-card)', borderWidth: 2 }] },
-      options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom' } } }
+      data: { labels, datasets: [{ data: vals, backgroundColor: cores, borderWidth: 2 }] },
+      options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
     });
 
-    const mediasPorNivel = Object.entries(dados.distribuicaoGeral).map(([_, total]) =>
-      Math.round(total / Object.keys(dados.porEscola).length)
-    );
-
-    chartMedia = new Chart(ctxMedia, {
+    if (chartMedia) chartMedia.destroy();
+    chartMedia = new Chart(document.getElementById('chartMedia'), {
       type: 'bar',
-      data: { labels, datasets: [{ label: 'Média de Alunos', data: mediasPorNivel, backgroundColor: cores, borderRadius: 6 }] },
-      options: {
-        responsive: true, maintainAspectRatio: true, indexAxis: 'y', plugins: { legend: { display: false } },
-        scales: {
-          x: { beginAtZero: true, ticks: { color: 'var(--text-2)' }, grid: { color: 'var(--border-color)' } },
-          y: { ticks: { color: 'var(--text-2)' }, grid: { display: false } }
-        }
-      }
+      data: { labels, datasets: [{ label: 'Média por unidade',
+        data: vals.map(v => qtdUnidades ? Math.round(v / qtdUnidades) : 0),
+        backgroundColor: cores, borderRadius: 6 }] },
+      options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true } } }
     });
   });
 }
 
-function atualizarTabela(dados) {
-  const container = document.getElementById('tableContainer');
-  let html = '<table><thead><tr><th>Escola</th><th style="text-align: center;">Não Proficiente</th><th style="text-align: center;">Básico</th><th style="text-align: center;">Proficiente</th><th style="text-align: center;">Avançado</th><th style="text-align: center;">Total</th></tr></thead><tbody>';
-
-  Object.entries(dados.porEscola).forEach(([escola, d]) => {
-    const valores = Object.keys(NIVEIS).map(n => d[n]);
-    const temNumero = valores.some(v => v !== null && v !== undefined);
-    const total = temNumero ? valores.reduce((a, b) => a + (b || 0), 0) : null;
-    html += `<tr><td><strong>${esc(escola)}</strong></td>`;
-    Object.keys(NIVEIS).forEach(nivel => {
-      const v = d[nivel];
-      html += (v === null || v === undefined)
-        ? '<td style="text-align: center;" class="text-muted">—</td>'
-        : `<td style="text-align: center;"><span class="nivel-badge ${NIVEIS[nivel].classe}">${v}</span></td>`;
-    });
-    html += `<td style="text-align: center;"><strong>${semNumero(total)}</strong></td></tr>`;
-  });
-
-  html += '</tbody></table>';
-  container.innerHTML = html;
-}
-
-let UNIDADES = null;
-
-async function carregarDados() {
-  const avaliacao = document.getElementById('avaliacaoSelect').value;
-  const ano = document.getElementById('anoSelect').value;
-  if (!avaliacao) return;
-
-  const container = document.getElementById('tableContainer');
-  try {
-    if (!UNIDADES) UNIDADES = await carregarUnidades();
-  } catch (e) {
-    console.error('Falha ao carregar o catálogo de unidades:', e);
-    container.innerHTML = '<div class="loading">Não foi possível carregar a lista de unidades. '
-      + 'Recarregue a página; se persistir, verifique a sessão.</div>';
+function atualizarTabela(linhas, ano) {
+  const c = document.getElementById('tableContainer');
+  if (!linhas.length) {
+    c.innerHTML = '<div class="loading">Nenhuma unidade tem apuração neste recorte. '
+      + 'A rede tem EMEI e CEI, que não têm 1º a 5º ano.</div>';
     return;
   }
+  let html = '<table><thead><tr><th>Escola</th>';
+  FAIXAS.forEach(f => { html += `<th style="text-align:center;">${esc(f.label)}</th>`; });
+  html += '<th style="text-align:center;">Total</th></tr></thead><tbody>';
 
-  const dados = pacoteSemFonte(avaliacao, ano, UNIDADES);
-  atualizarKPIs(dados);
-  atualizarGraficos(dados);
-  atualizarTabela(dados);
+  linhas.forEach(l => {
+    html += `<tr><td><strong>${esc(l.escola)}</strong></td>`;
+    FAIXAS.forEach(f => {
+      html += `<td style="text-align:center;"><span class="nivel-badge ${f.classe}">${fmt(l.f[f.key])}</span></td>`;
+    });
+    html += `<td style="text-align:center;"><strong>${fmt(l.f._tot)}</strong></td></tr>`;
+  });
+  html += '</tbody></table>';
+
+  const nota = [`${linhas.length} unidade(s) com apuração neste recorte.`];
+  if (DADOS.falhas.length) {
+    nota.push(`Fonte(s) que não responderam: ${esc(DADOS.falhas.join(', '))}.`);
+  }
+  html += `<div style="padding:.9rem 1rem;font-size:.82rem;color:var(--text-3);">${nota.join(' ')}</div>`;
+  c.innerHTML = html;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
   await aguardarAuth();
-  const avaliacaoSelect = document.getElementById('avaliacaoSelect');
-  avaliacaoSelect.innerHTML = AVALIACOES.map(a => `<option value="${a.value}">${a.label}</option>`).join('');
 
-  carregarDados();
+  const sel = document.getElementById('avaliacaoSelect');
+  sel.innerHTML = L().AVALIACOES.map(a => `<option value="${esc(a.key)}">${esc(a.label)}</option>`).join('');
+  sel.addEventListener('change', montar);
+  document.getElementById('anoSelect').addEventListener('change', montar);
+
+  try {
+    DADOS = await L().carregar();
+  } catch (e) {
+    console.error('[analise-desempenho] carga falhou:', e);
+    document.getElementById('tableContainer').innerHTML =
+      '<div class="loading">Não foi possível carregar os dados. '
+      + 'Recarregue a página; se persistir, verifique a sessão.</div>';
+    return;
+  }
+  montar();
 });
 </script>
 

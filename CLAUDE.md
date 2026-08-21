@@ -92,6 +92,34 @@ médios (`#65a30d`, `#ca8a04`, `#ea580c`) o texto branco fica em 2,94–3,56:1,
 abaixo do mínimo de 4,5:1; com tinta escura sobe para 5,0–6,1:1. A paleta é a
 mesma — não volte o texto para branco "para uniformizar".
 
+#### As telas Comparativo de Escolas e Análise de Desempenho
+
+As duas leem do mesmo módulo, **`leitura-rede.js`** (terceira exceção
+deliberada ao "cada tela é autocontida"): elas fazem a MESMA conta — alunos por
+unidade × ano × nível de leitura — e perguntam coisas diferentes sobre ela.
+
+⚠️ **Nome de unidade NÃO casa por igualdade de texto.** O catálogo diz
+`ALFEU LUIZ GASPARINI, PROFº., EMEF` e o dado diz `EMEF ALFEU LUIZ GASPARINI
+PROF`. Casar por texto deixou metade da tabela vazia e passou por "não tem
+dado". A chave é a de `tokensUnidade` da `avaliacao.html`: sem pontuação e com
+os tokens **ordenados**. O que nem isso resolve é assunto de `escola_alias`.
+
+⚠️ **"LEITOR" é L. Iniciante + L. Fluente, e não é escolha destas telas:** é o
+corte de `ehRespostaAdequada()`, que decide o selo Adequado/Alerta/Crítico das
+telas de bimestre. Mudou lá, mude aqui — senão a mesma unidade aparece
+adequada numa tela e não na outra.
+
+⚠️ **As quatro faixas da Análise de Desempenho são um AGRUPAMENTO da escala de
+seis, não uma escala nova.** N1+N2 → Não Proficiente, N3+N4 → Básico,
+L. Iniciante → Proficiente, L. Fluente → Avançado. A fronteira
+Básico × Proficiente é a mesma de `ehRespostaAdequada()`. O corte **dentro**
+dos pré-leitores é proposta e aguarda confirmação da SME.
+
+⚠️ **A rede tem EMEI e CEI, que não têm 1º a 5º ano.** Listar as 112 unidades
+com tudo `'—'` é ruído; as telas escondem quem não tem apuração no recorte,
+mas **dizem quantas** esconderam. Esconder sem contar transformaria "não casei
+o nome" em "não tem dado".
+
 #### A tela Comparativo de Escolas
 
 Lista as unidades com o **percentual de alunos em um nível de leitura**, lado a
@@ -983,6 +1011,11 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
   NÃO subiu para lá** e não deve subir: a regra de contar aluno é específica
   do que cada tela pergunta. Ao mexer no módulo, lembre que conserta (ou
   quebra) as duas telas ao mesmo tempo.
+- `leitura-rede.js` expõe `window.MapaLeitura`, o **cálculo** do nível de
+  leitura por unidade × ano, compartilhado por `comparativo-escolas.html` e
+  `analise-desempenho.html`. Terceira exceção deliberada. Ele junta as três
+  fontes (view de fluência, RPC da diagnóstica, ficha do CODERP) numa grandeza
+  só, e é onde vivem o casamento de grafia e o agrupamento "leitores".
 - `auth.js` publica `window.MAPA_SUPABASE` quando a página não traz a sua, para
   que uma segunda tela não precise repetir a URL do projeto. Página que declara
   a própria (como a `avaliacao.html`) continua mandando.
