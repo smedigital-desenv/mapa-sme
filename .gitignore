@@ -44,3 +44,7 @@ tools/relatorios/devolutivas-*.json
 # dado pessoal, mas export não se versiona — a regra da rede vale igual.
 tools/grafias-*.txt
 tools/catalogo-*.txt
+
+# Redirecionamento mal escapado ('2>\&1' em vez de '2>&1') cria um arquivo
+# chamado '&1', que um `git add -A` varre para dentro do commit sem ninguém ver.
+&1
