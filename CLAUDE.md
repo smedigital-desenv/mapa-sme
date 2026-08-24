@@ -1103,6 +1103,44 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
   ⚠️ Não versione as entradas. Não têm dado pessoal, mas export não se
   versiona; o `.gitignore` cobre `tools/grafias-*.txt` e `tools/catalogo-*.txt`.
 
+  **MEDIDO em 2026-08-24, com o catálogo e a lista reais** (`conferir-grafias`):
+
+  - `escolas` (a lista do RLS, `ativo`) tem **112** unidades: EMEF 34, EMEI 41,
+    CEI 36, EMEPB 1. **As 112 casaram com o catálogo — 100%.** É o número que
+    autoriza a migração: nenhuma unidade some ao adotar `oficial()`.
+  - `escolas_catalogo` tem **258** em 11 tipos, e `siglaDoTipo()` reproduz a
+    distribuição inteira sem cair na dedução pelo nome uma vez sequer —
+    inclusive `EGYDIO PEDRESCHI, CEEEF` (sigla CEEEF, tipo EMEF) e
+    `ESCOLA DE EDUCACAO INFANTIL VILA TIBERIO` (nome sem sigla nenhuma).
+  - **`SEBASTIAO DE AGUIAR AZEVEDO, EMEF` e `… EMEF - UN. II` são DUAS linhas
+    do catálogo, e o resolvedor as distingue.** A grafia da fonte sem o sufixo
+    resolve para a matriz, como deve.
+
+  ⚠️ **O catálogo tem unidade cadastrada em duplicata**, diferindo só por ponto
+  final: `CASA DA CRIANCA IRMA CRUCIFIXA` tem TRÊS linhas (`.`, `..`), e
+  `AUTA DE SOUZA, CRECHE` / `FUNDAÇÃO EDUCANDÁRIO…` / `INSTITUTO … (IJEPAM)` /
+  `UNIFICAÇÃO KARDECISTA…` têm duas cada. O resolvedor faz o certo (a chave é
+  ambígua, então desiste e devolve o nome intacto), mas a causa é o CADASTRO.
+  Todas são CONVENIO/OSC: **não afetam** as telas de EMEF/EMEI/CEI; afetam
+  Educação Especial e Gerência de Liminares. Consulta que as lista:
+
+  ```sql
+  select regexp_replace(upper(unaccent(nome)), '[^A-Z0-9]', '', 'g') as nucleo,
+         count(*), array_agg(nome order by nome)
+    from public.escolas_catalogo group by 1 having count(*) > 1;
+  ```
+
+  ⚠️ **Duas EMEI do catálogo não estão em `escolas`** (`ESCOLA DE EDUCACAO
+  INFANTIL VILA TIBERIO` e `MARIA APARECIDA DE ALMEIDA PAULINO, EMEI`). Isso
+  não é falha de casamento — é a lista do RLS que não as tem. Se forem
+  unidades ativas, estão invisíveis em TODAS as telas.
+
+  ⚠️ **O corte `UNID` de `fluencia.html` é uma mina não pisada.** `_normEscola`
+  faz `if (w === 'UNID') break;`, e o catálogo grafa `UN. II` — então hoje ele
+  distingue a matriz da unidade II por acidente de grafia. Se qualquer fonte
+  escrever `UNID II`, as duas viram a MESMA unidade, somando os alunos de duas
+  escolas numa linha só. Ao migrar a tela, **não reproduza esse corte.**
+
   ⚠️ **O Postgres SUGERE a correção errada.** Ler `escolas_catalogo` sem sessão
   responde `42501` com `hint: GRANT SELECT ON public.escolas_catalogo TO anon`.
   Seguir esse `hint` é exatamente o que a seção 3 proíbe — abriria a tabela a
