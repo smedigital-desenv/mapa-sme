@@ -31,6 +31,13 @@ var CATALOGO = [
   // siglas de tipo que já estiveram fora de SIGLAS_TIPO e custavam casamento
   { codigo: 6, nome: 'BAIRRO ALEGRE, CRECHE', tipo: 'CENTRO DE EDUCACAO INFANTIL' },
   { codigo: 7, nome: 'VILA NOVA, EEI',        tipo: 'CENTRO DE EDUCACAO INFANTIL' },
+  /* ⚠️ CASO REAL, e o único que já causou dado errado em produção. A rede tem
+     de fato estas DUAS unidades (confirmado pela SME em 2026-08-24). O
+     casamento por subconjunto da `boletim.html` as declarava iguais, e o
+     boletim da matriz somava os alunos da Unidade II. Estes nomes são
+     públicos e não identificam ninguém. */
+  { codigo: 8, nome: 'MATRIZ E ANEXO, EMEF',          tipo: 'ESCOLA MUNICIPAL DE ENSINO FUNDAMENTAL' },
+  { codigo: 9, nome: 'MATRIZ E ANEXO, EMEF - UN. II', tipo: 'ESCOLA MUNICIPAL DE ENSINO FUNDAMENTAL' },
 ];
 
 /* `unidades.js` é um IIFE de navegador: publica em `window` e lê o catálogo
@@ -58,6 +65,12 @@ var CASOS = [
   ['EEI VILA NOVA', 'VILA NOVA, EEI', 'sigla EEI só de um lado'],
   ['ESCOLA QUE NAO EXISTE', 'ESCOLA QUE NAO EXISTE',
    'desconhecida: oficial() NUNCA descarta um nome'],
+  ['MATRIZ E ANEXO, EMEF', 'MATRIZ E ANEXO, EMEF',
+   'a matriz resolve para si, NÃO para a unidade II'],
+  ['MATRIZ E ANEXO, EMEF - UN. II', 'MATRIZ E ANEXO, EMEF - UN. II',
+   'a unidade II resolve para si, NÃO para a matriz'],
+  ['EMEF MATRIZ E ANEXO', 'MATRIZ E ANEXO, EMEF',
+   'grafia da fonte sem o sufixo: é a MATRIZ'],
 ];
 
 U.carregar().then(function () {
@@ -75,9 +88,12 @@ U.carregar().then(function () {
      sigla (traz a descrição) que deixou o Comparativo vazio em homologação. */
   var checa = [
     ['tipo() pelo catálogo', U.tipo('EMEF ALFEU LUIZ GASPARINI PROF'), 'EMEF'],
-    ['todas({tipos:[EMEF]})', U.todas({ tipos: ['EMEF'] }).length, 4],
     ['todas({tipos:[CEI]})',  U.todas({ tipos: ['CEI'] }).length, 2],
     ['naoResolvidos() lista os 3 que não casaram', U.naoResolvidos().length, 3],
+    /* A trava contra a regressão: matriz e unidade II NÃO podem colapsar. */
+    ['matriz e unidade II continuam distintas',
+     U.oficial('MATRIZ E ANEXO, EMEF') === U.oficial('MATRIZ E ANEXO, EMEF - UN. II'), false],
+    ['todas({tipos:[EMEF]}) conta as duas', U.todas({ tipos: ['EMEF'] }).length, 6],
   ];
   checa.forEach(function (c) {
     var ok = c[1] === c[2];

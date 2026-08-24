@@ -1149,6 +1149,14 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
   ⚠️ Só entre nessa lista rótulo confirmadamente agregado: unidade de verdade
   posta ali some do aviso, que é exatamente o defeito invisível.
 
+  ⚠️ **A rede tem DUAS unidades que diferem só pelo sufixo de unidade**
+  (`…, EMEF` e `…, EMEF - UN. II`) — confirmado pela SME em 2026-08-24. Varridas
+  todas as normalizações do repositório contra esse par, **só a `boletim.html`
+  as fundia**; `tokensUnidade`, `_normEscola`, `MapaUnidades.chave` e
+  `oficial()` sempre as distinguiram. O par virou caso fixo em
+  `tools/testar-unidades.js`, com nomes fictícios de mesma forma, justamente
+  para impedir que alguém reintroduza a fusão "simplificando" a chave.
+
   ⚠️ **O catálogo tem unidade cadastrada em duplicata**, diferindo só por ponto
   final: `CASA DA CRIANCA IRMA CRUCIFIXA` tem TRÊS linhas (`.`, `..`), e
   `AUTA DE SOUZA, CRECHE` / `FUNDAÇÃO EDUCANDÁRIO…` / `INSTITUTO … (IJEPAM)` /
