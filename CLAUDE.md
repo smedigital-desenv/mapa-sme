@@ -1116,6 +1116,23 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
     do catálogo, e o resolvedor as distingue.** A grafia da fonte sem o sufixo
     resolve para a matriz, como deve.
 
+  **As três fontes de dado foram conferidas contra o catálogo — 149 grafias,
+  100% em todas:** `turmas` 112/112 (alimenta Atribuição, Retrato e Boletim),
+  `av_diag_item` 33/33 (Diagnóstica), `v_fluencia_por_turma` 4/4 (Fluência,
+  Boletim — só 4 unidades têm apuração de fluência hoje). Com isto, migrar as
+  telas para `oficial()` não é aposta: **nenhuma grafia em produção deixa de
+  casar.**
+
+  ⚠️ **`av_diag_item` traz uma linha `'REDE'`** — agregado ocupando a coluna de
+  unidade. Ela NÃO é candidata a `escola_alias`: cadastrá-la criaria uma escola
+  fantasma; a tela é que deve excluí-la ao agregar. `SINTETICOS`/`ehSintetico()`
+  a mantêm fora de `naoResolvidos()`, senão `relatar()` avisaria sobre ela em
+  TODA abertura da Diagnóstica — e aviso que sempre aparece é aviso que as
+  pessoas aprendem a ignorar, que é o pior estado possível para um alerta (o
+  mesmo motivo pelo qual a conferência Rede × Turma segue desligada).
+  ⚠️ Só entre nessa lista rótulo confirmadamente agregado: unidade de verdade
+  posta ali some do aviso, que é exatamente o defeito invisível.
+
   ⚠️ **O catálogo tem unidade cadastrada em duplicata**, diferindo só por ponto
   final: `CASA DA CRIANCA IRMA CRUCIFIXA` tem TRÊS linhas (`.`, `..`), e
   `AUTA DE SOUZA, CRECHE` / `FUNDAÇÃO EDUCANDÁRIO…` / `INSTITUTO … (IJEPAM)` /

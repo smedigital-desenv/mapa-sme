@@ -196,6 +196,26 @@
     return _promessa;
   }
 
+  /* Linhas SINTÉTICAS: agregados que ocupam a coluna de unidade sem serem uma.
+     `av_diag_item` traz uma linha 'REDE' (medido em 2026-08-24, 34 grafias, 33
+     escolas + esta). Elas não casam com o catálogo, e nem deveriam.
+
+     ⚠️ Por que isso não é frescura: sem a lista, `relatar()` avisaria sobre
+     'REDE' em TODA abertura da tela de Diagnóstica. Aviso que sempre aparece é
+     aviso que as pessoas aprendem a ignorar — e aí o dia em que uma unidade de
+     verdade sumir, ninguém vai olhar. É o mesmo motivo pelo qual a conferência
+     Rede × Turma segue desligada (seção 2).
+
+     ⚠️ `oficial()` continua devolvendo o nome intacto: sintético não é
+     descartado, só não entra na lista de "investigue isto". Só entre aqui
+     rótulo que você confirmou ser agregado — unidade de verdade colocada nesta
+     lista some do aviso, que é exatamente o defeito invisível. */
+  var SINTETICOS = new Set(['REDE', 'TOTAL', 'GERAL', 'TODAS', 'TODAS AS UNIDADES']);
+
+  function ehSintetico(nome) {
+    return SINTETICOS.has(normalizar(nome).replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim());
+  }
+
   function registro(nome) {
     if (!_porChave || !nome) return null;
     var u = _porChave.get('T|' + chaveComTipo(nome));
@@ -203,7 +223,7 @@
     u = _porChave.get('S|' + chave(nome));
     if (u) return u;
     var bruto = String(nome).trim();
-    if (bruto) _naoResolvidos.set(bruto, (_naoResolvidos.get(bruto) || 0) + 1);
+    if (bruto && !ehSintetico(bruto)) _naoResolvidos.set(bruto, (_naoResolvidos.get(bruto) || 0) + 1);
     return null;
   }
 
@@ -279,6 +299,7 @@
     chave: chave,
     tipoPeloNome: tipoPeloNome,
     siglaDoTipo: siglaDoTipo,
+    ehSintetico: ehSintetico,
     naoResolvidos: naoResolvidos,
     catalogo: function () { return (_catalogo || []).slice(); }
   };

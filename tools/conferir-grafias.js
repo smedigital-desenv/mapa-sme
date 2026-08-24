@@ -97,6 +97,7 @@ U.carregar().then(function () {
   var oficiais = new Set(U.catalogo().map(function (u) { return u.nome; }));
   var atingidas = new Set();
   var falhas = [];
+  var sinteticas = [];   // agregados ('REDE'), que não são unidade e não viram alias
   var totalGrafias = 0;
 
   args.slice(1).forEach(function (arq) {
@@ -106,13 +107,26 @@ U.carregar().then(function () {
       totalGrafias++;
       var res = U.oficial(g.nome);
       if (oficiais.has(res)) { ok++; atingidas.add(res); }
+      else if (U.ehSintetico(g.nome)) sinteticas.push({ fonte: arq, grafia: g.nome });
       else falhas.push({ fonte: arq, grafia: g.nome, virou: res });
     });
-    var pct = grafias.length ? Math.round(ok / grafias.length * 100) : 0;
-    console.log('  ' + arq + ': ' + ok + '/' + grafias.length + ' casaram (' + pct + '%)');
+    /* O denominador exclui as sintéticas: elas não podem casar, e deixá-las
+       dentro faria uma fonte 100% correta parecer 97%. */
+    var reais = grafias.length - sinteticas.filter(function (x) { return x.fonte === arq; }).length;
+    var pct = reais ? Math.round(ok / reais * 100) : 0;
+    console.log('  ' + arq + ': ' + ok + '/' + reais + ' casaram (' + pct + '%)'
+      + (reais !== grafias.length ? '  [+' + (grafias.length - reais) + ' sintética(s)]' : ''));
   });
 
   console.log('\ncatálogo: ' + catalogo.length + ' unidades   grafias lidas: ' + totalGrafias);
+
+  /* Agregados não são unidade — separá-los é o que mantém a lista de falhas
+     limpa. Cadastrar 'REDE' em `escola_alias` criaria uma escola fantasma. */
+  if (sinteticas.length) {
+    console.log('\n── ' + sinteticas.length + ' linha(s) SINTÉTICA(S) (agregado, não é unidade) ──');
+    console.log('  Não são candidatas a `escola_alias`: a tela deve EXCLUÍ-LAS ao agregar.');
+    console.table(sinteticas);
+  }
 
   if (falhas.length) {
     console.log('\n── ' + falhas.length + ' grafia(s) NÃO casaram ' +
