@@ -1,0 +1,1 @@
+[MapaUnidades] teste: 3 nome(s) de unidade NÃO casaram com o catálogo. Eles aparecem na tela com a grafia da fonte, e podem estar duplicando linha ou ficando de fora de uma agregação. Rode MapaDiagUnidades() para a lista, e cadastre em escola_alias o que não for erro de digitação.

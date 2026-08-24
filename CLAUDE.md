@@ -1077,6 +1077,20 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
   com o RLS: usar o catálogo como lista traria escola estadual para dentro da
   tela.
 
+  ⚠️ **As siglas de tipo vivem numa lista só (`SIGLAS_TIPO`).** Elas estavam
+  repetidas em três lugares e a lista mais curta perdia casamento em silêncio:
+  a `boletim.html` já descartava `EMEIF`, `CEMEFEJA`, `EEI`, `CRECHE`, `AMES` e
+  `NEI`, e aqui elas ficavam na chave — bastava uma grafia trazer a sigla e a
+  outra não para os tokens não baterem. Sigla nova entra ali, e os usos
+  acompanham.
+
+  **`node tools/testar-unidades.js`** exercita a regra de casamento sem banco,
+  sobre um catálogo inventado (o repositório é público; o teste não precisa de
+  dado real). Cobre a grafia invertida, as homônimas de tipos diferentes, as
+  ambíguas que têm de desistir, as siglas de tipo e o "nunca descarta".
+  ⚠️ Ele **não** substitui ver a tela com dado real: prova que a regra faz o
+  que diz, não que o catálogo do dia cobre as grafias que as fontes mandam.
+
   A sonda **`MapaDiagUnidades('EMEF')`** responde, no console: quantas
   unidades o catálogo tem por tipo, quais nomes chegaram sem casar, e — nas
   telas que publicam `window.MapaTelaUnidades()` — **quais unidades do

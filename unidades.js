@@ -64,13 +64,26 @@
      EMEF" casar com "EMEF ALFEU LUIZ GASPARINI PROF".
      ⚠️ Não acrescente aqui um token que faça parte do NOME de alguma unidade:
      tirar 'SANTOS' casaria escolas diferentes. Só título e sigla de tipo. */
-  var RUIDO = new Set([
+  /* As siglas de tipo, numa lista SÓ. Elas eram repetidas em três lugares
+     (o RUIDO, o filtro de `chaveComTipo` e a ordem de `tipoPeloNome`), e a
+     lista mais curta perdia casamento em silêncio: a `boletim.html` já
+     descartava EMEIF, CEMEFEJA, EEI, CRECHE, AMES e NEI, e aqui elas ficavam
+     na chave — bastava uma grafia trazer a sigla e a outra não para os tokens
+     não baterem. Sigla nova entra AQUI, e os três usos acompanham. */
+  var SIGLAS_TIPO = new Set([
+    'EMEF', 'EMEI', 'EMEIEF', 'EMEIF', 'CEI', 'CEMEI', 'CEMEFEJA',
+    'CEEEF', 'EEI', 'CRECHE', 'AMES', 'NEI'
+  ]);
+
+  var TITULOS = new Set([
     'PROF', 'PROFA', 'PROFO', 'PROFESSOR', 'PROFESSORA',
     'DR', 'DRA', 'DOUTOR', 'DOUTORA',
     'VER', 'VEREADOR', 'VEREADORA',
     'DOM', 'DONA', 'SR', 'SRA',
-    'EMEF', 'EMEI', 'EMEIEF', 'CEI', 'CEMEI', 'CEEEF', 'ESCOLA', 'MUNICIPAL'
+    'ESCOLA', 'MUNICIPAL'
   ]);
+
+  function ehRuido(t) { return TITULOS.has(t) || SIGLAS_TIPO.has(t); }
 
   /* Chave de casamento: sem pontuação, sem título/sigla, tokens ORDENADOS.
      A ordem sai da chave porque as grafias põem a sigla no começo ou no fim. */
@@ -78,7 +91,7 @@
     return normalizar(nome)
       .replace(/[^A-Z0-9 ]/g, ' ')
       .split(/\s+/)
-      .filter(function (t) { return t && !RUIDO.has(t); })
+      .filter(function (t) { return t && !ehRuido(t); })
       .sort().join(' ');
   }
 
@@ -89,7 +102,7 @@
     return normalizar(nome)
       .replace(/[^A-Z0-9 ]/g, ' ')
       .split(/\s+/)
-      .filter(function (t) { return !!t && (!RUIDO.has(t) || /^(EMEF|EMEI|EMEIEF|CEI|CEMEI|CEEEF)$/.test(t)); })
+      .filter(function (t) { return !!t && !TITULOS.has(t); })
       .sort().join(' ');
   }
 
