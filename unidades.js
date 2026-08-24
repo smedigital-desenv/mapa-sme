@@ -49,6 +49,7 @@
 
   var _catalogo = null;      // [{codigo, nome, tipo, setor}]
   var _porChave = null;      // chave de tokens -> registro
+  var _porCodigo = null;     // codigo CODERP -> registro
   var _promessa = null;
   var _naoResolvidos = new Map();   // nome recebido -> quantas vezes
 
@@ -155,6 +156,75 @@
     return 'Outras';
   }
 
+  /* ══ APELIDOS (`escola_alias`) ═══════════════════════════════════════════
+     Regra de token nenhuma resolve tudo. Medido no banco real:
+
+       dado:     'ENEIDA PEREIRA DOS SANTOS DE AGUIAR, PROFA. DRA. EMEF'
+       catálogo: 'ENEIDA PEREIRA DOS SANTOS, EMEF'        (+2 tokens no dado)
+       dado:     'SEBASTIAO DE AGUIAR AZEVEDO, EMEF – UNID I'   -> a MATRIZ
+       dado:     'Sebastiao DE Aguiar Azevedo Unidade II, EMEF' -> a UNIDADE II
+
+     Os dois últimos são o par que a SME confirmou, e a tabela já os aponta
+     para unidades DIFERENTES. É por isso que o apelido é dado, e não regra:
+     'UNID I' significa a matriz e 'Unidade II' significa a outra escola, e
+     nenhuma normalização adivinha isso.
+
+     ⚠️ `escola_id` referencia `escolas` (o catálogo do RLS), não
+     `escolas_catalogo`. Resolvemos o nome de `escolas` pelas chaves normais
+     para chegar à grafia do catálogo — as 112 casam 100% (medido).
+
+     ⚠️ `fora_da_rede = true` é resposta, não falha: são escolas particulares
+     e estaduais que aparecem legitimamente no dado (alunos de liminar). Elas
+     ficam FORA de `naoResolvidos()`, senão o aviso encheria de linha já
+     classificada e as pessoas aprenderiam a ignorá-lo.
+
+     ⚠️ Isto NÃO é o caminho do RLS. O Postgres tem a sua própria tradução
+     (`resolver_unidade()`), e é ela que recorta o que a pessoa vê. Aqui o
+     apelido só serve para EXIBIR e AGREGAR com o nome certo.
+
+     ⚠️ Falha ao ler a tabela não quebra o módulo: sem apelido ele resolve
+     menos, e o que não resolveu aparece em `relatar()`. */
+  var _apelidos = null;        // nome normalizado -> nome oficial
+  var _foraDaRede = null;      // nome normalizado -> true
+
+  function chaveApelido(nome) {
+    return normalizar(nome).replace(/[^A-Z0-9]+/g, ' ').trim();
+  }
+
+  function carregarApelidos() {
+    _apelidos = new Map();
+    _foraDaRede = new Set();
+    return window.MAPA_SB
+      .from('escola_alias').select('nome_no_dado,escola_id,fora_da_rede')
+      .then(function (r) {
+        if (r.error) throw r.error;
+        /* `escola_id` -> nome oficial, via `escolas`. */
+        return window.MAPA_SB.from('escolas').select('id,nome').then(function (re) {
+          if (re.error) throw re.error;
+          var porId = new Map();
+          (re.data || []).forEach(function (e) {
+            var u = registroSemRegistrar(e.nome);
+            porId.set(Number(e.id), u ? u.nome : String(e.nome || '').trim());
+          });
+          (r.data || []).forEach(function (a) {
+            var k = chaveApelido(a.nome_no_dado);
+            if (!k) return;
+            if (a.fora_da_rede) { _foraDaRede.add(k); return; }
+            var alvo = porId.get(Number(a.escola_id));
+            if (!alvo) return;
+            /* Dois apelidos iguais depois de normalizar, apontando para
+               unidades diferentes: ambíguo. Desiste, como nas chaves. */
+            if (_apelidos.has(k) && _apelidos.get(k) !== alvo) _apelidos.set(k, null);
+            else _apelidos.set(k, alvo);
+          });
+        });
+      })
+      .catch(function (err) {
+        console.warn('[MapaUnidades] `escola_alias` não pôde ser lida; as grafias '
+          + 'que só o apelido resolve vão aparecer em relatar()', err);
+      });
+  }
+
   function carregar() {
     if (_promessa) return _promessa;
     _promessa = window.MAPA_SB
@@ -173,7 +243,9 @@
           };
         });
         _porChave = new Map();
+        _porCodigo = new Map();
         _memoOficial = new Map();
+        _catalogo.forEach(function (u) { if (u.codigo) _porCodigo.set(u.codigo, u); });
         /* ⚠️ AMBIGUIDADE NÃO RESOLVE — fica `null` e o nome passa intacto.
            Vale para as DUAS chaves. A chave COM tipo também colide: duas
            unidades do mesmo tipo que difiram só por um título ("JOAO SILVA,
@@ -191,7 +263,7 @@
           indexar('T|' + chaveComTipo(u.nome), u);
           indexar('S|' + chave(u.nome), u);
         });
-        return _catalogo;
+        return carregarApelidos().then(function () { return _catalogo; });
       })
       .catch(function (err) { _promessa = null; throw err; });
     return _promessa;
@@ -217,14 +289,26 @@
     return SINTETICOS.has(normalizar(nome).replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim());
   }
 
+  /* Só as chaves, sem apelido e sem contabilizar órfão. Usada ao montar o
+     índice de apelidos — senão os nomes de `escolas` entrariam em
+     `naoResolvidos()` antes de a tela ter perguntado qualquer coisa. */
+  function registroSemRegistrar(nome) {
+    if (!_porChave || !nome) return null;
+    return _porChave.get('T|' + chaveComTipo(nome))
+        || _porChave.get('S|' + chave(nome))
+        || null;
+  }
+
   function registro(nome) {
     if (!_porChave || !nome) return null;
-    var u = _porChave.get('T|' + chaveComTipo(nome));
-    if (u) return u;
-    u = _porChave.get('S|' + chave(nome));
+    var u = registroSemRegistrar(nome);
     if (u) return u;
     var bruto = String(nome).trim();
-    if (bruto && !ehSintetico(bruto)) _naoResolvidos.set(bruto, (_naoResolvidos.get(bruto) || 0) + 1);
+    if (!bruto) return null;
+    /* Sintético e fora-da-rede não são órfãos: são casos já classificados. */
+    if (ehSintetico(bruto)) return null;
+    if (_foraDaRede && _foraDaRede.has(chaveApelido(bruto))) return null;
+    _naoResolvidos.set(bruto, (_naoResolvidos.get(bruto) || 0) + 1);
     return null;
   }
 
@@ -243,8 +327,13 @@
     var bruto = String(nome || '').trim();
     if (!bruto) return '';
     if (_memoOficial.has(bruto)) return _memoOficial.get(bruto);
-    var u = registro(bruto);
-    var res = u ? u.nome : bruto;
+    /* O APELIDO VEM PRIMEIRO: ele é dado conferido por gente, e vence a regra
+       de token justamente nos casos que a regra não alcança. `null` ali é
+       apelido ambíguo — segue para as chaves em vez de chutar. */
+    var res;
+    var ap = _apelidos && _apelidos.get(chaveApelido(bruto));
+    if (ap) res = ap;
+    else { var u = registro(bruto); res = u ? u.nome : bruto; }
     _memoOficial.set(bruto, res);
     return res;
   }
@@ -259,11 +348,13 @@
     return u ? u.codigo : null;
   }
 
+  /* ⚠️ Índice, não varredura. A `avaliacao.html` traduz `uni_cod` -> nome por
+     LINHA do pacote da rede (dezenas de milhares), e a busca linear sobre 258
+     unidades fazia disso um O(n×m) desnecessário. */
   function nomePorCodigo(cod) {
-    if (!_catalogo) return null;
-    var n = Number(cod);
-    for (var i = 0; i < _catalogo.length; i++) if (_catalogo[i].codigo === n) return _catalogo[i].nome;
-    return null;
+    if (!_porCodigo) return null;
+    var u = _porCodigo.get(Number(cod));
+    return u ? u.nome : null;
   }
 
   function todas(opcoes) {

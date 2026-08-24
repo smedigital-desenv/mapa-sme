@@ -42,10 +42,38 @@ var CATALOGO = [
 
 /* `unidades.js` é um IIFE de navegador: publica em `window` e lê o catálogo
    por `window.MAPA_SB`. Aqui damos os dois, sem nenhum outro arreio. */
+/* Apelidos: o que regra de token nenhuma resolve. Copiam a FORMA dos casos
+   reais (`escola_alias`), não o conteúdo — nomes inventados, como o resto. */
+var ESCOLAS = [   // o catálogo do RLS; `escola_alias.escola_id` aponta para ele
+  { id: 10, nome: 'MATRIZ E ANEXO, EMEF' },
+  { id: 11, nome: 'MATRIZ E ANEXO, EMEF - UN. II' },
+  { id: 12, nome: 'ALFEU LUIZ GASPARINI, PROFº., EMEF' },
+];
+var ALIAS = [
+  // 'UNID I' quer dizer a MATRIZ, e 'Unidade II' quer dizer a OUTRA escola.
+  // Nenhuma normalização adivinha isso: é dado, conferido por gente.
+  { nome_no_dado: 'MATRIZ E ANEXO, EMEF - UNID I',   escola_id: 10, fora_da_rede: false },
+  { nome_no_dado: 'Matriz E Anexo Unidade II, EMEF', escola_id: 11, fora_da_rede: false },
+  // forma longa do nome, que o catálogo registra curta
+  { nome_no_dado: 'ALFEU LUIZ GASPARINI DE SOUZA, PROF., EMEF', escola_id: 12, fora_da_rede: false },
+  // escola particular que aparece legitimamente no dado (aluno de liminar)
+  { nome_no_dado: 'COLEGIO PARTICULAR QUALQUER',     escola_id: null, fora_da_rede: true },
+];
+
+/* O stub responde POR TABELA, e aceita `.select().order()` e `.select()`
+   direto — as duas formas que o módulo usa. */
+var RESPOSTAS = { escolas_catalogo: CATALOGO, escolas: ESCOLAS, escola_alias: ALIAS };
 global.window = {
-  MAPA_SB: { from: function () { return { select: function () { return {
-    order: function () { return Promise.resolve({ data: CATALOGO, error: null }); }
-  }; } }; } }
+  MAPA_SB: {
+    from: function (tabela) {
+      var dados = RESPOSTAS[tabela] || [];
+      var resp = { data: dados, error: null };
+      return { select: function () { return {
+        order: function () { return Promise.resolve(resp); },
+        then: function (f, g) { return Promise.resolve(resp).then(f, g); }
+      }; } };
+    }
+  }
 };
 global.document = { addEventListener: function () {} };
 
@@ -71,6 +99,16 @@ var CASOS = [
    'a unidade II resolve para si, NÃO para a matriz'],
   ['EMEF MATRIZ E ANEXO', 'MATRIZ E ANEXO, EMEF',
    'grafia da fonte sem o sufixo: é a MATRIZ'],
+
+  /* ── apelidos (`escola_alias`): o que a regra de token não alcança ── */
+  ['MATRIZ E ANEXO, EMEF - UNID I', 'MATRIZ E ANEXO, EMEF',
+   'apelido: "UNID I" é a MATRIZ (o catálogo não tem esse sufixo)'],
+  ['Matriz E Anexo Unidade II, EMEF', 'MATRIZ E ANEXO, EMEF - UN. II',
+   'apelido: "Unidade II" é a OUTRA escola — o par que já custou dado errado'],
+  ['ALFEU LUIZ GASPARINI DE SOUZA, PROF., EMEF', 'ALFEU LUIZ GASPARINI, PROFº., EMEF',
+   'apelido: forma longa do nome, que token nenhum resolve'],
+  ['COLEGIO PARTICULAR QUALQUER', 'COLEGIO PARTICULAR QUALQUER',
+   'fora da rede: passa intacta (e NÃO conta como órfã)'],
 ];
 
 U.carregar().then(function () {
@@ -89,7 +127,10 @@ U.carregar().then(function () {
   var checa = [
     ['tipo() pelo catálogo', U.tipo('EMEF ALFEU LUIZ GASPARINI PROF'), 'EMEF'],
     ['todas({tipos:[CEI]})',  U.todas({ tipos: ['CEI'] }).length, 2],
-    ['naoResolvidos() lista os 3 que não casaram', U.naoResolvidos().length, 3],
+    /* Fora-da-rede e sintético são casos CLASSIFICADOS, não órfãos: contá-los
+       encheria o aviso de linha já resolvida, e aviso ruidoso é aviso ignorado.
+       Continuam sendo 3: as duas ambíguas e a desconhecida. */
+    ['naoResolvidos() lista só as 3 órfãs de verdade', U.naoResolvidos().length, 3],
     /* A trava contra a regressão: matriz e unidade II NÃO podem colapsar. */
     ['matriz e unidade II continuam distintas',
      U.oficial('MATRIZ E ANEXO, EMEF') === U.oficial('MATRIZ E ANEXO, EMEF - UN. II'), false],

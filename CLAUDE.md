@@ -903,6 +903,25 @@ particular ou estadual, que existem e são legítimos).
 
 **Ela sobrevive à reimportação dos dados; corrigir a grafia na origem não.**
 
+⚠️ **O `unidades.js` LÊ essa tabela** (desde 2026-08-24), e é o que permitiu
+tirar os apelidos cravados no front. Colunas: `nome_no_dado`, `escola_id`
+(→ `escolas.id`, não `escolas_catalogo`), `fora_da_rede`, `observacao`.
+
+⚠️ **`fora_da_rede = true` é RESPOSTA, não falha.** São particulares e
+estaduais que aparecem legitimamente no dado (alunos de liminar). Elas ficam
+FORA de `naoResolvidos()`: contá-las encheria o `relatar()` de linha já
+classificada, e aviso ruidoso é aviso ignorado.
+
+⚠️ **Dois apelidos que normalizam igual e apontam para unidades diferentes
+NÃO resolvem** — desistem, como as chaves ambíguas. Resolver para uma delas
+seria pior que não resolver, porque pareceria certo.
+
+⚠️ **O apelido é DADO, e é por isso que ele vence a regra de token.** O caso
+que prova: `'… EMEF – UNID I'` significa a MATRIZ e `'… Unidade II, EMEF'`
+significa a OUTRA escola. A tabela aponta cada um para o seu `escola_id` (55 e
+5). Nenhuma normalização adivinha isso — e a `fluencia.html` tentava, cortando
+o nome no token `UNID`, o que fundia as duas.
+
 ⚠️ **O apelido casa por igualdade exata**, incluindo maiúsculas e acentos. Ao
 cadastrar, copie a grafia exatamente como aparece no dado — não "arrume" a
 caixa. Padronizar a grafia dos dados sem antes tornar `resolver_unidade()`
@@ -1200,16 +1219,18 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
 ### As SEIS normalizações de nome de unidade — e a migração
 
 Levantado em 2026-08: o repositório respondia "que unidade é esta?" de seis
-formas diferentes, que discordavam entre si.
+formas diferentes, que discordavam entre si. **Todas migradas em 2026-08-24** —
+hoje quem responde é `unidades.js`, e cada tela tem só um caminho reserva para
+quando o catálogo não carrega.
 
 | onde | como | situação |
 |---|---|---|
 | `unidades.js` | catálogo `escolas_catalogo`, tokens ordenados sem título | **o padrão** |
 | `leitura-rede.js` | delega ao `unidades.js` | migrado |
-| `avaliacao.html` | `tokensUnidade` — tokens ordenados | equivalente; migrar |
+| `avaliacao.html` | delega ao `unidades.js` | **migrado** |
 | `atribuicao.html` | delega ao `unidades.js` | **migrado** |
 | `retrato-atribuicao.html` | delega ao `unidades.js` | **migrado** |
-| `fluencia.html` | `_normEscola` + `_ESCOLA_ALIAS` cravado no front | migrar; o apelido pertence a `escola_alias`, no banco |
+| `fluencia.html` | delega ao `unidades.js` | **migrado**; o apelido voltou para `escola_alias` |
 | `boletim.html` | delega ao `unidades.js` | **migrado** (somava escola alheia) |
 
 ⚠️ **O de `boletim.html` não era risco hipotético — foi MEDIDO.** Cruzando as
