@@ -64,29 +64,21 @@
       .replace(/\s+/g, ' ').trim();
   }
 
-  /* ⚠️ Casar nome de unidade por igualdade de texto NÃO funciona, e foi o que
-     deixou metade da tabela vazia: o catálogo diz "ALFEU LUIZ GASPARINI,
-     PROFº., EMEF" e o dado diz "EMEF ALFEU LUIZ GASPARINI PROF". Esta é a
-     MESMA chave que a `avaliacao.html` usa (`tokensUnidade`): sem pontuação,
-     e com os tokens ORDENADOS, para que a ordem das palavras não importe.
-     O que nem isso resolve é assunto de `escola_alias`, no banco. */
+  /* ⚠️ Casar nome de unidade por igualdade de texto NÃO funciona: o catálogo
+     diz "ALFEU LUIZ GASPARINI, PROFº., EMEF" e o dado diz "EMEF ALFEU LUIZ
+     GASPARINI PROF". A chave de casamento vive em `unidades.js`, que é o
+     resolvedor único da rede — não reimplemente aqui.
+     Reserva local só para o caso de o módulo não ter carregado. */
   function chaveUnidade(nome) {
-    return normalizar(nome)
-      .replace(/[^A-Z0-9 ]/g, ' ')
-      .split(/\s+/).filter(Boolean)
-      .sort().join(' ');
+    if (window.MapaUnidades) return window.MapaUnidades.chave(nome);
+    return normalizar(nome).replace(/[^A-Z0-9 ]/g, ' ')
+      .split(/\s+/).filter(Boolean).sort().join(' ');
   }
 
-  /* Tipo da unidade pelo TOKEN inteiro do nome (CEI / EMEI / EMEF / …).
-     ⚠️ Casar por substring não serve: 'CONCEICAO' contém 'CEI', e a unidade
-     viraria creche. Esta é a forma da `analise-jornada.html`, que já trata
-     isso; a de `atribuicao.html` usa `includes` e tem esse defeito.
-     A ordem importa: EMEIEF precisa ser testado antes de EMEI e de EMEF,
-     senão uma unidade que atende as duas etapas cai na primeira que casar. */
+  /* O tipo vem da coluna `tipo` de `escolas_catalogo` — é dado, não dedução.
+     A dedução pelo nome fica como reserva, dentro de `unidades.js`. */
   function tipoUnidade(nome) {
-    var toks = new Set(normalizar(nome).split(/[^A-Z0-9]+/).filter(Boolean));
-    var ordem = ['CEMEI', 'EMEIEF', 'CEEEF', 'EMEF', 'EMEI', 'CEI'];
-    for (var i = 0; i < ordem.length; i++) if (toks.has(ordem[i])) return ordem[i];
+    if (window.MapaUnidades) return window.MapaUnidades.tipo(nome);
     return 'Outras';
   }
 
@@ -201,34 +193,47 @@
     });
   }
 
-  /* Catálogo do CODERP: código -> nome. Separado do `escolas` do RLS de
-     propósito (ver CLAUDE.md). Unidade cujo código não está aqui não entra:
-     melhor faltar linha visível que somar no lugar errado. */
+  /* Código do CODERP -> nome, pelo resolvedor único. Unidade cujo código não
+     está no catálogo não entra: melhor faltar linha visível que somar no
+     lugar errado. */
   function carregarCatalogoCoderp() {
-    return window.MAPA_SB.from('escolas_catalogo').select('codigo,nome').then(function (r) {
-      if (r.error) throw r.error;
+    if (!window.MapaUnidades) return Promise.resolve(new Map());
+    return window.MapaUnidades.carregar().then(function (cat) {
       var m = new Map();
-      (r.data || []).forEach(function (e) {
-        m.set(Number(e.codigo), String(e.nome || '').trim());
-      });
+      cat.forEach(function (u) { m.set(u.codigo, u.nome); });
       return m;
     });
   }
 
-  /* Lista oficial de unidades — com o recorte de RLS de sempre.
-     `tipos` recorta por tipo de unidade (ex.: ['EMEF']). Isso é CONFORTO
-     VISUAL, não segurança: quem entrega a lista é o RLS. Serve para tirar da
-     tabela quem não tem 1º a 5º ano — EMEI e CEI não têm, e apareceriam com
-     tudo '—'. */
+  /* Lista de unidades. ⚠️ A lista vem de `escolas` (recorte de RLS de sempre) —
+     é o banco que decide QUEM aparece, e trocar isso por `escolas_catalogo`
+     mostraria as 112 a um perfil de escola. O que muda é só o NOME: cada um
+     passa por `MapaUnidades.oficial()` e sai na grafia padrão do catálogo.
+     `tipos` recorta por tipo de unidade (ex.: ['EMEF']) — conforto visual,
+     para tirar da tabela quem não tem 1º a 5º ano. */
   function carregarUnidades(tipos) {
-    return window.MAPA_SB.from('escolas').select('nome').eq('ativo', true)
-      .order('nome').then(function (r) {
-        if (r.error) throw r.error;
-        var nomes = (r.data || []).map(function (e) { return e.nome; });
-        if (!tipos || !tipos.length) return nomes;
-        var alvo = new Set(tipos);
-        return nomes.filter(function (n) { return alvo.has(tipoUnidade(n)); });
-      });
+    var pronto = window.MapaUnidades
+      ? window.MapaUnidades.carregar().catch(function (err) {
+          console.warn('[leitura-rede] catálogo de unidades falhou; '
+            + 'os nomes ficam como vieram:', err && err.message);
+          return null;
+        })
+      : Promise.resolve(null);
+
+    return pronto.then(function () {
+      return window.MAPA_SB.from('escolas').select('nome').eq('ativo', true)
+        .order('nome').then(function (r) {
+          if (r.error) throw r.error;
+          var nomes = (r.data || []).map(function (e) {
+            return window.MapaUnidades ? window.MapaUnidades.oficial(e.nome) : e.nome;
+          });
+          if (tipos && tipos.length) {
+            var alvo = new Set(tipos);
+            nomes = nomes.filter(function (n) { return alvo.has(tipoUnidade(n)); });
+          }
+          return nomes.sort(function (a, b) { return a.localeCompare(b, 'pt-BR'); });
+        });
+    });
   }
 
   /* ── Percentual de um nível (ou grupo) dentro de unidade × ano ────────────
@@ -314,6 +319,12 @@
             saida.porAvaliacao[chave] = null;
             saida.falhas.push(chave);
           });
+          /* A sonda MapaDiagUnidades() lê isto para dizer quais unidades do
+             catálogo NÃO apareceram na tela. Sem isso ela só sabe contar o
+             catálogo, e "faltou alguma?" fica sem resposta. */
+          window.MapaTelaUnidades = function () { return saida.unidades.slice(); };
+          /* Acusa sozinho o que não casou — ver o comentário em unidades.js. */
+          if (window.MapaUnidades) window.MapaUnidades.relatar('leitura-rede');
           return saida;
         });
       });

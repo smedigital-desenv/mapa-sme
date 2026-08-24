@@ -17,6 +17,7 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="unidades.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -678,28 +679,39 @@ function _normTurma(s) {
 const _TITULOS = new Set(['PROF','PROFA','PROFO','DR','DRA','DRO',
                           'PROFESSOR','PROFESSORA','DOUTOR','DOUTORA']);
 
-// Apelidos para escolas cujo NOME diverge entre as bases (mesma escola, cadastro
-// diferente — não resolvível por regra geral). Chave e valor já normalizados:
-// mapeia a forma da Fluência para a forma do Elefante.
-//   Fluência: "ENEIDA PEREIRA DOS SANTOS DE AGUIAR, PROFA. DRA. EMEF"
-//   Elefante: "ENEIDA PEREIRA DOS SANTOS, EMEF"
-const _ESCOLA_ALIAS = {
-  'ENEIDA PEREIRA DOS SANTOS DE AGUIAR EMEF': 'ENEIDA PEREIRA DOS SANTOS EMEF',
-};
+/* ⚠️ O NOME DA UNIDADE É RESOLVIDO POR `unidades.js` — não reescreva a regra
+   aqui (CLAUDE.md). Esta função virou só a CHAVE de cruzamento Fluência ×
+   Elefante: as duas bases passam pelo mesmo resolvedor e viram a mesma grafia.
 
+   Duas coisas saíram daqui, e as duas eram defeito:
+
+   1. O MAPA DE APELIDOS cravado no front. Ele resolvia um caso real (a
+      Fluência escreve a forma longa do nome, o catálogo registra a curta), mas
+      no lugar errado: apelido pertence a `escola_alias`, no banco, porque
+      sobrevive à reimportação e é conferido por gente. A tabela já tem essa
+      linha — conferido em 2026-08-24.
+
+   2. O CORTE `if (w === 'UNID') break;`, que era uma MINA. Ele existia porque
+      o Elefante grafa "EMEF – UNID I" para a matriz. Só que cortar no 'UNID'
+      apaga TAMBÉM o "UNID II" — e a rede tem de fato duas unidades ali
+      (confirmado pela SME): a matriz e a Unidade II, escolas distintas com
+      alunos distintos. O corte as fundia numa linha só, somando as duas.
+      Medido: com a grafia de hoje ("UN. II") ele não disparava, por acidente
+      — bastava uma fonte escrever "UNID II" para somar duas escolas.
+      Quem sabe que "UNID I" é a matriz e "Unidade II" é a outra é o
+      `escola_alias`, que aponta cada uma para o seu `escola_id`. Isso é dado,
+      não regra: normalização nenhuma adivinha. */
 function _normEscola(s) {
-  const limpo = _norm(s)
-    .replace(/[º°ª]/g, '')           // ordinais masculino/feminino/grau
-    .replace(/[.,–—-]/g, ' ')        // pontuação e travessões → espaço
+  const bruto = String(s || '').trim();
+  if (!bruto) return '';
+  if (window.MapaUnidades) return _norm(window.MapaUnidades.oficial(bruto));
+  /* Sem o catálogo: títulos e pontuação fora, mas SEM cortar no 'UNID' —
+     preferir não casar a casar duas escolas como uma. */
+  const limpo = _norm(bruto)
+    .replace(/[º°ª]/g, '')
+    .replace(/[.,–—-]/g, ' ')
     .replace(/\s+/g, ' ').trim();
-  const out = [];
-  for (const w of limpo.split(' ')) {
-    if (_TITULOS.has(w)) continue;   // descarta títulos
-    if (w === 'UNID') break;         // corta sufixo "UNID I/II…"
-    out.push(w);
-  }
-  const nome = out.join(' ');
-  return _ESCOLA_ALIAS[nome] || nome;
+  return limpo.split(' ').filter(w => !_TITULOS.has(w)).join(' ');
 }
 
 function _chaveTurma(escola, ano, turma) {
@@ -759,6 +771,15 @@ async function carregarDados() {
   try {
     await aguardarAuth();   // garante que já sabemos as escolas do usuário
 
+    /* O catálogo e os apelidos precisam estar carregados ANTES do primeiro
+       `_normEscola`, senão o cruzamento Fluência × Elefante cai para a chave
+       reserva e perde as escolas que só o apelido resolve. Falhar aqui não
+       impede a tela de abrir. */
+    if (window.MapaUnidades) {
+      try { await window.MapaUnidades.carregar(); }
+      catch (e) { console.warn('[fluencia] catálogo de unidades não carregou; o cruzamento com o Elefante fica mais estrito', e); }
+    }
+
     // Busca engajamento do Elefante em paralelo (não bloqueia se falhar)
     await carregarEngajamento();
 
@@ -769,6 +790,10 @@ async function carregarDados() {
     dados = filtrarPorEscola(dados);   // só as escolas do usuário (super admin vê tudo)
 
     if (!dados.length) { semDados(); return; }
+
+    /* Grafia que nem o catálogo nem o apelido reconhecem some do cruzamento
+       em silêncio. O aviso é o que cria a suspeita (CLAUDE.md). */
+    if (window.MapaUnidades) window.MapaUnidades.relatar('fluencia');
 
     // Organiza por avaliação → escola → turmas
     const por = {};

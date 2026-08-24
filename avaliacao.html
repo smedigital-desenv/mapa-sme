@@ -12,6 +12,7 @@
   <script src="auth-guard.js"></script>
   <script>window.MAPA_SISTEMA = 'mapa';</script>
   <script src="auth.js" defer></script>
+  <script src="unidades.js"></script>
   <script src="ficha-coderp.js"></script>
   <script src="config-central.js" defer></script>
   <script src="demo-mode.js"></script>
@@ -7949,38 +7950,29 @@ function _renderTabelaTotal(linhas) {
   // palavras batem todas, para nunca fundir unidades diferentes. Sem
   // casamento, mantém a grafia original — visível e corrigível, nunca
   // silencioso.
-  function tokensUnidade(nome) {
-    return normalizar(String(nome || ''))
-      .replace(/[^A-Z0-9 ]/g, ' ')
-      .split(/\s+/).filter(Boolean)
-      .sort().join(' ');
-  }
+  /* ⚠️ A grafia oficial vem de `unidades.js`, o resolvedor único (CLAUDE.md).
+     O que existia aqui era um índice próprio, equivalente na REGRA mas com
+     duas diferenças que importavam:
 
-  // Índice tokens -> grafia oficial (catálogo `escolas`). Carrega quando a
-  // sessão fica pronta; antes disso o cleanUnit devolve a grafia original.
-  let _unidadeOficialIdx = null;
-  function _carregarIndiceOficial() {
-    supa.from('escolas').select('nome').eq('ativo', true)
-      .then(({ data, error }) => {
-        if (error || !data || !data.length) return;
-        const idx = new Map();
-        data.forEach(e => {
-          const t = tokensUnidade(e.nome);
-          if (!t) return;
-          // Duas oficiais com o mesmo conjunto de palavras: ambíguo, não traduz.
-          idx.set(t, idx.has(t) ? null : String(e.nome).trim().replace(/\s+/g, ' '));
-        });
-        _unidadeOficialIdx = idx;
-      })
-      .catch(() => { /* sem catálogo, segue com as grafias originais */ });
-  }
-  document.addEventListener('mapa-auth-pronto', _carregarIndiceOficial, { once: true });
-  _carregarIndiceOficial();
+     - ele indexava `escolas`, que passa pelo RLS. Para um perfil de escola a
+       lista tem UMA linha, então `cleanUnit` praticamente não canonizava nada
+       — justo para quem mais depende de a tela fechar com o resto. O
+       `escolas_catalogo` não é recortado, e é dele que vêm os nomes do CODERP.
+     - era a quinta cópia da mesma regra no repositório, e cópias divergem na
+       primeira correção feita em quatro delas.
 
+     ⚠️ Isto NÃO mexe em quem aparece: a LISTA continua vindo de `escolas` com
+     o RLS de sempre. Aqui só se resolve o NOME. */
   function cleanUnit(txt) {
     const bruto = String(txt || '').trim().replace(/\s+/g, ' ');
-    if (!bruto || !_unidadeOficialIdx) return bruto;
-    return _unidadeOficialIdx.get(tokensUnidade(bruto)) || bruto;
+    return window.MapaUnidades ? window.MapaUnidades.oficial(bruto) : bruto;
+  }
+  if (window.MapaUnidades) {
+    const _carregarCatalogoUnidades = () => window.MapaUnidades.carregar().catch(() => {
+      /* sem catálogo, as grafias seguem como a fonte mandou */
+    });
+    document.addEventListener('mapa-auth-pronto', _carregarCatalogoUnidades, { once: true });
+    _carregarCatalogoUnidades();
   }
 
   function periodoDesc(valor) {
@@ -8360,18 +8352,20 @@ function _renderTabelaTotal(linhas) {
   const fichaApiAtiva         = _FICHA.fichaApiAtiva;
   const chamarFichaApi        = _FICHA.chamarFichaApi;
 
-  // Catálogo código CODERP -> nome da unidade (uma busca por sessão). A
-  // tradução para a grafia oficial acontece no cleanUnit, para TODAS as fontes.
+  /* Catálogo código CODERP -> nome da unidade. Sai do `unidades.js`, que já
+     carrega `escolas_catalogo` para resolver nome — antes esta tela consultava
+     a MESMA tabela uma segunda vez por sessão.
+     ⚠️ Continua devolvendo um Map, porque é isso que as chamadas esperam. */
   let _fichaCatalogoPromise = null;
   function fichaCatalogo() {
     if (!_fichaCatalogoPromise) {
-      _fichaCatalogoPromise = supa.from('escolas_catalogo').select('codigo,nome')
-        .then(({ data, error }) => {
-          if (error) throw error;
-          const m = new Map();
-          (data || []).forEach(e => m.set(Number(e.codigo), String(e.nome || '').trim()));
-          return m;
-        })
+      _fichaCatalogoPromise = (window.MapaUnidades
+        ? window.MapaUnidades.carregar().then(cat => {
+            const m = new Map();
+            cat.forEach(e => { if (e.codigo) m.set(e.codigo, e.nome); });
+            return m;
+          })
+        : Promise.reject(new Error('unidades.js não carregou')))
         .catch(err => { _fichaCatalogoPromise = null; throw err; });
     }
     return _fichaCatalogoPromise;

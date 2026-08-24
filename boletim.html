@@ -13,6 +13,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="unidades.js"></script>
   <script>
     window.MAPA_SUPABASE = {
       url: "https://gmwotfulohkmuqrezeef.supabase.co",
@@ -222,23 +223,29 @@
   // falso-positivo). Assim sigla em posição diferente e títulos extras (PROF/DR) casam.
   const norm = s => String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
                      .replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
-  const TIPOS = /\b(?:EMEF|EMEI|EMEIEF|EMEIF|CEI|CEMEI|CEMEFEJA|EEI|CEEEF|CRECHE|AMES|NEI)\b/g;
-  // Canoniza tokens de título que variam de abreviação entre as bases:
-  // PROF/PROFA/PROFº/PROFESSOR(A) -> "PROF"; DR/DRA/DOUTOR(A) -> "DR". (Ex.: a Fluência
-  // grafa "PROFA." e as demais "PROFª." — sem isso, os tokens não batem.)
-  const canonTok = t => t.indexOf('PROF')===0 ? 'PROF'
-                      : (t==='DR'||t==='DRA'||t.indexOf('DOUTOR')===0) ? 'DR' : t;
-  const coreTokens = s => norm(s).replace(TIPOS,' ').replace(/\s+/g,' ').trim().split(' ').filter(Boolean).map(canonTok);
+  /* ⚠️ QUEM DECIDE SE DUAS GRAFIAS SÃO A MESMA UNIDADE É `unidades.js`.
+     Não reescreva a regra aqui — foi o que produziu SEIS normalizações
+     divergentes no repositório (ver CLAUDE.md).
+
+     O que existia antes nesta tela era casamento por SUBCONJUNTO de tokens:
+     bastavam 2 tokens do núcleo em comum para duas unidades virarem a mesma.
+     Isso não é "às vezes falta dado" — é o boletim de uma escola exibindo
+     linhas de OUTRA, e nas cinco chamadas abaixo (diagnóstica, atribuição,
+     Elefante, fluência, educação especial) de uma vez. Era o único defeito de
+     grafia do sistema que somava dado alheio em vez de omitir o próprio.
+
+     Medido em 2026-08-24 contra o catálogo real: as 112 unidades de `escolas`
+     e as 112 grafias de `turmas` resolvem 100% pelo resolvedor, então a troca
+     não perde casamento nenhum. */
   function matchEscola(sel, alvo){
-    const a=norm(sel), b=norm(alvo); if(!a||!b) return false;
-    if(a===b) return true;
-    const ta=coreTokens(sel), tb=coreTokens(alvo);
-    if(!ta.length || !tb.length) return false;
-    const small = ta.length<=tb.length ? ta : tb;
-    const bigSet = new Set(ta.length<=tb.length ? tb : ta);
-    const allIn = small.every(t=> bigSet.has(t));
-    if(small.length>=2) return allIn;                 // núcleo com 2+ tokens: subconjunto basta
-    return allIn && ta.join(' ')===tb.join(' ');       // núcleo de 1 token: exige igualdade
+    if(!sel || !alvo) return false;
+    const U = window.MapaUnidades;
+    if(U) return U.oficial(sel) === U.oficial(alvo);
+    /* Sem o catálogo (falha de rede, sessão não aberta) a comparação cai para
+       igualdade normalizada. É mais ESTRITA que o resolvedor: pode faltar
+       linha, nunca trazer a de outra escola. Errar escondendo é visível e
+       reclamável; errar mostrando é invisível e grave. */
+    return norm(sel) === norm(alvo);
   }
 
   function barra(p,cor){ p=Math.max(0,Math.min(100,Math.round(p||0))); return `<div class="d-flex align-items-center gap-2"><div class="bar" style="flex:1;"><span style="width:${p}%;background:${cor};"></span></div><b style="font-size:.72rem;color:#475569;min-width:34px;">${p}%</b></div>`; }
@@ -491,6 +498,10 @@
     $('secEE').style.display       = ee ? '' : 'none';
     $('secAtrib').style.display    = at ? '' : 'none';
     montarKpisGerais(escola, d, el, fl, ee, at);
+    /* Se alguma fonte mandou grafia que o catálogo não reconhece, ela some do
+       boletim em silêncio — a seção simplesmente vem vazia. O aviso é o que
+       cria a suspeita; sem ele, ninguém desconfia. */
+    if(window.MapaUnidades) window.MapaUnidades.relatar('boletim');
     if(!d && !el && !fl && !ee && !at){
       $('kpisGerais').innerHTML='<div class="col-12"><div class="kpi" style="border-left-color:#ef4444;"><div class="label">Sem dados</div><div class="val" style="font-size:1.05rem;color:#ef4444;">Nenhum dado encontrado para esta escola</div><div class="sub">Verifique a grafia do nome ou se a unidade possui registros nas bases.</div></div></div>';
     }
@@ -522,6 +533,13 @@
   async function montarSeletor(){
     const sel=$('selEscola');
     const auth = await authReady();
+    /* O catálogo tem de estar carregado ANTES do primeiro `matchEscola`, senão
+       ele cai para igualdade exata e a tela fica com menos linha sem dizer por
+       quê. Falha aqui não impede a tela de abrir — só a deixa mais estrita. */
+    if(window.MapaUnidades){
+      try{ await window.MapaUnidades.carregar(); }
+      catch(e){ console.warn('[boletim] catálogo de unidades não carregou; casamento cai para igualdade exata', e); }
+    }
     let escolas=[];
     if(auth && auth.restritoEscola && auth.escolas && auth.escolas.length){
       escolas = auth.escolas.map(e=>e.nome);

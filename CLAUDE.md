@@ -118,18 +118,37 @@ dos pré-leitores é proposta e aguarda confirmação da SME.
 ⚠️ **A rede tem EMEI e CEI, que não têm 1º a 5º ano.** Listar as 112 unidades
 com tudo `'—'` é ruído; as telas escondem quem não tem apuração no recorte,
 mas **dizem quantas** esconderam. Esconder sem contar transformaria "não casei
-o nome" em "não tem dado". O **Comparativo** vai além e lista só as **EMEF**
-(`carregar({tipos:['EMEF']})`), e só o **2º ano** (`ANO_FIXO`); a Análise de
-Desempenho segue com todas as unidades e todos os anos. Os botões dos demais
-anos foram removidos em vez de desabilitados — botão que não faz nada é convite
-a clicar. O ano continua sendo parâmetro do cálculo, então reabrir é trocar a
-constante e devolver os botões.
+o nome" em "não tem dado".
 
-⚠️ **O tipo da unidade sai do nome por TOKEN INTEIRO** (`tipoUnidade`), nunca
-por substring: `CONCEICAO` contém `CEI`, e a unidade viraria creche. A ordem
-de teste também importa — `EMEIEF` antes de `EMEI` e de `EMEF`, senão quem
-atende as duas etapas cai na primeira que casar. A `atribuicao.html` usa
-`includes` e tem esse defeito; a `analise-jornada.html` é a forma correta.
+As duas telas mostram só o **2º ano** (`ANO_FIXO`, decisão da SME), e diferem
+no recorte de unidade: o **Comparativo** lista só as **EMEF**
+(`carregar({tipos:['EMEF']})`); a **Análise de Desempenho** lista **todas** as
+unidades. O seletor de ano foi REMOVIDO das duas em vez de desabilitado —
+controle que não faz nada é convite a clicar. O ano continua sendo parâmetro do
+cálculo (`MapaLeitura` aceita qualquer ano e `'TODOS'`), então reabrir é trocar
+a constante e devolver o seletor.
+
+⚠️ **O tipo da unidade sai do CATÁLOGO** (`MapaUnidades.tipo()`), e o caminho
+reserva deduz por TOKEN INTEIRO, nunca por substring: `CONCEICAO` contém `CEI`,
+e a unidade viraria creche. A ordem de teste também importa — `EMEIEF` antes de
+`EMEI` e de `EMEF`, senão quem atende as duas etapas cai na primeira que casar.
+
+⚠️ **A `atribuicao.html` tinha o defeito do `includes` e foi corrigida — mas
+ele estava DORMENTE, e isso importa registrar.** Medido em 2026-08-24 sobre as
+112 unidades reais, a regra antiga e a nova concordam em **112 de 112**: hoje
+nenhum nome da rede tem `CEI` dentro de palavra. A troca não mudou número
+nenhum na tela; tirou uma mina do caminho. O mecanismo, com nomes plausíveis
+que a rede ainda não tem:
+
+| nome | `includes` | por token |
+|---|---|---|
+| `NOSSA SENHORA DA CONCEICAO, EMEF` | **CEI** | EMEF |
+| `JARDIM CEIVA, EMEF` | **CEI** | EMEF |
+| `X, EMEIEF` | **EMEI** | EMEF |
+
+⚠️ O `includes('EGYDIO')` que estava ali junto era um remendo com nome próprio:
+a sigla daquela unidade no nome é `CEEEF`, não `EMEF`. Pela descrição do
+catálogo ela resolve sozinha, e o remendo saiu.
 
 #### A tela Comparativo de Escolas
 
@@ -892,6 +911,54 @@ particular ou estadual, que existem e são legítimos).
 
 **Ela sobrevive à reimportação dos dados; corrigir a grafia na origem não.**
 
+⚠️ **O `unidades.js` LÊ essa tabela** (desde 2026-08-24), e é o que permitiu
+tirar os apelidos cravados no front. Colunas: `nome_no_dado`, `escola_id`
+(→ `escolas.id`, não `escolas_catalogo`), `fora_da_rede`, `observacao`.
+
+⚠️ **`fora_da_rede = true` é RESPOSTA, não falha.** São particulares e
+estaduais que aparecem legitimamente no dado (alunos de liminar). Elas ficam
+FORA de `naoResolvidos()`: contá-las encheria o `relatar()` de linha já
+classificada, e aviso ruidoso é aviso ignorado.
+
+⚠️ **Dois apelidos que normalizam igual e apontam para unidades diferentes
+NÃO resolvem** — desistem, como as chaves ambíguas. Resolver para uma delas
+seria pior que não resolver, porque pareceria certo.
+
+⚠️ **A supressão de `fora_da_rede` CONFIA no cadastro, e a semeadura
+automática não foi conferida.** Se ela errar, a unidade some da tela **e do
+aviso** — o pior par possível, porque a supressão que reduz ruído esconde o
+erro. Por isso `MapaDiagUnidades()` lista as linhas `fora_da_rede` **ainda não
+revisadas** (as que a `observacao` marca como semeadas), pondo na frente as
+que têm sigla municipal no nome.
+
+⚠️ **Isso é FILA, não veredicto — e a sigla NÃO decide.** Medido em
+2026-08-24: das duas linhas `fora_da_rede` com sigla municipal, **uma estava
+certa** (`…, EMEF` de uma escola que não é da rede; a rede tem uma unidade de
+nome parecido, mas é outra pessoa e é EMEI). A sigla é o que alguém digitou,
+não o que a unidade é. Quem decide é gente, e **ajustar a `observacao` tira a
+linha da fila — inclusive quando a resposta é "está certo, é de fora"**.
+Detector que continua gritando depois de revisado é detector que as pessoas
+desligam.
+
+⚠️ `CRECHE`, `EEI`, `AMES` e `NEI` ficam FORA de `SIGLAS_MUNICIPAIS`: no
+catálogo elas aparecem em convênio e OSC (`AUTA DE SOUZA, CRECHE` é CONVENIO,
+`ANTONIO VICENTE GOLFETO, EEI` também).
+
+⚠️ **Antes de "corrigir" uma linha da fila, veja se ela tem DADO.** As duas
+levantadas em 2026-08-24 não aparecem em `turmas`, `v_fluencia_por_turma` nem
+`av_diag_item` — são grafias remanescentes de importação antiga, e nenhuma
+unidade está invisível por causa delas. E se uma tiver dado: nome que não
+existe em `escolas` não pode simplesmente virar `fora_da_rede = false`, porque
+`escola_id` não teria para onde apontar. Ou é grafia de unidade existente (e aí
+falta descobrir QUAL **por dado**, nunca por semelhança de nome), ou é unidade
+ausente do catálogo (e aí entra nele primeiro).
+
+⚠️ **O apelido é DADO, e é por isso que ele vence a regra de token.** O caso
+que prova: `'… EMEF – UNID I'` significa a MATRIZ e `'… Unidade II, EMEF'`
+significa a OUTRA escola. A tabela aponta cada um para o seu `escola_id` (55 e
+5). Nenhuma normalização adivinha isso — e a `fluencia.html` tentava, cortando
+o nome no token `UNID`, o que fundia as duas.
+
 ⚠️ **O apelido casa por igualdade exata**, incluindo maiúsculas e acentos. Ao
 cadastrar, copie a grafia exatamente como aparece no dado — não "arrume" a
 caixa. Padronizar a grafia dos dados sem antes tornar `resolver_unidade()`
@@ -1036,11 +1103,197 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
   fontes (view de fluência, RPC da diagnóstica, ficha do CODERP) numa grandeza
   só, e é onde vivem o casamento de grafia, o agrupamento "leitores" e o
   recorte por tipo de unidade.
+- `unidades.js` expõe `window.MapaUnidades`, o **resolvedor do nome da
+  unidade** pelo catálogo `escolas_catalogo`. Quarta exceção deliberada.
+
+  ⚠️ **REGRA: todo sistema novo integrado ao MAPA passa o nome da unidade por
+  `MapaUnidades.oficial()` antes de exibir ou agregar.** Não escreva uma
+  normalização própria — já houve SEIS, e elas discordavam entre si.
+
+  ⚠️ **Isto NÃO é segurança.** Quem recorta por unidade é o Postgres (RLS:
+  `escolas` + `escola_alias` + `mapa_norm`). O módulo resolve o NOME para
+  exibir e agregar. **A lista de QUEM aparece continua vindo de `escolas`**,
+  com o RLS de sempre — trocar por `escolas_catalogo` mostraria as 112
+  unidades a um perfil de escola.
+
+  ⚠️ `oficial()` **nunca descarta um nome**: o que o catálogo não reconhece
+  volta intacto. É o que garante que adotar o módulo numa tela só possa
+  canonizar grafia, nunca fazer unidade sumir — o defeito mais grave porque é
+  invisível. O que não casou fica em `naoResolvidos()`, e é candidato a
+  `escola_alias`.
+
+  ⚠️ **Chave ambígua NÃO resolve — ela desiste.** Duas unidades do catálogo
+  podem cair na mesma chave (mesmo núcleo de nome, diferindo só por um título
+  que a normalização remove). Sem trava, a primeira indexada venceria e o nome
+  resolveria para a unidade ERRADA — pior que não resolver, porque parece certo.
+  `indexar()` marca a chave como ambígua (`null`) na colisão, nos DOIS índices
+  (`T|` com tipo e `S|` sem), e o nome volta intacto para `naoResolvidos()`.
+  Desambiguar essas é trabalho de `escola_alias`, não de mais regra de token.
+
+  ⚠️ **`relatar(ondeChamou)` é o que impede o defeito silencioso.** Grafia que
+  não casa é invisível justamente porque ninguém desconfia: a tela abre, tem
+  linhas, e só falta uma unidade. Toda tela que adota o módulo chama `relatar()`
+  ao fim do carregamento — se sobrou nome sem casar, sai um `warn` com a lista.
+  A sonda manual só ajuda quem já suspeita; o aviso automático cria a suspeita.
+
+  ⚠️ **A coluna `tipo` de `escolas_catalogo` NÃO é a sigla — é a descrição por
+  extenso** (`ESCOLA MUNICIPAL DE ENSINO FUNDAMENTAL`). Presumir que ali vinha
+  `EMEF` fez o filtro casar com ZERO e a tela do Comparativo ficar vazia em
+  homologação. `siglaDoTipo()` faz a conversão; descrição que ele não conhece
+  cai para a dedução pelo nome, para a unidade não sumir.
+
+  ⚠️ **O catálogo é MUITO mais amplo que a rede municipal.** Medido em 2026-08:
+  **258 unidades em 15 tipos** — EMEF 34, EMEI 43, CEI 36, mais 70 estaduais,
+  43 de convênio, 13 de OSC, parcerias e extensões. Os ~112 da rede são só as
+  três primeiras. É mais uma razão para a LISTA continuar vindo de `escolas`
+  com o RLS: usar o catálogo como lista traria escola estadual para dentro da
+  tela.
+
+  ⚠️ **As siglas de tipo vivem numa lista só (`SIGLAS_TIPO`).** Elas estavam
+  repetidas em três lugares e a lista mais curta perdia casamento em silêncio:
+  a `boletim.html` já descartava `EMEIF`, `CEMEFEJA`, `EEI`, `CRECHE`, `AMES` e
+  `NEI`, e aqui elas ficavam na chave — bastava uma grafia trazer a sigla e a
+  outra não para os tokens não baterem. Sigla nova entra ali, e os usos
+  acompanham.
+
+  **`node tools/testar-unidades.js`** exercita a regra de casamento sem banco,
+  sobre um catálogo inventado (o repositório é público; o teste não precisa de
+  dado real). Cobre a grafia invertida, as homônimas de tipos diferentes, as
+  ambíguas que têm de desistir, as siglas de tipo e o "nunca descarta".
+  ⚠️ Ele **não** substitui ver a tela com dado real: prova que a regra faz o
+  que diz, não que o catálogo do dia cobre as grafias que as fontes mandam.
+
+  **`node tools/conferir-grafias.js <catalogo.txt> <grafias.txt>`** responde
+  justamente essa outra pergunta, e **sem banco, sem sessão e sem proxy**: se o
+  catálogo DE HOJE cobre as grafias que as fontes mandam HOJE. É função pura de
+  duas listas de NOME DE ESCOLA — não passa dado pessoal por ela. Ele separa
+  três coisas: grafia que não casou (candidata a `escola_alias`), grafia
+  ambígua, e — a que importa na migração — **unidade do catálogo que nenhuma
+  grafia alcança**, que é a que SOME da tela sem ninguém perceber. Grafia que
+  não casa aparece com o nome da fonte: feio, mas visível.
+
+  ⚠️ Não versione as entradas. Não têm dado pessoal, mas export não se
+  versiona; o `.gitignore` cobre `tools/grafias-*.txt` e `tools/catalogo-*.txt`.
+
+  **MEDIDO em 2026-08-24, com o catálogo e a lista reais** (`conferir-grafias`):
+
+  - `escolas` (a lista do RLS, `ativo`) tem **112** unidades: EMEF 34, EMEI 41,
+    CEI 36, EMEPB 1. **As 112 casaram com o catálogo — 100%.** É o número que
+    autoriza a migração: nenhuma unidade some ao adotar `oficial()`.
+  - `escolas_catalogo` tem **258** em 11 tipos, e `siglaDoTipo()` reproduz a
+    distribuição inteira sem cair na dedução pelo nome uma vez sequer —
+    inclusive `EGYDIO PEDRESCHI, CEEEF` (sigla CEEEF, tipo EMEF) e
+    `ESCOLA DE EDUCACAO INFANTIL VILA TIBERIO` (nome sem sigla nenhuma).
+  - **`SEBASTIAO DE AGUIAR AZEVEDO, EMEF` e `… EMEF - UN. II` são DUAS linhas
+    do catálogo, e o resolvedor as distingue.** A grafia da fonte sem o sufixo
+    resolve para a matriz, como deve.
+
+  **As três fontes de dado foram conferidas contra o catálogo — 149 grafias,
+  100% em todas:** `turmas` 112/112 (alimenta Atribuição, Retrato e Boletim),
+  `av_diag_item` 33/33 (Diagnóstica), `v_fluencia_por_turma` 4/4 (Fluência,
+  Boletim — só 4 unidades têm apuração de fluência hoje). Com isto, migrar as
+  telas para `oficial()` não é aposta: **nenhuma grafia em produção deixa de
+  casar.**
+
+  ⚠️ **`av_diag_item` traz uma linha `'REDE'`** — agregado ocupando a coluna de
+  unidade. Ela NÃO é candidata a `escola_alias`: cadastrá-la criaria uma escola
+  fantasma; a tela é que deve excluí-la ao agregar. `SINTETICOS`/`ehSintetico()`
+  a mantêm fora de `naoResolvidos()`, senão `relatar()` avisaria sobre ela em
+  TODA abertura da Diagnóstica — e aviso que sempre aparece é aviso que as
+  pessoas aprendem a ignorar, que é o pior estado possível para um alerta (o
+  mesmo motivo pelo qual a conferência Rede × Turma segue desligada).
+  ⚠️ Só entre nessa lista rótulo confirmadamente agregado: unidade de verdade
+  posta ali some do aviso, que é exatamente o defeito invisível.
+
+  ⚠️ **A rede tem DUAS unidades que diferem só pelo sufixo de unidade**
+  (`…, EMEF` e `…, EMEF - UN. II`) — confirmado pela SME em 2026-08-24. Varridas
+  todas as normalizações do repositório contra esse par, **só a `boletim.html`
+  as fundia**; `tokensUnidade`, `_normEscola`, `MapaUnidades.chave` e
+  `oficial()` sempre as distinguiram. O par virou caso fixo em
+  `tools/testar-unidades.js`, com nomes fictícios de mesma forma, justamente
+  para impedir que alguém reintroduza a fusão "simplificando" a chave.
+
+  ⚠️ **O catálogo tem unidade cadastrada em duplicata**, diferindo só por ponto
+  final: `CASA DA CRIANCA IRMA CRUCIFIXA` tem TRÊS linhas (`.`, `..`), e
+  `AUTA DE SOUZA, CRECHE` / `FUNDAÇÃO EDUCANDÁRIO…` / `INSTITUTO … (IJEPAM)` /
+  `UNIFICAÇÃO KARDECISTA…` têm duas cada. O resolvedor faz o certo (a chave é
+  ambígua, então desiste e devolve o nome intacto), mas a causa é o CADASTRO.
+  Todas são CONVENIO/OSC: **não afetam** as telas de EMEF/EMEI/CEI; afetam
+  Educação Especial e Gerência de Liminares. Consulta que as lista:
+
+  ```sql
+  select regexp_replace(upper(unaccent(nome)), '[^A-Z0-9]', '', 'g') as nucleo,
+         count(*), array_agg(nome order by nome)
+    from public.escolas_catalogo group by 1 having count(*) > 1;
+  ```
+
+  ⚠️ **Duas EMEI do catálogo não estão em `escolas`** (`ESCOLA DE EDUCACAO
+  INFANTIL VILA TIBERIO` e `MARIA APARECIDA DE ALMEIDA PAULINO, EMEI`). Isso
+  não é falha de casamento — é a lista do RLS que não as tem. Se forem
+  unidades ativas, estão invisíveis em TODAS as telas.
+
+  ⚠️ **O corte `UNID` de `fluencia.html` é uma mina não pisada.** `_normEscola`
+  faz `if (w === 'UNID') break;`, e o catálogo grafa `UN. II` — então hoje ele
+  distingue a matriz da unidade II por acidente de grafia. Se qualquer fonte
+  escrever `UNID II`, as duas viram a MESMA unidade, somando os alunos de duas
+  escolas numa linha só. Ao migrar a tela, **não reproduza esse corte.**
+
+  ⚠️ **O Postgres SUGERE a correção errada.** Ler `escolas_catalogo` sem sessão
+  responde `42501` com `hint: GRANT SELECT ON public.escolas_catalogo TO anon`.
+  Seguir esse `hint` é exatamente o que a seção 3 proíbe — abriria a tabela a
+  qualquer visitante. O 401 ali é o sistema funcionando.
+
+  A sonda **`MapaDiagUnidades('EMEF')`** responde, no console: quantas
+  unidades o catálogo tem por tipo, quais nomes chegaram sem casar, e — nas
+  telas que publicam `window.MapaTelaUnidades()` — **quais unidades do
+  catálogo não apareceram na tela**.
 - `auth.js` publica `window.MAPA_SUPABASE` quando a página não traz a sua, para
   que uma segunda tela não precise repetir a URL do projeto. Página que declara
   a própria (como a `avaliacao.html`) continua mandando.
 - `?demo=0` desliga o modo demonstração, que também intercepta `fetch` e
   atrapalha diagnóstico de autenticação.
+
+### As SEIS normalizações de nome de unidade — e a migração
+
+Levantado em 2026-08: o repositório respondia "que unidade é esta?" de seis
+formas diferentes, que discordavam entre si. **Todas migradas em 2026-08-24** —
+hoje quem responde é `unidades.js`, e cada tela tem só um caminho reserva para
+quando o catálogo não carrega.
+
+| onde | como | situação |
+|---|---|---|
+| `unidades.js` | catálogo `escolas_catalogo`, tokens ordenados sem título | **o padrão** |
+| `leitura-rede.js` | delega ao `unidades.js` | migrado |
+| `avaliacao.html` | delega ao `unidades.js` | **migrado** |
+| `atribuicao.html` | delega ao `unidades.js` | **migrado** |
+| `retrato-atribuicao.html` | delega ao `unidades.js` | **migrado** |
+| `fluencia.html` | delega ao `unidades.js` | **migrado**; o apelido voltou para `escola_alias` |
+| `boletim.html` | delega ao `unidades.js` | **migrado** (somava escola alheia) |
+
+⚠️ **O de `boletim.html` não era risco hipotético — foi MEDIDO.** Cruzando as
+112 unidades reais entre si (12.544 pares), o casamento por subconjunto
+declarava iguais duas escolas distintas da rede:
+
+```
+"SEBASTIAO DE AGUIAR AZEVEDO, EMEF"  ==  "SEBASTIAO DE AGUIAR AZEVEDO, EMEF - UN. II"
+```
+
+`coreTokens` removia a sigla, sobravam 4 tokens, e 4 tokens são subconjunto de
+`… UN II` — casava. O boletim da matriz vinha somando os alunos da Unidade II
+nas CINCO seções de uma vez (diagnóstica, atribuição, Elefante, fluência,
+educação especial). Era o único defeito de grafia do sistema que trazia dado
+ALHEIO em vez de omitir o próprio — os demais escondem, este inventava.
+
+Depois da troca: **0 pares falsos, 0 casamentos perdidos** nos mesmos 12.544.
+
+⚠️ O caminho reserva da tela (sem catálogo) é igualdade normalizada, mais
+ESTRITA que o resolvedor de propósito: pode faltar linha, nunca trazer a de
+outra escola. Errar escondendo é visível e reclamável; errar mostrando é
+invisível e grave.
+
+⚠️ A migração é segura por construção (`oficial()` nunca descarta nome), mas
+**cada tela migrada precisa ser vista com dado real**: o sintoma de um erro
+aqui é unidade sumindo da tela, que ninguém percebe olhando o console.
 
 ### O cabeçalho é copiado em cada tela — e isso tem consequência
 
