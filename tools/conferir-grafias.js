@@ -39,15 +39,43 @@ if (args.length < 2) {
   process.exit(2);
 }
 
+/* Uma linha do arquivo -> {nome, tipo}.
+
+   ⚠️ O SQL Editor do Supabase exporta CSV COM ASPAS, e nomes de escola têm
+   vírgula por dentro ('ALCINA DOS SANTOS HECK, EMEF'). Partir a linha por
+   vírgula cortaria o nome ao meio e a sigla viraria o "tipo" — o casamento
+   despencaria por defeito do LEITOR, não do resolvedor, que é o pior jeito de
+   perder tempo. Por isso o campo entre aspas é lido caractere a caractere,
+   com "" valendo uma aspa literal. TAB e ';' seguem aceitos. */
+function partirLinha(linha) {
+  var campos = [], atual = '', dentro = false, i = 0;
+  var sep = (linha.indexOf('\t') >= 0) ? '\t' : (linha.indexOf(';') >= 0 && linha.indexOf('"') < 0) ? ';' : ',';
+  for (; i < linha.length; i++) {
+    var c = linha[i];
+    if (dentro) {
+      if (c === '"') {
+        if (linha[i + 1] === '"') { atual += '"'; i++; }
+        else dentro = false;
+      } else atual += c;
+    } else if (c === '"') dentro = true;
+    else if (c === sep) { campos.push(atual); atual = ''; }
+    else atual += c;
+  }
+  campos.push(atual);
+  return campos.map(function (x) { return x.trim(); });
+}
+
 function ler(caminho) {
-  return fs.readFileSync(caminho, 'utf8').split(/\r?\n/)
+  var linhas = fs.readFileSync(caminho, 'utf8').split(/\r?\n/)
     .map(function (l) { return l.trim(); })
-    .filter(function (l) { return l && l[0] !== '#'; })
-    .map(function (l) {
-      var p = l.split(/\t|;/);
-      return { nome: (p[0] || '').trim(), tipo: (p[1] || '').trim() };
-    })
-    .filter(function (r) { return r.nome; });
+    .filter(function (l) { return l && l[0] !== '#'; });
+  /* Cabeçalho exportado junto ('nome,tipo') não é uma unidade. */
+  if (linhas.length && /^"?(nome|escola|nome_unidade)"?\s*[,;\t]/i.test(linhas[0])) linhas.shift();
+  else if (linhas.length && /^"?(nome|escola|nome_unidade)"?$/i.test(linhas[0])) linhas.shift();
+  return linhas.map(function (l) {
+    var p = partirLinha(l);
+    return { nome: (p[0] || '').trim(), tipo: (p[1] || '').trim() };
+  }).filter(function (r) { return r.nome; });
 }
 
 var catalogo = ler(args[0]).map(function (r, i) {
