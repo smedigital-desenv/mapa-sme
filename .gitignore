@@ -39,3 +39,8 @@ node_modules/
 # Dados exportados/gerados da rotina local de devolutivas (dados pessoais).
 tools/relatorios/visitas-*.json
 tools/relatorios/devolutivas-*.json
+
+# Entradas do tools/conferir-grafias.js (listas de nome de unidade). Não têm
+# dado pessoal, mas export não se versiona — a regra da rede vale igual.
+tools/grafias-*.txt
+tools/catalogo-*.txt

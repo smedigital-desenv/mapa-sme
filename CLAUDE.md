@@ -1091,6 +1091,23 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
   ⚠️ Ele **não** substitui ver a tela com dado real: prova que a regra faz o
   que diz, não que o catálogo do dia cobre as grafias que as fontes mandam.
 
+  **`node tools/conferir-grafias.js <catalogo.txt> <grafias.txt>`** responde
+  justamente essa outra pergunta, e **sem banco, sem sessão e sem proxy**: se o
+  catálogo DE HOJE cobre as grafias que as fontes mandam HOJE. É função pura de
+  duas listas de NOME DE ESCOLA — não passa dado pessoal por ela. Ele separa
+  três coisas: grafia que não casou (candidata a `escola_alias`), grafia
+  ambígua, e — a que importa na migração — **unidade do catálogo que nenhuma
+  grafia alcança**, que é a que SOME da tela sem ninguém perceber. Grafia que
+  não casa aparece com o nome da fonte: feio, mas visível.
+
+  ⚠️ Não versione as entradas. Não têm dado pessoal, mas export não se
+  versiona; o `.gitignore` cobre `tools/grafias-*.txt` e `tools/catalogo-*.txt`.
+
+  ⚠️ **O Postgres SUGERE a correção errada.** Ler `escolas_catalogo` sem sessão
+  responde `42501` com `hint: GRANT SELECT ON public.escolas_catalogo TO anon`.
+  Seguir esse `hint` é exatamente o que a seção 3 proíbe — abriria a tabela a
+  qualquer visitante. O 401 ali é o sistema funcionando.
+
   A sonda **`MapaDiagUnidades('EMEF')`** responde, no console: quantas
   unidades o catálogo tem por tipo, quais nomes chegaram sem casar, e — nas
   telas que publicam `window.MapaTelaUnidades()` — **quais unidades do
