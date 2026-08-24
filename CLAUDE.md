@@ -128,11 +128,27 @@ controle que não faz nada é convite a clicar. O ano continua sendo parâmetro 
 cálculo (`MapaLeitura` aceita qualquer ano e `'TODOS'`), então reabrir é trocar
 a constante e devolver o seletor.
 
-⚠️ **O tipo da unidade sai do nome por TOKEN INTEIRO** (`tipoUnidade`), nunca
-por substring: `CONCEICAO` contém `CEI`, e a unidade viraria creche. A ordem
-de teste também importa — `EMEIEF` antes de `EMEI` e de `EMEF`, senão quem
-atende as duas etapas cai na primeira que casar. A `atribuicao.html` usa
-`includes` e tem esse defeito; a `analise-jornada.html` é a forma correta.
+⚠️ **O tipo da unidade sai do CATÁLOGO** (`MapaUnidades.tipo()`), e o caminho
+reserva deduz por TOKEN INTEIRO, nunca por substring: `CONCEICAO` contém `CEI`,
+e a unidade viraria creche. A ordem de teste também importa — `EMEIEF` antes de
+`EMEI` e de `EMEF`, senão quem atende as duas etapas cai na primeira que casar.
+
+⚠️ **A `atribuicao.html` tinha o defeito do `includes` e foi corrigida — mas
+ele estava DORMENTE, e isso importa registrar.** Medido em 2026-08-24 sobre as
+112 unidades reais, a regra antiga e a nova concordam em **112 de 112**: hoje
+nenhum nome da rede tem `CEI` dentro de palavra. A troca não mudou número
+nenhum na tela; tirou uma mina do caminho. O mecanismo, com nomes plausíveis
+que a rede ainda não tem:
+
+| nome | `includes` | por token |
+|---|---|---|
+| `NOSSA SENHORA DA CONCEICAO, EMEF` | **CEI** | EMEF |
+| `JARDIM CEIVA, EMEF` | **CEI** | EMEF |
+| `X, EMEIEF` | **EMEI** | EMEF |
+
+⚠️ O `includes('EGYDIO')` que estava ali junto era um remendo com nome próprio:
+a sigla daquela unidade no nome é `CEEEF`, não `EMEF`. Pela descrição do
+catálogo ela resolve sozinha, e o remendo saiu.
 
 #### A tela Comparativo de Escolas
 
@@ -1183,8 +1199,8 @@ formas diferentes, que discordavam entre si.
 | `unidades.js` | catálogo `escolas_catalogo`, tokens ordenados sem título | **o padrão** |
 | `leitura-rede.js` | delega ao `unidades.js` | migrado |
 | `avaliacao.html` | `tokensUnidade` — tokens ordenados | equivalente; migrar |
-| `atribuicao.html` | `cleanUnit` — só trim/colapso de espaço | **não casa nada**; migrar |
-| `retrato-atribuicao.html` | idem | **não casa nada**; migrar |
+| `atribuicao.html` | delega ao `unidades.js` | **migrado** |
+| `retrato-atribuicao.html` | delega ao `unidades.js` | **migrado** |
 | `fluencia.html` | `_normEscola` + `_ESCOLA_ALIAS` cravado no front | migrar; o apelido pertence a `escola_alias`, no banco |
 | `boletim.html` | delega ao `unidades.js` | **migrado** (somava escola alheia) |
 

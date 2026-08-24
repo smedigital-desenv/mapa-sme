@@ -12,6 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="unidades.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
@@ -851,6 +852,15 @@ function aguardarAuth() {
   });
 }
 
+/* O catálogo precisa estar carregado ANTES do primeiro `cleanUnit`, senão o
+   nome volta cru e duas grafias da mesma unidade viram duas linhas. Falhar
+   aqui não impede a tela de abrir — só devolve o comportamento antigo. */
+async function aguardarCatalogo() {
+  if (!window.MapaUnidades) return;
+  try { await window.MapaUnidades.carregar(); }
+  catch (e) { console.warn('[unidade] catálogo não carregou; os nomes seguem com a grafia da fonte', e); }
+}
+
 // Isolamento por escola: usuário de escola só vê as turmas da sua unidade.
 // (super admin e perfis sem escola vinculada continuam vendo tudo)
 function filtrarTurmasPorEscola(rows) {
@@ -911,7 +921,15 @@ function normalizar(txt) {
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 }
-function cleanUnit(txt) { return String(txt || '').trim().replace(/\s+/g, ' '); }
+/* ⚠️ O nome da unidade é resolvido pelo catálogo (`unidades.js`), nunca por
+   normalização local — ver CLAUDE.md. Antes daqui só saía trim + colapso de
+   espaço, o que não casa grafia nenhuma: a mesma unidade escrita de dois
+   jeitos virava duas linhas, cada uma com parte das turmas.
+   `oficial()` NUNCA descarta: o que o catálogo não reconhece volta intacto. */
+function cleanUnit(txt) {
+  const bruto = String(txt || '').trim().replace(/\s+/g, ' ');
+  return window.MapaUnidades ? window.MapaUnidades.oficial(bruto) : bruto;
+}
 
 function corrigirTextoLegivel(valor) {
   const raw = String(valor || '').trim();
@@ -1806,11 +1824,37 @@ const TIPOS_ESCOLA = [
   { key:'Outros',label:'Outras Unidades',                        cor:'#64748b', bg:'#f8fafc' },
 ];
 
+/* ⚠️ O TIPO vem do catálogo (`unidades.js`), que o lê da coluna `tipo` de
+   `escolas_catalogo` e só cai para a dedução pelo nome quando não a conhece.
+
+   O que existia aqui testava SUBSTRING, e isso erra de dois jeitos:
+
+   - `n.includes('CEI')` casa dentro de palavra: CONCEIÇÃO contém CEI, e a
+     unidade virava creche. É o mesmo defeito que o CLAUDE.md registra.
+   - `n.includes('EGYDIO')` era um remendo com nome próprio, necessário porque
+     a sigla daquela unidade no nome é `CEEEF`, não `EMEF`. Pela descrição do
+     catálogo ela resolve sozinha — medido: `EGYDIO PEDRESCHI, CEEEF` → EMEF.
+
+   Medido em 2026-08-24: `siglaDoTipo()` classificou as 258 unidades do
+   catálogo sem recorrer à dedução pelo nome uma única vez.
+
+   ⚠️ As chaves desta tela são só CEI/EMEI/EMEF/Outros; o catálogo distingue
+   mais tipos (EMEPB, estaduais, convênio…). Tudo que não é um dos três cai em
+   'Outros', como antes. */
+const TIPOS_DA_TELA = new Set(['CEI', 'EMEI', 'EMEF']);
+
 function getTipoEscola(nome) {
-  const n = normalizar(nome);
-  if (n.includes('CEI') || n.includes('CENTRO DE EDUC') && n.includes('INFANTIL')) return 'CEI';
-  if (n.includes('EMEI')) return 'EMEI';
-  if (n.includes('EMEF') || n.includes('EGYDIO')) return 'EMEF';
+  if (window.MapaUnidades) {
+    const t = window.MapaUnidades.tipo(nome);
+    return TIPOS_DA_TELA.has(t) ? t : 'Outros';
+  }
+  /* Sem catálogo: dedução por TOKEN INTEIRO, nunca por substring. A ordem
+     importa — EMEIEF antes de EMEI e de EMEF, senão quem atende as duas
+     etapas cai na primeira que casar. */
+  const toks = new Set(normalizar(nome).split(/[^A-Z0-9]+/).filter(Boolean));
+  for (const t of ['EMEIEF', 'CEEEF', 'EMEF', 'EMEI', 'CEI']) {
+    if (toks.has(t)) return TIPOS_DA_TELA.has(t) ? t : 'EMEF';
+  }
   return 'Outros';
 }
 
@@ -2757,9 +2801,14 @@ async function exportarModalPendExcel() {
 async function init() {
   try {
     await aguardarAuth();   // garante que já sabemos as escolas do usuário
+    await aguardarCatalogo();   // `cleanUnit` e `getTipoEscola` dependem dele
     let [rows] = await Promise.all([fetchTurmas(), fetchSeriesExcluidas()]);
     rows = filtrarTurmasPorEscola(rows);
     D = montarDados(rows);
+    /* Grafia que o catálogo não reconhece continua na tela com o nome da
+       fonte — visível, mas fácil de não notar. O aviso é o que cria a
+       suspeita; sem ele ninguém desconfia (CLAUDE.md). */
+    if (window.MapaUnidades) window.MapaUnidades.relatar('atribuicao');
 
     // Status — troca o spinner por um check verde quando termina
     document.getElementById('statusLoad').innerHTML =
