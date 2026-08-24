@@ -186,14 +186,28 @@
      menos, e o que não resolveu aparece em `relatar()`. */
   var _apelidos = null;        // nome normalizado -> nome oficial
   var _foraDaRede = null;      // nome normalizado -> true
+  var _apelidosCrus = null;    // as linhas como vieram, só para a sonda
 
   function chaveApelido(nome) {
     return normalizar(nome).replace(/[^A-Z0-9]+/g, ' ').trim();
   }
 
+  /* Siglas que só a REDE MUNICIPAL usa. `CRECHE`, `EEI`, `AMES` e `NEI` NÃO
+     entram: no catálogo real elas aparecem em unidades de convênio e OSC
+     (`AUTA DE SOUZA, CRECHE` é CONVENIO; `ANTONIO VICENTE GOLFETO, EEI`
+     também). Incluí-las faria o detector abaixo acusar convênio legítimo. */
+  var SIGLAS_MUNICIPAIS = new Set(['EMEF', 'EMEI', 'EMEIEF', 'CEI', 'CEMEI', 'CEEEF']);
+
+  function temSiglaMunicipal(nome) {
+    var toks = normalizar(nome).split(/[^A-Z0-9]+/);
+    for (var i = 0; i < toks.length; i++) if (SIGLAS_MUNICIPAIS.has(toks[i])) return true;
+    return false;
+  }
+
   function carregarApelidos() {
     _apelidos = new Map();
     _foraDaRede = new Set();
+    _apelidosCrus = [];
     return window.MAPA_SB
       .from('escola_alias').select('nome_no_dado,escola_id,fora_da_rede')
       .then(function (r) {
@@ -206,6 +220,7 @@
             var u = registroSemRegistrar(e.nome);
             porId.set(Number(e.id), u ? u.nome : String(e.nome || '').trim());
           });
+          _apelidosCrus = (r.data || []).slice();
           (r.data || []).forEach(function (a) {
             var k = chaveApelido(a.nome_no_dado);
             if (!k) return;
@@ -440,6 +455,36 @@
           console.warn('[MapaDiagUnidades] nenhum "' + tipoAlvo + '" no catálogo. '
             + 'As siglas válidas são as da coluna `sigla` da tabela acima — '
             + 'a coluna `tipo` do banco guarda a descrição por extenso.');
+        }
+      }
+
+      /* ⚠️ CLASSIFICAÇÃO SUSPEITA em `escola_alias`.
+         `fora_da_rede = true` faz a linha ser SUPRIMIDA de `naoResolvidos()`,
+         porque particular e estadual aparecem legitimamente no dado (alunos de
+         liminar) e enchê-lo de linha já classificada tornaria o aviso ruído.
+
+         Só que essa supressão CONFIA no cadastro. Quando a semeadura
+         automática classificou errado, ela deixa o erro MAIS invisível: a
+         unidade some da tela e nem no aviso aparece. Aconteceu — duas linhas
+         semeadas como fora da rede eram municipais (confirmado em 2026-08-24).
+
+         O sinal é simples: particular e estadual não usam sigla municipal no
+         nome. Quem estiver marcado fora da rede carregando EMEF/EMEI/CEI é
+         candidato a erro de classificação. */
+      if (Array.isArray(_apelidosCrus)) {
+        var suspeitas = _apelidosCrus.filter(function (a) {
+          return a.fora_da_rede && temSiglaMunicipal(a.nome_no_dado);
+        });
+        if (suspeitas.length) {
+          console.warn('[MapaDiagUnidades] ' + suspeitas.length + ' apelido(s) marcados '
+            + '`fora_da_rede` MAS com sigla municipal no nome. Particular e estadual '
+            + 'não usam EMEF/EMEI/CEI — provável erro de classificação na semeadura. '
+            + 'Enquanto estiverem assim, essas unidades somem da tela E do aviso.');
+          console.table(suspeitas.map(function (a) {
+            return { nome_no_dado: a.nome_no_dado, escola_id: a.escola_id, observacao: a.observacao };
+          }));
+        } else {
+          console.info('[MapaDiagUnidades] nenhum apelido `fora_da_rede` com sigla municipal.');
         }
       }
 

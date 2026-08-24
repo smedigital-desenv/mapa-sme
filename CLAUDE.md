@@ -916,6 +916,28 @@ classificada, e aviso ruidoso é aviso ignorado.
 NÃO resolvem** — desistem, como as chaves ambíguas. Resolver para uma delas
 seria pior que não resolver, porque pareceria certo.
 
+⚠️ **A supressão de `fora_da_rede` CONFIA no cadastro — e o cadastro já errou.**
+Duas linhas semeadas automaticamente como fora da rede eram municipais
+(confirmado pela SME em 2026-08-24): uma `…, EMEF` e uma `…, EMEI`. Enquanto
+estiverem assim, essas unidades somem da tela **e do aviso**, que é o pior par
+possível. Por isso `MapaDiagUnidades()` acusa **apelido `fora_da_rede` com
+sigla municipal no nome** — particular e estadual não usam EMEF/EMEI/CEI.
+Medido sobre as 33 linhas reais marcadas fora da rede: acusa as 2 erradas e
+**nenhuma** das 31 corretas.
+
+⚠️ `CRECHE`, `EEI`, `AMES` e `NEI` ficam FORA de `SIGLAS_MUNICIPAIS`: no
+catálogo elas aparecem em convênio e OSC (`AUTA DE SOUZA, CRECHE` é CONVENIO,
+`ANTONIO VICENTE GOLFETO, EEI` também). Incluí-las faria o detector acusar
+convênio legítimo, e detector que grita à toa é detector desligado.
+
+⚠️ **Corrigir essas duas NÃO é só virar `fora_da_rede = false`.** Nenhum dos
+dois nomes existe em `escolas` nem em `escolas_catalogo` — o `escola_id` não
+teria para onde apontar. O único parecido com a `…, EMEF` é uma unidade de
+nome do meio diferente E de outro tipo (EMEI), então apontar uma para a outra
+seria justamente o casamento errado silencioso. Ou são grafias de unidade
+existente (e aí falta descobrir QUAL, por dado, não por semelhança), ou são
+unidades ausentes do catálogo (e aí entram nele primeiro).
+
 ⚠️ **O apelido é DADO, e é por isso que ele vence a regra de token.** O caso
 que prova: `'… EMEF – UNID I'` significa a MATRIZ e `'… Unidade II, EMEF'`
 significa a OUTRA escola. A tabela aponta cada um para o seu `escola_id` (55 e
