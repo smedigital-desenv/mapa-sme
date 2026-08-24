@@ -342,6 +342,14 @@ A partir daí `auth.uid()` existe no banco do MAPA e as policies funcionam.
   abrir o sistema como outra pessoa; a ponte emite a sessão dela. É
   personificação real, restrita a super admin do central e registrada no log da
   função. Sem isso não há como testar o isolamento, já que ele vive no Postgres.
+- **O acesso ao MAPA é REGISTRADO no central, não aqui.** O `acesso-sme.js`
+  chama a RPC `registrar_acesso('mapa')` uma vez por sessão do navegador, e o
+  relatório de quem usa (e de quem tem acesso e não usa) vive no painel do
+  central (`admin.html` › Uso). Nada disso passa pelo banco do MAPA e não há o
+  que criar aqui — se pedirem "relatório de acesso ao MAPA", o lugar é o
+  central, e o desenho está em `central/RELATORIO-ACESSO.md` daquele
+  repositório. ⚠️ O registro é dispare-e-esqueça: nada da abertura de sessão
+  espera por ele, e ele não entra nas pernas de `MapaAuthTempos`.
 
 #### O cronômetro do login — `MapaAuthTempos`
 
