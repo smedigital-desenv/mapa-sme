@@ -192,16 +192,30 @@
     return normalizar(nome).replace(/[^A-Z0-9]+/g, ' ').trim();
   }
 
-  /* Siglas que só a REDE MUNICIPAL usa. `CRECHE`, `EEI`, `AMES` e `NEI` NÃO
-     entram: no catálogo real elas aparecem em unidades de convênio e OSC
-     (`AUTA DE SOUZA, CRECHE` é CONVENIO; `ANTONIO VICENTE GOLFETO, EEI`
-     também). Incluí-las faria o detector abaixo acusar convênio legítimo. */
+  /* Siglas que a rede municipal usa. `CRECHE`, `EEI`, `AMES` e `NEI` ficam de
+     fora: no catálogo real elas aparecem em convênio e OSC (`AUTA DE SOUZA,
+     CRECHE` é CONVENIO; `ANTONIO VICENTE GOLFETO, EEI` também). */
   var SIGLAS_MUNICIPAIS = new Set(['EMEF', 'EMEI', 'EMEIEF', 'CEI', 'CEMEI', 'CEEEF']);
 
   function temSiglaMunicipal(nome) {
     var toks = normalizar(nome).split(/[^A-Z0-9]+/);
     for (var i = 0; i < toks.length; i++) if (SIGLAS_MUNICIPAIS.has(toks[i])) return true;
     return false;
+  }
+
+  /* ⚠️ A SIGLA SOZINHA NÃO DECIDE — foi o meu erro ao desenhar isto.
+     Medido em 2026-08-24: das duas linhas `fora_da_rede` que carregavam sigla
+     municipal, UMA estava certa. Escola de fora da rede PODE ter sido cadastrada
+     com `, EMEF` no nome; a sigla é o que alguém digitou, não o que a unidade é.
+
+     O que decide é se um humano JÁ OLHOU a linha. A semeadura automática deixa
+     a marca na `observacao` ("semeado automaticamente — revisar"); as revisadas
+     dizem "confirmado". Enquanto a linha não foi revisada, ela é FILA, não erro
+     — e é isso que a sonda deve mostrar. Marcar a linha como conferida a tira
+     da fila, que é o comportamento certo: detector que continua gritando depois
+     de revisado é detector que as pessoas desligam. */
+  function aguardaRevisao(observacao) {
+    return /semead|revisar/i.test(String(observacao || ''));
   }
 
   function carregarApelidos() {
@@ -458,33 +472,42 @@
         }
       }
 
-      /* ⚠️ CLASSIFICAÇÃO SUSPEITA em `escola_alias`.
-         `fora_da_rede = true` faz a linha ser SUPRIMIDA de `naoResolvidos()`,
-         porque particular e estadual aparecem legitimamente no dado (alunos de
+      /* FILA DE REVISÃO de `escola_alias`.
+         `fora_da_rede = true` suprime a linha de `naoResolvidos()`, porque
+         particular e estadual aparecem legitimamente no dado (alunos de
          liminar) e enchê-lo de linha já classificada tornaria o aviso ruído.
 
-         Só que essa supressão CONFIA no cadastro. Quando a semeadura
-         automática classificou errado, ela deixa o erro MAIS invisível: a
-         unidade some da tela e nem no aviso aparece. Aconteceu — duas linhas
-         semeadas como fora da rede eram municipais (confirmado em 2026-08-24).
+         Só que a supressão CONFIA no cadastro, e a semeadura automática não
+         foi conferida. Se ela errou, a unidade some da tela E do aviso — o pior
+         par possível, porque a supressão que reduz ruído esconde o erro.
 
-         O sinal é simples: particular e estadual não usam sigla municipal no
-         nome. Quem estiver marcado fora da rede carregando EMEF/EMEI/CEI é
-         candidato a erro de classificação. */
+         ⚠️ Isto é FILA, não veredicto. A sigla municipal no nome é só o que
+         põe a linha no topo da fila: medido, das duas assim UMA estava certa —
+         escola de fora pode ter sido cadastrada com ', EMEF' no nome. Quem
+         decide é gente, e marcar a `observacao` como conferida tira a linha
+         daqui. */
       if (Array.isArray(_apelidosCrus)) {
-        var suspeitas = _apelidosCrus.filter(function (a) {
-          return a.fora_da_rede && temSiglaMunicipal(a.nome_no_dado);
+        var pendentes = _apelidosCrus.filter(function (a) {
+          return a.fora_da_rede && aguardaRevisao(a.observacao);
         });
-        if (suspeitas.length) {
-          console.warn('[MapaDiagUnidades] ' + suspeitas.length + ' apelido(s) marcados '
-            + '`fora_da_rede` MAS com sigla municipal no nome. Particular e estadual '
-            + 'não usam EMEF/EMEI/CEI — provável erro de classificação na semeadura. '
-            + 'Enquanto estiverem assim, essas unidades somem da tela E do aviso.');
-          console.table(suspeitas.map(function (a) {
-            return { nome_no_dado: a.nome_no_dado, escola_id: a.escola_id, observacao: a.observacao };
+        var prioridade = pendentes.filter(function (a) { return temSiglaMunicipal(a.nome_no_dado); });
+        if (pendentes.length) {
+          console.warn('[MapaDiagUnidades] ' + pendentes.length + ' apelido(s) `fora_da_rede` '
+            + 'AINDA NÃO REVISADOS (' + prioridade.length + ' com sigla municipal no nome, '
+            + 'que vêm primeiro). Enquanto não forem conferidos, uma classificação errada '
+            + 'esconde a unidade da tela E do aviso. Conferir e ajustar a `observacao` '
+            + 'tira a linha desta fila — inclusive quando a resposta é "está certo, é de fora".');
+          console.table(prioridade.concat(pendentes.filter(function (a) {
+            return !temSiglaMunicipal(a.nome_no_dado);
+          })).slice(0, 40).map(function (a) {
+            return {
+              nome_no_dado: a.nome_no_dado,
+              sigla_municipal: temSiglaMunicipal(a.nome_no_dado) ? 'sim' : '',
+              observacao: a.observacao
+            };
           }));
         } else {
-          console.info('[MapaDiagUnidades] nenhum apelido `fora_da_rede` com sigla municipal.');
+          console.info('[MapaDiagUnidades] fila de revisão de `escola_alias` vazia.');
         }
       }
 

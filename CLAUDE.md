@@ -916,27 +916,34 @@ classificada, e aviso ruidoso é aviso ignorado.
 NÃO resolvem** — desistem, como as chaves ambíguas. Resolver para uma delas
 seria pior que não resolver, porque pareceria certo.
 
-⚠️ **A supressão de `fora_da_rede` CONFIA no cadastro — e o cadastro já errou.**
-Duas linhas semeadas automaticamente como fora da rede eram municipais
-(confirmado pela SME em 2026-08-24): uma `…, EMEF` e uma `…, EMEI`. Enquanto
-estiverem assim, essas unidades somem da tela **e do aviso**, que é o pior par
-possível. Por isso `MapaDiagUnidades()` acusa **apelido `fora_da_rede` com
-sigla municipal no nome** — particular e estadual não usam EMEF/EMEI/CEI.
-Medido sobre as 33 linhas reais marcadas fora da rede: acusa as 2 erradas e
-**nenhuma** das 31 corretas.
+⚠️ **A supressão de `fora_da_rede` CONFIA no cadastro, e a semeadura
+automática não foi conferida.** Se ela errar, a unidade some da tela **e do
+aviso** — o pior par possível, porque a supressão que reduz ruído esconde o
+erro. Por isso `MapaDiagUnidades()` lista as linhas `fora_da_rede` **ainda não
+revisadas** (as que a `observacao` marca como semeadas), pondo na frente as
+que têm sigla municipal no nome.
+
+⚠️ **Isso é FILA, não veredicto — e a sigla NÃO decide.** Medido em
+2026-08-24: das duas linhas `fora_da_rede` com sigla municipal, **uma estava
+certa** (`…, EMEF` de uma escola que não é da rede; a rede tem uma unidade de
+nome parecido, mas é outra pessoa e é EMEI). A sigla é o que alguém digitou,
+não o que a unidade é. Quem decide é gente, e **ajustar a `observacao` tira a
+linha da fila — inclusive quando a resposta é "está certo, é de fora"**.
+Detector que continua gritando depois de revisado é detector que as pessoas
+desligam.
 
 ⚠️ `CRECHE`, `EEI`, `AMES` e `NEI` ficam FORA de `SIGLAS_MUNICIPAIS`: no
 catálogo elas aparecem em convênio e OSC (`AUTA DE SOUZA, CRECHE` é CONVENIO,
-`ANTONIO VICENTE GOLFETO, EEI` também). Incluí-las faria o detector acusar
-convênio legítimo, e detector que grita à toa é detector desligado.
+`ANTONIO VICENTE GOLFETO, EEI` também).
 
-⚠️ **Corrigir essas duas NÃO é só virar `fora_da_rede = false`.** Nenhum dos
-dois nomes existe em `escolas` nem em `escolas_catalogo` — o `escola_id` não
-teria para onde apontar. O único parecido com a `…, EMEF` é uma unidade de
-nome do meio diferente E de outro tipo (EMEI), então apontar uma para a outra
-seria justamente o casamento errado silencioso. Ou são grafias de unidade
-existente (e aí falta descobrir QUAL, por dado, não por semelhança), ou são
-unidades ausentes do catálogo (e aí entram nele primeiro).
+⚠️ **Antes de "corrigir" uma linha da fila, veja se ela tem DADO.** As duas
+levantadas em 2026-08-24 não aparecem em `turmas`, `v_fluencia_por_turma` nem
+`av_diag_item` — são grafias remanescentes de importação antiga, e nenhuma
+unidade está invisível por causa delas. E se uma tiver dado: nome que não
+existe em `escolas` não pode simplesmente virar `fora_da_rede = false`, porque
+`escola_id` não teria para onde apontar. Ou é grafia de unidade existente (e aí
+falta descobrir QUAL **por dado**, nunca por semelhança de nome), ou é unidade
+ausente do catálogo (e aí entra nele primeiro).
 
 ⚠️ **O apelido é DADO, e é por isso que ele vence a regra de token.** O caso
 que prova: `'… EMEF – UNID I'` significa a MATRIZ e `'… Unidade II, EMEF'`
