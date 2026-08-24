@@ -1186,11 +1186,28 @@ formas diferentes, que discordavam entre si.
 | `atribuicao.html` | `cleanUnit` — só trim/colapso de espaço | **não casa nada**; migrar |
 | `retrato-atribuicao.html` | idem | **não casa nada**; migrar |
 | `fluencia.html` | `_normEscola` + `_ESCOLA_ALIAS` cravado no front | migrar; o apelido pertence a `escola_alias`, no banco |
-| `boletim.html` | `matchEscola` — casamento por SUBCONJUNTO de tokens | **o mais arriscado**; migrar |
+| `boletim.html` | delega ao `unidades.js` | **migrado** (somava escola alheia) |
 
-⚠️ O de `boletim.html` merece atenção: subconjunto de 2 tokens já casa, então
-duas unidades que compartilham dois tokens do núcleo podem virar a mesma. Não
-é um defeito hipotético de estilo — é casamento errado silencioso.
+⚠️ **O de `boletim.html` não era risco hipotético — foi MEDIDO.** Cruzando as
+112 unidades reais entre si (12.544 pares), o casamento por subconjunto
+declarava iguais duas escolas distintas da rede:
+
+```
+"SEBASTIAO DE AGUIAR AZEVEDO, EMEF"  ==  "SEBASTIAO DE AGUIAR AZEVEDO, EMEF - UN. II"
+```
+
+`coreTokens` removia a sigla, sobravam 4 tokens, e 4 tokens são subconjunto de
+`… UN II` — casava. O boletim da matriz vinha somando os alunos da Unidade II
+nas CINCO seções de uma vez (diagnóstica, atribuição, Elefante, fluência,
+educação especial). Era o único defeito de grafia do sistema que trazia dado
+ALHEIO em vez de omitir o próprio — os demais escondem, este inventava.
+
+Depois da troca: **0 pares falsos, 0 casamentos perdidos** nos mesmos 12.544.
+
+⚠️ O caminho reserva da tela (sem catálogo) é igualdade normalizada, mais
+ESTRITA que o resolvedor de propósito: pode faltar linha, nunca trazer a de
+outra escola. Errar escondendo é visível e reclamável; errar mostrando é
+invisível e grave.
 
 ⚠️ A migração é segura por construção (`oficial()` nunca descarta nome), mas
 **cada tela migrada precisa ser vista com dado real**: o sintoma de um erro

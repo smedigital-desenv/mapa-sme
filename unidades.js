@@ -173,6 +173,7 @@
           };
         });
         _porChave = new Map();
+        _memoOficial = new Map();
         /* ⚠️ AMBIGUIDADE NÃO RESOLVE — fica `null` e o nome passa intacto.
            Vale para as DUAS chaves. A chave COM tipo também colide: duas
            unidades do mesmo tipo que difiram só por um título ("JOAO SILVA,
@@ -229,9 +230,23 @@
 
   /* ⚠️ Devolve o nome RECEBIDO quando não resolve. Nunca vazio, nunca nulo:
      é o que garante que adotar este módulo não faça unidade sumir. */
+  /* ⚠️ Memo. `oficial()` é chamada DENTRO de `filter()` sobre milhares de
+     linhas (o boletim varre a base inteira para achar as linhas da escola), e
+     cada chamada normaliza, parte, ordena e junta tokens duas vezes. O memo é
+     seguro porque a função é pura depois de `carregar()`, e é pequeno: as
+     entradas distintas são os ~258 nomes do catálogo mais as grafias das
+     fontes. Ele é zerado junto com o catálogo, senão sobreviveria a um
+     recarregamento e devolveria o nome antigo. */
+  var _memoOficial = new Map();
+
   function oficial(nome) {
-    var u = registro(nome);
-    return u ? u.nome : String(nome || '').trim();
+    var bruto = String(nome || '').trim();
+    if (!bruto) return '';
+    if (_memoOficial.has(bruto)) return _memoOficial.get(bruto);
+    var u = registro(bruto);
+    var res = u ? u.nome : bruto;
+    _memoOficial.set(bruto, res);
+    return res;
   }
 
   function tipo(nome) {
