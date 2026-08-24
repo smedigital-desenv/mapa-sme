@@ -160,13 +160,22 @@
           };
         });
         _porChave = new Map();
-        _catalogo.forEach(function (u) {
-          // A chave COM tipo tem prioridade; a sem tipo entra só se estiver
-          // livre, para não fazer duas unidades homônimas colidirem.
-          _porChave.set('T|' + chaveComTipo(u.nome), u);
-          var k = 'S|' + chave(u.nome);
-          if (_porChave.has(k)) _porChave.set(k, null);   // ambígua: não resolve
+        /* ⚠️ AMBIGUIDADE NÃO RESOLVE — fica `null` e o nome passa intacto.
+           Vale para as DUAS chaves. A chave COM tipo também colide: duas
+           unidades do mesmo tipo que difiram só por um título ("JOAO SILVA,
+           PROFº., EMEF" e "JOAO SILVA, EMEF") geram a mesma chave, porque
+           PROF é ruído. Sem esta guarda a segunda sobrescrevia a primeira e
+           um dos nomes passava a resolver para a unidade ERRADA — o mesmo
+           defeito silencioso do casamento por subconjunto do boletim.html.
+           Preferir não resolver a resolver errado: errar para o lado de não
+           canonizar é visível; casar com a escola errada não é. */
+        function indexar(k, u) {
+          if (_porChave.has(k)) _porChave.set(k, null);   // ambígua
           else _porChave.set(k, u);
+        }
+        _catalogo.forEach(function (u) {
+          indexar('T|' + chaveComTipo(u.nome), u);
+          indexar('S|' + chave(u.nome), u);
         });
         return _catalogo;
       })
@@ -228,7 +237,26 @@
       .map(function (e) { return { nome: e[0], vezes: e[1] }; });
   }
 
+  /* ⚠️ AVISO AUTOMÁTICO — é isto que impede o problema de voltar.
+     A sonda manual só ajuda quem desconfia; o defeito de grafia é invisível
+     justamente porque ninguém desconfia. Toda tela que resolve nome chama
+     `relatar()` ao fim da carga, e o console acusa sozinho quantos nomes não
+     casaram. Sem isso, "unidade faltando na tela" só aparece quando alguém
+     conta as linhas na mão. */
+  function relatar(ondeChamou) {
+    var nr = naoResolvidos();
+    if (!nr.length) return 0;
+    console.warn('[MapaUnidades] ' + (ondeChamou || 'tela') + ': ' + nr.length
+      + ' nome(s) de unidade NÃO casaram com o catálogo. Eles aparecem na tela '
+      + 'com a grafia da fonte, e podem estar duplicando linha ou ficando de '
+      + 'fora de uma agregação. Rode MapaDiagUnidades() para a lista, e '
+      + 'cadastre em escola_alias o que não for erro de digitação.');
+    console.table(nr.slice(0, 20));
+    return nr.length;
+  }
+
   window.MapaUnidades = {
+    relatar: relatar,
     carregar: carregar,
     oficial: oficial,
     tipo: tipo,

@@ -118,12 +118,15 @@ dos pré-leitores é proposta e aguarda confirmação da SME.
 ⚠️ **A rede tem EMEI e CEI, que não têm 1º a 5º ano.** Listar as 112 unidades
 com tudo `'—'` é ruído; as telas escondem quem não tem apuração no recorte,
 mas **dizem quantas** esconderam. Esconder sem contar transformaria "não casei
-o nome" em "não tem dado". O **Comparativo** vai além e lista só as **EMEF**
-(`carregar({tipos:['EMEF']})`), e só o **2º ano** (`ANO_FIXO`); a Análise de
-Desempenho segue com todas as unidades e todos os anos. Os botões dos demais
-anos foram removidos em vez de desabilitados — botão que não faz nada é convite
-a clicar. O ano continua sendo parâmetro do cálculo, então reabrir é trocar a
-constante e devolver os botões.
+o nome" em "não tem dado".
+
+As duas telas mostram só o **2º ano** (`ANO_FIXO`, decisão da SME), e diferem
+no recorte de unidade: o **Comparativo** lista só as **EMEF**
+(`carregar({tipos:['EMEF']})`); a **Análise de Desempenho** lista **todas** as
+unidades. O seletor de ano foi REMOVIDO das duas em vez de desabilitado —
+controle que não faz nada é convite a clicar. O ano continua sendo parâmetro do
+cálculo (`MapaLeitura` aceita qualquer ano e `'TODOS'`), então reabrir é trocar
+a constante e devolver o seletor.
 
 ⚠️ **O tipo da unidade sai do nome por TOKEN INTEIRO** (`tipoUnidade`), nunca
 por substring: `CONCEICAO` contém `CEI`, e a unidade viraria creche. A ordem
@@ -1046,6 +1049,20 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
   canonizar grafia, nunca fazer unidade sumir — o defeito mais grave porque é
   invisível. O que não casou fica em `naoResolvidos()`, e é candidato a
   `escola_alias`.
+
+  ⚠️ **Chave ambígua NÃO resolve — ela desiste.** Duas unidades do catálogo
+  podem cair na mesma chave (mesmo núcleo de nome, diferindo só por um título
+  que a normalização remove). Sem trava, a primeira indexada venceria e o nome
+  resolveria para a unidade ERRADA — pior que não resolver, porque parece certo.
+  `indexar()` marca a chave como ambígua (`null`) na colisão, nos DOIS índices
+  (`T|` com tipo e `S|` sem), e o nome volta intacto para `naoResolvidos()`.
+  Desambiguar essas é trabalho de `escola_alias`, não de mais regra de token.
+
+  ⚠️ **`relatar(ondeChamou)` é o que impede o defeito silencioso.** Grafia que
+  não casa é invisível justamente porque ninguém desconfia: a tela abre, tem
+  linhas, e só falta uma unidade. Toda tela que adota o módulo chama `relatar()`
+  ao fim do carregamento — se sobrou nome sem casar, sai um `warn` com a lista.
+  A sonda manual só ajuda quem já suspeita; o aviso automático cria a suspeita.
 
   ⚠️ **A coluna `tipo` de `escolas_catalogo` NÃO é a sigla — é a descrição por
   extenso** (`ESCOLA MUNICIPAL DE ENSINO FUNDAMENTAL`). Presumir que ali vinha

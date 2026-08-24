@@ -323,6 +323,8 @@
              catálogo NÃO apareceram na tela. Sem isso ela só sabe contar o
              catálogo, e "faltou alguma?" fica sem resposta. */
           window.MapaTelaUnidades = function () { return saida.unidades.slice(); };
+          /* Acusa sozinho o que não casou — ver o comentário em unidades.js. */
+          if (window.MapaUnidades) window.MapaUnidades.relatar('leitura-rede');
           return saida;
         });
       });

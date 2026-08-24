@@ -163,6 +163,16 @@
       font-size: 0.95rem;
     }
 
+    .ano-fixo {
+      display: inline-block;
+      background: var(--secondary);
+      color: #fff;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
     .kpi-row {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -373,7 +383,7 @@
 
 <div class="ctx-bar">
   <div class="ctx-tit"><i class="bi bi-bar-chart-fill"></i>Análise de Desempenho</div>
-  <span class="ctx-chip">Distribuição por faixa de proficiência</span>
+  <span class="ctx-chip">Distribuição por faixa · 2º ano</span>
 </div>
 
 <main class="main-content">
@@ -410,14 +420,9 @@
     </div>
     <div class="filter-group">
       <label>Ano Escolar</label>
-      <select id="anoSelect" onchange="carregarDados()">
-        <option value="TODOS">Todos os anos</option>
-        <option value="1º ANO">1º Ano</option>
-        <option value="2º ANO">2º Ano</option>
-        <option value="3º ANO">3º Ano</option>
-        <option value="4º ANO">4º Ano</option>
-        <option value="5º ANO">5º Ano</option>
-      </select>
+      <!-- A tela é do 2º ano. Os demais anos saíram em vez de ficarem
+           desabilitados: opção que não faz nada é convite a clicar. -->
+      <span class="ano-fixo">2º Ano</span>
     </div>
   </div>
 
@@ -508,6 +513,11 @@ const FAIXAS = [
   { key:'avancado',        label:'Avançado',        cor:'#8b5cf6', classe:'nivel-avancado',        niveis:['fluentes'] },
 ];
 
+/* ⚠️ A tela mostra SÓ o 2º ano — decisão da SME, igual à do Comparativo. O ano
+   continua sendo parâmetro do cálculo (`MapaLeitura` aceita qualquer um e
+   'TODOS'), então reabrir é trocar esta constante e devolver o <select>. */
+const ANO_FIXO = '2º ANO';
+
 function esc(s) {
   return String(s??'').replace(/[&<>"']/g,
     c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -544,7 +554,7 @@ function fonteAtual() {
 }
 
 function montar() {
-  const ano = document.getElementById('anoSelect').value;
+  const ano = ANO_FIXO;
   const fonte = fonteAtual();
 
   const linhas = [];
@@ -659,7 +669,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sel = document.getElementById('avaliacaoSelect');
   sel.innerHTML = L().AVALIACOES.map(a => `<option value="${esc(a.key)}">${esc(a.label)}</option>`).join('');
   sel.addEventListener('change', montar);
-  document.getElementById('anoSelect').addEventListener('change', montar);
 
   try {
     DADOS = await L().carregar();
