@@ -1416,6 +1416,12 @@ permanente qualquer vazamento que já tivesse acontecido.
 documento passa. O vazamento de 2026-08 foram 3.152 endereços institucionais
 dentro de scripts de carga, e a regra antiga liberava `.gov.br` inteiro.
 
+⚠️ **O `%` fica FORA da parte local do e-mail, e isso não é descuido de
+regex.** Com ele, o coringa do SQL (`email like '%@educacao.pmrp.sp.gov.br'`)
+casa como se fosse endereço de gente, e uma checagem de domínio vira "dado
+pessoal publicado". Foi assim que a auditoria acusou quatro arquivos do `lunar`
+que não tinham endereço nenhum de pessoa.
+
 ⚠️ **Nada disso apaga o histórico, e o `.gitignore` não destrava arquivo já
 rastreado.** A guarda impede o PRÓXIMO vazamento. O que já foi publicado só sai
 com reescrita de histórico e força-push.

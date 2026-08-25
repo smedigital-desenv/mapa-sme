@@ -67,8 +67,13 @@ analisar_conteudo() {
     fi
   done
 
+  # ⚠️ O `%` fica FORA da parte local de propósito. Com ele, o coringa do SQL
+  # (`email like '%@educacao.pmrp.sp.gov.br'`) casava como se fosse endereço de
+  # gente — e uma checagem de domínio virava "dado pessoal publicado". Alarme
+  # que acusa o que não é, todo dia, é alarme que as pessoas desligam. Endereço
+  # de verdade com `%` na parte local não existe na prática.
   TODOS="$(printf '%s' "$TEXTO" \
-    | grep -oE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' \
+    | grep -oE '[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' \
     | grep -ivE '@([A-Za-z0-9.-]*\.)?(anthropic\.com|smedigital\.com\.br|supabase\.(co|com)|github\.com|users\.noreply\.github\.com|example\.com|exemplo\.com)$' \
     | sort -u || true)"
 
