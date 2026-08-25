@@ -1,0 +1,71 @@
+# Guarda anti-vazamento da rede SME — a camada que não depende de máquina nenhuma.
+#
+# O .gitignore e os hooks rodam na máquina de quem trabalha: quem clonar sem
+# eles, ou usar --no-verify, passa por cima dos dois. Este workflow roda no
+# GitHub, a cada push e a cada pull request, e falha se algum arquivo de dados
+# estiver versionado.
+#
+# Ele NÃO reimplementa a regra: chama a mesma guarda que roda na máquina
+# (`.claude/hooks/verificar-vazamento.sh`), no modo de push. Uma regra, cinco
+# portas.
+#
+# Por que importa: o site é publicado pelo GitHub Pages a partir da raiz do
+# repositório. Todo arquivo commitado vira URL pública e baixável — um `.sql` de
+# carga aqui é dado pessoal servido pela web.
+name: Guarda de dados
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  arquivos-de-dados:
+    name: Nenhum arquivo de dados versionado
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Nenhum arquivo de dados versionado
+        run: |
+          # ⚠️ Quem decide é `.claude/hooks/verificar-vazamento.sh`, o MESMO
+          # arquivo que roda no commit e no push da máquina de quem trabalha.
+          # Aqui ele é chamado no modo de push, que pergunta "o que está
+          # versionado?" em vez de "o que está staged".
+          #
+          # Isto era uma segunda implementação, escrita neste YAML, com a sua
+          # própria leitura de `.guarda-permitidos`. Duas implementações da
+          # mesma regra divergem na primeira correção feita só em uma — e aí
+          # uma libera o que a outra barra, sem ninguém saber qual está certa.
+          SME_GUARDA_MODO=push bash .claude/hooks/verificar-vazamento.sh < /dev/null
+
+      - name: Procurar credencial de servidor
+        run: |
+          # A chave anon do Supabase é pública por design e PODE ser versionada.
+          # O que não pode: service_role, token sbp_ e chave privada.
+          FALHOU=0
+
+          if git grep -InE '\bsbp_[A-Za-z0-9]{20,}' -- . ; then
+            echo "::error::Token de acesso do Supabase (sbp_...) versionado."
+            FALHOU=1
+          fi
+
+          if git grep -In -- '-----BEGIN [A-Z ]*PRIVATE KEY-----' -- . ; then
+            echo "::error::Chave privada versionada."
+            FALHOU=1
+          fi
+
+          # JWT: decodifica o payload para separar a chave anon do service_role.
+          for P in $(git grep -hoE 'eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+' -- . \
+                     | cut -d. -f2 | sort -u); do
+            PAD=$(( (4 - ${#P} % 4) % 4 ))
+            D="$(printf '%s' "$P" | tr '_-' '/+' | { cat; printf '%.0s=' $(seq 1 $PAD 2>/dev/null); } \
+                 | base64 -d 2>/dev/null || true)"
+            if printf '%s' "$D" | grep -qE '"role"[[:space:]]*:[[:space:]]*"service_role"'; then
+              echo "::error::JWT com role service_role versionado."
+              FALHOU=1
+            fi
+          done
+
+          [ "$FALHOU" -eq 0 ] || exit 1
+          echo "OK — nenhuma credencial de servidor versionada."

@@ -5,7 +5,7 @@
 # Esta guarda barra dado pessoal, credencial e arquivo de dados ANTES de
 # virarem publicação. Falso positivo? Rode com SME_PERMITIR_COMMIT=1.
 #
-# Ela roda em QUATRO portas, porque fechar só uma não fecha nada:
+# Ela roda em QUATRO portas aqui, porque fechar só uma não fecha nada:
 #
 #   1. hook PreToolUse do Claude Code, ferramenta Bash  -> git commit e git push
 #   2. hook PreToolUse do Claude Code, ferramentas MCP do GitHub
@@ -13,6 +13,10 @@
 #      NÃO passa por git nenhum e por isso escapava de tudo
 #   3. hook pre-commit do git  -> vale para quem commita fora do Claude Code
 #   4. hook pre-push do git    -> última barreira antes de sair da máquina
+#
+# A QUINTA porta não é este arquivo: é `.github/workflows/guarda-dados.yml`,
+# que roda no GitHub e não depende da máquina de ninguém. Ela pega quem clonou
+# sem os hooks. As duas precisam concordar — as duas leem `.guarda-permitidos`.
 #
 # As portas 3 e 4 se instalam sozinhas: `.githooks/` é versionado e o
 # SessionStart aponta `core.hooksPath` para lá. À mão, uma vez por clone:
@@ -32,6 +36,37 @@ EXT_PROIBIDA='\.(sql|csv|tsv|dump|sqlite|sqlite3|parquet|xls|xlsx|xlsm)$'
 PROBLEMAS=""
 falha() { PROBLEMAS="${PROBLEMAS}- $1
 "; }
+
+# --------------------------------------------------------------------------
+# Exceções conferidas uma a uma, em `.guarda-permitidos`. Um caminho por linha,
+# com a justificativa depois de `#`. Linha terminada em `/` libera a pasta.
+#
+# ⚠️ Isto é para arquivo que a extensão barra mas que foi ABERTO e não tem dado
+# pessoal nenhum — modelo em branco oferecido para download, definição de
+# esquema sem carga. NUNCA para publicar dado com dono.
+#
+# ⚠️ O MESMO arquivo é lido pelo workflow `guarda-dados.yml` e pela auditoria
+# semanal da rede. Se cada um tivesse a sua lista, uma liberaria o que a outra
+# barra, e ninguém saberia qual está certa.
+# --------------------------------------------------------------------------
+PERMITIDOS=""
+if [ -f "$REPO/.guarda-permitidos" ]; then
+  PERMITIDOS="$(sed 's/#.*//; s/[[:space:]]*$//; s/^[[:space:]]*//' "$REPO/.guarda-permitidos" | grep -v '^$' || true)"
+fi
+
+permitido() {
+  [ -n "$PERMITIDOS" ] || return 1
+  while IFS= read -r LINHA; do
+    [ -z "$LINHA" ] && continue
+    case "$LINHA" in
+      */) case "$1" in "$LINHA"*) return 0 ;; esac ;;
+      *)  [ "$1" = "$LINHA" ] && return 0 ;;
+    esac
+  done <<EOF
+$PERMITIDOS
+EOF
+  return 1
+}
 
 # --------------------------------------------------------------------------
 # Análise de conteúdo: recebe texto (linhas ADICIONADAS de um diff, ou o
@@ -102,7 +137,9 @@ checar_staged() {
   RUINS="$(git -C "$REPO" diff --cached --name-only --diff-filter=d | grep -iE "$EXT_PROIBIDA" || true)"
   if [ -n "$RUINS" ]; then
     while IFS= read -r a; do
-      [ -n "$a" ] && falha "arquivo de dados proibido em repositório público: $a"
+      [ -n "$a" ] || continue
+      permitido "$a" && continue
+      falha "arquivo de dados proibido em repositório público: $a"
     done <<EOF
 $RUINS
 EOF
@@ -122,13 +159,32 @@ EOF
 # sempre, e aí a guarda não guarda mais nada.
 # --------------------------------------------------------------------------
 checar_push() {
+  # Pergunta 1: o que está VERSIONADO agora? Pega o que entrou por qualquer
+  # outro caminho — `--no-verify`, `git add -f`, outra máquina, outra
+  # ferramenta, ou antes de a guarda existir.
+  ARVORE="$(git -C "$REPO" ls-files | grep -iE "$EXT_PROIBIDA" || true)"
+  if [ -n "$ARVORE" ]; then
+    while IFS= read -r a; do
+      [ -n "$a" ] || continue
+      permitido "$a" && continue
+      falha "arquivo de dados VERSIONADO: $a (tire com \`git rm --cached\`, ou justifique em .guarda-permitidos se for modelo sem dado)"
+    done <<EOF
+$ARVORE
+EOF
+  fi
+
   git -C "$REPO" for-each-ref --format='%(refname)' refs/remotes 2>/dev/null | grep -q . || return 0
 
+  # Pergunta 2: e o que os commits ainda não publicados TOCARAM? Arquivo que
+  # entrou e saiu antes do push não aparece na árvore, mas publicar a série
+  # publica o commit do meio, com ele dentro.
   RUINS="$(git -C "$REPO" log --name-only --diff-filter=d --pretty=format: HEAD --not --remotes 2>/dev/null \
            | grep -iE "$EXT_PROIBIDA" | sort -u || true)"
   if [ -n "$RUINS" ]; then
     while IFS= read -r a; do
-      [ -n "$a" ] && falha "commit ainda não publicado traz arquivo de dados: $a"
+      [ -n "$a" ] || continue
+      permitido "$a" && continue
+      falha "commit ainda não publicado traz arquivo de dados: $a"
     done <<EOF
 $RUINS
 EOF
@@ -151,8 +207,9 @@ checar_mcp() {
     | sed 's/.*:[[:space:]]*"//; s/"$//' | sort -u || true)"
   if [ -n "$CAMINHOS" ]; then
     while IFS= read -r a; do
-      printf '%s' "$a" | grep -qiE "$EXT_PROIBIDA" \
-        && falha "arquivo de dados indo direto para o GitHub pela API: $a"
+      printf '%s' "$a" | grep -qiE "$EXT_PROIBIDA" || continue
+      permitido "$a" && continue
+      falha "arquivo de dados indo direto para o GitHub pela API: $a"
     done <<EOF
 $CAMINHOS
 EOF
