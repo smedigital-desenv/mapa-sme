@@ -177,7 +177,7 @@ Não precisa de build — é estático!
 
 ## 🔗 Links Úteis
 
-- [MAPA Dashboard](https://smedigital-desenv.github.io/mapa-sme)
+- [MAPA Dashboard](https://smedigital.com.br/mapa-sme)
 - [Google Apps Script Console](https://script.google.com)
 - [Gemini API Docs](https://ai.google.dev)
 
