@@ -34,7 +34,27 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/verificar-vazamento.sh\"",
-            "statusMessage": "Guarda anti-vazamento verificando o commit"
+            "statusMessage": "Guarda anti-vazamento verificando o que vai ser publicado"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__github__(create_or_update_file|push_files)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/verificar-vazamento.sh\"",
+            "statusMessage": "Guarda anti-vazamento verificando o que vai ser publicado"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/instalar-guarda.sh\""
           }
         ]
       }

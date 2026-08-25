@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# Guarda anti-vazamento da rede SME — última barreira antes de sair da máquina.
+# Commit ainda é local; push é publicação. Aqui olhamos os commits que nenhum
+# remoto tem — inclusive os que entraram antes de a guarda existir.
+SME_GUARDA_MODO=push exec bash "$(git rev-parse --show-toplevel)/.claude/hooks/verificar-vazamento.sh"

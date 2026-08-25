@@ -1368,3 +1368,55 @@ gate de verdade é o do central.
 4. **Timeout em tabela pequena** é estatística velha ou instância saturada,
    não policy mal escrita.
 5. **Antes de propor `grant`**, releia a seção 3.
+
+---
+
+## Guarda anti-vazamento
+
+#### A guarda anti-vazamento
+
+Nada disso depende de alguém lembrar. Uma guarda automática barra arquivo de
+dados, CPF, chave privada, `service_role` e lista de e-mails **antes** de
+virarem publicação. Ela é versionada em
+`.claude/hooks/verificar-vazamento.sh` e roda em quatro portas — porque fechar
+só uma não fecha nada:
+
+| Porta | Cobre |
+|---|---|
+| `PreToolUse` / Bash | `git commit` e `git push` feitos pelo Claude Code |
+| `PreToolUse` / MCP do GitHub | escrita direta pela API (`create_or_update_file`, `push_files`), que não passa por git nenhum |
+| `pre-commit` do git | quem commita fora do Claude Code — terminal, VS Code, GitHub Desktop |
+| `pre-push` do git | última barreira antes de o conteúdo sair da máquina |
+
+As duas últimas se instalam sozinhas: `.githooks/` é versionado e o
+`SessionStart` aponta `core.hooksPath` para lá. À mão, uma vez por clone:
+`git config core.hooksPath .githooks`.
+
+⚠️ **Em cada COMPUTADOR ou dispositivo, rode o instalador uma vez.** Ele passa a
+valer para **todo** repositório daquela máquina — inclusive os que ainda não
+existem — e para **toda** sessão do Claude Code daquela conta, porque entra em
+`~/.claude/settings.json`, que é do usuário e não do projeto:
+
+```bash
+curl -fsSL https://smedigital.com.br/guarda/instalar.sh | bash
+```
+
+⚠️ **O `git commit` passar não é sinal verde: o push é conferido de novo.** A
+válvula `SME_PERMITIR_COMMIT=1` destranca UMA porta, não a publicação — o que
+entrou por ela continua barrado no `push`. É de propósito: um descuido não pode
+virar publicação por causa de uma variável de ambiente.
+
+⚠️ **A guarda ignora as EXCLUSÕES (`--diff-filter=d`).** Apagar um arquivo
+proibido é a correção, não a falta. Até 2026-08-25 ela olhava `--name-only`
+puro e barrava justamente o commit que limpava o vazamento — ou seja, tornava
+permanente qualquer vazamento que já tivesse acontecido.
+
+⚠️ **E-mail institucional também é dado pessoal.** Três ou mais endereços
+`.gov.br` distintos no mesmo diff bloqueiam; um endereço de contato num
+documento passa. O vazamento de 2026-08 foram 3.152 endereços institucionais
+dentro de scripts de carga, e a regra antiga liberava `.gov.br` inteiro.
+
+⚠️ **Nada disso apaga o histórico, e o `.gitignore` não destrava arquivo já
+rastreado.** A guarda impede o PRÓXIMO vazamento. O que já foi publicado só sai
+com reescrita de histórico e força-push.
+

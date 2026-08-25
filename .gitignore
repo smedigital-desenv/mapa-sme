@@ -48,3 +48,17 @@ tools/catalogo-*.txt
 # Redirecionamento mal escapado ('2>\&1' em vez de '2>&1') cria um arquivo
 # chamado '&1', que um `git add -A` varre para dentro do commit sem ninguém ver.
 &1
+
+# ── Dados: NUNCA versionar (repositório público) ─────────────────────────────
+# Script de carga e export carregam dado real junto, quase sempre sem quem
+# escreveu perceber. Entregue-os fora do repositório, para rodar no SQL Editor.
+# ⚠️ O .gitignore NÃO destrava arquivo já rastreado, e NÃO apaga o histórico.
+*.tsv
+*.sqlite
+*.sqlite3
+*.parquet
+*.xls
+*.xlsx
+*.xlsm
+*.mdb
+*.accdb

@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+# Guarda anti-vazamento da rede SME — porta do git.
+# Vale para QUEM COMMITA FORA DO CLAUDE CODE: terminal, VS Code, GitHub Desktop.
+# Instalado por `git config core.hooksPath .githooks` (o SessionStart faz isso
+# sozinho; à mão, uma vez por clone).
+exec bash "$(git rev-parse --show-toplevel)/.claude/hooks/verificar-vazamento.sh" < /dev/null
