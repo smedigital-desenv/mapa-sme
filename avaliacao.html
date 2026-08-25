@@ -7968,9 +7968,23 @@ function _renderTabelaTotal(linhas) {
     return window.MapaUnidades ? window.MapaUnidades.oficial(bruto) : bruto;
   }
   if (window.MapaUnidades) {
-    const _carregarCatalogoUnidades = () => window.MapaUnidades.carregar().catch(() => {
-      /* sem catálogo, as grafias seguem como a fonte mandou */
-    });
+    /* ⚠️ try/catch, e não só `.catch()`. Este bloco roda DENTRO do IIFE do
+       adaptador Supabase, e as três últimas linhas daquele IIFE são as que
+       instalam `google.script.run`. Qualquer exceção SÍNCRONA aqui aborta o
+       IIFE antes delas e a tela inteira para com "google is not defined" —
+       um erro que não menciona catálogo de unidade nenhum. Já aconteceu:
+       `carregar()` tocava `window.MAPA_SB` antes de a sessão existir.
+       O `.catch()` sozinho não cobre isso, porque sem promessa não há o que
+       encadear. */
+    const _carregarCatalogoUnidades = () => {
+      try {
+        return window.MapaUnidades.carregar().catch(() => {
+          /* sem catálogo, as grafias seguem como a fonte mandou */
+        });
+      } catch (e) {
+        console.warn('[MAPA] catálogo de unidades adiado:', (e && e.message) || e);
+      }
+    };
     document.addEventListener('mapa-auth-pronto', _carregarCatalogoUnidades, { once: true });
     _carregarCatalogoUnidades();
   }
@@ -11033,6 +11047,20 @@ function _renderTabelaTotal(linhas) {
   window.google.script = window.google.script || {};
   window.google.script.run = createRunner(null, null);
 })();
+
+/* ⚠️ Rede de segurança, não enfeite. TODA a camada de dados desta tela depende
+   das três linhas acima — e elas são as ÚLTIMAS de um IIFE de milhares de
+   linhas. Basta uma exceção em qualquer ponto dele para que não sejam
+   alcançadas, e aí o sintoma que aparece é `google is not defined` em outro
+   arquivo, na primeira consulta. Foi assim que uma linha do catálogo de
+   unidades derrubou a tela inteira, sem nada no console apontando para ela.
+   Este teste transforma a morte silenciosa numa mensagem que diz onde olhar. */
+if (!(window.google && window.google.script && window.google.script.run)) {
+  console.error('[MAPA] O adaptador Supabase NÃO terminou de carregar: '
+    + '`google.script.run` não foi instalado. A tela de Avaliações não vai '
+    + 'buscar dado nenhum. Procure a PRIMEIRA exceção do console — ela '
+    + 'aconteceu dentro do IIFE do adaptador e abortou o resto dele.');
+}
 </script>
 
 
