@@ -50,7 +50,7 @@ banco é a segurança real.
 1. Painel Supabase → **SQL Editor**.
 2. Cole o conteúdo de [`sql/07_controle_acesso.sql`](sql/07_controle_acesso.sql) e **Run**.
    - Cria tabelas, funções, RLS e já popula: o sistema **MAPA** + suas telas + papéis
-     (`admin`, `leitor`) e o super admin `desenv.sme@gmail.com`.
+     (`admin`, `leitor`) e o super admin `desenvsme@educacao.pmrp.sp.gov.br`.
 
 ## Passo 3b — Permissão de tela por perfil (obrigatório p/ a tela de Configurações)
 
@@ -67,7 +67,10 @@ Rode [`sql/10_simular_acesso.sql`](sql/10_simular_acesso.sql). Ele:
 - refatora `minhas_permissoes()` numa função única (`permissoes_json`) e cria
   `permissoes_de(email)` — usada para o **super admin simular** o acesso de
   qualquer perfil (faixa "Encerrar simulação" no topo);
-- **libera `matheusprospero@gmail.com`** (fora do domínio) como super admin.
+- **libera o super admin institucional** (`desenvsme@educacao.pmrp.sp.gov.br`).
+  ⚠️ Este script já liberou uma conta `@gmail.com` pessoal por `bypass_dominio`.
+  Não recrie esse atalho: administrador da rede usa endereço institucional, e
+  e-mail pessoal em repositório público é dado de alguém.
 
 No painel de Configurações, o botão <i>incógnito</i> ao lado de cada perfil entra
 no modo simulação. Ordem completa: `sql/07` → `sql/08` → `sql/09` → `sql/10` → `sql/11`.
@@ -89,7 +92,7 @@ de Configurações já mostra tudo, e você ajusta telas/ADM por lá.
 
 > Agora isso é feito pela **tela de Configurações** (engrenagem no menu do `index.html`,
 > visível só para **super admin**): cadastrar e-mail, marcar as telas que o perfil acessa
-> e vincular a uma ou mais unidades. O super admin inicial (`desenv.sme@gmail.com`) vem do
+> e vincular a uma ou mais unidades. O super admin inicial (`desenvsme@educacao.pmrp.sp.gov.br`) vem do
 > seed do `sql/07`. Os exemplos por SQL abaixo seguem válidos como alternativa:
 
 ```sql
