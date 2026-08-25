@@ -256,7 +256,26 @@
 
   function carregar() {
     if (_promessa) return _promessa;
-    _promessa = window.MAPA_SB
+    /* ⚠️ A sessão do MAPA nasce no `auth.js`, DEPOIS que as telas são
+       interpretadas. Chamar `carregar()` antes disso encontrava
+       `window.MAPA_SB` indefinido e estourava um TypeError SÍNCRONO — e
+       nenhum `.catch()` do chamador pega isso, porque não chegou a existir
+       promessa para encadear.
+
+       Na `avaliacao.html` o estrago passava longe daqui: a chamada mora
+       DENTRO do IIFE do adaptador Supabase, e a exceção abortava o IIFE
+       inteiro antes das três últimas linhas dele, que são justamente as que
+       instalam `google.script.run`. A tela então morria com um
+       "google is not defined" que não tem relação aparente com catálogo de
+       unidade nenhum.
+
+       A espera aqui é silenciosa e NÃO memoiza: quem chamar de novo depois do
+       evento `mapa-auth-pronto` carrega de verdade. Memoizar a desistência
+       deixaria o catálogo vazio para sempre, e o sintoma seria nome de unidade
+       cru na tela — silencioso do mesmo jeito. */
+    var SB = window.MAPA_SB;
+    if (!SB || typeof SB.from !== 'function') return Promise.resolve(_catalogo);
+    _promessa = SB
       .from('escolas_catalogo').select('codigo,nome,tipo,setor').order('nome')
       .then(function (r) {
         if (r.error) throw r.error;
