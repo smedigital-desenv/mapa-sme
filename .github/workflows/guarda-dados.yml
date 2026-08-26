@@ -1,0 +1,78 @@
+# Guarda anti-vazamento da rede SME — a camada que não depende de máquina nenhuma.
+#
+# O .gitignore e o hook do Claude Code rodam na máquina de quem trabalha: quem
+# clonar sem eles, ou usar --no-verify, passa por cima dos dois. Este workflow
+# roda no GitHub, a cada push e a cada pull request, e falha se algum arquivo de
+# dados estiver versionado.
+#
+# Por que importa: o site é publicado pelo GitHub Pages a partir da raiz do
+# repositório. Todo arquivo commitado vira URL pública e baixável — um `.sql` de
+# carga aqui é dado pessoal servido pela web.
+name: Guarda de dados
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  arquivos-de-dados:
+    name: Nenhum arquivo de dados versionado
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Procurar .sql, .csv, .dump, .xlsx e .xls versionados
+        run: |
+          # .guarda-permitidos lista, com justificativa, os arquivos conferidos
+          # que podem ficar (modelo em branco oferecido para download, p.ex.).
+          # Mesma lista que o hook local usa, para as duas guardas não divergirem.
+          LISTA="$(mktemp)"
+          if [ -f .guarda-permitidos ]; then
+            grep -vE '^[[:space:]]*(#|$)' .guarda-permitidos > "$LISTA" || true
+          fi
+          ACHADOS="$(git ls-files | grep -iE '\.(sql|csv|dump|xlsx|xls)$' || true)"
+          if [ -s "$LISTA" ] && [ -n "$ACHADOS" ]; then
+            ACHADOS="$(printf '%s\n' "$ACHADOS" | grep -vxF -f "$LISTA" || true)"
+          fi
+          if [ -n "$ACHADOS" ]; then
+            echo "::error::Arquivo de dados versionado em repositório público."
+            echo "Estes arquivos viram URL pública pelo GitHub Pages:"
+            echo "$ACHADOS" | sed 's/^/  - /'
+            echo ""
+            echo "Correção: git rm --cached <arquivo>   (o arquivo continua no disco)"
+            echo "Os scripts de banco ficam em db/, fora do Git — veja o CLAUDE.md."
+            exit 1
+          fi
+          echo "OK — nenhum arquivo de dados versionado."
+
+      - name: Procurar credencial de servidor
+        run: |
+          # A chave anon do Supabase é pública por design e PODE ser versionada.
+          # O que não pode: service_role, token sbp_ e chave privada.
+          FALHOU=0
+
+          if git grep -InE '\bsbp_[A-Za-z0-9]{20,}' -- . ; then
+            echo "::error::Token de acesso do Supabase (sbp_...) versionado."
+            FALHOU=1
+          fi
+
+          if git grep -In -- '-----BEGIN [A-Z ]*PRIVATE KEY-----' -- . ; then
+            echo "::error::Chave privada versionada."
+            FALHOU=1
+          fi
+
+          # JWT: decodifica o payload para separar a chave anon do service_role.
+          for P in $(git grep -hoE 'eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+' -- . \
+                     | cut -d. -f2 | sort -u); do
+            PAD=$(( (4 - ${#P} % 4) % 4 ))
+            D="$(printf '%s' "$P" | tr '_-' '/+' | { cat; printf '%.0s=' $(seq 1 $PAD 2>/dev/null); } \
+                 | base64 -d 2>/dev/null || true)"
+            if printf '%s' "$D" | grep -qE '"role"[[:space:]]*:[[:space:]]*"service_role"'; then
+              echo "::error::JWT com role service_role versionado."
+              FALHOU=1
+            fi
+          done
+
+          [ "$FALHOU" -eq 0 ] || exit 1
+          echo "OK — nenhuma credencial de servidor versionada."
