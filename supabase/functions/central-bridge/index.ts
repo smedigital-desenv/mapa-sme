@@ -38,7 +38,7 @@ const SISTEMA = 'mapa';
    e a MESMA instância serve produção e /teste. Sem este carimbo não há como
    saber, de dentro do sistema, qual versão está no ar — e "front novo com
    função velha" produz erro que não parece versão. Suba a data ao alterar. */
-const VERSAO_PONTE = '2026-08-25-vinculo';
+const VERSAO_PONTE = '2026-08-25-vinculo2';
 
 // O JWKS é buscado uma vez e fica em cache pela lib, com rotação automática.
 const JWKS = createRemoteJWKSet(new URL(`${CENTRAL_URL}/auth/v1/.well-known/jwks.json`));
@@ -184,76 +184,108 @@ Deno.serve(async (req) => {
     // visivel (tela vazia, que gera chamado) por um invisivel (ve demais, que
     // ninguem reporta).
     const uid = link.data?.user?.id;
-    const perfilCentral = perms?.perfil || {};
 
-    // ⚠️ SIMULACAO NAO SINCRONIZA. `perms` e do super admin que chamou, nao de
-    // quem esta sendo simulado — o central nao foi consultado sobre o alvo.
-    // Gravar isso escreveria o nome, o tipo e o `is_super_admin` DO SIMULADOR
-    // na linha da pessoa simulada. Auditar o acesso de alguem nao pode alterar
-    // o cadastro dela, muito menos promove-la a super admin.
+    // ⚠️ NA SIMULACAO, `perms` E DO SIMULADOR — nao de quem esta sendo
+    // simulado. Gravar isso escreveria o nome, o tipo e o `is_super_admin` DO
+    // SUPER ADMIN na linha da pessoa auditada. Auditar o acesso de alguem nao
+    // pode alterar o cadastro dela, muito menos promove-la a super admin.
+    //
+    // Entao, ao simular, perguntamos ao central quem o ALVO e. A pergunta vai
+    // com o token de QUEM CHAMOU: `permissoes_de` so responde a super admin,
+    // entao a autorizacao continua sendo verificada pelo central, nao aqui.
+    // Sem isso o "Ver como" nao serviria para conferir o isolamento de quem
+    // ainda nao tem perfil — que e justamente quando mais se precisa dele.
+    let permsAlvo: Record<string, unknown> | null = perms;
     if (alvo !== email) {
-      console.log(`[central-bridge] simulacao: perfil de ${alvo} NAO sincronizado (perms sao de ${email})`);
-    } else {
-
-    // Resolve as escolas ANTES de mexer no perfil. A ordem nao e estetica: se
-    // criassemos o perfil e falhassemos no vinculo, a pessoa ficaria com zero
-    // vinculos — rede toda. Ou conseguimos expressar o recorte dela, ou nao
-    // criamos o perfil e ela segue vendo tela vazia, que e o erro reclamavel.
-    const escolasCentral = Array.isArray(perms?.escolas) ? perms.escolas : [];
-    const idsEscola: number[] = [];
-    const naoResolvidas: string[] = [];
-    for (const e of escolasCentral) {
-      const nome = String(e?.nome || '').trim();
-      if (!nome) continue;
-      const r = await admin.rpc('resolver_unidade', { nome });
-      if (r.error) { naoResolvidas.push(`${nome} (erro: ${r.error.message})`); continue; }
-      if (r.data === null || r.data === undefined) { naoResolvidas.push(nome); continue; }
-      idsEscola.push(Number(r.data));
-    }
-
-    if (naoResolvidas.length) {
-      // Uma linha em `escola_alias` resolve — por isso a grafia vai nomeada.
-      console.error(`[central-bridge] perfil de ${alvo} NAO sincronizado: o catalogo do MAPA `
-        + `nao reconhece a(s) unidade(s): ${naoResolvidas.join(' | ')}. `
-        + `Cadastre em escola_alias e peca um novo login.`);
-    } else {
-      // Ja existia? Decide se podemos desfazer caso o vinculo falhe adiante.
-      const antes = await admin.from('perfis').select('id').eq('email', alvo).maybeSingle();
-      const jaExistia = !!(antes.data && antes.data.id);
-
-      const ups = await admin.from('perfis').upsert({
-        email: alvo,
-        nome: perfilCentral.nome ?? null,
-        tipo: perfilCentral.tipo ?? null,
-        is_super_admin: !!perfilCentral.is_super_admin,
-        ativo: true,
-        ...(uid ? { auth_user_id: uid } : {}),
-      }, { onConflict: 'email' }).select('id').single();
-
-      if (ups.error) {
-        // Nao aborta: a sessao ja e valida. Mas registra, porque sem perfil a
-        // pessoa ve telas vazias e ninguem saberia por que.
-        console.error('[central-bridge] falha ao sincronizar perfil', ups.error.message);
-      } else if (idsEscola.length) {
-        // ⚠️ SO INSERE O QUE FALTA. Nunca apaga: remover vinculo AMPLIA o
-        // acesso (sem vinculo = rede toda), e ampliar continua sendo ato
-        // humano, feito no MAPA. A sincronia anda so no sentido que restringe.
-        const linhas = idsEscola.map((escola_id) => ({ perfil_id: ups.data.id, escola_id }));
-        const vin = await admin.from('perfil_escola')
-          .upsert(linhas, { onConflict: 'perfil_id,escola_id', ignoreDuplicates: true });
-        if (vin.error) {
-          console.error('[central-bridge] falha ao gravar vinculo de escola', vin.error.message);
-          // O perfil sem vinculo ve a rede toda. Se fomos nos que o criamos
-          // agora, desfazemos: melhor ela seguir sem perfil (tela vazia, com o
-          // aviso do auth.js) do que enxergar as 112 unidades.
-          if (!jaExistia) {
-            await admin.from('perfis').delete().eq('id', ups.data.id);
-            console.error(`[central-bridge] perfil de ${alvo} REMOVIDO: sem o vinculo ele veria a rede toda.`);
-          }
-        }
+      let ja: Response | null = null;
+      try {
+        ja = await fetch(`${CENTRAL_URL}/rest/v1/rpc/permissoes_de`, {
+          method: 'POST',
+          headers: {
+            apikey: soAscii(CENTRAL_ANON),
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ p_email: alvo }),
+        });
+      } catch (e) {
+        console.error('[central-bridge] simulacao: falha ao consultar permissoes_de', String(e));
+      }
+      const corpoAlvo = ja && ja.ok ? await ja.json().catch(() => null) : null;
+      if (!corpoAlvo?.autorizado) {
+        console.error(`[central-bridge] simulacao: o central nao devolveu permissoes de ${alvo}; `
+          + `perfil NAO sincronizado (nao vamos gravar os dados de ${email} na linha dele).`);
+        permsAlvo = null;
+      } else {
+        permsAlvo = corpoAlvo;
       }
     }
 
+    if (permsAlvo) {
+      const perfilCentral = (permsAlvo.perfil ?? {}) as Record<string, unknown>;
+
+      // Resolve as escolas ANTES de mexer no perfil. A ordem nao e estetica: se
+      // criassemos o perfil e falhassemos no vinculo, a pessoa ficaria com zero
+      // vinculos — rede toda. Ou conseguimos expressar o recorte dela, ou nao
+      // criamos o perfil e ela segue vendo tela vazia, que e o erro reclamavel.
+      const escolasCentral = Array.isArray(permsAlvo.escolas) ? permsAlvo.escolas : [];
+      const idsEscola: number[] = [];
+      const naoResolvidas: string[] = [];
+      for (const e of escolasCentral as Array<{ nome?: string }>) {
+        const nome = String(e?.nome || '').trim();
+        if (!nome) continue;
+        const r = await admin.rpc('resolver_unidade', { nome });
+        if (r.error) { naoResolvidas.push(`${nome} (erro: ${r.error.message})`); continue; }
+        if (r.data === null || r.data === undefined) { naoResolvidas.push(nome); continue; }
+        idsEscola.push(Number(r.data));
+      }
+
+      if (naoResolvidas.length) {
+        // Uma linha em `escola_alias` resolve — por isso a grafia vai nomeada.
+        console.error(`[central-bridge] perfil de ${alvo} NAO sincronizado: o catalogo do MAPA `
+          + `nao reconhece a(s) unidade(s): ${naoResolvidas.join(' | ')}. `
+          + `Cadastre em escola_alias e peca um novo login.`);
+      } else {
+        // Ja existia? Decide se podemos desfazer caso o vinculo falhe adiante.
+        const antes = await admin.from('perfis').select('id').eq('email', alvo).maybeSingle();
+        const jaExistia = !!(antes.data && antes.data.id);
+
+        const ups = await admin.from('perfis').upsert({
+          email: alvo,
+          nome: (perfilCentral.nome ?? null) as string | null,
+          tipo: (perfilCentral.tipo ?? null) as string | null,
+          is_super_admin: !!perfilCentral.is_super_admin,
+          ativo: true,
+          ...(uid ? { auth_user_id: uid } : {}),
+        }, { onConflict: 'email' }).select('id').single();
+
+        if (ups.error) {
+          // Nao aborta: a sessao ja e valida. Mas registra, porque sem perfil a
+          // pessoa ve telas vazias e ninguem saberia por que.
+          console.error('[central-bridge] falha ao sincronizar perfil', ups.error.message);
+        } else {
+          console.log(`[central-bridge] perfil de ${alvo} sincronizado `
+            + `(${idsEscola.length} unidade(s) vinculada(s))`);
+          if (idsEscola.length) {
+            // ⚠️ SO INSERE O QUE FALTA. Nunca apaga: remover vinculo AMPLIA o
+            // acesso (sem vinculo = rede toda), e ampliar continua sendo ato
+            // humano, feito no MAPA. A sincronia anda so no sentido que restringe.
+            const linhas = idsEscola.map((escola_id) => ({ perfil_id: ups.data.id, escola_id }));
+            const vin = await admin.from('perfil_escola')
+              .upsert(linhas, { onConflict: 'perfil_id,escola_id', ignoreDuplicates: true });
+            if (vin.error) {
+              console.error('[central-bridge] falha ao gravar vinculo de escola', vin.error.message);
+              // Perfil sem vinculo ve a rede toda. Se fomos nos que o criamos
+              // agora, desfazemos: melhor seguir sem perfil (tela vazia, com o
+              // aviso do auth.js) do que enxergar as 112 unidades.
+              if (!jaExistia) {
+                await admin.from('perfis').delete().eq('id', ups.data.id);
+                console.error(`[central-bridge] perfil de ${alvo} REMOVIDO: sem o vinculo veria a rede toda.`);
+              }
+            }
+          }
+        }
+      }
     }
 
     // ── 4) Abre a sessao SEM depender de OTP ───────────────────────────────
