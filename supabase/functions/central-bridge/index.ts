@@ -33,6 +33,13 @@ const CENTRAL_ANON =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2ZGhlcHZ0b2F2a3lvc2Noa29kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0MTUzNDQsImV4cCI6MjA5Nzk5MTM0NH0.BY6jPR9iDvh2xRlGtaU8vdKWp0NKyC7Amlzx-tytmrk';
 const SISTEMA = 'mapa';
 
+/* ⚠️ CARIMBO DE VERSÃO — devolvido em toda resposta e impresso pelo `auth.js`.
+   Edge Function NÃO sobe com o deploy do site: é publicada à parte, uma vez só,
+   e a MESMA instância serve produção e /teste. Sem este carimbo não há como
+   saber, de dentro do sistema, qual versão está no ar — e "front novo com
+   função velha" produz erro que não parece versão. Suba a data ao alterar. */
+const VERSAO_PONTE = '2026-08-25-vinculo';
+
 // O JWKS é buscado uma vez e fica em cache pela lib, com rotação automática.
 const JWKS = createRemoteJWKSet(new URL(`${CENTRAL_URL}/auth/v1/.well-known/jwks.json`));
 
@@ -294,6 +301,7 @@ Deno.serve(async (req) => {
       refresh_token: sessao.refresh_token,
       email: alvo,
       simulando: alvo !== email ? email : null,
+      versao: VERSAO_PONTE,
     });
   } catch (e) {
     console.error('[central-bridge] excecao', e instanceof Error ? e.stack : String(e));
