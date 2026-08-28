@@ -27,7 +27,8 @@ Site estático (HTML/JS puro, sem framework nem build) publicado no GitHub Pages
 sob `smedigital.com.br/mapa-sme/`. Os dados ficam num projeto Supabase próprio.
 
 **Telas:** Avaliações (Diagnóstica, 1º a 4º Bimestre, Total, Análise de
-Consistência), Av. Diagnóstica SME/Vunesp, Av. Oral de Matemática, SARESP,
+Consistência), Av. Diagnóstica SME/Vunesp, Produção Escrita (IRC),
+Av. Oral de Matemática, SARESP,
 IDEB, IEE, Atribuição, Retrato Quantitativo de Atribuições, Análise de Jornada,
 Educação Especial, Gerência de Liminares, Frequência × Distância, Fluência
 Leitora, Elefante Letrado, Boletim da Escola, Boletim Estatístico, Relatórios,
@@ -45,6 +46,48 @@ da MESMA habilidade é de 13 p.p. em média (chega a 73 p.p. na rede — medido 
 2026-06). Agregar por habilidade transformaria "uma questão todos acertam,
 outra quase ninguém" num meio-termo que não descreve nenhuma das duas. Não
 "simplifique" isso somando por habilidade.
+
+#### Produção Escrita — Itens de Resposta Construída (`av-irc.html`)
+
+Av. Diagnóstica SME/Vunesp de junho/2026, **só 2º ano do Fundamental**. A prova
+trouxe três propostas de produção escrita, corrigidas por CONCEITO (A..E, EB) e
+não por acerto: escrita de duas palavras (`Q1_N1` CABIDE, `Q1_N2` ESTRELA),
+fotolegenda (`Q21`–`Q23`) e bilhete (`Q31`–`Q34`). Medido em 2026-08: 2.775
+estudantes em 31 unidades, 117 turmas, **830 ausentes (29,9%)**.
+
+⚠️ **A tela AGREGA NO NAVEGADOR e só envia contagem.** A planilha da Vunesp tem
+uma linha por aluno, **com nome e RA**. Esses campos não podem chegar ao banco:
+a importação lê o arquivo na máquina de quem importa, agrega por
+unidade × questão × conceito e grava só o número. Não "simplifique" isso
+mandando as linhas cruas e agregando no SQL.
+
+⚠️ **O conceito "D" NÃO é o fim da régua — é outra categoria.** Nas propostas 2
+e 3 (menos no aspecto 4) ele significa "a escrita está em nível silábico ou
+pré-silábico", ou seja, o aspecto **não pôde ser avaliado**. Empilhá-lo no
+degradê de qualidade faz a unidade parecer ruim em ortografia e segmentação
+quando na verdade o aluno ainda não escreve alfabeticamente. Por isso ele tem
+cor própria (âmbar), fora da rampa. No aspecto 4 do bilhete esse papel é do
+"E". Medido na rede: 21% a 26% em D nos aspectos da fotolegenda.
+
+⚠️ **A rampa é sequencial de um tom só**, não o arco-íris do `COR_FIXA`. A
+escala é ordinal (ortográfico → pré-silábico) e cor arco-íris sobre escala
+ordinal esconde a ordem. A tinta do texto acompanha a faixa, como na escala TRI.
+
+⚠️ **Ausente não entra em distribuição nenhuma.** Contá-lo como "em branco"
+misturaria quem faltou com quem entregou a folha vazia — são informações
+pedagógicas diferentes. Com 30% de ausência, a tela anuncia isso num aviso no
+alto: as distribuições descrevem quem foi avaliado, não a turma.
+
+⚠️ **O relatório de correção (PDF) NÃO é versionado.** Os exemplos manuscritos
+trazem primeiros nomes de crianças, e este repositório é público. O botão pede
+uma **URL assinada** ao Storage no momento do clique (bucket privado, 5 min),
+para o endereço não ficar no HTML. `IRC_PDF_URL`/`IRC_PDF_BUCKET`/`IRC_PDF_PATH`
+no topo do arquivo são o único ponto que aponta o documento.
+
+Tabelas: `av_irc` (escola, questao, conceito, alunos), `av_irc_part`
+(participação por unidade) e `av_irc_rubrica` (as grades de correção, lidas das
+abas `Q*` da própria planilha). A linha `escola = 'REDE'` é a referência, como
+nas demais telas de avaliação externa.
 
 #### O painel "Todas as unidades" (`visao-rede.js`)
 

@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <script src="auth-guard.js"></script>
+  <script>window.MAPA_SISTEMA = 'mapa';</script>
+  <script src="auth.js" defer></script>
+  <script src="config-central.js" defer></script>
+  <script src="demo-mode.js"></script>
+  <script src="iago.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Produção Escrita (IRC) | SME Ribeirão Preto</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✍️</text></svg>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root{--primary:#002b5e;--pri2:#075f82;--neon-blue:#00e5ff;--neon:#00b8d4;
+          --line:#e4e9f0;--ink:#0f172a;--muted:#64748b;}
+    body{background:#eef2f7;font-family:'Segoe UI',sans-serif;padding-bottom:40px;color:var(--ink);}
+
+    /* ═══ HEADER GLOBAL MAPA ═══ */
+    .mg-header{background:var(--primary);color:#fff;border-bottom:5px solid var(--neon-blue);
+      padding:.95rem 1.6rem;display:flex;align-items:center;justify-content:space-between;
+      gap:1rem;flex-wrap:wrap;position:sticky;top:0;z-index:1050;box-shadow:0 6px 18px rgba(0,43,94,.18);}
+    .mg-brand{display:flex;align-items:center;gap:.6rem;min-width:180px;}
+    .mg-brand-icon{width:34px;height:34px;display:grid;place-items:center;color:var(--neon-blue);
+      font-size:1.4rem;filter:drop-shadow(0 0 6px rgba(0,229,255,.55));}
+    .mg-brand h4{margin:0;font-weight:900;letter-spacing:.03em;font-size:1.4rem;line-height:1;}
+    .mg-brand-sub{font-size:.63rem;color:rgba(255,255,255,.68);font-weight:800;
+      letter-spacing:.08em;text-transform:uppercase;margin-top:2px;}
+    .mg-nav{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;flex:1;min-width:280px;}
+    .mg-nav-btn{display:inline-flex;align-items:center;gap:.4rem;justify-content:center;min-width:130px;
+      padding:8px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.06);color:#fff;font-weight:800;font-size:.82rem;
+      text-decoration:none;transition:.15s;}
+    .mg-nav-btn:hover{border-color:rgba(255,255,255,.4);color:#fff;}
+    .mg-nav-btn.active{background:#fff;color:var(--primary);box-shadow:0 2px 10px rgba(0,0,0,.18);}
+    .mg-dd{position:relative;}
+    /* Ponte invisível sobre o vão de 6px entre o botão e o menu. Sem ela o
+       ponteiro sai de .mg-dd no meio do caminho e o menu fecha. Fica ABAIXO
+       do menu (1099 < 1100) para não roubar o clique do primeiro item. */
+    .mg-dd:hover::after{content:"";position:absolute;top:100%;left:0;right:0;height:12px;z-index:1099;}
+    .mg-dd-menu{position:absolute;top:calc(100% + 6px);left:0;background:#fff;border-radius:12px;
+      box-shadow:0 12px 30px rgba(2,16,38,.22);padding:6px;min-width:210px;visibility:hidden;opacity:0;transition:opacity .15s ease .25s,visibility 0s linear .4s;z-index:1100;max-height:calc(100vh - 90px);overflow-y:auto;overscroll-behavior:contain;}
+    .mg-dd:hover .mg-dd-menu,.mg-dd:focus-within .mg-dd-menu{visibility:visible;opacity:1;transition:opacity .12s ease,visibility 0s;}
+    .mg-dd-item{display:flex;align-items:center;gap:.5rem;padding:8px 12px;border-radius:9px;
+      color:#1e293b;font-weight:700;font-size:.82rem;text-decoration:none;}
+    .mg-dd-item:hover,.mg-dd-item:focus-visible{background:#dbeafe;color:var(--primary);
+      box-shadow:inset 3px 0 0 var(--neon,#00b8d4);outline:none;}
+    .mg-dd-item.active{background:var(--primary);color:#fff;}
+    .mg-dd-item.active:hover,.mg-dd-item.active:focus-visible{background:#014a91;color:#fff;}
+    .mg-actions{display:flex;gap:.5rem;}
+    .mg-action-btn{display:inline-flex;align-items:center;gap:.4rem;padding:8px 14px;border-radius:12px;
+      border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;font-weight:800;font-size:.82rem;}
+    @media (max-width:992px){.mg-nav-btn{min-width:auto;}}
+
+    /* ═══ BARRA DE UNIDADE ═══ */
+    .ir-bar{background:var(--pri2);color:#fff;padding:.6rem 1.6rem;display:flex;align-items:center;
+      gap:.7rem;flex-wrap:wrap;position:sticky;top:64px;z-index:1040;}
+    .ir-bar label{font-size:.68rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+      color:rgba(255,255,255,.8);margin:0;}
+    .ir-bar select{border:0;border-radius:9px;padding:6px 12px;font-weight:700;font-size:.86rem;
+      min-width:300px;max-width:min(560px,70vw);}
+    .ir-chip{background:rgba(255,255,255,.14);border-radius:20px;padding:3px 12px;font-size:.74rem;font-weight:700;}
+
+    .page{max-width:1220px;margin:18px auto;padding:0 16px;}
+    .titbar{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:.9rem;}
+    .titbar .t{font-size:1.35rem;font-weight:900;color:var(--primary);}
+    .titbar .meta{font-size:.8rem;color:var(--muted);font-weight:700;}
+
+    .card2{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;
+      box-shadow:0 2px 10px rgba(2,16,38,.05);margin-bottom:16px;}
+    .secLabel{font-size:.72rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;
+      color:var(--muted);margin:22px 0 8px;}
+
+    /* ═══ CARTÕES DE PARTICIPAÇÃO ═══ */
+    .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:12px;margin-bottom:6px;}
+    .kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;}
+    .kpi .r{font-size:.68rem;font-weight:900;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);}
+    .kpi .v{font-size:1.9rem;font-weight:900;color:var(--primary);line-height:1.15;font-variant-numeric:tabular-nums;}
+    .kpi .s{font-size:.76rem;color:var(--muted);font-weight:700;}
+    .kpi.alerta .v{color:#b45309;}
+
+    /* ═══ BARRA DE COMPOSIÇÃO ═══ */
+    /* A escala é ORDINAL (ortográfico → pré-silábico). Barra empilhada de 100%
+       lê melhor que rosca: compara unidade × rede na horizontal, e a ordem das
+       faixas carrega o significado. */
+    .prop{margin-bottom:26px;}
+    .prop h3{font-size:1rem;font-weight:900;color:var(--primary);margin:0 0 2px;}
+    .prop .desc{font-size:.83rem;color:var(--muted);margin:0 0 12px;max-width:80ch;}
+    .aspecto{margin-bottom:14px;}
+    .aspecto .cab{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-bottom:5px;}
+    .aspecto .nome{font-size:.87rem;font-weight:800;}
+    .aspecto .n{font-size:.74rem;color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums;}
+    .faixa{display:flex;height:34px;border-radius:8px;overflow:hidden;background:#f1f5f9;}
+    .faixa.rede{height:14px;margin-top:4px;opacity:.92;}
+    .seg{display:flex;align-items:center;justify-content:center;font-size:.74rem;font-weight:800;
+      color:#fff;white-space:nowrap;overflow:hidden;cursor:default;}
+    .faixa.rede .seg{font-size:0;}
+    .rotRede{font-size:.66rem;color:var(--muted);font-weight:800;letter-spacing:.06em;
+      text-transform:uppercase;margin-top:3px;}
+
+    /* Legenda: alvo de 44px, igual para a faixa de 2% e a de 60%. */
+    .leg{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+    .leg button{display:flex;align-items:center;gap:.45rem;min-height:44px;padding:6px 12px;
+      border:1px solid var(--line);border-radius:10px;background:#fff;font-size:.78rem;
+      font-weight:700;color:var(--ink);text-align:left;}
+    .leg button:hover{background:#f8fafc;border-color:#cbd5e1;}
+    .leg .sw{width:14px;height:14px;border-radius:4px;flex:0 0 auto;}
+    .leg .pc{color:var(--muted);font-variant-numeric:tabular-nums;}
+
+    table.ir{width:100%;border-collapse:collapse;font-size:.85rem;}
+    table.ir th,table.ir td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;}
+    table.ir thead th{font-size:.7rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;
+      color:var(--muted);border-bottom:2px solid #cbd5e1;}
+    table.ir td.num{text-align:right;font-variant-numeric:tabular-nums;}
+    table.ir tbody tr:hover{background:#f8fafc;}
+
+    details.rub{border:1px solid var(--line);border-radius:12px;background:#fff;padding:0;margin-top:10px;}
+    details.rub summary{cursor:pointer;padding:12px 16px;font-weight:800;font-size:.85rem;color:var(--primary);}
+    details.rub .corpo{padding:0 16px 14px;font-size:.83rem;color:#334155;}
+    details.rub dt{font-weight:900;margin-top:9px;display:flex;align-items:center;gap:.45rem;}
+    details.rub dd{margin:2px 0 0 22px;color:#475569;}
+
+    .aviso{border-left:3px solid var(--pri2);background:#fff;padding:12px 16px;border-radius:0 10px 10px 0;
+      font-size:.84rem;color:#334155;margin:14px 0;box-shadow:0 2px 10px rgba(2,16,38,.05);}
+    .aviso b{color:var(--primary);}
+
+    .btnpdf{display:inline-flex;align-items:center;gap:.5rem;padding:10px 16px;border-radius:11px;
+      background:var(--primary);color:#fff;font-weight:800;font-size:.85rem;text-decoration:none;border:0;}
+    .btnpdf:hover{background:#014a91;color:#fff;}
+    .btnpdf[aria-disabled="true"]{background:#94a3b8;pointer-events:none;}
+
+    .gated{display:none;}
+    .vazio{text-align:center;color:var(--muted);padding:38px 12px;font-weight:700;}
+  </style>
+</head>
+<body>
+
+<header class="mg-header">
+  <div class="mg-brand" style="cursor:pointer;" onclick="location.href='index.html'" title="Página inicial do MAPA">
+    <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div>
+    <div><h4>MAPA</h4><div class="mg-brand-sub">SME Ribeirão Preto</div></div>
+  </div>
+  <nav class="mg-nav">
+    <a class="mg-nav-btn" href="index.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
+    <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_irc,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
+      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item" href="avaliacao-diagnostica.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+        <a class="mg-dd-item active" href="av-irc.html" data-tela="avaliacao_irc"><i class="bi bi-pencil-fill"></i>Produção Escrita (IRC)</a>
+        <a class="mg-dd-item" href="av-oral-matematica.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+        <a class="mg-dd-item" href="saresp.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+        <a class="mg-dd-item" href="ideb.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+        <a class="mg-dd-item" href="iee.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
+        <a class="mg-dd-item" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+        <a class="mg-dd-item" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <div class="mg-dd" data-tela-any="frequencia,boletim_estatistico">
+      <a class="mg-nav-btn mg-dd-toggle" href="frequencia.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+        <a class="mg-dd-item" href="boletim-estatistico.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+    <a class="mg-nav-btn" href="boletim.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+    <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none;min-width:auto;padding:6px 10px;" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
+  </nav>
+  <div class="mg-actions">
+    <button class="mg-action-btn" onclick="location.reload()" title="Atualizar"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button>
+  </div>
+</header>
+
+<div class="ir-bar">
+  <label>Unidade</label>
+  <select id="irSel"><option>Carregando…</option></select>
+  <span class="ir-chip" id="irCod">Cód. —</span>
+  <span class="ir-chip" id="irReg">—</span>
+</div>
+
+<div class="page">
+
+  <div class="titbar">
+    <div class="t" id="irNome">—</div>
+    <div class="meta">Itens de Resposta Construída · 2º ano EF · SME/Vunesp — Junho 2026</div>
+  </div>
+
+  <div class="kpis" id="irKpis"></div>
+
+  <div class="aviso" id="irAvisoAus" style="display:none"></div>
+
+  <div id="irConteudo"></div>
+
+  <div class="vazio" id="irVazio">Carregando…</div>
+
+  <div class="secLabel">Documento de referência</div>
+  <div class="card2">
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;justify-content:space-between">
+      <div style="max-width:62ch">
+        <div style="font-weight:800;font-size:.92rem">Relatório de correção — Itens de Resposta Construída</div>
+        <div style="font-size:.83rem;color:var(--muted);margin-top:3px">
+          Traz as grades de correção das três propostas e exemplos de respostas
+          reais enquadradas em cada conceito. É a referência para interpretar o
+          que cada letra significa.
+        </div>
+      </div>
+      <a class="btnpdf" id="irPdf" href="#" target="_blank" rel="noopener">
+        <i class="bi bi-file-earmark-pdf-fill"></i>Abrir o relatório
+      </a>
+    </div>
+  </div>
+
+  <!-- ═══ IMPORTAÇÃO (só para quem pode editar) ═══ -->
+  <div class="gated" id="irUpBox">
+    <div class="secLabel">Importar microdados</div>
+    <div class="card2">
+      <div style="font-size:.85rem;color:#334155;margin-bottom:.6rem">
+        Planilha de microdados da Vunesp (<code>PMRI_DADOS_RC_*.xlsx</code>).
+        <b>Os nomes dos alunos não saem deste navegador</b> — a página agrega
+        aqui e envia ao banco apenas a contagem por unidade, questão e conceito.
+      </div>
+      <input type="file" id="irArq" accept=".xlsx" class="form-control form-control-sm" style="max-width:520px">
+      <div id="irRes" style="margin-top:.7rem;font-size:.84rem;color:var(--muted)"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════════
+   Produção Escrita — Itens de Resposta Construída (IRC)
+   ----------------------------------------------------------------------------
+   Av. Diagnóstica SME/Vunesp, 2º ano do Ensino Fundamental, junho/2026. A prova
+   trouxe, além das objetivas, TRÊS propostas de produção escrita, corrigidas
+   por conceito (A..E, EB) segundo grades próprias.
+
+   ⚠️ POR QUE A TELA AGREGA NO NAVEGADOR
+   A planilha da Vunesp tem UMA LINHA POR ALUNO, com nome e RA. Esses campos
+   não podem chegar ao banco: o recorte por unidade do MAPA protege quem vê o
+   quê, mas o certo é o dado identificado nem existir aqui. A importação lê o
+   arquivo na máquina de quem importa, agrega, e envia só contagens.
+
+   ⚠️ "D" NÃO É O FIM DA ESCALA — É OUTRA CATEGORIA
+   Nas propostas 2 e 3 (menos no aspecto 4), o conceito D significa "a escrita
+   do estudante está em nível silábico ou pré-silábico", ou seja, o aspecto
+   NÃO PÔDE ser avaliado — não é uma nota pior na mesma régua. Empilhá-lo no
+   degradê de qualidade faria a rede parecer pior do que é em ortografia e
+   segmentação, quando na verdade aquele aluno ainda não escreve
+   alfabeticamente. Por isso ele tem cor própria, fora da rampa.
+   No aspecto 4 do bilhete (adequação ao gênero) esse papel é do "E".
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ⚠️ ÚNICO ponto que aponta o relatório de correção. Trocar aqui muda o botão.
+   O PDF traz exemplos manuscritos em que aparecem primeiros nomes de crianças,
+   então ele NÃO é versionado neste repositório, que é público. Duas formas de
+   servir, nesta ordem de preferência:
+     1. Supabase Storage em bucket PRIVADO + URL assinada (a tela pede a URL na
+        hora do clique — só quem tem sessão recebe);
+     2. um endereço interno da SME que já exija login.
+   Enquanto estiver vazio, o botão aparece desabilitado e explica o porquê. */
+const IRC_PDF_URL    = '';                 // ex.: '' para usar o Storage abaixo
+const IRC_PDF_BUCKET = 'documentos';       // bucket privado no Supabase do MAPA
+const IRC_PDF_PATH   = 'irc/relatorio-correcao-2026-06.pdf';
+
+/* ── As três propostas, na ordem em que a prova as apresentou ─────────────── */
+// `nao_avaliavel` nomeia o conceito que significa "escrita ainda silábica ou
+// pré-silábica" naquele aspecto — ele sai da rampa de qualidade.
+const PROPOSTAS = [
+  {
+    id: 'p1',
+    titulo: 'Proposta 1 — Escrita de palavras',
+    desc: 'Ditado de duas palavras trissílabas: CABIDE, só com sílabas canônicas, '
+        + 'e ESTRELA, com encontro consonantal. Mede o estágio de alfabetização no '
+        + 'nível da palavra — é a proposta de menor complexidade.',
+    aspectos: [
+      { q: 'Q1_N1', nome: 'CABIDE — sílabas canônicas' },
+      { q: 'Q1_N2', nome: 'ESTRELA — com encontro consonantal' }
+    ],
+    escala: ['A', 'B', 'C', 'D', 'E'],
+    nao_avaliavel: null,
+    rotulos: { A: 'Ortográfico', B: 'Alfabético', C: 'Silábico-alfabético',
+               D: 'Silábico', E: 'Pré-silábico', EB: 'Em branco' }
+  },
+  {
+    id: 'p2',
+    titulo: 'Proposta 2 — Fotolegenda',
+    desc: 'Escrita de uma legenda para a imagem de uma menina descartando lixo no '
+        + 'recipiente correto. Já não se trata de representar palavras, e sim de usar '
+        + 'a escrita para representar uma ideia em uma frase.',
+    aspectos: [
+      { q: 'Q21_N1', nome: 'Aspecto 1 — Adequação à proposta' },
+      { q: 'Q22_N1', nome: 'Aspecto 2 — Ortografia' },
+      { q: 'Q23_N1', nome: 'Aspecto 3 — Segmentação' }
+    ],
+    escala: ['A', 'B', 'C'],
+    nao_avaliavel: 'D',
+    rotulos: { A: 'Conceito A', B: 'Conceito B', C: 'Conceito C',
+               D: 'Escrita ainda silábica / pré-silábica', EB: 'Em branco' }
+  },
+  {
+    id: 'p3',
+    titulo: 'Proposta 3 — Bilhete',
+    desc: 'Produção de um bilhete a um amigo, combinando um encontro para apresentar '
+        + 'um jogo novo. Além de ortografia e segmentação, avalia se o texto atende ao '
+        + 'gênero — é a proposta mais desafiadora das três.',
+    aspectos: [
+      { q: 'Q31_N1', nome: 'Aspecto 1 — Adequação à proposta', naoAval: 'D', escala: ['A','B','C'] },
+      { q: 'Q32_N1', nome: 'Aspecto 2 — Ortografia',            naoAval: 'D', escala: ['A','B','C'] },
+      { q: 'Q33_N1', nome: 'Aspecto 3 — Segmentação',           naoAval: 'D', escala: ['A','B','C'] },
+      // No aspecto 4 a régua tem quatro degraus (A..D) e o "não avaliável" é o E.
+      { q: 'Q34_N1', nome: 'Aspecto 4 — Adequação ao gênero',   naoAval: 'E', escala: ['A','B','C','D'] }
+    ],
+    escala: ['A', 'B', 'C'],
+    nao_avaliavel: 'D',
+    rotulos: { A: 'Conceito A', B: 'Conceito B', C: 'Conceito C',
+               D: 'Conceito D', E: 'Escrita ainda silábica / pré-silábica',
+               EB: 'Em branco' }
+  }
+];
+const QUESTOES = PROPOSTAS.flatMap(p => p.aspectos.map(a => a.q));
+
+/* ⚠️ Rampa SEQUENCIAL de um tom só, não arco-íris.
+   A escala é ordinal — do melhor para o pior — e cor arco-íris sobre escala
+   ordinal esconde a ordem: o olho não sabe se laranja vem antes ou depois de
+   roxo. Aqui o verde-azulado escurece conforme desce a régua, e a ordem se lê
+   sozinha. As duas categorias FORA da régua têm cor própria e neutra:
+   cinza-âmbar para "ainda não avaliável" e cinza claro para "em branco". */
+const RAMPA = {
+  3: ['#0e7490', '#38bdf8', '#bae6fd'],
+  4: ['#0e7490', '#0ea5e9', '#7dd3fc', '#e0f2fe'],
+  5: ['#155e75', '#0e7490', '#0ea5e9', '#7dd3fc', '#e0f2fe']
+};
+const COR_NAO_AVAL = '#f59e0b';   // fora da régua: aspecto não avaliável
+const COR_BRANCO   = '#cbd5e1';   // em branco
+const TINTA_ESCURA = '#0f172a';
+
+/* Contraste: sobre os tons claros da rampa o texto branco fica ilegível
+   (abaixo de 3:1). A tinta acompanha a faixa, como já se faz na escala TRI da
+   Diagnóstica — a paleta é a mesma, o que muda é a cor da letra. */
+function tintaSobre(hex){
+  const c = hex.replace('#','');
+  const r = parseInt(c.slice(0,2),16), g = parseInt(c.slice(2,4),16), b = parseInt(c.slice(4,6),16);
+  const lum = (0.2126*r + 0.7152*g + 0.0722*b) / 255;
+  return lum > 0.55 ? TINTA_ESCURA : '#fff';
+}
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = n => Number(n || 0).toLocaleString('pt-BR');
+
+/* ── Estado ───────────────────────────────────────────────────────────────── */
+let DADOS = [];      // av_irc: {escola, questao, conceito, alunos}
+let PART  = [];      // av_irc_part: participação por unidade
+let RUBRICA = {};    // questao -> [{conceito, titulo, descricao}]
+let ESCOLAS = [];
+let escolaAtual = null;
+
+/* Índice: escola -> questao -> conceito -> alunos */
+function indexar(linhas){
+  const ix = new Map();
+  (linhas || []).forEach(r => {
+    const e = r.escola, q = r.questao;
+    if (!ix.has(e)) ix.set(e, new Map());
+    const m = ix.get(e);
+    if (!m.has(q)) m.set(q, new Map());
+    m.get(q).set(r.conceito, Number(r.alunos || 0));
+  });
+  return ix;
+}
+
+/* Ordem de exibição de um aspecto: a régua, depois o não-avaliável, depois EB.
+   Manter EB por último é o que impede que "em branco" seja lido como um degrau
+   da escala. */
+function ordemConceitos(asp, prop){
+  const escala = asp.escala || prop.escala;
+  const na = ('naoAval' in asp) ? asp.naoAval : prop.nao_avaliavel;
+  const out = escala.slice();
+  if (na) out.push(na);
+  out.push('EB');
+  return out;
+}
+
+function coresDe(asp, prop){
+  const escala = asp.escala || prop.escala;
+  const na = ('naoAval' in asp) ? asp.naoAval : prop.nao_avaliavel;
+  const rampa = RAMPA[escala.length] || RAMPA[5];
+  const cor = {};
+  escala.forEach((c, i) => cor[c] = rampa[i]);
+  if (na) cor[na] = COR_NAO_AVAL;
+  cor.EB = COR_BRANCO;
+  return cor;
+}
+
+function rotuloDe(prop, conceito){
+  return (prop.rotulos && prop.rotulos[conceito]) || ('Conceito ' + conceito);
+}
+
+/* ── Render ───────────────────────────────────────────────────────────────── */
+function faixaHTML(dist, ordem, cor, prop, compacta){
+  const total = ordem.reduce((s, c) => s + (dist.get(c) || 0), 0);
+  if (!total) return '<div class="faixa"><div class="seg" style="flex:1;color:#94a3b8">sem dado</div></div>';
+  const segs = ordem.map(c => {
+    const v = dist.get(c) || 0;
+    if (!v) return '';
+    const pc = v / total * 100;
+    const rot = rotuloDe(prop, c);
+    // Só rotula dentro da faixa quando cabe: abaixo de 7% o texto vira borrão.
+    const dentro = (!compacta && pc >= 7) ? (c + ' ' + pc.toFixed(0) + '%') : '';
+    return '<div class="seg" style="flex:' + pc.toFixed(4) + ';background:' + cor[c]
+         + ';color:' + tintaSobre(cor[c]) + '" title="' + esc(c + ' · ' + rot + ' — '
+         + num(v) + ' alunos (' + pc.toFixed(1) + '%)') + '">' + dentro + '</div>';
+  }).join('');
+  return '<div class="faixa' + (compacta ? ' rede' : '') + '">' + segs + '</div>';
+}
+
+function legendaHTML(dist, ordem, cor, prop){
+  const total = ordem.reduce((s, c) => s + (dist.get(c) || 0), 0);
+  // Conceito com zero sai da legenda: numa unidade pequena metade da régua
+  // fica vazia, e seis fichas "0 · 0,0%" enterram as que têm dado. A faixa
+  // acima já mostra a escala inteira — a legenda serve para ler os números.
+  return '<div class="leg">' + ordem.filter(c => (dist.get(c) || 0) > 0).map(c => {
+    const v = dist.get(c) || 0;
+    const pc = total ? (v / total * 100) : 0;
+    return '<button type="button" tabindex="0">'
+      + '<span class="sw" style="background:' + cor[c] + '"></span>'
+      + '<span>' + esc(c) + ' · ' + esc(rotuloDe(prop, c)) + '</span>'
+      + '<span class="pc">' + num(v) + ' · ' + pc.toFixed(1) + '%</span></button>';
+  }).join('') + '</div>';
+}
+
+function render(){
+  const alvo = document.getElementById('irConteudo');
+  const vazio = document.getElementById('irVazio');
+  const ixEsc = indexar(DADOS);
+  const dEsc = ixEsc.get(escolaAtual);
+  const dRede = ixEsc.get('REDE');
+
+  if (!dEsc || !dEsc.size) {
+    alvo.innerHTML = '';
+    vazio.style.display = '';
+    vazio.textContent = DADOS.length
+      ? 'Esta unidade não tem resultado importado para os Itens de Resposta Construída.'
+      : 'Nenhum dado importado ainda.';
+    return;
+  }
+  vazio.style.display = 'none';
+
+  let html = '';
+  PROPOSTAS.forEach(prop => {
+    html += '<div class="prop"><div class="secLabel">' + esc(prop.titulo.split('—')[0].trim())
+          + '</div><div class="card2">'
+          + '<h3>' + esc(prop.titulo) + '</h3><p class="desc">' + esc(prop.desc) + '</p>';
+
+    prop.aspectos.forEach(asp => {
+      const ordem = ordemConceitos(asp, prop);
+      const cor = coresDe(asp, prop);
+      const dist = dEsc.get(asp.q) || new Map();
+      const n = ordem.reduce((s, c) => s + (dist.get(c) || 0), 0);
+
+      html += '<div class="aspecto"><div class="cab"><span class="nome">' + esc(asp.nome)
+            + '</span><span class="n">' + num(n) + ' avaliados</span></div>'
+            + faixaHTML(dist, ordem, cor, prop, false);
+
+      // A rede entra como uma faixa fina logo abaixo — comparação sem sair da
+      // linha de leitura. Só aparece quando existe: unidade sem rede não
+      // ganha uma barra cinza sem explicação.
+      const dr = dRede && dRede.get(asp.q);
+      if (dr) {
+        html += faixaHTML(dr, ordem, cor, prop, true)
+              + '<div class="rotRede">Rede — ' + num(ordem.reduce((s,c)=>s+(dr.get(c)||0),0)) + ' avaliados</div>';
+      }
+      html += legendaHTML(dist, ordem, cor, prop) + '</div>';
+    });
+
+    html += rubricaHTML(prop) + '</div></div>';
+  });
+
+  alvo.innerHTML = html;
+}
+
+function rubricaHTML(prop){
+  const qs = prop.aspectos.map(a => a.q).filter(q => RUBRICA[q] && RUBRICA[q].length);
+  if (!qs.length) return '';
+  let c = '';
+  qs.forEach(q => {
+    const asp = prop.aspectos.find(a => a.q === q);
+    c += '<dt style="margin-top:14px;color:var(--primary)">' + esc(asp.nome) + '</dt>';
+    RUBRICA[q].forEach(r => {
+      c += '<dt>' + esc(r.conceito) + (r.titulo ? ' — ' + esc(r.titulo) : '') + '</dt>'
+         + '<dd>' + esc(r.descricao) + '</dd>';
+    });
+  });
+  return '<details class="rub"><summary>O que cada conceito significa</summary>'
+       + '<div class="corpo"><dl>' + c + '</dl></div></details>';
+}
+
+function renderKpis(){
+  const p = PART.find(r => r.escola === escolaAtual);
+  const el = document.getElementById('irKpis');
+  if (!p) { el.innerHTML = ''; return; }
+  const prev = Number(p.previstos || 0), aus = Number(p.ausentes || 0);
+  const aval = Number(p.avaliados || 0);
+  const pct = prev ? (aval / prev * 100) : 0;
+  el.innerHTML =
+      cardKpi('Avaliados', num(aval), 'de ' + num(prev) + ' previstos')
+    + cardKpi('Participação', pct.toFixed(1) + '%', '', pct < 80)
+    + cardKpi('Ausentes', num(aus), prev ? (aus / prev * 100).toFixed(1) + '% dos previstos' : '', aus > 0)
+    + cardKpi('Turmas', num(p.turmas || 0), '2º ano do Fundamental');
+
+  // A ausência de quase um terço da rede muda a leitura de TUDO abaixo: as
+  // distribuições descrevem quem fez a prova, não a turma inteira. Dizer isso
+  // uma vez, no alto, é mais honesto que repetir "dos presentes" em cada barra.
+  const av = document.getElementById('irAvisoAus');
+  if (prev && (aus / prev) >= 0.1) {
+    av.style.display = '';
+    av.innerHTML = '<b>' + (aus / prev * 100).toFixed(0) + '% dos estudantes previstos não fizeram a prova</b> '
+      + 'nesta seleção (' + num(aus) + ' de ' + num(prev) + '). Todas as distribuições abaixo '
+      + 'descrevem apenas quem foi avaliado.';
+  } else { av.style.display = 'none'; }
+}
+function cardKpi(rot, val, sub, alerta){
+  return '<div class="kpi' + (alerta ? ' alerta' : '') + '"><div class="r">' + esc(rot) + '</div>'
+       + '<div class="v">' + esc(val) + '</div>'
+       + (sub ? '<div class="s">' + esc(sub) + '</div>' : '') + '</div>';
+}
+
+/* ── Botão do relatório ───────────────────────────────────────────────────── */
+// URL assinada, pedida só no clique: o link expira e não fica no HTML, então
+// não vaza por "copiar endereço do link" nem pelo histórico de quem não tem
+// sessão. Se IRC_PDF_URL estiver preenchido, ele manda.
+async function ligarPdf(){
+  const a = document.getElementById('irPdf');
+  if (IRC_PDF_URL) { a.href = IRC_PDF_URL; return; }
+  a.addEventListener('click', async ev => {
+    ev.preventDefault();
+    const antes = a.innerHTML;
+    a.innerHTML = '<i class="bi bi-hourglass-split"></i>Abrindo…';
+    try {
+      const { data, error } = await window.MAPA_SB.storage.from(IRC_PDF_BUCKET)
+        .createSignedUrl(IRC_PDF_PATH, 300);
+      if (error || !data) throw error || new Error('sem URL');
+      window.open(data.signedUrl, '_blank', 'noopener');
+    } catch (e) {
+      a.setAttribute('aria-disabled', 'true');
+      a.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i>Relatório não publicado';
+      a.title = 'O arquivo ainda não foi enviado ao Storage (' + IRC_PDF_BUCKET + '/' + IRC_PDF_PATH + ').';
+      return;
+    }
+    a.innerHTML = antes;
+  });
+}
+
+/* ── Carga ────────────────────────────────────────────────────────────────── */
+async function carregar(){
+  const sb = window.MAPA_SB;
+  const [d, p] = await Promise.all([
+    sb.from('av_irc').select('escola,questao,conceito,alunos'),
+    sb.from('av_irc_part').select('escola,codigo_escola,regional,previstos,ausentes,avaliados,turmas')
+  ]);
+  if (d.error) throw d.error;
+  if (p.error) throw p.error;
+  DADOS = d.data || [];
+  PART  = p.data || [];
+
+  // A lista de unidades sai do que o BANCO entregou — sob RLS, perfil de
+  // escola recebe só a própria. Filtrar no JS seria conforto, não recorte.
+  ESCOLAS = PART.filter(r => r.escola !== 'REDE')
+    .sort((a, b) => a.escola.localeCompare(b.escola, 'pt-BR'));
+
+  const sel = document.getElementById('irSel');
+  if (!ESCOLAS.length) {
+    sel.innerHTML = '<option>Nenhuma unidade disponível</option>';
+    document.getElementById('irVazio').textContent = 'Nenhum dado importado ainda.';
+    return;
+  }
+  sel.innerHTML = ESCOLAS.map(e => '<option value="' + esc(e.escola) + '">' + esc(e.escola) + '</option>').join('');
+  sel.addEventListener('change', () => selecionar(sel.value));
+  selecionar(ESCOLAS[0].escola);
+}
+
+function selecionar(nome){
+  escolaAtual = nome;
+  const p = PART.find(r => r.escola === nome) || {};
+  document.getElementById('irNome').textContent = nome;
+  document.getElementById('irCod').textContent = 'Cód. ' + (p.codigo_escola || '—');
+  document.getElementById('irReg').textContent = p.regional || '—';
+  renderKpis();
+  render();
+}
+
+/* ── Rubricas: vêm das abas de conceito da própria planilha ───────────────── */
+// Guardadas no banco junto com os dados (av_irc_rubrica) para a tela não
+// depender de ninguém reimportar o arquivo só para ver a descrição.
+async function carregarRubrica(){
+  try {
+    const { data, error } = await window.MAPA_SB.from('av_irc_rubrica')
+      .select('questao,conceito,titulo,descricao,ordem').order('questao').order('ordem');
+    if (error || !data) return;
+    RUBRICA = {};
+    data.forEach(r => { (RUBRICA[r.questao] = RUBRICA[r.questao] || []).push(r); });
+  } catch (e) { /* rubrica é conforto: sem ela a tela funciona igual */ }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   IMPORTAÇÃO — agrega no navegador, envia só contagem
+   ════════════════════════════════════════════════════════════════════════════ */
+function ligarUpload(){
+  const inp = document.getElementById('irArq'), res = document.getElementById('irRes');
+  inp.addEventListener('change', async () => {
+    const f = inp.files && inp.files[0];
+    if (!f) return;
+    res.textContent = 'Lendo a planilha…';
+    try {
+      const buf = await f.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+
+      // A aba de microdados é a que tem as colunas de questão; o nome dela
+      // varia entre edições ("PMRI_DADOS_RC_2EF (2)"), então procuramos pela
+      // FORMA e não pelo nome — arquivo novo com outro rótulo continua entrando.
+      let linhas = null;
+      for (const nome of wb.SheetNames) {
+        const arr = XLSX.utils.sheet_to_json(wb.Sheets[nome], { defval: '' });
+        if (arr.length && QUESTOES.every(q => q in arr[0])) { linhas = arr; break; }
+      }
+      if (!linhas) throw new Error('não achei a aba de microdados (faltam as colunas Q*_N*)');
+
+      const { agreg, part, rubrica } = agregar(linhas, wb);
+      res.innerHTML = 'Agregado: ' + num(part.length - 1) + ' unidades, '
+        + num(agreg.length) + ' linhas de contagem. Gravando…';
+
+      await gravar(agreg, part, rubrica, res);
+      res.innerHTML = '<span style="color:#15803d;font-weight:800">Pronto.</span> '
+        + 'Recarregando a tela…';
+      setTimeout(() => location.reload(), 900);
+    } catch (e) {
+      console.error('[IRC] importação falhou', e);
+      res.innerHTML = '<span style="color:#b91c1c;font-weight:800">Falhou:</span> ' + esc(e.message || e);
+    }
+  });
+}
+
+/* ⚠️ Nome e RA ficam AQUI. Nada abaixo desta função os enxerga. */
+function agregar(linhas, wb){
+  const porEsc = new Map();     // escola -> {cod, reg, previstos, ausentes, turmas:Set}
+  const cont = new Map();       // escola||questao||conceito -> n
+  const somaRede = new Map();   // questao||conceito -> n
+  let redePrev = 0, redeAus = 0; const redeTurmas = new Set();
+
+  linhas.forEach(r => {
+    const escola = String(r.ESCOLA || '').trim();
+    if (!escola) return;
+    if (!porEsc.has(escola)) {
+      porEsc.set(escola, {
+        cod: String(r.CODESC || '').trim(),
+        reg: String(r.regional || '').trim(),
+        previstos: 0, ausentes: 0, turmas: new Set()
+      });
+    }
+    const u = porEsc.get(escola);
+    u.previstos++; redePrev++;
+    u.turmas.add(String(r.TURMA || '').trim());
+    redeTurmas.add(escola + '||' + String(r.TURMA || '').trim());
+
+    // Ausente não entra em distribuição nenhuma: ele não produziu escrita, e
+    // contá-lo como "em branco" misturaria quem faltou com quem entregou a
+    // folha vazia — que é informação pedagógica diferente.
+    if (String(r.Ausente || '').trim() === '1') { u.ausentes++; redeAus++; return; }
+
+    QUESTOES.forEach(q => {
+      const v = String(r[q] == null ? '' : r[q]).trim().toUpperCase() || 'EB';
+      const k = escola + '||' + q + '||' + v;
+      cont.set(k, (cont.get(k) || 0) + 1);
+      const kr = q + '||' + v;
+      somaRede.set(kr, (somaRede.get(kr) || 0) + 1);
+    });
+  });
+
+  const agreg = [];
+  cont.forEach((n, k) => {
+    const [escola, questao, conceito] = k.split('||');
+    agreg.push({ escola, questao, conceito, alunos: n });
+  });
+  somaRede.forEach((n, k) => {
+    const [questao, conceito] = k.split('||');
+    agreg.push({ escola: 'REDE', questao, conceito, alunos: n });
+  });
+
+  const part = [];
+  porEsc.forEach((u, escola) => {
+    part.push({ escola, codigo_escola: u.cod, regional: u.reg,
+                previstos: u.previstos, ausentes: u.ausentes,
+                avaliados: u.previstos - u.ausentes, turmas: u.turmas.size });
+  });
+  part.push({ escola: 'REDE', codigo_escola: null, regional: null,
+              previstos: redePrev, ausentes: redeAus,
+              avaliados: redePrev - redeAus, turmas: redeTurmas.size });
+
+  return { agreg, part, rubrica: lerRubrica(wb) };
+}
+
+/* As abas Q*_N* da planilha trazem a grade de correção. Duas colunas em quase
+   todas (Conceito | Descrição) e TRÊS na proposta 1 (Conceito | Nível | Desc). */
+function lerRubrica(wb){
+  const out = [];
+  QUESTOES.forEach(q => {
+    if (!wb.Sheets[q]) return;
+    const arr = XLSX.utils.sheet_to_json(wb.Sheets[q], { header: 1, defval: '' });
+    let ordem = 0;
+    arr.slice(1).forEach(row => {
+      const conceito = String(row[0] || '').trim();
+      if (!conceito) return;
+      const tresCols = String(row[2] || '').trim().length > 0;
+      out.push({
+        questao: q, conceito,
+        titulo: tresCols ? String(row[1] || '').trim() : null,
+        descricao: String(tresCols ? row[2] : row[1] || '').trim(),
+        ordem: ordem++
+      });
+    });
+  });
+  return out;
+}
+
+async function gravar(agreg, part, rubrica, res){
+  const sb = window.MAPA_SB;
+  // Substituição completa: a planilha é a fonte da verdade da edição. Sem o
+  // delete, unidade que saiu do arquivo ficaria para sempre com o número velho.
+  //
+  // ⚠️ O PostgREST exige um filtro no delete — apagar sem WHERE é recusado, de
+  // propósito. `not.is.null` na chave é o filtro que diz "todas" sem inventar
+  // um valor sentinela que um dia pode existir no dado.
+  const limpar = async (tabela, coluna, obrigatorio) => {
+    const { error } = await sb.from(tabela).delete().not(coluna, 'is', null);
+    // A rubrica é conforto: se a tabela ainda não existe, a importação segue.
+    if (error && obrigatorio) throw error;
+    if (error) console.warn('[IRC] não limpou ' + tabela + ':', error.message);
+  };
+  await limpar('av_irc', 'escola', true);
+  await limpar('av_irc_part', 'escola', true);
+  await limpar('av_irc_rubrica', 'questao', false);
+
+  const LOTE = 500;
+  await enviar('av_irc', agreg, LOTE, res);
+  await enviar('av_irc_part', part, LOTE, res);
+  if (rubrica.length) await enviar('av_irc_rubrica', rubrica, LOTE, res);
+}
+async function enviar(tabela, linhas, LOTE, res){
+  for (let i = 0; i < linhas.length; i += LOTE) {
+    const { error } = await window.MAPA_SB.from(tabela).insert(linhas.slice(i, i + LOTE));
+    if (error) throw error;
+    res.textContent = 'Gravando ' + tabela + '… ' + Math.min(i + LOTE, linhas.length)
+      + ' de ' + linhas.length;
+  }
+}
+
+/* ── Início ───────────────────────────────────────────────────────────────── */
+document.addEventListener('mapa-auth-pronto', async () => {
+  ligarPdf();
+  try {
+    // O gate da importação é conforto visual; quem recusa de verdade é o RLS
+    // (as políticas de escrita exigem posso_editar()).
+    const { data: rede } = await window.MAPA_SB.rpc('vejo_a_rede_toda');
+    if (rede) { document.getElementById('irUpBox').style.display = 'block'; ligarUpload(); }
+  } catch (e) { /* sem permissão: a caixa some, e está certo */ }
+
+  try {
+    await carregarRubrica();
+    await carregar();
+  } catch (e) {
+    console.error('[IRC] carga falhou', e);
+    document.getElementById('irVazio').textContent =
+      'Não foi possível carregar os dados: ' + (e.message || e);
+  }
+});
+</script>
+</body>
+</html>
