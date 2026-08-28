@@ -164,6 +164,33 @@
     });
   }
 
+  // ── Qual tela do catálogo cada arquivo é ──────────────────────────────────
+  //
+  // ⚠️ O `acesso-sme.js` deriva o slug da tela do NOME DO ARQUIVO. Onde arquivo
+  // e slug do catálogo divergem, a página fica inacessível para todo mundo que
+  // não é super admin — e a mensagem diz "você não tem permissão para a tela
+  // <arquivo>", que manda quem for investigar procurar defeito na permissão da
+  // pessoa, que está certa. Foi assim que a Av. Oral de Matemática ficou
+  // fechada sem ninguém entender por quê.
+  //
+  // A tradução mora aqui, num lugar só, em vez de num `<script>` por página:
+  // são ~17 telas com o cabeçalho copiado, e o que se espalha por 17 arquivos
+  // acaba vivendo em três estados diferentes ao mesmo tempo.
+  //
+  // ⚠️ Renomear um arquivo OU o slug no catálogo exige mexer aqui no mesmo
+  // commit. Arquivo cujo nome já é igual ao slug não entra na lista.
+  var TELA_POR_ARQUIVO = {
+    'av-oral-matematica':    'avaliacao_oral',
+    'avaliacao-diagnostica': 'avaliacao_diagnostica',
+    'boletim-estatistico':   'boletim_estatistico',
+    'gerencia-liminar':      'gerencia_liminar'
+  };
+
+  var _arquivo = (location.pathname.split('/').pop() || 'index.html').replace(/\.html$/i, '');
+  if (Object.prototype.hasOwnProperty.call(TELA_POR_ARQUIVO, _arquivo)) {
+    window.ACESSO_TELA = TELA_POR_ARQUIVO[_arquivo];
+  }
+
   // Marca o sistema ANTES de carregar o módulo central.
   window.ACESSO_SISTEMA = SISTEMA_SLUG;
   window.ACESSO_LOGIN = '/central/login.html';
