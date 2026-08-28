@@ -3136,8 +3136,30 @@ const _prefetchQueue = [];
 let _prefetchRunning = 0;
 const _prefetchMaxConcurrent = 2;
 
+/* ⚠️ A CHAVE INCLUI QUEM ESTÁ VENDO. Sem isso o `sessionStorage` é comum a
+   todas as identidades da mesma aba, e o vazio de uma vaza para a outra:
+   uma SIMULAÇÃO de perfil sem dado gravava `[]` aqui e, ao encerrar a
+   simulação, o super admin lia esse vazio como se fosse dele — a Diagnóstica
+   ficava sem aluno nenhum. Antes de a tela distinguir vazio de carregando,
+   o sintoma era pior: spinner eterno, sem nada no console. Medido em 2026-08.
+
+   Sob simulação, `MapaAuth.perfil.email` JÁ é o e-mail da pessoa simulada
+   (o `auth.js` monta o perfil a partir das permissões observadas), então a
+   separação sai de graça — não é preciso um sinalizador à parte.
+
+   ⚠️ Vale para TODOS os pacotes que passam por `_cacheSet`/`_cacheGet`
+   (dashboard, bimestre, Total), não só para a Diagnóstica.
+
+   Se a auth ainda não resolveu, a chave sai com '?': quem gravou antes e quem
+   lê depois não se encontram, e o pior caso é buscar de novo — nunca ler o
+   dado de outra pessoa. */
 function _cacheStorageKey(chave) {
-  return 'MAPA_CACHE_' + String(chave);
+  var quem = '?';
+  try {
+    var p = window.MapaAuth && window.MapaAuth.perfil;
+    if (p && p.email) quem = String(p.email).trim().toLowerCase();
+  } catch (e) {}
+  return 'MAPA_CACHE_' + quem + '_' + String(chave);
 }
 
 function _cacheSet(chave, valor) {
@@ -11270,7 +11292,11 @@ function _carregarAlunosDiagnosticaBackground(onReady) {
     .withSuccessHandler(alunos => {
       const lista = alunos || [];
       _alunosDiagEstado = 'pronto';
-      _cacheSet(chAlunos, lista); // grava sem filtro para reutilizar no refresh
+      // ⚠️ Vazio NÃO entra em cache. Ele é barato de rebuscar e é justamente o
+      // resultado que envenena: uma vez gravado, congela a tela sem dado por
+      // toda a sessão do navegador. Mesmo princípio já aplicado ao cache da
+      // ficha do CODERP.
+      if (lista.length) _cacheSet(chAlunos, lista); // grava sem filtro p/ o refresh
       rawData.alunos = (typeof _filtrarAlunosPorUnidade === 'function') ? _filtrarAlunosPorUnidade(lista) : lista;
       if (avaliacaoAtual === 'AnoEscolar' && typeof iniciarDiagnostica === 'function') iniciarDiagnostica();
       if (typeof onReady === 'function') onReady();
