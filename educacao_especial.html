@@ -358,8 +358,19 @@
     await carregarVinculos(); renderApoio(); }
   async function carregarVinculos(){ if(_VINC!==null) return; try{ const {data,error}=await SB.from('ee_apoio_vinculo').select('id,escola,periodo,slot,turma_label'); _VINC=error?[]:(data||[]); }catch(e){ _VINC=[]; } }
   function vincDistinct(escola){ const s=new Set(); (_VINC||[]).forEach(v=>{ if(_matchEscEE(v.escola,escola)) s.add(_normEE(v.turma_label)); }); return s.size; }
-  // pode editar = super admin OU gestor vinculado à escola (espelha a RLS de ee_apoio_vinculo)
-  function podeEditar(escola){ var a=window.MapaAuth; if(!a||!a.perfil) return false; if(a.perfil.is_super_admin) return true; return _eeRestrito() && _eePode(escola); }
+  // Quem edita Educação Especial: super admin OU a conta da Educação Especial.
+  // Decisão da SME (2026-08). ⚠️ ANTES era "super admin OU gestor vinculado à
+  // escola" — o gestor da unidade editava o apoio da própria escola e deixou de
+  // editar. A mudança é deliberada, não efeito colateral.
+  // ⚠️ Isto espelha `pode_editar_apoio()` no banco, que é quem manda de verdade
+  // (policy `ee_apoio_upd`). Mudou um, mude o outro: só aqui, o botão aparece e
+  // o banco recusa ao salvar; só lá, a permissão existe e o botão não aparece.
+  const EMAIL_EDUC_ESPECIAL = 'g.educespecial@educacao.pmrp.sp.gov.br';
+  function podeEditar(escola){
+    var a = window.MapaAuth; if (!a || !a.perfil) return false;
+    if (a.perfil.is_super_admin) return true;
+    return String(a.perfil.email || '').trim().toLowerCase() === EMAIL_EDUC_ESPECIAL;
+  }
   // matching tolerante de escola/turma (p/ cruzar vínculos com a Visão Geral) e turno
   const _normEE = s => String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
   const _baseEE = s => _normEE(String(s||'').split(',')[0]);

@@ -12,6 +12,7 @@
   <script src="auth-guard.js"></script>
   <script>window.MAPA_SISTEMA = 'mapa';</script>
   <script src="auth.js" defer></script>
+  <script src="ficha-coderp.js"></script>
   <script src="config-central.js" defer></script>
   <script src="demo-mode.js"></script>
   <script src="iago.js"></script>
@@ -99,14 +100,24 @@
     border: 2px solid transparent;
     transition: 0.2s;
   }
+  /* O box model fica explícito porque a barra mistura <button> e <a>: o
+     <button> ganha padding do agente do usuário e o <a> não ganha nada, então
+     sem isto o texto do link encosta na borda. */
   .btn-toggle {
+    display: inline-block;
+    padding: .35rem .75rem;
+    line-height: 1.35;
     border: 2px solid var(--neon-blue);
     color: white;
     font-weight: 700;
     border-radius: 8px;
     transition: 0.3s;
     background: transparent;
+    text-decoration: none;
+    cursor: pointer;
   }
+  .btn-toggle:hover { color: white; }
+  .btn-toggle.active:hover { color: var(--primary); }
   .btn-toggle.active {
     background: var(--neon-blue);
     color: var(--primary);
@@ -1354,6 +1365,8 @@
       <button type="button" class="btn-toggle" data-avaliacao="terceiroBimestre" onclick="abrirAvaliacao('terceiroBimestre', this)">3º Bim.</button>
       <button type="button" class="btn-toggle" data-avaliacao="quartoBimestre" onclick="abrirAvaliacao('quartoBimestre', this)">4º Bim.</button>
       <button type="button" class="btn-toggle" data-avaliacao="Total" onclick="abrirAvaliacao('Total', this)">Total</button>
+      <a href="analise-desempenho-v2.html" class="btn-toggle"><i class="bi bi-bar-chart-fill me-1"></i>Análise de Desempenho</a>
+      <a href="comparativo-escolas-v2.html" class="btn-toggle"><i class="bi bi-table me-1"></i>Comparativo de Escolas</a>
       <button type="button" class="btn-toggle" data-avaliacao="Auditoria" onclick="abrirAvaliacao('Auditoria', this)"><i class="bi bi-shield-check me-1"></i>Análise de Consistência</button>
     </div>
   </div>
@@ -1400,6 +1413,19 @@
         </aside>
 
         <section class="avaliacao-main">
+          <!-- Barra de filtro de ano para visão de rede (desaparece ao selecionar unidade) -->
+          <div id="anoFilterBarRede" class="ano-filter-bar d-none mb-3">
+            <span class="ano-filter-label">
+              <i class="bi bi-funnel-fill me-1"></i>Ano escolar
+            </span>
+            <button type="button" class="btn-ano active" data-ano="TODOS" onclick="filtrarPorAnoRede('TODOS', this)">Todos</button>
+            <button type="button" class="btn-ano" data-ano="1º ANO" onclick="filtrarPorAnoRede('1º ANO', this)">1º Ano</button>
+            <button type="button" class="btn-ano" data-ano="2º ANO" onclick="filtrarPorAnoRede('2º ANO', this)">2º Ano</button>
+            <button type="button" class="btn-ano" data-ano="3º ANO" onclick="filtrarPorAnoRede('3º ANO', this)">3º Ano</button>
+            <button type="button" class="btn-ano" data-ano="4º ANO" onclick="filtrarPorAnoRede('4º ANO', this)">4º Ano</button>
+            <button type="button" class="btn-ano" data-ano="5º ANO" onclick="filtrarPorAnoRede('5º ANO', this)">5º Ano</button>
+          </div>
+
           <div class="avaliacao-header-card">
             <div class="row g-3 align-items-center">
               <div class="col-12 col-md-4">
@@ -1485,6 +1511,19 @@
         </aside>
 
         <section class="total-main">
+          <!-- Barra de filtro de ano para visão de rede Total (desaparece ao selecionar unidade) -->
+          <div id="anoFilterBarRedeTotal" class="ano-filter-bar d-none mb-3">
+            <span class="ano-filter-label">
+              <i class="bi bi-funnel-fill me-1"></i>Ano escolar
+            </span>
+            <button type="button" class="btn-ano active" data-ano="TODOS" onclick="filtrarPorAnoRede('TODOS', this)">Todos</button>
+            <button type="button" class="btn-ano" data-ano="1º ANO" onclick="filtrarPorAnoRede('1º ANO', this)">1º Ano</button>
+            <button type="button" class="btn-ano" data-ano="2º ANO" onclick="filtrarPorAnoRede('2º ANO', this)">2º Ano</button>
+            <button type="button" class="btn-ano" data-ano="3º ANO" onclick="filtrarPorAnoRede('3º ANO', this)">3º Ano</button>
+            <button type="button" class="btn-ano" data-ano="4º ANO" onclick="filtrarPorAnoRede('4º ANO', this)">4º Ano</button>
+            <button type="button" class="btn-ano" data-ano="5º ANO" onclick="filtrarPorAnoRede('5º ANO', this)">5º Ano</button>
+          </div>
+
           <div class="avaliacao-header-card">
             <div class="row g-3 align-items-center">
               <div class="col-12 col-md-4">
@@ -2969,25 +3008,47 @@ function alunosPorItens(itens) {
     todos.push(qtd);
     if (disciplinaContaAluno(String(ki).split('||')[0])) contaveis.push(qtd);
   });
-  const q = contaveis.length ? contaveis : todos;
+  // Zero não é item lançado — deixá-lo entrar puxaria o percentil para baixo.
+  const q = (contaveis.length ? contaveis : todos).filter(v => v > 0);
   if (!q.length) return 0;
 
-  // ⚠️ A âncora é a MEDIANA, não o mínimo — e isso não é preciosismo.
-  // Ancorar no mínimo faz UM único item raro derrubar a turma inteira: basta
-  // um item com 1 resposta para a janela virar [1, 1.5) e a conta devolver 1.
-  // Medido na planilha do 1º bimestre, injetando um item de 1 resposta em cada
-  // balde: a rede caía de 13.626 para 553 alunos — 1 por turma. Era esse o
-  // padrão que a tela mostrava (ALCINA com 12 em todas as abas).
+  // ⚠️ A âncora é o PERCENTIL 25. Os dois extremos já estiveram aqui e os dois
+  // quebraram em produção — cada um por um motivo oposto:
   //
-  // A mediana descreve o item TÍPICO: como a maioria dos itens tem uma
-  // pergunta por aluno, ela cai na escala certa, e um outlier isolado não a
-  // move. Entre os itens dentro de 1,5× a mediana vale o MAIOR, que é o mais
-  // completamente lançado. Medido sem sabotagem: 548 dos 553 baldes exatos
-  // (a âncora no mínimo acertava 533) e o total fica em 13.628 contra 13.626.
+  //   MÍNIMO — um único item raro derruba a turma inteira. Basta um item com
+  //   1 resposta para a janela virar [1, 1.15) e a conta devolver 1. Medido
+  //   com um item de 1 resposta injetado em cada balde: 0 de 657 baldes
+  //   exatos, a rede caindo 96%.
+  //
+  //   MEDIANA — assume que o item TÍPICO tem uma pergunta por aluno, e isso é
+  //   falso em bimestre com poucos eixos. Medido na ALCINA, 2º bimestre, 1º
+  //   ano A (26 alunos): as somas por eixo são 26 (×5), 52 (×12), 78 e 104 —
+  //   múltiplos exatos, porque cada eixo tem seu próprio número de perguntas.
+  //   Com 12 dos 19 eixos valendo 2 perguntas, a mediana cai em 52 e a janela
+  //   de 1,5× devolve 78: o TRIPLO. A tela mostrava a rede 69% inflada.
+  //
+  // O percentil 25 fica acima do ruído de baixo (item mal lançado, sabotagem)
+  // e abaixo dos múltiplos de 2 perguntas. Entre os itens dentro de 1,15× a
+  // âncora vale o MAIOR, que é o mais completamente lançado.
+  //
+  // ⚠️ Calibrado com MapaDiagCalibrar sobre 821 baldes de 25 unidades, exato
+  // (REMA distinto do nível aluno) ao lado, nos dois bimestres:
+  //
+  //            regra          bim 1      bim 2     exatos   com sabotagem
+  //     p25 ×1,15 (esta)    340/399    418/422     92,3%       92,2%
+  //     mediana ×1,5        337/399    249/422     71,4%       81,6%
+  //     mínimo ×1,5         (—)          (—)         (—)        0,0%
+  //
+  // A grade inteira (7 percentis × 7 janelas) mostra por que 25 é o ponto:
+  // de p30 para cima o 2º bimestre desaba (338/422, +17%), porque a âncora
+  // passa a cair em eixo de 2 perguntas; de p20 para baixo o 1º bimestre
+  // perde (−2,7% a −9,5%), porque ela cai em item lançado pela metade. Já a
+  // JANELA quase não pesa: de 1,10 a 1,40 o resultado é o mesmo — quem faz o
+  // trabalho é a âncora. Não troque nenhum dos dois sem rodar a sonda antes.
   const ord = q.slice().sort((a, b) => a - b);
-  const mediana = ord[Math.floor(ord.length / 2)];
+  const ancora = ord[Math.min(ord.length - 1, Math.floor(0.25 * ord.length))];
   let alunos = 0;
-  for (let i = 0; i < q.length; i++) if (q[i] <= mediana * 1.5 && q[i] > alunos) alunos = q[i];
+  for (let i = 0; i < q.length; i++) if (q[i] <= ancora * 1.15 && q[i] > alunos) alunos = q[i];
   return alunos;
 }
 
@@ -3299,11 +3360,11 @@ function _chavePacoteBimestre(key, filtrosBase) {
   // sobrevive até ao recarregamento forçado, então mudar o FORMATO do pacote
   // sem mudar a versão faz a tela ler um pacote velho e sem os campos novos.
   // v10: o pacote passou a carregar `bruto` (base da conferência por turma).
-  return ['pacote_bim_supa_v11_semturma', key, filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacote_bim_supa_v12_p25', key, filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _chaveTotal(filtros) {
-  return ['total_supa_v10_semturma', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
+  return ['total_supa_v11_p25', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
 }
 
 function _chaveDetalhe(key, filtros) {
@@ -3322,7 +3383,7 @@ function _chaveBimestreCompleto(key) {
 // (unidade › ano › turma), então a versão sobe junto. Cache antigo tem o
 // formato de 2 níveis e produziria uma árvore sem anos.
 function _chaveHierarquiaTotal(ano) {
-  return ['hier_total_supa_v10_anonivel', ano || 'TODOS'].join('|');
+  return ['hier_total_supa_v11_p25', ano || 'TODOS'].join('|');
 }
 
 // ===========================================================
@@ -3868,7 +3929,7 @@ function _setAnoFiltroAtualSeguro(ano, btn) {
 // Total zerava. v11 = arvoreLinhas com [unidade, ano, turma, alunos].
 function _chavePacoteTotal(filtrosBase) {
   filtrosBase = filtrosBase || {};
-  return ['pacoteTotal_supa_v12_diageixo', filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacoteTotal_supa_v13_p25', filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _backendTemPacoteTotal() {
@@ -5660,6 +5721,7 @@ function selecionarUnidade(unidade, ui) {
   _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
   _setAnoFiltroAtualSeguro('TODOS');
+  _mostrarAnoFilterBarRede(!ja);
   renderHierarquia(_hierArvore);
   _atualizarBreadcrumb();
   aplicarFiltrosAvaliacao();
@@ -5741,6 +5803,7 @@ function limparHierarquiaSel() {
   _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
   _setAnoFiltroAtualSeguro('TODOS');
+  _mostrarAnoFilterBarRede(true);
   renderHierarquia(_hierArvore || {});
   _atualizarBreadcrumb();
   aplicarFiltrosAvaliacao();
@@ -5763,6 +5826,43 @@ function _montarSelectAno(anos) {
   }
 
   sel.value = [...sel.options].some(o => o.value === alvo) ? alvo : 'TODOS';
+}
+
+// ===========================================================
+// FILTRO DE ANO PARA VISÃO DE REDE
+// ===========================================================
+function _mostrarAnoFilterBarRede(show) {
+  const bar = document.getElementById('anoFilterBarRede');
+  const barTotal = document.getElementById('anoFilterBarRedeTotal');
+  if (bar) bar.classList.toggle('d-none', !show);
+  if (barTotal) barTotal.classList.toggle('d-none', !show);
+}
+
+function _resetarAnoFilterBarRede() {
+  anoFiltroAtual = 'TODOS';
+  _hierAnoAtivo = 'TODOS';
+  document.querySelectorAll('#anoFilterBarRede .btn-ano, #anoFilterBarRedeTotal .btn-ano').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.ano === 'TODOS');
+  });
+  const aSel = document.getElementById('filtroAvAno');
+  if (aSel) aSel.value = 'TODOS';
+}
+
+function filtrarPorAnoRede(ano, btn) {
+  if (!btn) return;
+
+  anoFiltroAtual = ano;
+  _hierAnoAtivo = ano;
+  _setAnoFiltroAtualSeguro(ano);
+
+  // Atualizar botões visuais em ambas as barras
+  document.querySelectorAll('#anoFilterBarRede .btn-ano, #anoFilterBarRedeTotal .btn-ano').forEach(b => {
+    b.classList.toggle('active', b.dataset.ano === ano);
+  });
+
+  renderHierarquia(_hierArvore || {});
+  _atualizarBreadcrumb();
+  aplicarFiltrosAvaliacao();
 }
 
 // ===========================================================
@@ -6948,7 +7048,7 @@ function _prefetchTotalTurmasRede() {
   if (_totalDetalheRedePedido === pac) return;
   if (!pac.linhas.some(l => l[TPKG.T] === '—')) return;   // já detalhado
   // Mesma trava das abas de bimestre: a contagem por turma derivada do nível
-  // agregado (mínimo entre itens) não é confiável quando há item que não vale
+  // agregado (alunosPorItens) não é confiável quando há item que não vale
   // para todos os alunos. Ver o comentário em _prefetchTurmasFicha.
   let _ligaTurmaTotal = false;
   try { _ligaTurmaTotal = new URLSearchParams(location.search).get('turmas') === '1'; } catch (e) {}
@@ -7077,6 +7177,7 @@ function selecionarUnidadeTotal(unidade) {
   _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
   _setAnoFiltroAtualSeguro('TODOS');
+  _mostrarAnoFilterBarRede(!jaSelecionada);
   totalDisciplinaSelecionada = '';
   totalEixoAtual = 'TODOS';
 
@@ -7148,7 +7249,11 @@ function selecionarTurmaTotal(unidade, ano, turma, ev) {
 
 function limparHierarquiaTotal() {
   _hierUnidadeAtiva = 'TODAS';
+  _hierAnoAtivo = 'TODOS';
   _hierTurmaAtiva = 'TODAS';
+  _setAnoFiltroAtualSeguro('TODOS');
+  _mostrarAnoFilterBarRede(true);
+  _resetarAnoFilterBarRede();
   totalDisciplinaSelecionada = '';
   totalEixoAtual = 'TODOS';
   renderHierarquiaTotal(_hierArvoreTotal);
@@ -8276,90 +8381,22 @@ function _renderTabelaTotal(linhas) {
   // guarda o token e refaz a checagem de permissão no banco. NADA é gravado
   // no banco do MAPA: a API existe para não inflar o consumo da instância.
   // `?coderp=0` desliga e volta para a RPC do banco (dados importados).
-  const FICHA_FN_URL = supabaseUrl + '/functions/v1/coderp-ficha';
-  const FICHA_ANOS_ESCOLARES = ['1 ANO', '2 ANO', '3 ANO', '4 ANO', '5 ANO'];
-
-  // ── O que o `per_cod` do CODERP pode trazer, e o que fica de fora ─────────
-  // Medido em 2026-08 (bim 1, rede inteira sem filtro): 18 valores distintos.
-  // A tela consultava só os cinco primeiros, então 36% das linhas da ficha
-  // nunca chegavam aqui. Definido com a SME o que entra:
-  //
-  //   1 ANO … 9 ANO   Ensino Fundamental — é o objeto destas telas.
-  //
-  //   CIC 2/3/4       Educação Infantil, ciclos 2, 3 e 4 ─┐
-  //   ETP 1/2         Educação Infantil, Etapas I e II     │ fora da contagem
-  //   PECAI           PEC dos Anos Iniciais                │
-  //   TAIMS           Termos Anos Iniciais Multi Seriados  │ turmas de
-  //   TAFMS           Termos Anos Finais Multi Seriados    │ treinamento
-  //   TREIN           Prática Desportiva masc./fem.       ─┘
-  //
-  // ⚠️ A lista é de EXCLUSÃO, não de inclusão, e isso é de propósito: um
-  // per_cod novo que o CODERP passe a devolver entra na contagem e aparece na
-  // tela, em vez de sumir em silêncio. Some quem for explicitamente excluído.
-  const PER_COD_FORA = new Set([
-    'CIC 2', 'CIC 3', 'CIC 4',      // Educação Infantil
-    'ETP 1', 'ETP 2',               // Educação Infantil
-    'PECAI',                        // PEC Anos Iniciais
-    'TAIMS', 'TAFMS', 'TREIN',      // turmas de treinamento
-  ]);
-  const perCodContavel = p => {
-    const v = String(p == null ? '' : p).trim().toUpperCase();
-    return !!v && !PER_COD_FORA.has(v);
-  };
-
-  function fichaApiAtiva() {
-    try {
-      if (new URLSearchParams(location.search).get('coderp') === '0') return false;
-    } catch (e) { /* URLSearchParams sempre existe nos navegadores atendidos */ }
-    return true;
-  }
-
-  async function chamarFichaApi(nivel, parms) {
-    // Cache local primeiro (IndexedDB do auth.js, aquecido pelas outras
-    // telas): resposta fresca sai daqui SEM REDE — é a instantaneidade.
-    const corpo = JSON.stringify({ nivel, parms });
-    if (window.MapaFichaCache) {
-      const pronto = await window.MapaFichaCache.ler(corpo).catch(() => null);
-      if (pronto !== null) { try { return JSON.parse(pronto); } catch (e) { /* cai para a rede */ } }
-    }
-
-    const tok = window.MapaAuth && window.MapaAuth.token ? await window.MapaAuth.token() : null;
-    if (!tok) throw new Error('sessão do MAPA indisponível');
-    const r = await fetch(FICHA_FN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
-      body: corpo
-    });
-    const texto = await r.text();
-    let resp = null;
-    try { resp = JSON.parse(texto); } catch (e) { /* resposta não-JSON tratada abaixo */ }
-    if (!r.ok) {
-      // O status DO CODERP vai junto: sem ele, "502 coderp_recusou" não
-      // distingue "não existe / sem lançamento" (404) de indisponibilidade.
-      const dentro = resp && resp.status ? ' (CODERP ' + resp.status + ')' : '';
-      const erro = new Error('coderp-ficha ' + r.status + ' ' + ((resp && resp.erro) || '') + dentro);
-      // Exposto para quem chama poder tratar 404 como "vazio", e não como falha.
-      erro.coderpStatus = (resp && resp.status) || 0;
-      throw erro;
-    }
-    // Só entra no cache local resposta com dado real, ou vazio SEM Messages
-    // (bimestre sem lançamento é legítimo; vazio COM aviso é suspeito e não
-    // pode ficar "colado" por 10 min).
-    const temDado = !!resp && (
-      Object.keys(resp).some(k =>
-        k.indexOf('fichasAvaliacoes') === 0 && Array.isArray(resp[k]) && resp[k].length)
-      // O nível sintético `detalherede` devolve `linhas`, não `fichasAvaliacoes*`.
-      || (Array.isArray(resp.linhas) && resp.linhas.length));
-    const msgs = ((resp && resp.Messages) || []).filter(m => m && m.Description);
-    // Resposta PARCIAL (leque incompleto) não vai para o cache: guardar uma
-    // rede pela metade por 10 min esconderia unidades sem nenhum aviso.
-    const parcial = !!(resp && resp.parcial);
-    if (window.MapaFichaCache && resp && !parcial && (temDado || !msgs.length)) {
-      window.MapaFichaCache.gravar(corpo, texto);
-    }
-    if (msgs.length) console.warn('[MAPA CODERP] Messages da API:', msgs);
-    return resp || {};
-  }
+  // ── A camada de transporte da ficha vive em `ficha-coderp.js` ────────────
+  // Ela foi extraída daqui quando a tela Comparativo de Escolas passou a
+  // precisar do mesmo dado de bimestre. Os nomes abaixo são os MESMOS de
+  // antes, de propósito: os pontos de chamada desta tela não mudaram, e o
+  // diff fica restrito a quem DEFINE, não a quem usa.
+  // ⚠️ Sem fallback de propósito. Se o módulo não carregar, esta tela precisa
+  // falhar alto: um caminho reserva silencioso reintroduziria a segunda
+  // contagem que a extração existe para impedir.
+  if (!window.MapaFicha) throw new Error('ficha-coderp.js não carregou');
+  const _FICHA = window.MapaFicha.criar(supabaseUrl);
+  const FICHA_FN_URL          = _FICHA.FICHA_FN_URL;
+  const FICHA_ANOS_ESCOLARES  = _FICHA.FICHA_ANOS_ESCOLARES;
+  const PER_COD_FORA          = _FICHA.PER_COD_FORA;
+  const perCodContavel        = _FICHA.perCodContavel;
+  const fichaApiAtiva         = _FICHA.fichaApiAtiva;
+  const chamarFichaApi        = _FICHA.chamarFichaApi;
 
   // Catálogo código CODERP -> nome da unidade (uma busca por sessão). A
   // tradução para a grafia oficial acontece no cleanUnit, para TODAS as fontes.
@@ -8378,11 +8415,8 @@ function _renderTabelaTotal(linhas) {
     return _fichaCatalogoPromise;
   }
 
-  function fichaAnoLetivo() { return new Date().getFullYear(); }
+  const fichaAnoLetivo = _FICHA.fichaAnoLetivo;
 
-  // Memo das consultas de rede por (bimestre, ano escolar): bimestres, Total e
-  // árvore compartilham as mesmas respostas sem repetir chamadas à API.
-  const _fichaTurmaMemo = new Map();
   // Memo do pacote do Total por filtro (TTL 10 min, alinhado às outras camadas).
   const _totalPacoteMemo = new Map();
   // ── Rede inteira numa consulta só, recortada por per_cod ──────────────────
@@ -8410,16 +8444,7 @@ function _renderTabelaTotal(linhas) {
     return _fichaTudoMemo.get(k);
   }
 
-  function fichaRedeTurma(bimestre, anoEsc) {
-    const k = bimestre + '|' + anoEsc;
-    if (!_fichaTurmaMemo.has(k)) {
-      _fichaTurmaMemo.set(k,
-        chamarFichaApi('turma', { anoLetivo: fichaAnoLetivo(), bimestre: bimestre, anoescolar: anoEsc })
-          .then(r => r.fichasAvaliacoesTurma || [])
-          .catch(err => { _fichaTurmaMemo.delete(k); throw err; }));
-    }
-    return _fichaTurmaMemo.get(k);
-  }
+  const fichaRedeTurma = _FICHA.fichaRedeTurma;
 
   // ── Totais oficiais da REDE (/IndicadorRede) ──────────────────────────────
   // É a ÚNICA fonte independente dos totais que a API oferece: uma chamada por
@@ -8646,6 +8671,203 @@ function _renderTabelaTotal(linhas) {
       console.log('[contagem] o problema estaria no que a API devolve, não na conta.');
     }
     return { exato: somaExato, estimado: somaEstim, turmas: linhas };
+  };
+
+  // ── Sonda: CALIBRA a regra de contagem contra o exato ─────────────────────
+  // ⚠️ NENHUMA mudança em alunosPorItens() deve ser feita sem rodar isto antes.
+  // A regra vive de uma premissa que pode falhar — a de que o item típico tem
+  // UMA pergunta por aluno — e já foi ajustada no olho três vezes, errando o
+  // alvo nas três. Esta sonda põe as candidatas lado a lado contra a contagem
+  // EXATA (REMA distinto do nível aluno), em várias unidades, e inclui o teste
+  // de sabotagem que derrubou a âncora no mínimo.
+  //
+  //   await MapaDiagCalibrar(1)        // 12 unidades, bimestre 1
+  //   await MapaDiagCalibrar(2, 20)    // 20 unidades, bimestre 2
+  //
+  // O custo está no nível aluno (~1,5 s por unidade); o agregado é memoizado e
+  // sai de 5 consultas para a rede inteira, não por unidade.
+
+  // Cada regra recebe o mapa de itens do balde (chave `disciplina||eixo`) e,
+  // quando precisa, o mapa GLOBAL de perguntas por eixo. Devolve alunos.
+  function _somasContaveis(itens) {
+    const contaveis = [], todos = [];
+    itens.forEach((qtd, ki) => {
+      todos.push(qtd);
+      if (disciplinaContaAluno(String(ki).split('||')[0])) contaveis.push(qtd);
+    });
+    return (contaveis.length ? contaveis : todos).filter(v => v > 0);
+  }
+  function _ancoraJanela(q, pct, janela) {
+    if (!q.length) return 0;
+    const ord = q.slice().sort((a, b) => a - b);
+    const anc = ord[Math.min(ord.length - 1, Math.floor(pct * ord.length))];
+    let n = 0;
+    for (let i = 0; i < q.length; i++) if (q[i] <= anc * janela && q[i] > n) n = q[i];
+    return n;
+  }
+  // Divide cada soma pelo nº de perguntas do eixo e toma o item mais completo.
+  // Não é heurística de escala: é a conta certa, desde que `P` esteja certo.
+  function _porPerguntas(itens, P, pct) {
+    const v = [];
+    itens.forEach((qtd, ki) => {
+      if (!qtd) return;
+      if (!disciplinaContaAluno(String(ki).split('||')[0])) return;
+      v.push(qtd / (P.get(ki) || 1));
+    });
+    if (!v.length) return 0;
+    v.sort((a, b) => a - b);
+    return Math.round(v[Math.min(v.length - 1, Math.floor(pct * v.length))]);
+  }
+
+  // Quantas perguntas cada eixo tem, inferido da REDE inteira.
+  //
+  // A soma de um eixo é `alunos × perguntas`. Dentro de um balde não dá para
+  // separar os dois fatores; entre baldes, dá: a razão entre dois eixos é a
+  // razão entre seus números de pergunta, e o número de perguntas é o MESMO em
+  // toda a rede — é propriedade da prova, não da turma. Normalizando cada
+  // balde pela sua própria âncora baixa e tomando a MEDIANA da razão sobre
+  // centenas de baldes, o ruído de balde (turma incompleta, âncora infeliz)
+  // se cancela.
+  function _perguntasPorEixo(baldes) {
+    const razoes = new Map();
+    baldes.forEach(b => {
+      const q = _somasContaveis(b.itens);
+      if (q.length < 4) return;                    // balde curto não informa razão
+      const ord = q.slice().sort((a, z) => a - z);
+      const base = ord[Math.floor(0.15 * ord.length)];
+      if (!base) return;
+      b.itens.forEach((s, ki) => {
+        if (!s) return;
+        if (!razoes.has(ki)) razoes.set(ki, []);
+        razoes.get(ki).push(s / base);
+      });
+    });
+    const P = new Map();
+    razoes.forEach((arr, ki) => {
+      arr.sort((a, z) => a - z);
+      const m = arr[Math.floor(arr.length / 2)];
+      P.set(ki, Math.max(1, Math.round(m)));
+    });
+    return P;
+  }
+
+  window.MapaDiagCalibrar = async function (bimestre, quantas) {
+    bimestre = bimestre || 1;
+    quantas = quantas || 12;
+    const catalogo = await fichaCatalogo();
+    // `quantas` aceita um número (as N primeiras) ou uma lista de códigos.
+    const codigos = Array.isArray(quantas)
+      ? quantas.slice()
+      : Array.from(catalogo.keys()).slice(0, quantas);
+    const querido = new Set(codigos);          // Set, não includes: o laço abaixo
+                                               // roda uma vez por linha da REDE
+    console.log('[calibrar] bimestre ' + bimestre + ', ' + codigos.length + ' unidade(s). '
+      + 'O nível aluno leva ~1,5 s por unidade — aguarde.');
+
+    // 1) Agregado da rede: 5 consultas memoizadas, não uma por unidade.
+    const porUni = new Map();                       // uni_cod -> (ano||turma -> Map(item->soma))
+    for (const a of FICHA_ANOS_ESCOLARES) {
+      let rows = null;
+      try { rows = await fichaRedeTurma(bimestre, a); } catch (e) { continue; }
+      (rows || []).forEach(r => {
+        const u = Number(r.uni_cod);
+        if (!querido.has(u)) return;
+        const qtd = Number(r.qtd_alunos || 0);
+        if (!qtd) return;
+        const k = normalizar(a) + '||' + (String(r.tur_cod || '').trim().toUpperCase() || '—');
+        if (!porUni.has(u)) porUni.set(u, new Map());
+        const mu = porUni.get(u);
+        if (!mu.has(k)) mu.set(k, new Map());
+        const m = mu.get(k);
+        const ki = normalizarDisciplina(corrigirTextoLegivel(r.fnc_des || '') || 'Sem disciplina')
+                 + '||' + corrigirTextoLegivel(r.fne_des || 'Sem eixo');
+        m.set(ki, (m.get(ki) || 0) + qtd);
+      });
+    }
+
+    // 2) Exato, unidade por unidade.
+    const baldes = [];
+    let semAluno = 0;
+    for (const cod of codigos) {
+      let fichas = null;
+      try { fichas = await fichaFichasEscola(bimestre, cod); }
+      catch (e) { semAluno++; continue; }
+      const exato = new Map();
+      (fichas || []).forEach(r => {
+        const k = (normalizar(r.per_cod || '') || 'TODOS') + '||'
+                + (String(r.tur_cod || '—').trim().toUpperCase() || '—');
+        if (!exato.has(k)) exato.set(k, new Set());
+        exato.get(k).add(r.alu_rema);
+      });
+      const mu = porUni.get(cod) || new Map();
+      // Só baldes com os DOIS lados: sem exato não há alvo; sem itens não há
+      // o que a regra leia. Balde de 6º/8º ano (Ed. Especial) fica de fora
+      // porque a tela não o cobre.
+      mu.forEach((itens, k) => {
+        if (!exato.has(k)) return;
+        baldes.push({ u: cod, k, exato: exato.get(k).size, itens });
+      });
+    }
+    if (semAluno) console.log('[calibrar] ' + semAluno + ' unidade(s) sem nível aluno — fora da amostra.');
+    if (!baldes.length) { console.log('[calibrar] nenhum balde comparável.'); return; }
+
+    // 3) Perguntas por eixo, da amostra inteira.
+    const P = _perguntasPorEixo(baldes);
+    const dist = new Map();
+    P.forEach(p => dist.set(p, (dist.get(p) || 0) + 1));
+    console.log('[calibrar] perguntas por eixo inferidas em ' + P.size + ' eixos: '
+      + Array.from(dist.entries()).sort((a, b) => a[0] - b[0])
+          .map(([p, n]) => n + ' eixo(s) com ' + p).join(', '));
+
+    // 4) Candidatas. `sabota` injeta um item de 1 resposta em cada balde —
+    //    foi esse cenário que derrubou a âncora no mínimo em produção.
+    const REGRAS = [
+      { nome: 'ATUAL — p25 ×1,15',     fn: (it) => alunosPorItens(it) },
+      { nome: 'mediana ×1,5 (antiga)', fn: (it) => _ancoraJanela(_somasContaveis(it), 0.50, 1.50) },
+      { nome: 'mínimo ×1,5 (antiga)',  fn: (it) => _ancoraJanela(_somasContaveis(it), 0.00, 1.50) },
+      { nome: 'percentil 20 ×1,15',    fn: (it) => _ancoraJanela(_somasContaveis(it), 0.20, 1.15) },
+      { nome: 'percentil 30 ×1,15',    fn: (it) => _ancoraJanela(_somasContaveis(it), 0.30, 1.15) },
+      { nome: 'percentil 25 ×1,40',    fn: (it) => _ancoraJanela(_somasContaveis(it), 0.25, 1.40) },
+      // Inferir quantas perguntas cada eixo tem e dividir PERDEU na calibração
+      // (bim 2: 112/258 contra 256/258 da âncora por percentil). Fica aqui
+      // como candidata para o dia em que a API rotular o item — hoje o `p`
+      // sai de uma razão estimada, e dividir por `p` errado erra mais do que
+      // não dividir.
+      { nome: 'perguntas — máximo',    fn: (it) => _porPerguntas(it, P, 1.00) },
+      { nome: 'perguntas — p90',       fn: (it) => _porPerguntas(it, P, 0.90) },
+    ];
+
+    function avaliar(fn, sabotar) {
+      let exatos = 0, somaEx = 0, somaEs = 0, pior = 0, piorK = '';
+      baldes.forEach(b => {
+        let it = b.itens;
+        if (sabotar) { it = new Map(b.itens); it.set('Arte||ITEM RARO SABOTADO', 1); }
+        const es = fn(it);
+        somaEx += b.exato; somaEs += es;
+        if (es === b.exato) exatos++;
+        const d = Math.abs(es - b.exato);
+        if (d > pior) { pior = d; piorK = b.u + ' ' + b.k; }
+      });
+      return {
+        exatos: exatos + '/' + baldes.length,
+        '% baldes': (exatos / baldes.length * 100).toFixed(0) + '%',
+        estimado: somaEs, real: somaEx,
+        erro: (somaEx ? ((somaEs - somaEx) / somaEx * 100).toFixed(1) : '—') + '%',
+        'pior balde': pior + ' (' + piorK + ')',
+      };
+    }
+
+    console.log('\n[calibrar] SEM sabotagem — ' + baldes.length + ' baldes, '
+      + 'total real ' + baldes.reduce((s, b) => s + b.exato, 0) + ' alunos:');
+    console.table(Object.fromEntries(REGRAS.map(r => [r.nome, avaliar(r.fn, false)])));
+
+    console.log('[calibrar] COM sabotagem (um item de 1 resposta em cada balde) —'
+      + ' é o cenário que derrubou a âncora no mínimo:');
+    console.table(Object.fromEntries(REGRAS.map(r => [r.nome, avaliar(r.fn, true)])));
+
+    console.log('[calibrar] Escolha a regra que acerta mais baldes E resiste à sabotagem.'
+      + ' Erro total baixo com poucos baldes exatos é compensação de erros, não acerto.');
+    return { baldes: baldes.length, perguntas: P, avaliar, REGRAS };
   };
 
   // ── Sonda: como o dado está CHEGANDO da API ───────────────────────────────
@@ -10606,9 +10828,9 @@ function _renderTabelaTotal(linhas) {
       const anoFiltro = normalizar(filtros.ano || 'TODOS') || 'TODOS';
 
       // Caminho principal: nível AGREGADO da API (leve — o nível aluno da rede
-      // inteira congelava a tela). Contagem de alunos por unidade/ano pelo
-      // truque do MÍNIMO entre itens (validado contra o nível aluno); a turma
-      // nasce '—' e o detalhe real desce ao clicar na unidade.
+      // inteira congelava a tela). Contagem de alunos por unidade/ano por
+      // `alunosPorItens` (calibrada contra o nível aluno); a turma nasce '—'
+      // e o detalhe real desce ao clicar na unidade.
       if (fichaApiAtiva()) {
         try {
           const catalogo = await fichaCatalogo();
@@ -10636,9 +10858,21 @@ function _renderTabelaTotal(linhas) {
             });
           });
           if (porUA.size) {
-            // alunos por unidade/ano/bimestre = mínimo entre os itens contáveis
-            // (Ed. Especial e AEE ficam de fora — ver alunosPorItens); por
-            // unidade fica o MAIOR bimestre (aluno conta uma vez, não 4).
+            // Alunos por unidade/ano/turma/bimestre saem de `alunosPorItens`
+            // (Ed. Especial e AEE ficam de fora — ver lá).
+            //
+            // ⚠️ Entre BIMESTRES fica o MAIOR de cada turma, e é por isso que o
+            // Total NÃO iguala nenhuma aba quando a turma muda de tamanho no
+            // ano. Decisão da SME (2026-08-18): o Total responde "quantos
+            // alunos passaram por esta turma no ano", e o máximo é a
+            // aproximação barata disso. Medido na ALCINA — 1º Bim 234, 2º Bim
+            // 235, Total 238 — porque 4º A e 4º B vão de 17 para 18 e o 5º B
+            // de 27 para 29 entre os dois bimestres.
+            //
+            // 🚫 Não troque por um bimestre só para "bater" com a aba: isso
+            // descartaria quem esteve na turma apenas no outro. A união exata
+            // (REMA distinto somando os bimestres) seria melhor, mas exige o
+            // nível aluno unidade a unidade — inviável para as 112 de uma vez.
             const porU = new Map();  // unidade||ano||turma -> max alunos entre bimestres
             porUA.forEach((itens, kh) => {
               const p = kh.split('||');
@@ -11267,6 +11501,8 @@ function abrirAvaliacao(tipo, btn) {
   // mesmo que a pessoa tenha deixado 2º/5º Ano selecionado em outra aba.
   if (tipo === 'primeiroBimestre' && typeof _setAnoFiltroAtualSeguro === 'function') {
     _setAnoFiltroAtualSeguro('TODOS');
+    _mostrarAnoFilterBarRede(true);
+    _resetarAnoFilterBarRede();
   }
 
   avaliacaoAtual = tipo;
@@ -11278,18 +11514,16 @@ function abrirAvaliacao(tipo, btn) {
     if (el) el.classList.add('d-none');
   });
 
-  // Auditoria tem seus próprios controles de bimestre — não usa a barra de ano global.
+  // Auditoria tem seus próprios controles de bimestre — não usa a barra de ano de rede.
   if (tipo === 'Auditoria') {
-    mostrarAnoFilterBar(false);
+    _mostrarAnoFilterBarRede(false);
     document.getElementById('viewAuditoria').classList.remove('d-none');
     return;
   }
 
-  mostrarAnoFilterBar(true);
-
   if (tipo === 'AnoEscolar') {
     document.getElementById('viewAlunos').classList.remove('d-none');
-    _resetarAnoFilterBar();
+    _mostrarAnoFilterBarRede(false);
 
     if (typeof iniciarDiagnostica === 'function') {
       iniciarDiagnostica();
@@ -11300,11 +11534,15 @@ function abrirAvaliacao(tipo, btn) {
 
   if (tipo === 'Total') {
     document.getElementById('viewTotal').classList.remove('d-none');
+    _mostrarAnoFilterBarRede(true);
+    _resetarAnoFilterBarRede();
     iniciarTotalAvaliacoes();
     return;
   }
 
   document.getElementById('viewBimestre1').classList.remove('d-none');
+  _mostrarAnoFilterBarRede(true);
+  _resetarAnoFilterBarRede();
   limparAreaAvaliacao();
   iniciarBimestreGenerico(tipo, BIMESTRE_LABELS[tipo] || tipo);
 }
