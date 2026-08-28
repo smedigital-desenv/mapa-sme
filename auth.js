@@ -126,7 +126,11 @@
     'av-oral-matematica':    'avaliacao_oral',
     'avaliacao-diagnostica': 'avaliacao_diagnostica',
     'boletim-estatistico':   'boletim_estatistico',
-    'gerencia-liminar':      'gerencia_liminar'
+    'gerencia-liminar':      'gerencia_liminar',
+    'analise-jornada':       'analise_jornada',
+    'retrato-atribuicao':    'retrato_atribuicao',
+    'comparativo-escolas':   'comparativo_escolas',
+    'analise-desempenho':    'analise_desempenho'
   };
 
   var _arquivo = (location.pathname.split('/').pop() || 'index.html').replace(/\.html$/i, '');
