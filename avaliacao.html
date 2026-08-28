@@ -4955,13 +4955,22 @@ async function baixarRelatorioExcel() {
 // Corrigido: filtro de ano funcionando também no menu Rede.
 // ===========================================================
 
+/* Estado do carregamento dos alunos da Diagnóstica: 'carregando' | 'pronto' |
+   'erro'. ⚠️ Existe porque VAZIO NÃO É O MESMO QUE CARREGANDO, e enquanto os
+   dois dividiram a mesma tela o sintoma foi grave: uma consulta que volta sem
+   linhas — recorte sem lançamento, perfil sem cadastro no MAPA, filtro que não
+   casa — aparecia como "Carregando dados da Rede…" PARA SEMPRE. Quem via isso
+   concluía que a tela travou, e não havia nada no console para contradizer. */
+var _alunosDiagEstado = 'carregando';
+
 function iniciarDiagnostica() {
   avaliacaoAtual = 'AnoEscolar';
 
   prepararLayoutDiagnostica('Diagnóstica');
 
   if (!rawData || !Array.isArray(rawData.alunos) || !rawData.alunos.length) {
-    _mostrarLoadingDiagnostica();
+    if (_alunosDiagEstado === 'carregando') _mostrarLoadingDiagnostica();
+    else _mostrarVazioDiagnostica(_alunosDiagEstado === 'erro');
     return;
   }
 
@@ -4972,6 +4981,28 @@ function iniciarDiagnostica() {
   renderHierarquiaDiag(true);
   _atualizarBreadcrumbDiag();
   _aplicarFiltroDiag();
+}
+
+/* O par do _mostrarLoadingDiagnostica: a tela de quem JÁ carregou e não tem o
+   que mostrar. Diz qual é o caso e o que fazer, em vez de girar. */
+function _mostrarVazioDiagnostica(houveErro) {
+  ['kpiAlunos1', 'kpiAlunos2', 'kpiAlunos3', 'kpiAlunos4'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '—';
+  });
+  const h = document.getElementById('hierarquiaContainerDiag');
+  if (!h) return;
+  h.innerHTML = houveErro
+    ? `<div class="text-center p-4" style="color:#b45309">
+         <i class="bi bi-exclamation-triangle" style="font-size:1.4rem"></i><br>
+         <b>Não foi possível carregar a Diagnóstica.</b><br>
+         <span style="font-size:.85rem">O erro está no console. Recarregue a página; se persistir, avise a administração.</span>
+       </div>`
+    : `<div class="text-center text-muted p-4">
+         <i class="bi bi-folder-x" style="font-size:1.4rem"></i><br>
+         <b>Nenhum aluno na Avaliação Diagnóstica.</b><br>
+         <span style="font-size:.85rem">Não há lançamento para o seu recorte — não é falha de carregamento.</span>
+       </div>`;
 }
 
 function _mostrarLoadingDiagnostica() {
@@ -11228,6 +11259,7 @@ function _carregarAlunosDiagnosticaBackground(onReady) {
 
   if (cached && Array.isArray(cached)) {
     // Aplica filtro de unidade na lista já em cache.
+    _alunosDiagEstado = 'pronto';
     rawData.alunos = (typeof _filtrarAlunosPorUnidade === 'function') ? _filtrarAlunosPorUnidade(cached) : cached;
     if (avaliacaoAtual === 'AnoEscolar' && typeof iniciarDiagnostica === 'function') iniciarDiagnostica();
     if (typeof onReady === 'function') setTimeout(onReady, 0);
@@ -11237,6 +11269,7 @@ function _carregarAlunosDiagnosticaBackground(onReady) {
   google.script.run
     .withSuccessHandler(alunos => {
       const lista = alunos || [];
+      _alunosDiagEstado = 'pronto';
       _cacheSet(chAlunos, lista); // grava sem filtro para reutilizar no refresh
       rawData.alunos = (typeof _filtrarAlunosPorUnidade === 'function') ? _filtrarAlunosPorUnidade(lista) : lista;
       if (avaliacaoAtual === 'AnoEscolar' && typeof iniciarDiagnostica === 'function') iniciarDiagnostica();
@@ -11244,6 +11277,10 @@ function _carregarAlunosDiagnosticaBackground(onReady) {
     })
     .withFailureHandler(err => {
       console.error('Erro ao carregar Diagnóstica em background:', err);
+      // ⚠️ Sem isto a tela ficava no spinner: o caminho de falha não repintava
+      // nada, e "não carregou" era indistinguível de "ainda carregando".
+      _alunosDiagEstado = 'erro';
+      if (avaliacaoAtual === 'AnoEscolar' && typeof iniciarDiagnostica === 'function') iniciarDiagnostica();
       if (typeof onReady === 'function') onReady();
     })
     .getDashboardAlunos();
