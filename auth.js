@@ -314,6 +314,14 @@
       marcar('token_central');
       var resp = await pedirTokenAPonte(tokenCentral, simulando);
       marcar('ponte');
+      /* Qual versão da `central-bridge` respondeu. Ela é publicada à parte do
+         site e serve produção e /teste ao mesmo tempo — sem este carimbo não há
+         como saber, de dentro do sistema, se a função no ar é a mesma do
+         repositório. "Front novo com função velha" produz erro que não parece
+         versão, e foi o que custou o diagnóstico de agosto. */
+      if (resp && resp.versao) console.info('[mapa-auth] central-bridge versão: ' + resp.versao);
+      else if (resp) console.warn('[mapa-auth] a central-bridge publicada não informa versão — '
+        + 'é anterior a 2026-08-25 e NÃO sincroniza perfil/vínculo do central.');
       if (!resp || !resp.access_token) return false;
 
       var erro = await abrirSessao(resp);
