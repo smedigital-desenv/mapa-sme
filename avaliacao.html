@@ -3136,8 +3136,30 @@ const _prefetchQueue = [];
 let _prefetchRunning = 0;
 const _prefetchMaxConcurrent = 2;
 
+/* ⚠️ A CHAVE INCLUI QUEM ESTÁ VENDO. Sem isso o `sessionStorage` é comum a
+   todas as identidades da mesma aba, e o vazio de uma vaza para a outra:
+   uma SIMULAÇÃO de perfil sem dado gravava `[]` aqui e, ao encerrar a
+   simulação, o super admin lia esse vazio como se fosse dele — a Diagnóstica
+   ficava sem aluno nenhum. Antes de a tela distinguir vazio de carregando,
+   o sintoma era pior: spinner eterno, sem nada no console. Medido em 2026-08.
+
+   Sob simulação, `MapaAuth.perfil.email` JÁ é o e-mail da pessoa simulada
+   (o `auth.js` monta o perfil a partir das permissões observadas), então a
+   separação sai de graça — não é preciso um sinalizador à parte.
+
+   ⚠️ Vale para TODOS os pacotes que passam por `_cacheSet`/`_cacheGet`
+   (dashboard, bimestre, Total), não só para a Diagnóstica.
+
+   Se a auth ainda não resolveu, a chave sai com '?': quem gravou antes e quem
+   lê depois não se encontram, e o pior caso é buscar de novo — nunca ler o
+   dado de outra pessoa. */
 function _cacheStorageKey(chave) {
-  return 'MAPA_CACHE_' + String(chave);
+  var quem = '?';
+  try {
+    var p = window.MapaAuth && window.MapaAuth.perfil;
+    if (p && p.email) quem = String(p.email).trim().toLowerCase();
+  } catch (e) {}
+  return 'MAPA_CACHE_' + quem + '_' + String(chave);
 }
 
 function _cacheSet(chave, valor) {
@@ -4955,13 +4977,22 @@ async function baixarRelatorioExcel() {
 // Corrigido: filtro de ano funcionando também no menu Rede.
 // ===========================================================
 
+/* Estado do carregamento dos alunos da Diagnóstica: 'carregando' | 'pronto' |
+   'erro'. ⚠️ Existe porque VAZIO NÃO É O MESMO QUE CARREGANDO, e enquanto os
+   dois dividiram a mesma tela o sintoma foi grave: uma consulta que volta sem
+   linhas — recorte sem lançamento, perfil sem cadastro no MAPA, filtro que não
+   casa — aparecia como "Carregando dados da Rede…" PARA SEMPRE. Quem via isso
+   concluía que a tela travou, e não havia nada no console para contradizer. */
+var _alunosDiagEstado = 'carregando';
+
 function iniciarDiagnostica() {
   avaliacaoAtual = 'AnoEscolar';
 
   prepararLayoutDiagnostica('Diagnóstica');
 
   if (!rawData || !Array.isArray(rawData.alunos) || !rawData.alunos.length) {
-    _mostrarLoadingDiagnostica();
+    if (_alunosDiagEstado === 'carregando') _mostrarLoadingDiagnostica();
+    else _mostrarVazioDiagnostica(_alunosDiagEstado === 'erro');
     return;
   }
 
@@ -4972,6 +5003,28 @@ function iniciarDiagnostica() {
   renderHierarquiaDiag(true);
   _atualizarBreadcrumbDiag();
   _aplicarFiltroDiag();
+}
+
+/* O par do _mostrarLoadingDiagnostica: a tela de quem JÁ carregou e não tem o
+   que mostrar. Diz qual é o caso e o que fazer, em vez de girar. */
+function _mostrarVazioDiagnostica(houveErro) {
+  ['kpiAlunos1', 'kpiAlunos2', 'kpiAlunos3', 'kpiAlunos4'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '—';
+  });
+  const h = document.getElementById('hierarquiaContainerDiag');
+  if (!h) return;
+  h.innerHTML = houveErro
+    ? `<div class="text-center p-4" style="color:#b45309">
+         <i class="bi bi-exclamation-triangle" style="font-size:1.4rem"></i><br>
+         <b>Não foi possível carregar a Diagnóstica.</b><br>
+         <span style="font-size:.85rem">O erro está no console. Recarregue a página; se persistir, avise a administração.</span>
+       </div>`
+    : `<div class="text-center text-muted p-4">
+         <i class="bi bi-folder-x" style="font-size:1.4rem"></i><br>
+         <b>Nenhum aluno na Avaliação Diagnóstica.</b><br>
+         <span style="font-size:.85rem">Não há lançamento para o seu recorte — não é falha de carregamento.</span>
+       </div>`;
 }
 
 function _mostrarLoadingDiagnostica() {
@@ -11228,6 +11281,7 @@ function _carregarAlunosDiagnosticaBackground(onReady) {
 
   if (cached && Array.isArray(cached)) {
     // Aplica filtro de unidade na lista já em cache.
+    _alunosDiagEstado = 'pronto';
     rawData.alunos = (typeof _filtrarAlunosPorUnidade === 'function') ? _filtrarAlunosPorUnidade(cached) : cached;
     if (avaliacaoAtual === 'AnoEscolar' && typeof iniciarDiagnostica === 'function') iniciarDiagnostica();
     if (typeof onReady === 'function') setTimeout(onReady, 0);
@@ -11237,13 +11291,22 @@ function _carregarAlunosDiagnosticaBackground(onReady) {
   google.script.run
     .withSuccessHandler(alunos => {
       const lista = alunos || [];
-      _cacheSet(chAlunos, lista); // grava sem filtro para reutilizar no refresh
+      _alunosDiagEstado = 'pronto';
+      // ⚠️ Vazio NÃO entra em cache. Ele é barato de rebuscar e é justamente o
+      // resultado que envenena: uma vez gravado, congela a tela sem dado por
+      // toda a sessão do navegador. Mesmo princípio já aplicado ao cache da
+      // ficha do CODERP.
+      if (lista.length) _cacheSet(chAlunos, lista); // grava sem filtro p/ o refresh
       rawData.alunos = (typeof _filtrarAlunosPorUnidade === 'function') ? _filtrarAlunosPorUnidade(lista) : lista;
       if (avaliacaoAtual === 'AnoEscolar' && typeof iniciarDiagnostica === 'function') iniciarDiagnostica();
       if (typeof onReady === 'function') onReady();
     })
     .withFailureHandler(err => {
       console.error('Erro ao carregar Diagnóstica em background:', err);
+      // ⚠️ Sem isto a tela ficava no spinner: o caminho de falha não repintava
+      // nada, e "não carregou" era indistinguível de "ainda carregando".
+      _alunosDiagEstado = 'erro';
+      if (avaliacaoAtual === 'AnoEscolar' && typeof iniciarDiagnostica === 'function') iniciarDiagnostica();
       if (typeof onReady === 'function') onReady();
     })
     .getDashboardAlunos();

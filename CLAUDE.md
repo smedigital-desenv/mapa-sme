@@ -888,6 +888,66 @@ uma avaria a ser corrigida com `grant`.
 **`vejo_a_rede_toda()` nega por padrão:** quem o banco não reconhece não vê
 nada. A versão ingênua ("sem vínculo = vê tudo") fazia o oposto.
 
+### Toda função que recorta precisa da SAÍDA de rede toda
+
+⚠️ **Este é o padrão errado, e ele esteve em produção:**
+
+```
+se super admin        → devolve tudo
+senão                 → devolve só as escolas vinculadas ao perfil
+```
+
+Falta o caso do meio. Quem é da **secretaria e não tem vínculo** cai no segundo
+ramo com a lista de escolas VAZIA, e o `= any(array[]::text[])` não casa com
+nada: **zero linhas para exatamente quem deveria ver a rede inteira** — o
+oposto do que "sem vínculo" significa em `vejo_a_rede_toda()`.
+
+Foi o que aconteceu com `relat_visitas` e `relat_devolutivas` (medido e
+corrigido em 2026-08): a tela de Relatórios abria vazia para TODO perfil de
+secretaria, e o IAgo, que lê as mesmas funções, respondia "nenhuma visita". O
+sintoma não aponta para a causa — parece falta de permissão de tela, e leva a
+procurar defeito no central, que está certo.
+
+A forma correta:
+
+```sql
+rede_toda := coalesce((perms#>>'{perfil,is_super_admin}')::boolean, false)
+             or public.vejo_a_rede_toda();
+if rede_toda then return query select * from ...; return; end if;
+-- só então o recorte por escola
+```
+
+⚠️ **Auditar isso por `grep` tem ponto cego.** Procurar só por
+`vejo_a_rede_toda` marca como desprotegida quem usa **`posso_ver_unidade()`** —
+que é a forma CORRETA quando a unidade vem como parâmetro, porque ela já chama
+`vejo_a_rede_toda()` por dentro e ainda resolve apelido de grafia.
+`freq_evasao_alunos` foi acusada assim e está certa. Uma varredura honesta
+precisa aceitar a família toda: `vejo_a_rede_toda`, `posso_ver_unidade`,
+`posso_editar`, `minhas_grafias_norm`, `is_super_admin` e os portões de tela
+(`posso_ver_relatorios`, `eh_fluxo_ou_admin`).
+
+⚠️ **Função `_interno` só é segura enquanto `authenticated` NÃO puder
+executá-la.** O par `freq_ativos_resumo` / `freq_ativos_resumo_interno` é o
+desenho certo — o invólucro checa, a interna trabalha —, e ele só se sustenta
+porque a interna tem ACL `{postgres, service_role}`. Um `grant execute` a
+`authenticated` transforma o invólucro em decoração, sem quebrar nada e sem
+aviso nenhum. Conferência:
+
+```sql
+select p.proname, coalesce(p.proacl::text, '(sem ACL — PUBLIC executa)')
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public' and p.proname like '%\_interno';
+```
+
+⚠️ `proacl` vazio **não** é "ninguém tem acesso": função sem ACL explícita é
+executável por **PUBLIC**.
+
+⚠️ **Função `SECURITY DEFINER` de ESCRITA não pode ter `execute` para
+`authenticated` sem portão por dentro.** `relat_sync_escolas(jsonb)` estava
+assim: qualquer pessoa logada podia reescrever o catálogo de escolas dos
+Relatórios, mandando o conteúdo no próprio parâmetro. Revogado em 2026-08 —
+rotina administrativa roda por `service_role` ou pelo SQL Editor.
+
 ### Desempenho do RLS — não é detalhe
 
 As policies **precisam** envolver as chamadas em `(select ...)`:
@@ -1105,6 +1165,12 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
   recorte por tipo de unidade.
 - `unidades.js` expõe `window.MapaUnidades`, o **resolvedor do nome da
   unidade** pelo catálogo `escolas_catalogo`. Quarta exceção deliberada.
+  ⚠️ **`carregar()` não pode tocar `window.MAPA_SB` antes de a sessão
+  existir.** O cliente nasce no `auth.js`, DEPOIS que as telas são
+  interpretadas; tocá-lo antes estoura um TypeError **síncrono**, que nenhum
+  `.catch()` do chamador pega — sem promessa, não há o que encadear. Hoje ele
+  espera em silêncio e **não memoiza a desistência**, para que a chamada do
+  evento `mapa-auth-pronto` carregue de verdade.
 
   ⚠️ **REGRA: todo sistema novo integrado ao MAPA passa o nome da unidade por
   `MapaUnidades.oficial()` antes de exibir ou agregar.** Não escreva uma
@@ -1360,11 +1426,25 @@ gate de verdade é o do central.
 1. **`403` / `permission denied` em `bimestres` ou `mv_*` é esperado.** Não
    conceda acesso; verifique se a função que deveria alcançar o dado está como
    `SECURITY DEFINER`.
-2. **Tela vazia para perfil de escola** costuma ser grafia de unidade ausente
+2. **Tela vazia para perfil de ESCOLA** costuma ser grafia de unidade ausente
    em `escola_alias` — uma linha resolve, não é código.
-3. **Erro intermitente que "funciona depois de algumas tentativas"** é assinatura
+3. **Tela vazia para perfil de SECRETARIA é outra coisa.** Perfil de secretaria
+   não tem vínculo, então `escola_alias` não explica nada: procure função de
+   recorte sem a saída de rede toda (seção 3). Antes de mexer, confirme com
+   `select public.vejo_a_rede_toda()` na sessão DA PESSOA — o "Ver como" troca
+   a identidade no banco de verdade, então serve para isso. Se der `true` e a
+   tela seguir vazia, o corte está dentro da função que a tela chama, não no
+   RLS.
+4. **`google is not defined` na tela de Avaliações não é sobre o Apps Script.**
+   O adaptador Supabase instala `google.script.run` nas ÚLTIMAS linhas de um
+   IIFE de milhares de linhas; qualquer exceção dentro dele aborta antes disso
+   e a camada de dados inteira some. O erro que aparece é o da primeira
+   consulta, não o da causa. Procure a **primeira** exceção do console — em
+   2026-08 era uma linha do catálogo de unidades, trinta arquivos de distância.
+   Um teste depois do IIFE avisa quando isso acontece.
+5. **Erro intermitente que "funciona depois de algumas tentativas"** é assinatura
    de corrida, não de configuração. Procure o que executa o mesmo código duas
    vezes (prerender, prefetch, listener duplicado).
-4. **Timeout em tabela pequena** é estatística velha ou instância saturada,
+6. **Timeout em tabela pequena** é estatística velha ou instância saturada,
    não policy mal escrita.
-5. **Antes de propor `grant`**, releia a seção 3.
+7. **Antes de propor `grant`**, releia a seção 3.

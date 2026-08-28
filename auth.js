@@ -80,6 +80,63 @@
 
   function gateOff() { try { if (window.__mapaGateOff) window.__mapaGateOff(); } catch (e) {} }
 
+  /* ── O perfil existe no banco do MAPA? ─────────────────────────────────────
+     ⚠️ Quem entra pelo central mas NÃO tem linha em `perfis` aqui vê todas as
+     telas vazias, sem erro nenhum: `meu_perfil_id()` devolve nulo e a regra
+     de isolamento nega por padrão (`vejo_a_rede_toda()` = false, grafias
+     vazias). O sintoma não aponta para a causa — parece falta de permissão de
+     tela, e leva a mexer no central, que está certo.
+
+     Quem deveria evitar isso é a `central-bridge`, que sincroniza o perfil a
+     cada login. Este aviso não substitui a ponte: ele torna VISÍVEL o dia em
+     que ela falhar ou estiver desatualizada. Sem ele, a falha custa uma hora
+     de diagnóstico por pessoa; com ele, a própria tela diz o que falta.
+
+     ⚠️ Dispare-e-esqueça: nada da abertura de sessão espera por isto, e falha
+     nenhuma daqui pode barrar quem já passou pelas checagens. Não entra nas
+     pernas de MapaAuthTempos.
+
+     ⚠️ Só o resultado POSITIVO é memoizado. Memoizar o negativo esconderia a
+     recuperação: a pessoa seria cadastrada e continuaria vendo o aviso até
+     fechar o navegador. */
+  var PERFIL_OK_KEY = 'MAPA_PERFIL_OK_v1';
+  function conferirPerfilNoMapa() {
+    try { if (sessionStorage.getItem(PERFIL_OK_KEY) === '1') return; } catch (e) {}
+    try {
+      window.MAPA_SB.rpc('meu_perfil_id').then(function (r) {
+        if (r && r.error) { console.debug('[mapa-auth] não deu para conferir o perfil:', r.error.message); return; }
+        var id = r && r.data;
+        if (id !== null && id !== undefined) {
+          try { sessionStorage.setItem(PERFIL_OK_KEY, '1'); } catch (e) {}
+          return;
+        }
+        console.warn('[mapa-auth] esta conta NÃO tem perfil no banco do MAPA — '
+          + 'as telas vão aparecer vazias. A `central-bridge` deveria criá-lo a cada login; '
+          + 'se isso persistir, a versão publicada dela está desatualizada.');
+        faixaPerfilAusente();
+      }, function (e) { console.debug('[mapa-auth] não deu para conferir o perfil:', e && e.message); });
+    } catch (e) { console.debug('[mapa-auth] não deu para conferir o perfil:', e && e.message); }
+  }
+
+  /* Faixa, não overlay: a pessoa continua navegando. O objetivo é explicar a
+     tela vazia, não impedir o uso — e dar a quem atende o chamado a frase que
+     encurta o diagnóstico. */
+  function faixaPerfilAusente() {
+    try {
+      if (document.getElementById('mapaPerfilAusente')) return;
+      var b = document.createElement('div');
+      b.id = 'mapaPerfilAusente';
+      b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483646;background:#b45309;color:#fff;'
+        + 'font:600 13px Inter,sans-serif;padding:9px 16px;text-align:center;line-height:1.4;'
+        + 'box-shadow:0 2px 10px rgba(0,0,0,.25);';
+      b.innerHTML = '<b>Seu cadastro ainda não foi criado no MAPA.</b> '
+        + 'Você consegue abrir as telas, mas elas vão aparecer <b>sem dados</b> até que isso seja feito. '
+        + 'Avise a administração da rede — não é problema do seu computador.';
+      document.body.appendChild(b);
+      document.body.style.paddingTop = '40px';
+    } catch (e) {}
+  }
+
   function overlayErro(msg) {
     gateOff();
     try {
@@ -345,6 +402,14 @@
       marcar('token_central');
       var resp = await pedirTokenAPonte(tokenCentral, simulando);
       marcar('ponte');
+      /* Qual versão da `central-bridge` respondeu. Ela é publicada à parte do
+         site e serve produção e /teste ao mesmo tempo — sem este carimbo não há
+         como saber, de dentro do sistema, se a função no ar é a mesma do
+         repositório. "Front novo com função velha" produz erro que não parece
+         versão, e foi o que custou o diagnóstico de agosto. */
+      if (resp && resp.versao) console.info('[mapa-auth] central-bridge versão: ' + resp.versao);
+      else if (resp) console.warn('[mapa-auth] a central-bridge publicada não informa versão — '
+        + 'é anterior a 2026-08-25 e NÃO sincroniza perfil/vínculo do central.');
       if (!resp || !resp.access_token) return false;
 
       var erro = await abrirSessao(resp);
@@ -450,6 +515,7 @@
     gateOff();
     relatarTempos(TEMPOS.reaproveitou ? 'sessão reaproveitada' : 'sessão nova');
     document.dispatchEvent(new CustomEvent('mapa-auth-pronto', { detail: api }));
+    conferirPerfilNoMapa();
 
     // ── Cache local das respostas da Ficha CODERP ──────────────────────────
     // IndexedDB + gzip, compartilhado entre TODAS as telas do MAPA. O
