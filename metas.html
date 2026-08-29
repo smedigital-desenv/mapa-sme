@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <script src="auth-guard.js"></script>
+  <script>window.MAPA_SISTEMA = 'mapa';</script>
+  <script src="auth.js" defer></script>
+  <script src="config-central.js" defer></script>
+  <script src="demo-mode.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Metas de Fluência Leitora | SME Ribeirão Preto</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --primary: #002b5e;
+      --neon-blue: #00e5ff;
+      --c-flu: #10B981; --c-ini: #3B82F6;
+      --c-n4: #6366F1;  --c-n3: #F59E0B; --c-n2: #FF007F; --c-n1: #dc2626;
+    }
+    body { background:#f1f5f9; font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif; }
+    .card-mapa {
+      background:#fff; border-radius:14px; border:1px solid #e2e8f0;
+      box-shadow:0 1px 3px rgba(0,0,0,.05); padding:1.15rem 1.35rem; margin-bottom:1.1rem;
+    }
+    .card-titulo {
+      font-weight:900; color:var(--primary); font-size:1.02rem;
+      display:flex; align-items:center; gap:.5rem; margin-bottom:.2rem;
+    }
+    .card-sub { font-size:.79rem; color:#64748b; margin-bottom:1rem; }
+
+    /* ── KPIs ── */
+    .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:.9rem; }
+    .kpi {
+      background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px;
+      padding:.9rem 1rem; text-align:center;
+    }
+    .kpi-val { font-size:1.75rem; font-weight:900; line-height:1.1; }
+    .kpi-lbl { font-size:.7rem; font-weight:800; color:#64748b;
+               text-transform:uppercase; letter-spacing:.05em; margin-top:.3rem; }
+    .kpi-nota { font-size:.72rem; color:#94a3b8; margin-top:.15rem; }
+
+    /* ── Controles deslizantes ── */
+    .ctrl { padding:.75rem 0; border-bottom:1px dashed #e2e8f0; }
+    .ctrl:last-child { border-bottom:0; }
+    .ctrl-topo { display:flex; align-items:center; gap:.6rem; margin-bottom:.45rem; flex-wrap:wrap; }
+    .ctrl-bolha {
+      width:30px; height:30px; border-radius:9px; color:#fff; font-weight:900;
+      font-size:.76rem; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    }
+    .ctrl-nome { font-weight:800; color:#1e293b; font-size:.88rem; }
+    .ctrl-qtd  { font-size:.75rem; color:#64748b; }
+    .ctrl-saida {
+      margin-left:auto; text-align:right; font-size:.8rem; font-weight:800; color:#0f766e;
+      white-space:nowrap;
+    }
+    .ctrl-saida .pct { font-size:1.05rem; }
+    input[type=range] { width:100%; height:26px; cursor:pointer; accent-color:var(--primary); }
+    input[type=range]:disabled { cursor:not-allowed; opacity:.45; }
+
+    /* ── Barra de composição ── */
+    .barra { display:flex; height:34px; border-radius:9px; overflow:hidden; border:1px solid #e2e8f0; }
+    .barra div { display:flex; align-items:center; justify-content:center;
+                 font-size:.68rem; font-weight:800; color:#fff; overflow:hidden; }
+    .barra-wrap { position:relative; }
+    .linha-meta {
+      position:absolute; top:-5px; bottom:-5px; width:3px; background:#0f172a; z-index:3;
+    }
+    .linha-meta::after {
+      content:'META'; position:absolute; top:-16px; left:50%; transform:translateX(-50%);
+      font-size:.56rem; font-weight:900; color:#0f172a; letter-spacing:.06em;
+    }
+
+    /* ── Tabela ── */
+    .tbl { width:100%; font-size:.82rem; border-collapse:separate; border-spacing:0; }
+    .tbl thead th {
+      background:#f8fafc; color:#475569; font-size:.68rem; font-weight:800;
+      text-transform:uppercase; letter-spacing:.04em; padding:.6rem .5rem;
+      border-bottom:2px solid #e2e8f0; position:sticky; top:0; z-index:2; text-align:center;
+    }
+    .tbl thead th:first-child { text-align:left; }
+    .tbl td { padding:.5rem; border-bottom:1px solid #f1f5f9; text-align:center; }
+    .tbl td:first-child { text-align:left; font-weight:700; color:#1e293b; }
+    .tbl tbody tr:hover { background:#f8fafc; }
+    .pill { display:inline-block; padding:.12rem .5rem; border-radius:99px;
+            font-size:.72rem; font-weight:800; color:#fff; }
+    .aviso-soma { color:#b45309; font-size:.7rem; font-weight:700; }
+    .preset-btn { font-size:.74rem; font-weight:700; }
+    @media (max-width: 768px) { .kpi-val { font-size:1.4rem; } }
+  </style>
+<style>
+  /* ═══ HEADER GLOBAL MAPA — opção 2 (página nativa) ═══ */
+  .mg-header {
+    background: var(--primary, #002b5e); color: #fff;
+    border-bottom: 5px solid var(--neon-blue, #00e5ff);
+    padding: .95rem 1.6rem;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; flex-wrap: wrap;
+    position: sticky; top: 0; z-index: 1050;
+    box-shadow: 0 6px 18px rgba(0,43,94,.18);
+  }
+  .mg-brand { display: flex; align-items: center; gap: .6rem; min-width: 180px; }
+  .mg-brand-icon {
+    width: 34px; height: 34px; display: grid; place-items: center;
+    color: var(--neon-blue, #00e5ff); font-size: 1.4rem;
+    filter: drop-shadow(0 0 6px rgba(0,229,255,.55));
+  }
+  .mg-brand h4 { margin: 0; font-weight: 900; letter-spacing: .03em; font-size: 1.4rem; line-height: 1; }
+  .mg-brand-sub {
+    font-size: .63rem; color: rgba(255,255,255,.68); font-weight: 800;
+    letter-spacing: .08em; text-transform: uppercase; margin-top: 2px;
+  }
+  .mg-nav { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; flex: 1; min-width: 280px; }
+  .mg-nav-btn {
+    display: inline-flex; align-items: center; gap: .4rem; justify-content: center;
+    min-width: 150px; font-size: .78rem; font-weight: 900;
+    padding: 6px 14px; border-radius: 8px; border: 2px solid transparent;
+    color: #fff; text-decoration: none; transition: .2s; white-space: nowrap;
+  }
+  .mg-nav-btn:hover { border-color: rgba(255,255,255,.4); }
+  .mg-nav-btn.active { background: #fff; color: var(--primary, #002b5e); box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+  .mg-actions { min-width: 86px; display: flex; justify-content: flex-end; align-items: center; }
+  .mg-action-btn {
+    display: inline-flex; align-items: center; gap: .35rem;
+    font-size: .76rem; font-weight: 800; padding: 5px 12px;
+    border-radius: 8px; border: 1.5px solid rgba(255,255,255,.45);
+    background: transparent; color: #fff; cursor: pointer; transition: .2s;
+  }
+  .mg-action-btn:hover { background: rgba(255,255,255,.12); border-color: #fff; }
+  @media (max-width: 992px) { .mg-nav-btn { min-width: auto; } }
+  /* header próprio do módulo não fixa (só o global) */
+  .nav-header { position: static !important; }
+</style>
+</head>
+<body>
+
+<header class="mg-header">
+  <div class="mg-brand" style="cursor:pointer;" onclick="location.href='index.html'" title="Página inicial do MAPA">
+    <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div>
+    <div>
+      <h4>MAPA</h4>
+      <div class="mg-brand-sub">SME Ribeirão Preto</div>
+    </div>
+  </div>
+  <nav class="mg-nav">
+    <a class="mg-nav-btn" href="index.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
+    <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_irc,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
+      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item" href="avaliacao-diagnostica.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+        <a class="mg-dd-item" href="av-irc.html" data-tela="avaliacao_irc"><i class="bi bi-pencil-fill"></i>Produção Escrita (IRC)</a>
+        <a class="mg-dd-item" href="av-oral-matematica.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+        <a class="mg-dd-item" href="saresp.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+        <a class="mg-dd-item" href="ideb.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+        <a class="mg-dd-item" href="iee.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
+        <a class="mg-dd-item" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+        <a class="mg-dd-item active" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <div class="mg-dd" data-tela-any="frequencia,boletim_estatistico">
+      <a class="mg-nav-btn mg-dd-toggle" href="frequencia.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+        <a class="mg-dd-item" href="boletim-estatistico.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+    <a class="mg-nav-btn" href="boletim.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+    <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none;min-width:auto;padding:6px 10px;" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
+  </nav>
+  <div class="mg-actions">
+    <button class="mg-action-btn" onclick="_limparCacheFlu();location.reload()" title="Atualizar (dados frescos)"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button>
+  </div>
+</header>
+<div style="background:linear-gradient(135deg,#002b5e,#075f82);color:#fff;padding:1rem 1.6rem;
+            display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+  <div style="display:flex;align-items:center;gap:.75rem;">
+    <i class="bi bi-bullseye" style="font-size:1.5rem;"></i>
+    <div>
+      <div style="font-weight:900;font-size:1.15rem;line-height:1.1;">Metas de Fluência Leitora</div>
+      <div style="font-size:.63rem;color:rgba(255,255,255,.65);font-weight:800;
+                  letter-spacing:.08em;text-transform:uppercase;">
+        Simulador por nível de pré-leitor
+      </div>
+    </div>
+  </div>
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <div class="d-flex align-items-center gap-2"
+         style="background:rgba(255,255,255,.12);border-radius:8px;padding:5px 12px;">
+      <i class="bi bi-clipboard-check" style="font-size:.8rem;"></i>
+      <select id="selAvaliacao" class="border-0 bg-transparent fw-bold p-0"
+              style="font-size:.82rem;color:#fff;outline:none;cursor:pointer;"
+              onchange="recalcular()">
+        <option value="">Carregando…</option>
+      </select>
+    </div>
+    <a class="btn btn-sm btn-outline-light fw-bold" href="fluencia.html">
+      <i class="bi bi-arrow-left me-1"></i>Fluência Leitora
+    </a>
+    <button class="btn btn-sm btn-light fw-bold" onclick="exportarMetas()">
+      <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i>Exportar
+    </button>
+  </div>
+</div>
+
+<div class="container-fluid px-3 px-lg-4 py-3" style="max-width:1500px;">
+
+  <div id="aviso"></div>
+
+  <!-- ── Resultado ── -->
+  <div class="card-mapa">
+    <div class="card-titulo"><i class="bi bi-graph-up-arrow"></i>Resultado das metas</div>
+    <div class="card-sub" id="subResultado">Ajuste os controles abaixo e acompanhe aqui.</div>
+    <div class="kpi-grid" id="kpis"></div>
+
+    <div class="mt-4">
+      <div style="font-size:.72rem;font-weight:800;color:#64748b;text-transform:uppercase;
+                  letter-spacing:.05em;margin-bottom:.9rem;">Composição da rede</div>
+      <div style="font-size:.7rem;color:#94a3b8;margin-bottom:.3rem;">Hoje</div>
+      <div class="barra-wrap mb-3"><div class="barra" id="barraHoje"></div><div class="linha-meta" id="metaHoje"></div></div>
+      <div style="font-size:.7rem;color:#94a3b8;margin-bottom:.3rem;">Com as metas aplicadas</div>
+      <div class="barra-wrap"><div class="barra" id="barraMeta"></div><div class="linha-meta" id="metaMeta"></div></div>
+      <div class="d-flex flex-wrap gap-3 mt-3" style="font-size:.7rem;color:#64748b;">
+        <span><span class="pill" style="background:var(--c-flu);">&nbsp;</span> Fluente</span>
+        <span><span class="pill" style="background:var(--c-ini);">&nbsp;</span> Iniciante</span>
+        <span><span class="pill" style="background:var(--c-n4);">&nbsp;</span> Pré N4</span>
+        <span><span class="pill" style="background:var(--c-n3);">&nbsp;</span> Pré N3</span>
+        <span><span class="pill" style="background:var(--c-n2);">&nbsp;</span> Pré N2</span>
+        <span><span class="pill" style="background:var(--c-n1);">&nbsp;</span> Pré N1</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Controles ── -->
+  <div class="card-mapa">
+    <div class="card-titulo"><i class="bi bi-sliders"></i>Quanto de cada nível deve virar leitor</div>
+    <div class="card-sub">
+      Leitor = Iniciante + Fluente. Quanto mais perto de ler, mais fácil avançar — por isso o N4
+      costuma receber a meta mais ambiciosa e o N1 a mais modesta.
+    </div>
+
+    <div class="ctrl">
+      <div class="ctrl-topo">
+        <div class="ctrl-bolha" style="background:#0f172a;"><i class="bi bi-flag-fill"></i></div>
+        <div>
+          <div class="ctrl-nome">Meta da rede</div>
+          <div class="ctrl-qtd">% de leitores sobre os avaliados</div>
+        </div>
+        <div class="ctrl-saida"><span class="pct" id="outMeta">70%</span></div>
+      </div>
+      <input type="range" id="sMeta" min="30" max="100" step="1" value="70" oninput="recalcular()">
+    </div>
+
+    <div id="ctrlNiveis"></div>
+
+    <div class="d-flex flex-wrap gap-2 mt-3 pt-3" style="border-top:1px solid #e2e8f0;">
+      <span style="font-size:.72rem;font-weight:800;color:#64748b;align-self:center;">Cenários:</span>
+      <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="aplicarPreset('conservador')">Conservador</button>
+      <button class="btn btn-sm btn-outline-primary preset-btn" onclick="aplicarPreset('equilibrado')">Equilibrado</button>
+      <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="aplicarPreset('ambicioso')">Ambicioso</button>
+      <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="aplicarPreset('minimo')">Mínimo p/ meta</button>
+      <button class="btn btn-sm btn-link preset-btn text-decoration-none" onclick="aplicarPreset('zerar')">Zerar</button>
+    </div>
+    <div style="font-size:.72rem;color:#b45309;margin-top:.8rem;">
+      <i class="bi bi-exclamation-triangle-fill me-1"></i>
+      Estes percentuais são decisão pedagógica, não medição: o sistema não guarda série histórica
+      de evolução entre níveis que permita calibrá-los.
+    </div>
+  </div>
+
+  <!-- ── Tabela ── -->
+  <div class="card-mapa">
+    <div class="card-titulo"><i class="bi bi-list-ul"></i>Meta por escola</div>
+    <div class="card-sub" id="subTabela"></div>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <input id="busca" class="form-control form-control-sm" style="max-width:280px;"
+             placeholder="Buscar escola…" oninput="renderTabela()">
+      <select id="ordem" class="form-select form-select-sm" style="max-width:230px;" onchange="renderTabela()">
+        <option value="dist">Mais longe da meta primeiro</option>
+        <option value="nome">Nome (A–Z)</option>
+        <option value="hoje">% hoje (menor primeiro)</option>
+        <option value="novos">Mais alunos a evoluir</option>
+      </select>
+      <div class="form-check form-switch align-self-center ms-1">
+        <input class="form-check-input" type="checkbox" id="soFalta" onchange="renderTabela()">
+        <label class="form-check-label" for="soFalta" style="font-size:.78rem;color:#475569;">
+          Só quem não alcança
+        </label>
+      </div>
+    </div>
+    <div style="max-height:560px;overflow:auto;">
+      <table class="tbl">
+        <thead><tr>
+          <th>Escola</th><th>Aval.</th>
+          <th>N4</th><th>N3</th><th>N2</th><th>N1</th>
+          <th>Leitores hoje</th><th>% hoje</th>
+          <th>A evoluir</th><th>% com metas</th><th>Situação</th>
+        </tr></thead>
+        <tbody id="corpo"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   Metas de Fluência Leitora — simulador por nível
+
+   Lê a MESMA view da tela de Fluência (v_fluencia_por_turma) e reusa as
+   MESMAS definições, para não criar uma segunda verdade que diverge em
+   silêncio da tela:
+       base do percentual = AVALIADOS   (não matriculados)
+       leitor             = Iniciante + Fluente
+       meta da rede       = 70% (aqui é ajustável)
+
+   O gradiente sugerido (N4 mais ambicioso … N1 mais modesto) segue a ordem
+   de esforço que calcularMeta() já usa na fluencia.html: N4 peso 1, N3 2,
+   N2 3, N1 4.
+   ═══════════════════════════════════════════════════════════ */
+const SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk';
+
+const _CACHE_PREFIX = 'mapa_flu_';            // mesma chave da tela de Fluência:
+const _CACHE_TTL    = 10 * 60 * 1000;         // se ela já buscou, aqui nem vai à rede
+
+const NIVEIS = [
+  { key:'pre_n4', nome:'Pré-leitor N4', cor:'var(--c-n4)', dif:'mais fácil de avançar', padrao:70 },
+  { key:'pre_n3', nome:'Pré-leitor N3', cor:'var(--c-n3)', dif:'',                      padrao:45 },
+  { key:'pre_n2', nome:'Pré-leitor N2', cor:'var(--c-n2)', dif:'',                      padrao:25 },
+  { key:'pre_n1', nome:'Pré-leitor N1', cor:'var(--c-n1)', dif:'mais difícil',          padrao:10 },
+];
+
+const S = { avaliacoes: [], porEscola: {} };
+
+/* ── Acesso a dados (mesmo caminho da tela de Fluência) ── */
+function aguardarAuth() {
+  return new Promise(resolve => {
+    if (window.MapaAuth && window.MapaAuth.perfil) return resolve();
+    document.addEventListener('mapa-auth-pronto', () => resolve(), { once: true });
+    setTimeout(resolve, 8000);
+  });
+}
+function filtrarPorEscola(rows) {
+  try {
+    if (window.MapaAuth && window.MapaAuth.restritoEscola)
+      return window.MapaAuth.filtrarEscolas(rows, t => t.escola);
+  } catch (e) {}
+  return rows;
+}
+async function apiFetch(path) {
+  const key = _CACHE_PREFIX + path;
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (raw) {
+      const o = JSON.parse(raw);
+      if (o && o.ts && (Date.now() - o.ts) < _CACHE_TTL) return o.data;
+    }
+  } catch (e) {}
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+  });
+  if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
+  const data = await r.json();
+  try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch (e) {}
+  return data;
+}
+
+async function carregarDados() {
+  try {
+    await aguardarAuth();
+    let dados = await apiFetch(
+      'v_fluencia_por_turma?select=avaliacao,escola,ano_escolar,turma,periodo,tipo,turma_raw,total_estudantes,avaliados,ausentes,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1,pct_fluentes&order=avaliacao.asc,escola.asc,ano_escolar.asc,turma.asc'
+    );
+    dados = filtrarPorEscola(dados);
+    if (!dados.length) return semDados('Nenhum dado de fluência disponível para o seu acesso.');
+
+    const por = {};
+    dados.forEach(t => {
+      (por[t.avaliacao] = por[t.avaliacao] || {});
+      (por[t.avaliacao][t.escola] = por[t.avaliacao][t.escola] || []).push(t);
+    });
+    Object.keys(por).forEach(av => {
+      Object.keys(por[av]).forEach(esc => {
+        const ts = por[av][esc];
+        const soma = k => ts.reduce((s, t) => s + (+t[k] || 0), 0);
+        por[av][esc] = {
+          avaliados: soma('avaliados'), fluentes: soma('fluentes'), iniciantes: soma('iniciantes'),
+          pre_n4: soma('pre_n4'), pre_n3: soma('pre_n3'), pre_n2: soma('pre_n2'), pre_n1: soma('pre_n1'),
+        };
+      });
+    });
+    S.porEscola = por;
+    S.avaliacoes = Object.keys(por);
+
+    const sel = document.getElementById('selAvaliacao');
+    sel.innerHTML = S.avaliacoes.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+    montarControles();
+    recalcular();
+  } catch (e) {
+    semDados('Não foi possível carregar os dados: ' + e.message);
+  }
+}
+
+function semDados(msg) {
+  document.getElementById('aviso').innerHTML =
+    `<div class="alert alert-warning d-flex align-items-center gap-2">
+       <i class="bi bi-exclamation-triangle-fill"></i><div>${esc(msg)}</div>
+     </div>`;
+  document.getElementById('selAvaliacao').innerHTML = '<option>Sem dados</option>';
+}
+
+/* ── Controles ── */
+function montarControles() {
+  document.getElementById('ctrlNiveis').innerHTML = NIVEIS.map(n => `
+    <div class="ctrl">
+      <div class="ctrl-topo">
+        <div class="ctrl-bolha" style="background:${n.cor};">${n.key.slice(-2).toUpperCase()}</div>
+        <div>
+          <div class="ctrl-nome">${n.nome}</div>
+          <div class="ctrl-qtd"><span id="qtd_${n.key}">—</span> alunos${n.dif ? ' · ' + n.dif : ''}</div>
+        </div>
+        <div class="ctrl-saida">
+          <span class="pct" id="out_${n.key}">${n.padrao}%</span><br>
+          <span style="font-weight:600;color:#64748b;">vira leitor: <b id="conv_${n.key}">—</b></span>
+        </div>
+      </div>
+      <input type="range" id="s_${n.key}" min="0" max="100" step="1" value="${n.padrao}" oninput="recalcular()">
+    </div>`).join('');
+}
+
+function params() {
+  const p = { meta: (+document.getElementById('sMeta').value || 0) / 100 };
+  NIVEIS.forEach(n => { p[n.key] = (+document.getElementById('s_' + n.key).value || 0) / 100; });
+  return p;
+}
+
+function aplicarPreset(qual) {
+  const mapa = {
+    conservador: { pre_n4:45, pre_n3:25, pre_n2:12, pre_n1:5  },
+    equilibrado: { pre_n4:70, pre_n3:45, pre_n2:25, pre_n1:10 },
+    ambicioso:   { pre_n4:90, pre_n3:65, pre_n2:40, pre_n1:20 },
+    zerar:       { pre_n4:0,  pre_n3:0,  pre_n2:0,  pre_n1:0  },
+  };
+  if (qual === 'minimo') return presetMinimo();
+  const v = mapa[qual]; if (!v) return;
+  NIVEIS.forEach(n => { document.getElementById('s_' + n.key).value = v[n.key]; });
+  recalcular();
+}
+
+// "Mínimo p/ meta": consome o nível mais fácil primeiro (N4 → N3 → N2 → N1),
+// que é a mesma ordem de esforço da calcularMeta(), até a REDE alcançar a meta.
+// Mostra o menor esforço que fecha a conta, não uma meta pedagógica.
+function presetMinimo() {
+  const t = totais(); const p = params();
+  if (!t.avaliados) return;
+  let faltam = Math.max(0, Math.ceil(t.avaliados * p.meta) - t.leitores);
+  NIVEIS.forEach(n => {
+    const disp = t[n.key];
+    const usa = Math.min(disp, faltam);
+    faltam -= usa;
+    document.getElementById('s_' + n.key).value = disp > 0 ? Math.ceil(usa / disp * 100) : 0;
+  });
+  recalcular();
+}
+
+/* ── Cálculo ── */
+function avAtual() { return document.getElementById('selAvaliacao')?.value || S.avaliacoes[0] || ''; }
+function escolasAtuais() { return S.porEscola[avAtual()] || {}; }
+
+function totais() {
+  const e = escolasAtuais(); const acc = { avaliados:0, fluentes:0, iniciantes:0, pre_n4:0, pre_n3:0, pre_n2:0, pre_n1:0 };
+  Object.values(e).forEach(d => Object.keys(acc).forEach(k => acc[k] += (+d[k] || 0)));
+  acc.leitores = acc.fluentes + acc.iniciantes;
+  return acc;
+}
+
+// Meta de UMA escola. Arredonda por nível: o número tem que ser de aluno
+// inteiro, porque é assim que a coordenação vai usar ("mover 12 do N4").
+function metaEscola(d, p) {
+  const leitores = (+d.fluentes || 0) + (+d.iniciantes || 0);
+  let novos = 0; const porNivel = {};
+  NIVEIS.forEach(n => { const v = Math.round((+d[n.key] || 0) * p[n.key]); porNivel[n.key] = v; novos += v; });
+  const av = +d.avaliados || 0;
+  const soma = leitores + NIVEIS.reduce((s, n) => s + (+d[n.key] || 0), 0);
+  return {
+    avaliados: av, leitores, novos, porNivel,
+    depois: leitores + novos,
+    pctHoje:   av > 0 ? leitores / av * 100 : 0,
+    pctDepois: av > 0 ? (leitores + novos) / av * 100 : 0,
+    faltamHoje: av > 0 ? Math.max(0, Math.ceil(av * p.meta) - leitores) : 0,
+    fecha: soma === av,          // conferência: as partes reproduzem o todo?
+    somaPartes: soma,
+  };
+}
+
+function recalcular() {
+  const p = params();
+  document.getElementById('outMeta').textContent = Math.round(p.meta * 100) + '%';
+  const t = totais();
+
+  const escolas = escolasAtuais();
+  const nomes = Object.keys(escolas);
+  const calc = nomes.map(nome => ({ nome, ...metaEscola(escolas[nome], p) }));
+  window._calc = calc;
+
+  // O arredondamento é POR ESCOLA (é assim que a meta será usada). Somar as
+  // escolas e arredondar no total daria número diferente — 44 em vez de 45 no
+  // caso medido — e o controle passaria a contradizer a tabela em silêncio.
+  const convRede = {};
+  NIVEIS.forEach(n => { convRede[n.key] = calc.reduce((s, c) => s + c.porNivel[n.key], 0); });
+
+  NIVEIS.forEach(n => {
+    document.getElementById('out_' + n.key).textContent = Math.round(p[n.key] * 100) + '%';
+    document.getElementById('qtd_' + n.key).textContent = (t[n.key] || 0).toLocaleString('pt-BR');
+    document.getElementById('conv_' + n.key).textContent =
+      convRede[n.key].toLocaleString('pt-BR') + ' alunos';
+  });
+
+  const novosRede = calc.reduce((s, c) => s + c.novos, 0);
+  const depoisRede = t.leitores + novosRede;
+  const pctHoje = t.avaliados ? t.leitores / t.avaliados * 100 : 0;
+  const pctDepois = t.avaliados ? depoisRede / t.avaliados * 100 : 0;
+  const alcancam = calc.filter(c => c.avaliados > 0 && c.pctDepois >= p.meta * 100).length;
+  const alcancamHoje = calc.filter(c => c.avaliados > 0 && c.pctHoje >= p.meta * 100).length;
+  const metaAbs = Math.ceil(t.avaliados * p.meta);
+  const faltamRede = Math.max(0, metaAbs - depoisRede);
+  const corDepois = pctDepois >= p.meta * 100 ? '#0f766e' : '#d97706';
+
+  document.getElementById('subResultado').textContent =
+    `${nomes.length} escola${nomes.length !== 1 ? 's' : ''} · ${t.avaliados.toLocaleString('pt-BR')} alunos avaliados · ${avAtual()}`;
+
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi">
+      <div class="kpi-val" style="color:#475569;">${pctHoje.toFixed(1)}%</div>
+      <div class="kpi-lbl">Leitores hoje</div>
+      <div class="kpi-nota">${t.leitores.toLocaleString('pt-BR')} alunos</div>
+    </div>
+    <div class="kpi" style="border-color:${corDepois};">
+      <div class="kpi-val" style="color:${corDepois};">${pctDepois.toFixed(1)}%</div>
+      <div class="kpi-lbl">Com as metas</div>
+      <div class="kpi-nota">${depoisRede.toLocaleString('pt-BR')} alunos</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" style="color:var(--primary);">+${novosRede.toLocaleString('pt-BR')}</div>
+      <div class="kpi-lbl">Alunos a evoluir</div>
+      <div class="kpi-nota">para virar leitores</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" style="color:${alcancam === nomes.length ? '#0f766e' : 'var(--primary)'};">${alcancam}<span style="font-size:1rem;color:#94a3b8;">/${nomes.length}</span></div>
+      <div class="kpi-lbl">Escolas na meta</div>
+      <div class="kpi-nota">hoje são ${alcancamHoje}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" style="color:${faltamRede ? '#d97706' : '#0f766e'};">${faltamRede ? faltamRede.toLocaleString('pt-BR') : '✓'}</div>
+      <div class="kpi-lbl">${faltamRede ? 'Ainda faltam' : 'Rede na meta'}</div>
+      <div class="kpi-nota">${faltamRede ? 'alunos para a rede' : 'com estes parâmetros'}</div>
+    </div>`;
+
+  barra('barraHoje', t, 0, {});
+  barra('barraMeta', t, novosRede, convRede);
+  const pos = Math.min(100, Math.max(0, p.meta * 100));
+  document.getElementById('metaHoje').style.left = pos + '%';
+  document.getElementById('metaMeta').style.left = pos + '%';
+
+  renderTabela();
+}
+
+// Barra de composição. Os leitores ficam à ESQUERDA para que a linha da meta
+// (em X%) possa ser lida como "os leitores precisam cobrir até aqui".
+function barra(id, t, novos, convertidos) {
+  const av = t.avaliados || 1;
+  const segs = [
+    { v: t.fluentes,   c:'var(--c-flu)', r:'Fluente' },
+    { v: t.iniciantes + novos, c:'var(--c-ini)', r:'Iniciante' },
+    { v: (t.pre_n4 || 0) - (convertidos.pre_n4 || 0), c:'var(--c-n4)', r:'N4' },
+    { v: (t.pre_n3 || 0) - (convertidos.pre_n3 || 0), c:'var(--c-n3)', r:'N3' },
+    { v: (t.pre_n2 || 0) - (convertidos.pre_n2 || 0), c:'var(--c-n2)', r:'N2' },
+    { v: (t.pre_n1 || 0) - (convertidos.pre_n1 || 0), c:'var(--c-n1)', r:'N1' },
+  ];
+  document.getElementById(id).innerHTML = segs.map(s => {
+    const pct = Math.max(0, s.v) / av * 100;
+    if (pct <= 0) return '';
+    return `<div style="width:${pct}%;background:${s.c};" title="${s.r}: ${Math.max(0,s.v).toLocaleString('pt-BR')} (${pct.toFixed(1)}%)">${pct > 6 ? s.r : ''}</div>`;
+  }).join('');
+}
+
+/* ── Tabela ── */
+function renderTabela() {
+  const calc = window._calc || []; const p = params();
+  const termo = (document.getElementById('busca').value || '').toLowerCase().trim();
+  const soFalta = document.getElementById('soFalta').checked;
+  const ordem = document.getElementById('ordem').value;
+
+  let lista = calc.filter(c => !termo || c.nome.toLowerCase().includes(termo));
+  if (soFalta) lista = lista.filter(c => c.pctDepois < p.meta * 100);
+
+  lista = lista.slice().sort((a, b) =>
+    ordem === 'nome'  ? a.nome.localeCompare(b.nome, 'pt-BR')
+  : ordem === 'hoje'  ? a.pctHoje - b.pctHoje
+  : ordem === 'novos' ? b.novos - a.novos
+  : (a.pctDepois - p.meta * 100) - (b.pctDepois - p.meta * 100));
+
+  document.getElementById('subTabela').textContent =
+    `${lista.length} de ${calc.length} escola${calc.length !== 1 ? 's' : ''}`;
+
+  document.getElementById('corpo').innerHTML = lista.map(c => {
+    const ok = c.pctDepois >= p.meta * 100;
+    const cor = ok ? '#0f766e' : (c.pctDepois >= p.meta * 100 - 10 ? '#d97706' : '#dc2626');
+    return `<tr>
+      <td>${esc(c.nome)}${c.fecha ? '' : `<div class="aviso-soma"><i class="bi bi-exclamation-triangle-fill"></i> partes somam ${c.somaPartes}, avaliados ${c.avaliados}</div>`}</td>
+      <td>${c.avaliados.toLocaleString('pt-BR')}</td>
+      <td>${(c.porNivel.pre_n4 ? `<b>${c.porNivel.pre_n4}</b>/` : '')}${(escolasAtuais()[c.nome]?.pre_n4 || 0)}</td>
+      <td>${(c.porNivel.pre_n3 ? `<b>${c.porNivel.pre_n3}</b>/` : '')}${(escolasAtuais()[c.nome]?.pre_n3 || 0)}</td>
+      <td>${(c.porNivel.pre_n2 ? `<b>${c.porNivel.pre_n2}</b>/` : '')}${(escolasAtuais()[c.nome]?.pre_n2 || 0)}</td>
+      <td>${(c.porNivel.pre_n1 ? `<b>${c.porNivel.pre_n1}</b>/` : '')}${(escolasAtuais()[c.nome]?.pre_n1 || 0)}</td>
+      <td>${c.leitores.toLocaleString('pt-BR')}</td>
+      <td>${c.pctHoje.toFixed(1)}%</td>
+      <td><b style="color:var(--primary);">+${c.novos}</b></td>
+      <td><span class="pill" style="background:${cor};">${c.pctDepois.toFixed(1)}%</span></td>
+      <td style="font-size:.75rem;color:${cor};font-weight:700;">${ok ? 'Alcança' : `faltam ${Math.ceil(c.avaliados * p.meta) - c.depois}`}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="11" class="text-center text-muted py-4">Nenhuma escola no filtro.</td></tr>';
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g,
+    c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+window.addEventListener('DOMContentLoaded', carregarDados);
+
+/* ── Exportar com os parâmetros que estão nos controles ──
+   Mesma estrutura do export da tela de Fluência: as metas vão como FÓRMULA
+   apontando para a aba de parâmetros, então quem receber o arquivo continua
+   podendo mexer nos percentuais no Excel. O nome da aba vai sem acento de
+   propósito — ele entra nas fórmulas das outras células. */
+function exportarMetas() {
+  const av = avAtual(); const escolas = escolasAtuais();
+  const nomes = Object.keys(escolas).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  if (!nomes.length) { alert('Não há dados para exportar.'); return; }
+  const p = params();
+
+  const par = [
+    ['Metas de Fluência Leitora — Parâmetros'],
+    ['Avaliação:', av],
+    ['Meta da rede (% de leitores sobre avaliados)', p.meta],
+    [],
+    ['Quanto de cada nível deve virar leitor', '% que deve virar leitor'],
+    ['Pré-leitor N4', p.pre_n4],
+    ['Pré-leitor N3', p.pre_n3],
+    ['Pré-leitor N2', p.pre_n2],
+    ['Pré-leitor N1', p.pre_n1],
+    [],
+    ['Edite B3 e B6:B9 — a aba de metas recalcula sozinha.'],
+    ['Percentuais são decisão pedagógica, não medição: o sistema não guarda'],
+    ['série histórica de evolução entre níveis para calibrá-los.'],
+    [],
+    ['Base: alunos AVALIADOS. Leitores = Iniciantes + Fluentes.'],
+    ['Gerado pelo MAPA em ' + new Date().toLocaleString('pt-BR')],
+  ];
+  const wsPar = XLSX.utils.aoa_to_sheet(par);
+  wsPar['!cols'] = [{ wch: 46 }, { wch: 24 }];
+  ['B3','B6','B7','B8','B9'].forEach(c => { if (wsPar[c]) wsPar[c].z = '0%'; });
+
+  const CAB = ['Escola','Avaliados','Fluentes','Iniciantes','Pré N4','Pré N3','Pré N2','Pré N1',
+               'Conferência','Leitores hoje','% hoje','Meta N4 (alunos)','Meta N3 (alunos)',
+               'Meta N2 (alunos)','Meta N1 (alunos)','Novos leitores','Leitores após meta',
+               '% após meta','Faltam p/ meta (hoje)','Situação'];
+  const linhas = nomes.map(n => { const d = escolas[n];
+    return [n, +d.avaliados||0, +d.fluentes||0, +d.iniciantes||0,
+            +d.pre_n4||0, +d.pre_n3||0, +d.pre_n2||0, +d.pre_n1||0]; });
+
+  const ws = XLSX.utils.aoa_to_sheet([CAB, ...linhas]);
+  const prim = 2, ult = 1 + linhas.length, tot = ult + 2;
+  const F = (c, f, z) => { ws[c] = { t:'n', f }; if (z) ws[c].z = z; };
+  const T = (c, f) => { ws[c] = { t:'s', f }; };
+
+  for (let r = prim; r <= ult; r++) {
+    T(`I${r}`, `IF(SUM(C${r}:H${r})=B${r},"ok","confere: soma "&SUM(C${r}:H${r})&" <> "&B${r})`);
+    F(`J${r}`, `C${r}+D${r}`, '#,##0');
+    F(`K${r}`, `IF(B${r}=0,"",J${r}/B${r})`, '0.0%');
+    F(`L${r}`, `ROUND(E${r}*Parametros!$B$6,0)`, '#,##0');
+    F(`M${r}`, `ROUND(F${r}*Parametros!$B$7,0)`, '#,##0');
+    F(`N${r}`, `ROUND(G${r}*Parametros!$B$8,0)`, '#,##0');
+    F(`O${r}`, `ROUND(H${r}*Parametros!$B$9,0)`, '#,##0');
+    F(`P${r}`, `L${r}+M${r}+N${r}+O${r}`, '#,##0');
+    F(`Q${r}`, `J${r}+P${r}`, '#,##0');
+    F(`R${r}`, `IF(B${r}=0,"",Q${r}/B${r})`, '0.0%');
+    F(`S${r}`, `IF(B${r}=0,"",MAX(0,ROUNDUP(B${r}*Parametros!$B$3,0)-J${r}))`, '#,##0');
+    T(`T${r}`, `IF(B${r}=0,"",IF(R${r}>=Parametros!$B$3,"Alcança a meta","Ainda abaixo"))`);
+  }
+
+  // Linha REDE: "Faltam p/ meta" NÃO é a soma da coluna — escola já acima da
+  // meta entra como zero e o total sairia maior que o real. Aqui se refaz a
+  // conta sobre os totais, como o painel de rede da tela faz.
+  ws[`A${tot}`] = { t:'s', v:'REDE (total)' };
+  ['B','C','D','E','F','G','H','J','L','M','N','O','P','Q'].forEach(c =>
+    F(`${c}${tot}`, `SUM(${c}${prim}:${c}${ult})`, '#,##0'));
+  F(`K${tot}`, `IF(B${tot}=0,"",J${tot}/B${tot})`, '0.0%');
+  F(`R${tot}`, `IF(B${tot}=0,"",Q${tot}/B${tot})`, '0.0%');
+  F(`S${tot}`, `IF(B${tot}=0,"",MAX(0,ROUNDUP(B${tot}*Parametros!$B$3,0)-J${tot}))`, '#,##0');
+  T(`T${tot}`, `IF(B${tot}=0,"",IF(R${tot}>=Parametros!$B$3,"Rede alcança a meta","Rede abaixo da meta"))`);
+
+  ws['!ref'] = `A1:T${tot}`;
+  ws['!cols'] = [{ wch:34 }, ...Array(7).fill({ wch:11 }), { wch:22 }, { wch:13 }, { wch:9 },
+                 ...Array(4).fill({ wch:15 }), { wch:14 }, { wch:17 }, { wch:12 }, { wch:20 }, { wch:22 }];
+  ws['!freeze'] = { xSplit:1, ySplit:1 };
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsPar, 'Parametros');
+  XLSX.utils.book_append_sheet(wb, ws, 'Metas por Escola');
+  const slug = String(av).replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_|_$/g, '') || 'avaliacao';
+  XLSX.writeFile(wb, `Metas_Fluencia_${slug}.xlsx`);
+}
+
+</script>
+  <script src="iago.js"></script>
+</body>
+</html>
