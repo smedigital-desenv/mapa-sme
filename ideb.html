@@ -218,8 +218,17 @@ function parsePlanilha(wb){
   const L=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null});
   const hdr=L[2]||[]; const cols=[];
   for(let j=3;j<hdr.length;j++){
-    const m=String(hdr[j]||'').match(/^\s*(META\s+)?IDEB\s+(AI|AF)\s+(\d{4})/i);
-    if(m) cols.push({j,etapa:m[2].toUpperCase(),ano:Number(m[3]),meta:!!m[1]});
+    const t=String(hdr[j]||'');
+    const m=t.match(/^\s*(META\s+)?IDEB\s+(AI|AF)\s+(\d{4})/i);
+    if(m){ cols.push({j,etapa:m[2].toUpperCase(),ano:Number(m[3]),campo:m[1]?'meta':'ideb'}); continue; }
+    // Componentes do IDEB: nota de desempenho (N) e indicador de rendimento (P).
+    // Sem eles a tela de Metas só consegue a régua sobre o IDEB — perde o
+    // candidato "desempenho × fluxo" e as duas metas separadas, que são o
+    // ponto do critério. Mesma convenção de cabeçalho do IDEB: <campo> AI 2025.
+    const n=t.match(/^\s*(?:NOTA|DESEMPENHO|N)\s+(AI|AF)\s+(\d{4})/i);
+    if(n){ cols.push({j,etapa:n[1].toUpperCase(),ano:Number(n[2]),campo:'nota'}); continue; }
+    const p=t.match(/^\s*(?:FLUXO|RENDIMENTO|P)\s+(AI|AF)\s+(\d{4})/i);
+    if(p){ cols.push({j,etapa:p[1].toUpperCase(),ano:Number(p[2]),campo:'rendimento'}); }
   }
   if(!cols.length) return null;
   const out=[];
@@ -229,14 +238,14 @@ function parsePlanilha(wb){
     const agg=new Map();
     cols.forEach(c=>{
       const k=c.etapa+'|'+c.ano;
-      if(!agg.has(k)) agg.set(k,{ideb:null,meta:null});
-      const v=r[c.j];
-      agg.get(k)[c.meta?'meta':'ideb']=numero(v);
+      if(!agg.has(k)) agg.set(k,{ideb:null,meta:null,nota:null,rendimento:null});
+      agg.get(k)[c.campo]=numero(r[c.j]);
     });
     agg.forEach((v,k)=>{
-      if(v.ideb==null&&v.meta==null) return;
+      if(v.ideb==null&&v.meta==null&&v.nota==null&&v.rendimento==null) return;
       const p=k.split('|');
       out.push({escola:nome,ano:Number(p[1]),etapa:p[0],ideb:v.ideb,meta:v.meta,
+                nota:v.nota, rendimento:v.rendimento,
                 codigo_escola:numero(r[0]), codigo_inep:numero(r[1])});
     });
   }
