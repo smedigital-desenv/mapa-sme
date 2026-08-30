@@ -289,9 +289,9 @@
       <div style="font-size:.72rem;font-weight:800;color:#64748b;text-transform:uppercase;
                   letter-spacing:.05em;margin-bottom:.9rem;">Composição da rede</div>
       <div style="font-size:.7rem;color:#94a3b8;margin-bottom:.3rem;">Hoje</div>
-      <div class="barra-wrap mb-3"><div class="barra" id="barraHoje"></div><div class="linha-meta" id="metaHoje"></div></div>
+      <div class="barra-wrap mb-3"><div class="barra" id="barraHoje"></div></div>
       <div style="font-size:.7rem;color:#94a3b8;margin-bottom:.3rem;">Com as metas aplicadas</div>
-      <div class="barra-wrap"><div class="barra" id="barraMeta"></div><div class="linha-meta" id="metaMeta"></div></div>
+      <div class="barra-wrap"><div class="barra" id="barraMeta"></div></div>
       <div class="d-flex flex-wrap gap-3 mt-3" style="font-size:.7rem;color:#64748b;">
         <span><span class="pill" style="background:var(--c-flu);">&nbsp;</span> Fluente</span>
         <span><span class="pill" style="background:var(--c-ini);">&nbsp;</span> Iniciante</span>
@@ -309,18 +309,8 @@
     <div class="card-sub">
       Leitor = Iniciante + Fluente. Quanto mais perto de ler, mais fácil avançar — por isso o N4
       costuma receber a meta mais ambiciosa e o N1 a mais modesta.
-    </div>
-
-    <div class="ctrl">
-      <div class="ctrl-topo">
-        <div class="ctrl-bolha" style="background:#0f172a;"><i class="bi bi-flag-fill"></i></div>
-        <div>
-          <div class="ctrl-nome">Meta da rede</div>
-          <div class="ctrl-qtd">% de leitores sobre os avaliados</div>
-        </div>
-        <div class="ctrl-saida"><span class="pct" id="outMeta">70%</span></div>
-      </div>
-      <input type="range" id="sMeta" min="30" max="100" step="1" value="70" oninput="recalcular()">
+      <b>Cada unidade recebe a meta que resulta de aplicar estes percentuais à composição dela</b>,
+      então a meta é diferente em cada escola: não há alvo único para a rede.
     </div>
 
     <div id="ctrlNiveis"></div>
@@ -332,7 +322,6 @@
       <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="aplicarPreset('conservador')">Conservador</button>
       <button class="btn btn-sm btn-outline-primary preset-btn" onclick="aplicarPreset('equilibrado')">Equilibrado</button>
       <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="aplicarPreset('ambicioso')">Ambicioso</button>
-      <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="aplicarPreset('minimo')">Mínimo p/ meta</button>
       <button class="btn btn-sm btn-link preset-btn text-decoration-none" onclick="aplicarPreset('zerar')">Zerar</button>
       <button class="btn btn-sm btn-success fw-bold ms-auto" id="btnSalvarFlu"
               onclick="salvarParametros('fluencia', IDS_FLU(), 'btnSalvarFlu')">
@@ -353,17 +342,11 @@
       <input id="busca" class="form-control form-control-sm" style="max-width:280px;"
              placeholder="Buscar escola…" oninput="renderTabela()">
       <select id="ordem" class="form-select form-select-sm" style="max-width:230px;" onchange="renderTabela()">
-        <option value="dist">Mais longe da meta primeiro</option>
-        <option value="nome">Nome (A–Z)</option>
         <option value="hoje">% hoje (menor primeiro)</option>
+        <option value="meta">Maior meta primeiro</option>
         <option value="novos">Mais alunos a evoluir</option>
+        <option value="nome">Nome (A–Z)</option>
       </select>
-      <div class="form-check form-switch align-self-center ms-1">
-        <input class="form-check-input" type="checkbox" id="soFalta" onchange="renderTabela()">
-        <label class="form-check-label" for="soFalta" style="font-size:.78rem;color:#475569;">
-          Só quem não alcança
-        </label>
-      </div>
     </div>
     <div style="max-height:560px;overflow:auto;">
       <table class="tbl">
@@ -371,7 +354,7 @@
           <th>Escola</th><th>Aval.</th>
           <th>N4</th><th>N3</th><th>N2</th><th>N1</th>
           <th>Leitores hoje</th><th>% hoje</th>
-          <th>A evoluir</th><th>% com metas</th><th>Situação</th>
+          <th>A evoluir</th><th>Meta da unidade<br>(leitores)</th><th>Meta da unidade<br>(%)</th>
         </tr></thead>
         <tbody id="corpo"></tbody>
       </table>
@@ -558,8 +541,9 @@ async function carregarDados() {
     marcarOrigem('fluencia');
     trancarControles('fluencia', 'card_fluencia', () => {
       const p = params();
-      return 'Meta da rede: <b>' + Math.round(p.meta*100) + '%</b> de leitores · ' +
-        NIVEIS.map(n => n.nome.replace('Pré-leitor ','') + ' <b>' + Math.round(p[n.key]*100) + '%</b>').join(' · ');
+      return 'Quanto de cada nível deve virar leitor: ' +
+        NIVEIS.map(n => n.nome.replace('Pré-leitor ','') + ' <b>' + Math.round(p[n.key]*100) + '%</b>').join(' · ') +
+        '. A meta de cada unidade resulta destes percentuais aplicados à composição dela.';
     });
     recalcular();
   } catch (e) {
@@ -595,7 +579,7 @@ function montarControles() {
 }
 
 function params() {
-  const p = { meta: (+document.getElementById('sMeta').value || 0) / 100 };
+  const p = {};
   NIVEIS.forEach(n => { p[n.key] = (+document.getElementById('s_' + n.key).value || 0) / 100; });
   return p;
 }
@@ -607,25 +591,8 @@ function aplicarPreset(qual) {
     ambicioso:   { pre_n4:90, pre_n3:65, pre_n2:40, pre_n1:20 },
     zerar:       { pre_n4:0,  pre_n3:0,  pre_n2:0,  pre_n1:0  },
   };
-  if (qual === 'minimo') return presetMinimo();
   const v = mapa[qual]; if (!v) return;
   NIVEIS.forEach(n => { document.getElementById('s_' + n.key).value = v[n.key]; });
-  recalcular();
-}
-
-// "Mínimo p/ meta": consome o nível mais fácil primeiro (N4 → N3 → N2 → N1),
-// que é a mesma ordem de esforço da calcularMeta(), até a REDE alcançar a meta.
-// Mostra o menor esforço que fecha a conta, não uma meta pedagógica.
-function presetMinimo() {
-  const t = totais(); const p = params();
-  if (!t.avaliados) return;
-  let faltam = Math.max(0, Math.ceil(t.avaliados * p.meta) - t.leitores);
-  NIVEIS.forEach(n => {
-    const disp = t[n.key];
-    const usa = Math.min(disp, faltam);
-    faltam -= usa;
-    document.getElementById('s_' + n.key).value = disp > 0 ? Math.ceil(usa / disp * 100) : 0;
-  });
   recalcular();
 }
 
@@ -653,7 +620,6 @@ function metaEscola(d, p) {
     depois: leitores + novos,
     pctHoje:   av > 0 ? leitores / av * 100 : 0,
     pctDepois: av > 0 ? (leitores + novos) / av * 100 : 0,
-    faltamHoje: av > 0 ? Math.max(0, Math.ceil(av * p.meta) - leitores) : 0,
     fecha: soma === av,          // conferência: as partes reproduzem o todo?
     somaPartes: soma,
   };
@@ -661,7 +627,6 @@ function metaEscola(d, p) {
 
 function recalcular() {
   const p = params();
-  document.getElementById('outMeta').textContent = Math.round(p.meta * 100) + '%';
   const t = totais();
 
   const escolas = escolasAtuais();
@@ -686,25 +651,26 @@ function recalcular() {
   const depoisRede = t.leitores + novosRede;
   const pctHoje = t.avaliados ? t.leitores / t.avaliados * 100 : 0;
   const pctDepois = t.avaliados ? depoisRede / t.avaliados * 100 : 0;
-  const alcancam = calc.filter(c => c.avaliados > 0 && c.pctDepois >= p.meta * 100).length;
-  const alcancamHoje = calc.filter(c => c.avaliados > 0 && c.pctHoje >= p.meta * 100).length;
-  const metaAbs = Math.ceil(t.avaliados * p.meta);
-  const faltamRede = Math.max(0, metaAbs - depoisRede);
-  const corDepois = pctDepois >= p.meta * 100 ? '#0f766e' : '#d97706';
+  // Não há mais alvo único: a meta da rede é o RESULTADO de somar as metas das
+  // unidades, não um número escolhido de fora.
+  const comAv = calc.filter(c => c.avaliados > 0);
+  const menor = comAv.length ? Math.min(...comAv.map(c => c.pctDepois)) : 0;
+  const maior = comAv.length ? Math.max(...comAv.map(c => c.pctDepois)) : 0;
+  const corDepois = '#0f766e';
 
   document.getElementById('subResultado').textContent =
     `${nomes.length} escola${nomes.length !== 1 ? 's' : ''} · ${t.avaliados.toLocaleString('pt-BR')} alunos avaliados · ${avAtual()}`;
 
   document.getElementById('kpis').innerHTML = `
     <div class="kpi">
-      <div class="kpi-val" style="color:#475569;">${pctHoje.toFixed(1)}%</div>
+      <div class="kpi-val" style="color:#475569;">${pt1(pctHoje)}%</div>
       <div class="kpi-lbl">Leitores hoje</div>
       <div class="kpi-nota">${t.leitores.toLocaleString('pt-BR')} alunos</div>
     </div>
     <div class="kpi" style="border-color:${corDepois};">
-      <div class="kpi-val" style="color:${corDepois};">${pctDepois.toFixed(1)}%</div>
-      <div class="kpi-lbl">Com as metas</div>
-      <div class="kpi-nota">${depoisRede.toLocaleString('pt-BR')} alunos</div>
+      <div class="kpi-val" style="color:${corDepois};">${pt1(pctDepois)}%</div>
+      <div class="kpi-lbl">Meta da rede</div>
+      <div class="kpi-nota">soma das metas das unidades</div>
     </div>
     <div class="kpi">
       <div class="kpi-val" style="color:var(--primary);">+${novosRede.toLocaleString('pt-BR')}</div>
@@ -712,22 +678,18 @@ function recalcular() {
       <div class="kpi-nota">para virar leitores</div>
     </div>
     <div class="kpi">
-      <div class="kpi-val" style="color:${alcancam === nomes.length ? '#0f766e' : 'var(--primary)'};">${alcancam}<span style="font-size:1rem;color:#94a3b8;">/${nomes.length}</span></div>
-      <div class="kpi-lbl">Escolas na meta</div>
-      <div class="kpi-nota">hoje são ${alcancamHoje}</div>
+      <div class="kpi-val" style="color:var(--primary);">${pt1(menor)}%</div>
+      <div class="kpi-lbl">Menor meta</div>
+      <div class="kpi-nota">entre as unidades</div>
     </div>
     <div class="kpi">
-      <div class="kpi-val" style="color:${faltamRede ? '#d97706' : '#0f766e'};">${faltamRede ? faltamRede.toLocaleString('pt-BR') : '✓'}</div>
-      <div class="kpi-lbl">${faltamRede ? 'Ainda faltam' : 'Rede na meta'}</div>
-      <div class="kpi-nota">${faltamRede ? 'alunos para a rede' : 'com estes parâmetros'}</div>
+      <div class="kpi-val" style="color:var(--primary);">${pt1(maior)}%</div>
+      <div class="kpi-lbl">Maior meta</div>
+      <div class="kpi-nota">entre as unidades</div>
     </div>`;
 
   barra('barraHoje', t, 0, {});
   barra('barraMeta', t, novosRede, convRede);
-  const pos = Math.min(100, Math.max(0, p.meta * 100));
-  document.getElementById('metaHoje').style.left = pos + '%';
-  document.getElementById('metaMeta').style.left = pos + '%';
-
   renderTabela();
 }
 
@@ -754,39 +716,41 @@ function barra(id, t, novos, convertidos) {
 function renderTabela() {
   const calc = window._calc || []; const p = params();
   const termo = (document.getElementById('busca').value || '').toLowerCase().trim();
-  const soFalta = document.getElementById('soFalta').checked;
   const ordem = document.getElementById('ordem').value;
 
   let lista = calc.filter(c => !termo || c.nome.toLowerCase().includes(termo));
-  if (soFalta) lista = lista.filter(c => c.pctDepois < p.meta * 100);
 
   lista = lista.slice().sort((a, b) =>
     ordem === 'nome'  ? a.nome.localeCompare(b.nome, 'pt-BR')
   : ordem === 'hoje'  ? a.pctHoje - b.pctHoje
   : ordem === 'novos' ? b.novos - a.novos
-  : (a.pctDepois - p.meta * 100) - (b.pctDepois - p.meta * 100));
+  : ordem === 'meta'  ? b.pctDepois - a.pctDepois
+  : a.pctHoje - b.pctHoje);
 
   document.getElementById('subTabela').textContent =
     `${lista.length} de ${calc.length} escola${calc.length !== 1 ? 's' : ''}`;
 
   document.getElementById('corpo').innerHTML = lista.map(c => {
-    const ok = c.pctDepois >= p.meta * 100;
-    const cor = ok ? '#0f766e' : (c.pctDepois >= p.meta * 100 - 10 ? '#d97706' : '#dc2626');
+    // A cor mede o PATAMAR da meta, não distância a um alvo único (que não
+    // existe mais). Mesma leitura da faixa do IDEB: é descrição, não juízo.
+    const cor = c.pctDepois >= 80 ? '#0f766e' : c.pctDepois >= 60 ? '#ca8a04' : '#dc2626';
     return `<tr>
-      <td>${esc(c.nome)}${c.fecha ? '' : `<div class="aviso-soma"><i class="bi bi-exclamation-triangle-fill"></i> partes somam ${c.somaPartes}, avaliados ${c.avaliados}</div>`}</td>
+      <td><button class="lnk-esc" onclick="detalharFluencia(this.dataset.n)" data-n="${esc(c.nome)}">${esc(c.nome)} <i class="bi bi-info-circle"></i></button>${c.fecha ? '' : `<div class="aviso-soma"><i class="bi bi-exclamation-triangle-fill"></i> partes somam ${c.somaPartes}, avaliados ${c.avaliados}</div>`}</td>
       <td>${c.avaliados.toLocaleString('pt-BR')}</td>
       <td>${(c.porNivel.pre_n4 ? `<b>${c.porNivel.pre_n4}</b>/` : '')}${(escolasAtuais()[c.nome]?.pre_n4 || 0)}</td>
       <td>${(c.porNivel.pre_n3 ? `<b>${c.porNivel.pre_n3}</b>/` : '')}${(escolasAtuais()[c.nome]?.pre_n3 || 0)}</td>
       <td>${(c.porNivel.pre_n2 ? `<b>${c.porNivel.pre_n2}</b>/` : '')}${(escolasAtuais()[c.nome]?.pre_n2 || 0)}</td>
       <td>${(c.porNivel.pre_n1 ? `<b>${c.porNivel.pre_n1}</b>/` : '')}${(escolasAtuais()[c.nome]?.pre_n1 || 0)}</td>
       <td>${c.leitores.toLocaleString('pt-BR')}</td>
-      <td>${c.pctHoje.toFixed(1)}%</td>
+      <td>${pt1(c.pctHoje)}%</td>
       <td><b style="color:var(--primary);">+${c.novos}</b></td>
-      <td><span class="pill" style="background:${cor};">${c.pctDepois.toFixed(1)}%</span></td>
-      <td style="font-size:.75rem;color:${cor};font-weight:700;">${ok ? 'Alcança' : `faltam ${Math.ceil(c.avaliados * p.meta) - c.depois}`}</td>
+      <td><b>${c.depois.toLocaleString('pt-BR')}</b></td>
+      <td><span class="pill" style="background:${cor};">${pt1(c.pctDepois)}%</span></td>
     </tr>`;
   }).join('') || '<tr><td colspan="11" class="text-center text-muted py-4">Nenhuma escola no filtro.</td></tr>';
 }
+
+const pt1 = v => (Math.round(v*10)/10).toFixed(1).replace('.', ',');
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g,
@@ -846,7 +810,7 @@ function coletar(ids) {
   return o;
 }
 
-const IDS_FLU  = () => ['sMeta', ...NIVEIS.map(n => 's_' + n.key)];
+const IDS_FLU  = () => NIVEIS.map(n => 's_' + n.key);
 const IDS_IDEB = () => IDEB_PAR.map(d => 'i_' + d.key);
 
 async function salvarParametros(escopo, ids, botaoId) {
@@ -1308,6 +1272,45 @@ function detalharEscola(nome) {
       na ordem acima. Os parâmetros do critério são definidos pela SME e valem para toda a rede.</p>`);
 }
 
+/* A meta agora é de cada unidade, então a pergunta "por que a MINHA meta é
+   77,5%?" passa a ter resposta na própria linha. Mesmo padrão do IDEB. */
+function detalharFluencia(nome) {
+  const c = (window._calc || []).find(x => x.nome === nome);
+  if (!c) return;
+  const p = params();
+  const linhas = NIVEIS.map(n => {
+    const qtd = (escolasAtuais()[nome] || {})[n.key] || 0;
+    return `<div class="conta-l">
+      <div style="font-weight:700;font-size:.85rem;">
+        <span class="pill" style="background:${n.cor};">&nbsp;</span> ${n.nome}</div>
+      <div class="conta" style="color:#475569;">${qtd} alunos × ${Math.round(p[n.key]*100)}% =
+        <b>${c.porNivel[n.key]}</b> que devem virar leitores</div></div>`;
+  }).join('');
+  _abrir(nome, `
+    <div style="font-size:.86rem;color:#475569;margin-bottom:.8rem;">
+      ${c.avaliados.toLocaleString('pt-BR')} avaliados ·
+      <b>${c.leitores.toLocaleString('pt-BR')}</b> leitores hoje (${pt1(c.pctHoje)}%)
+      ${c.fecha ? '' : `<div style="color:#b45309;margin-top:.3rem;">⚠ as partes somam ${c.somaPartes}, e os avaliados são ${c.avaliados} — confira a base antes de usar esta meta.</div>`}
+    </div>
+    <h6 class="fw-bold">Quanto de cada nível deve avançar</h6>
+    ${linhas}
+    <div class="conta-l venceu">
+      <div style="font-weight:800;">Alunos a evoluir = ${c.novos.toLocaleString('pt-BR')}</div>
+      <div class="conta" style="color:#475569;">a soma das quatro linhas acima</div>
+    </div>
+    <h6 class="fw-bold mt-3">Meta da unidade</h6>
+    <div class="conta-l venceu">
+      <div style="font-weight:800;font-size:1.05rem;">
+        ${c.leitores.toLocaleString('pt-BR')} + ${c.novos.toLocaleString('pt-BR')} =
+        <b>${c.depois.toLocaleString('pt-BR')} leitores</b>
+        <span style="font-weight:600;color:#475569;font-size:.85rem;">(${pt1(c.pctDepois)}% dos avaliados)</span></div>
+    </div>
+    <p class="text-muted mt-3" style="font-size:.82rem;">
+      Não há alvo único para a rede: a meta desta unidade é o que resulta de aplicar os
+      percentuais definidos pela SME à composição dela. Unidade com mais pré-leitores no N4
+      recebe meta mais alta, porque tem mais alunos perto de ler.</p>`);
+}
+
 /* ── Abas ── */
 function trocarAba(qual) {
   const flu = qual === 'flu';
@@ -1364,7 +1367,6 @@ function exportarMetas() {
   const par = [
     ['Metas de Fluência Leitora — Parâmetros'],
     ['Avaliação:', av],
-    ['Meta da rede (% de leitores sobre avaliados)', p.meta],
     [],
     ['Quanto de cada nível deve virar leitor', '% que deve virar leitor'],
     ['Pré-leitor N4', p.pre_n4],
@@ -1372,21 +1374,21 @@ function exportarMetas() {
     ['Pré-leitor N2', p.pre_n2],
     ['Pré-leitor N1', p.pre_n1],
     [],
-    ['Edite B3 e B6:B9 — a aba de metas recalcula sozinha.'],
-    ['Percentuais são decisão pedagógica, não medição: o sistema não guarda'],
-    ['série histórica de evolução entre níveis para calibrá-los.'],
+    ['Edite B5:B8 — a aba de metas recalcula sozinha.'],
+    ['A meta de cada unidade resulta destes percentuais aplicados à composição'],
+    ['dela — não há alvo único para a rede.'],
     [],
     ['Base: alunos AVALIADOS. Leitores = Iniciantes + Fluentes.'],
     ['Gerado pelo MAPA em ' + new Date().toLocaleString('pt-BR')],
   ];
   const wsPar = XLSX.utils.aoa_to_sheet(par);
   wsPar['!cols'] = [{ wch: 46 }, { wch: 24 }];
-  ['B3','B6','B7','B8','B9'].forEach(c => { if (wsPar[c]) wsPar[c].z = '0%'; });
+  ['B5','B6','B7','B8'].forEach(c => { if (wsPar[c]) wsPar[c].z = '0%'; });
 
   const CAB = ['Escola','Avaliados','Fluentes','Iniciantes','Pré N4','Pré N3','Pré N2','Pré N1',
                'Conferência','Leitores hoje','% hoje','Meta N4 (alunos)','Meta N3 (alunos)',
-               'Meta N2 (alunos)','Meta N1 (alunos)','Novos leitores','Leitores após meta',
-               '% após meta','Faltam p/ meta (hoje)','Situação'];
+               'Meta N2 (alunos)','Meta N1 (alunos)','Alunos a evoluir',
+               'META da unidade (leitores)','META da unidade (%)'];
   const linhas = nomes.map(n => { const d = escolas[n];
     return [n, +d.avaliados||0, +d.fluentes||0, +d.iniciantes||0,
             +d.pre_n4||0, +d.pre_n3||0, +d.pre_n2||0, +d.pre_n1||0]; });
@@ -1400,31 +1402,26 @@ function exportarMetas() {
     T(`I${r}`, `IF(SUM(C${r}:H${r})=B${r},"ok","confere: soma "&SUM(C${r}:H${r})&" <> "&B${r})`);
     F(`J${r}`, `C${r}+D${r}`, '#,##0');
     F(`K${r}`, `IF(B${r}=0,"",J${r}/B${r})`, '0.0%');
-    F(`L${r}`, `ROUND(E${r}*Parametros!$B$6,0)`, '#,##0');
-    F(`M${r}`, `ROUND(F${r}*Parametros!$B$7,0)`, '#,##0');
-    F(`N${r}`, `ROUND(G${r}*Parametros!$B$8,0)`, '#,##0');
-    F(`O${r}`, `ROUND(H${r}*Parametros!$B$9,0)`, '#,##0');
+    F(`L${r}`, `ROUND(E${r}*Parametros!$B$5,0)`, '#,##0');
+    F(`M${r}`, `ROUND(F${r}*Parametros!$B$6,0)`, '#,##0');
+    F(`N${r}`, `ROUND(G${r}*Parametros!$B$7,0)`, '#,##0');
+    F(`O${r}`, `ROUND(H${r}*Parametros!$B$8,0)`, '#,##0');
     F(`P${r}`, `L${r}+M${r}+N${r}+O${r}`, '#,##0');
     F(`Q${r}`, `J${r}+P${r}`, '#,##0');
     F(`R${r}`, `IF(B${r}=0,"",Q${r}/B${r})`, '0.0%');
-    F(`S${r}`, `IF(B${r}=0,"",MAX(0,ROUNDUP(B${r}*Parametros!$B$3,0)-J${r}))`, '#,##0');
-    T(`T${r}`, `IF(B${r}=0,"",IF(R${r}>=Parametros!$B$3,"Alcança a meta","Ainda abaixo"))`);
   }
 
-  // Linha REDE: "Faltam p/ meta" NÃO é a soma da coluna — escola já acima da
-  // meta entra como zero e o total sairia maior que o real. Aqui se refaz a
-  // conta sobre os totais, como o painel de rede da tela faz.
-  ws[`A${tot}`] = { t:'s', v:'REDE (total)' };
+  // Linha REDE: a meta da rede é a SOMA das metas das unidades — não há alvo
+  // único de onde derivá-la.
+  ws[`A${tot}`] = { t:'s', v:'REDE (soma das unidades)' };
   ['B','C','D','E','F','G','H','J','L','M','N','O','P','Q'].forEach(c =>
     F(`${c}${tot}`, `SUM(${c}${prim}:${c}${ult})`, '#,##0'));
   F(`K${tot}`, `IF(B${tot}=0,"",J${tot}/B${tot})`, '0.0%');
   F(`R${tot}`, `IF(B${tot}=0,"",Q${tot}/B${tot})`, '0.0%');
-  F(`S${tot}`, `IF(B${tot}=0,"",MAX(0,ROUNDUP(B${tot}*Parametros!$B$3,0)-J${tot}))`, '#,##0');
-  T(`T${tot}`, `IF(B${tot}=0,"",IF(R${tot}>=Parametros!$B$3,"Rede alcança a meta","Rede abaixo da meta"))`);
 
-  ws['!ref'] = `A1:T${tot}`;
+  ws['!ref'] = `A1:R${tot}`;
   ws['!cols'] = [{ wch:34 }, ...Array(7).fill({ wch:11 }), { wch:22 }, { wch:13 }, { wch:9 },
-                 ...Array(4).fill({ wch:15 }), { wch:14 }, { wch:17 }, { wch:12 }, { wch:20 }, { wch:22 }];
+                 ...Array(4).fill({ wch:15 }), { wch:15 }, { wch:22 }, { wch:18 }];
   ws['!freeze'] = { xSplit:1, ySplit:1 };
 
   const wb = XLSX.utils.book_new();
