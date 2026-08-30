@@ -1023,7 +1023,12 @@ function trocarAba(qual) {
   if (!flu && !IDEB.anos.length) carregarIdeb();
 }
 
-window.addEventListener('DOMContentLoaded', carregarDados);
+window.addEventListener('DOMContentLoaded', () => {
+  carregarDados();
+  // Chegando da tela de IDEB (metas.html#ideb), abre já na aba certa em vez de
+  // obrigar a pessoa a procurá-la.
+  if ((location.hash || '').toLowerCase() === '#ideb') trocarAba('ideb');
+});
 
 /* ── Exportar com os parâmetros que estão nos controles ──
    Mesma estrutura do export da tela de Fluência: as metas vão como FÓRMULA
