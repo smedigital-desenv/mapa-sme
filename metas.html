@@ -141,6 +141,26 @@
        aí o cabeçalho sticky passa a grudar nela (que não rola) em vez de na
        janela — ou seja, para de funcionar. Por isso o overflow é visible na
        largura em que a tabela cabe. */
+    /* Dois cartões lado a lado quando cabe. Empilhar tudo numa coluna deixava a
+       tabela de faixas ocupando um terço da largura com dois terços vazios. */
+    .dupla { display:grid; grid-template-columns:1fr 1fr; gap:1.1rem; align-items:start; }
+    @media (max-width: 1100px) { .dupla { grid-template-columns:1fr; } }
+
+    /* Rótulo e valor perto um do outro. Em linha de largura inteira, o valor
+       ficava a meia tela de distância do que ele nomeia. */
+    .grade-val { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:.15rem 1.4rem; }
+    .val-item { padding:.42rem 0; border-bottom:1px dashed #e2e8f0; display:flex;
+                align-items:baseline; justify-content:space-between; gap:.8rem; }
+    .val-rot { font-size:.78rem; color:#475569; }
+    .val-num { font-weight:800; color:var(--primary); white-space:nowrap; }
+    /* Os quatro níveis lado a lado: em linhas de largura inteira, quatro linhas
+       empurravam a tabela de escolas para fora da tela. */
+    .grade-nivel { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:.7rem; }
+    .nivel-cx { border:1px solid #e2e8f0; border-radius:11px; padding:.7rem .8rem; background:#f8fafc; }
+    .nivel-topo { display:flex; align-items:center; justify-content:space-between; margin-bottom:.4rem; }
+    .nivel-pct { font-size:1.35rem; font-weight:900; color:var(--primary); line-height:1; }
+    .nivel-nome { font-weight:800; font-size:.84rem; color:#1e293b; }
+    .nivel-det { font-size:.74rem; color:#64748b; margin-top:.15rem; }
     .tbl-wrap { overflow-x: auto; }
     @media (min-width: 992px) { .tbl-wrap { overflow-x: visible; } }
     .modal { display: none; }
@@ -372,28 +392,31 @@
       <div class="card-sub" id="idebSub">Carregando…</div>
       <div class="kpi-grid" id="idebKpis"></div>
 
-      <div class="mt-4">
-        <div style="font-size:.72rem;font-weight:800;color:#64748b;text-transform:uppercase;
-                    letter-spacing:.05em;margin-bottom:.7rem;">Distribuição das escolas por faixa de IDEB</div>
-        <table class="tbl" style="max-width:520px;">
+    </div>
+
+    <div class="dupla">
+      <div class="card-mapa">
+        <div class="card-titulo"><i class="bi bi-bar-chart-steps"></i>Escolas por faixa</div>
+        <div class="card-sub">Onde a rede está hoje e onde ficaria com as metas.</div>
+        <table class="tbl">
           <thead><tr><th>Faixa</th><th>Hoje</th><th>Com as metas</th></tr></thead>
           <tbody id="idebFaixas"></tbody>
         </table>
       </div>
-    </div>
 
-    <div class="card-mapa" id="card_ideb">
-      <div class="card-titulo"><i class="bi bi-flag-fill"></i>Critério definido
-        <button class="btn-ajuda" onclick="abrirComoCalcula()" title="Como a meta é calculada">?</button></div>
-      <div class="card-sub">
-        Régua de convergência: mede-se quanto falta para o horizonte de excelência e exige-se
-        uma fração dessa distância por ciclo. Quem está mais longe avança mais.
-      </div>
-      <div id="resumoIdeb"></div>
-      <div id="origem_ideb" style="font-size:.74rem;color:#0f766e;font-weight:700;margin-top:.8rem;"></div>
-      <div id="acaoIdeb" style="display:none;margin-top:.9rem;">
-        <button class="btn btn-sm btn-primary fw-bold" onclick="abrirAjuste('ideb')">
-          <i class="bi bi-sliders me-1"></i>Ajustar critério</button>
+      <div class="card-mapa" id="card_ideb">
+        <div class="card-titulo"><i class="bi bi-rulers"></i>Critério definido
+          <button class="btn-ajuda" onclick="abrirComoCalcula()" title="Como a meta é calculada">?</button></div>
+        <div class="card-sub">
+          Régua de convergência: exige-se uma fração da distância até o horizonte por ciclo.
+          Quem está mais longe avança mais.
+        </div>
+        <div id="resumoIdeb"></div>
+        <div id="origem_ideb" style="font-size:.74rem;color:#0f766e;font-weight:700;margin-top:.8rem;"></div>
+        <div id="acaoIdeb" style="display:none;margin-top:.9rem;">
+          <button class="btn btn-sm btn-primary fw-bold" onclick="abrirAjuste('ideb')">
+            <i class="bi bi-sliders me-1"></i>Ajustar critério</button>
+        </div>
       </div>
     </div>
 
@@ -918,7 +941,7 @@ function marcarOrigem(escopo) {
   const m = METAS_META[escopo];
   el.textContent = m && m.em
     ? 'Metas definidas pela SME em ' + new Date(m.em).toLocaleString('pt-BR')
-    : 'Ainda não há metas gravadas — os valores abaixo são a proposta de partida.';
+    : 'Ainda não há metas gravadas — os percentuais mostrados são a proposta de partida.';
 }
 
 // Ajustar meta é de super admin, e os controles moram num modal. Aqui só se
@@ -964,33 +987,25 @@ function renderResumoFluencia() {
   const el = document.getElementById('resumoFluencia'); if (!el) return;
   const p = params(), t = totais();
   const conv = window._convRede || {};
+  el.className = 'grade-nivel';
   el.innerHTML = NIVEIS.map(n => `
-    <div class="ctrl" style="padding:.5rem 0;">
-      <div class="ctrl-topo" style="margin-bottom:0;">
+    <div class="nivel-cx">
+      <div class="nivel-topo">
         <div class="ctrl-bolha" style="background:${n.cor};">${n.key.slice(-2).toUpperCase()}</div>
-        <div>
-          <div class="ctrl-nome">${n.nome}</div>
-          <div class="ctrl-qtd">${(t[n.key] || 0).toLocaleString('pt-BR')} alunos hoje</div>
-        </div>
-        <div class="ctrl-saida">
-          <span class="pct">${Math.round(p[n.key] * 100)}%</span><br>
-          <span style="font-weight:600;color:#64748b;">devem virar leitores:
-            <b>${(conv[n.key] || 0).toLocaleString('pt-BR')}</b></span>
-        </div>
+        <div class="nivel-pct">${Math.round(p[n.key] * 100)}%</div>
       </div>
+      <div class="nivel-nome">${n.nome}</div>
+      <div class="nivel-det">${(t[n.key] || 0).toLocaleString('pt-BR')} alunos ·
+        <b style="color:#0f766e;">${(conv[n.key] || 0).toLocaleString('pt-BR')}</b> devem virar leitores</div>
     </div>`).join('');
 }
 
 function renderResumoIdeb() {
   const el = document.getElementById('resumoIdeb'); if (!el) return;
   const p = idebParams();
-  const linha = (rot, val) => `
-    <div class="ctrl" style="padding:.42rem 0;">
-      <div class="ctrl-topo" style="margin-bottom:0;">
-        <div class="ctrl-nome">${rot}</div>
-        <div class="ctrl-saida"><span class="pct">${val}</span></div>
-      </div>
-    </div>`;
+  const linha = (rot, val) =>
+    `<div class="val-item"><span class="val-rot">${rot}</span><span class="val-num">${val}</span></div>`;
+  el.className = 'grade-val';
   el.innerHTML =
       linha('Ritmo da régua', (p.k * 100).toFixed(0) + '%')
     + linha('Horizonte de excelência', p.T.toFixed(1).replace('.', ','))
