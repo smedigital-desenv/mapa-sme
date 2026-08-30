@@ -854,8 +854,30 @@ uma avaria a ser corrigida com `grant`.
 
 ### Invariantes — quebrar qualquer uma reabre o vazamento
 
-1. **`anon` não tem permissão em nada.** Nem tabela, nem função. Se você
-   escrever `grant ... to anon`, está reabrindo o buraco.
+1. **`anon` não tem permissão em nada** — com UMA exceção, deliberada e
+   nomeada abaixo. Nem tabela, nem função. Se você escrever `grant ... to
+   anon` fora dessa exceção, está reabrindo o buraco.
+
+   ⚠️ **A exceção: a tela de Metas (`metas.html`) é pública por decisão da
+   SME.** O `anon` tem `select` em exatamente três objetos, e em mais nenhum:
+
+   | Objeto | O que expõe |
+   |---|---|
+   | `v_metas_ideb_publico` | IDEB por escola — o INEP já publica |
+   | `v_metas_fluencia_publico` | fluência **agregada por escola** |
+   | `metas_parametros` | os parâmetros do critério (configuração) |
+
+   As duas views são `security definer` e **agregam por escola de propósito**:
+   turma, período e qualquer recorte que aproxime da criança ficam de fora.
+   Não as reescreva para "aproveitar" a view por turma, e não acrescente
+   coluna sem perguntar — o que está aberto aqui é irrecuperável.
+
+   As tabelas operacionais (`fluencia_estudantes`, `av_ideb`,
+   `v_fluencia_por_turma`) seguem fechadas para `anon`.
+
+   A `metas.html` carrega o gate do central **só quando já existe sessão** no
+   navegador; sem sessão ela roda em modo público e de leitura. Isso não é
+   proteção — é conforto. Quem protege é o grant.
 2. **`bimestres` e as views materializadas não são alcançáveis pelo REST.**
    O acesso a elas passa obrigatoriamente por funções `SECURITY DEFINER` que
    aplicam o recorte por unidade. View materializada **ignora RLS** — proteger

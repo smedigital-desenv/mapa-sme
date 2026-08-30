@@ -2,11 +2,38 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <script src="auth-guard.js"></script>
-  <script>window.MAPA_SISTEMA = 'mapa';</script>
-  <script src="auth.js" defer></script>
-  <script src="config-central.js" defer></script>
-  <script src="demo-mode.js"></script>
+  <script>
+  /* ═══════════════════════════════════════════════════════════
+     ESTA TELA É PÚBLICA. Metas de IDEB e de Fluência são decisão divulgada da
+     SME e ficam legíveis sem login.
+
+     O gate do central (acesso-sme.js) REDIRECIONA para o login quando não há
+     sessão — por isso ele não pode ser carregado incondicionalmente aqui. A
+     regra é: carrega o gate SÓ se já existe sessão do MAPA neste navegador.
+
+       com sessão  → tudo como nas outras telas; super admin grava as metas
+       sem sessão  → modo público, leitura, sem ida ao login
+
+     ⚠️ Não troque isto por "carregar sempre e tratar o erro": o redirecionamento
+     acontece dentro do módulo do central, antes de qualquer erro chegar aqui.
+
+     ⚠️ O que protege o dado NÃO é esta linha — é a policy. Só as views
+     v_metas_*_publico são legíveis por anon, e elas expõem agregado por escola.
+     As tabelas operacionais seguem fechadas.
+     ═══════════════════════════════════════════════════════════ */
+  (function () {
+    var temSessao = false;
+    try { temSessao = !!localStorage.getItem('sb-gmwotfulohkmuqrezeef-auth-token'); } catch (e) {}
+    window.MAPA_MODO_PUBLICO = !temSessao;
+    window.MAPA_SISTEMA = 'mapa';
+    if (!temSessao) return;
+    ['auth-guard.js', 'auth.js', 'config-central.js', 'demo-mode.js'].forEach(function (src) {
+      var t = document.createElement('script');
+      t.src = src; t.async = false;          // preserva a ordem, como o defer faz
+      document.head.appendChild(t);
+    });
+  })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Metas de Fluência Leitora | SME Ribeirão Preto</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
@@ -231,7 +258,7 @@
         <option value="AF">Anos Finais</option>
       </select>
     </div>
-    <a class="btn btn-sm btn-outline-light fw-bold" href="fluencia.html">
+    <a class="btn btn-sm btn-outline-light fw-bold" id="voltarFluencia" href="fluencia.html">
       <i class="bi bi-arrow-left me-1"></i>Fluência Leitora
     </a>
     <button class="btn btn-sm btn-light fw-bold" onclick="exportarMetas()">
@@ -464,6 +491,9 @@ const S = { avaliacoes: [], porEscola: {} };
 /* ── Acesso a dados (mesmo caminho da tela de Fluência) ── */
 function aguardarAuth() {
   return new Promise(resolve => {
+    // Em modo público o auth.js nem foi carregado: esperar por ele custaria os
+    // 8 s do timeout abaixo, com a tela vazia.
+    if (window.MAPA_MODO_PUBLICO) return resolve();
     if (window.MapaAuth && window.MapaAuth.perfil) return resolve();
     document.addEventListener('mapa-auth-pronto', () => resolve(), { once: true });
     setTimeout(resolve, 8000);
@@ -498,7 +528,7 @@ async function carregarDados() {
   try {
     await aguardarAuth();
     let dados = await apiFetch(
-      'v_fluencia_por_turma?select=avaliacao,escola,ano_escolar,turma,periodo,tipo,turma_raw,total_estudantes,avaliados,ausentes,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1,pct_fluentes&order=avaliacao.asc,escola.asc,ano_escolar.asc,turma.asc'
+      'v_metas_fluencia_publico?select=avaliacao,escola,avaliados,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1&order=avaliacao.asc,escola.asc'
     );
     dados = filtrarPorEscola(dados);
     if (!dados.length) return semDados('Nenhum dado de fluência disponível para o seu acesso.');
@@ -952,7 +982,7 @@ function metaIdeb(e, p) {
 
 /* ── Carregamento ── */
 async function carregarIdeb() {
-  const base = 'av_ideb?select=';
+  const base = 'v_metas_ideb_publico?select=';
   let linhas = null;
   try {
     linhas = await apiFetch(base + 'escola,ano,etapa,ideb,nota,rendimento');
@@ -1290,7 +1320,27 @@ function trocarAba(qual) {
   if (!flu && !IDEB.anos.length) carregarIdeb();
 }
 
+/* Em modo público o cabeçalho do MAPA leva a telas fechadas: cada clique seria
+   uma ida ao login. Some com a navegação interna e oferece a entrada, uma vez. */
+function ajustarModoPublico() {
+  if (!window.MAPA_MODO_PUBLICO) return;
+  document.querySelectorAll('.mg-nav, .mg-actions').forEach(el => el.remove());
+  document.getElementById('voltarFluencia')?.remove();
+  const brand = document.querySelector('.mg-brand');
+  if (brand) { brand.style.cursor = 'default'; brand.onclick = null; }
+  const barra = document.querySelector('header.mg-header');
+  if (barra) {
+    const e = document.createElement('a');
+    e.href = 'index.html';
+    e.className = 'btn btn-sm btn-outline-light fw-bold ms-auto';
+    e.innerHTML = '<i class="bi bi-box-arrow-in-right me-1"></i>Entrar';
+    e.title = 'Acesso restrito da rede municipal';
+    barra.appendChild(e);
+  }
+}
+
 window.addEventListener('DOMContentLoaded', async () => {
+  ajustarModoPublico();
   // Antes de montar controle nenhum: senão a tela pisca no padrão e depois
   // salta para a meta gravada, e quem vê o primeiro quadro anota o número errado.
   await carregarParametros();
