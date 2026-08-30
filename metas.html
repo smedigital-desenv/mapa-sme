@@ -253,8 +253,8 @@
         <option value="">Carregando…</option>
       </select>
     </div>
-    <div class="d-flex align-items-center gap-2" id="boxEtapa" hidden
-         style="background:rgba(255,255,255,.12);border-radius:8px;padding:5px 12px;">
+    <div class="d-flex align-items-center gap-2" id="boxEtapa"
+         style="display:none;background:rgba(255,255,255,.12);border-radius:8px;padding:5px 12px;">
       <i class="bi bi-mortarboard" style="font-size:.8rem;"></i>
       <select id="selEtapa" class="border-0 bg-transparent fw-bold p-0"
               style="font-size:.82rem;color:#fff;outline:none;cursor:pointer;"
@@ -266,7 +266,8 @@
     <a class="btn btn-sm btn-outline-light fw-bold" id="voltarFluencia" href="fluencia.html">
       <i class="bi bi-arrow-left me-1"></i>Fluência Leitora
     </a>
-    <button class="btn btn-sm btn-light fw-bold" onclick="exportarMetas()">
+    <button class="btn btn-sm btn-light fw-bold" id="btnExportar" onclick="exportar()"
+            title="Baixar as metas de Fluência por escola">
       <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i>Exportar
     </button>
   </div>
@@ -1458,6 +1459,84 @@ function detalharFluencia(nome) {
       recebe meta mais alta, porque tem mais alunos perto de ler.</p>`);
 }
 
+/* ── Exportar segue a aba ──────────────────────────────────────────────────
+   Um botão só, na barra do topo, servindo às duas abas. Antes ele baixava a
+   planilha de Fluência mesmo com o IDEB aberto — quem exportava do IDEB recebia
+   outro assunto sem aviso. */
+function exportar() {
+  const noIdeb = !document.getElementById('paneIdeb').hidden;
+  return noIdeb ? exportarIdeb() : exportarMetas();
+}
+
+/* Metas de IDEB em planilha, com o critério VIVO em fórmula: quem receber o
+   arquivo muda um parâmetro e vê a rede inteira recalcular, em vez de receber
+   números cravados que envelhecem no primeiro ajuste. Mesma escolha do export
+   de Fluência. */
+function exportarIdeb() {
+  const etapa = document.getElementById('selEtapa').value;
+  const calc = (window._idebCalc || []).filter(c => !c.semDado);
+  if (!calc.length) { alert('Não há dados de IDEB para exportar nesta etapa.'); return; }
+  const p = idebParams();
+
+  const par = [
+    ['Metas de IDEB — Parâmetros do critério'],
+    ['Etapa:', etapa === 'AI' ? 'Anos Iniciais' : 'Anos Finais'],
+    [],
+    ['Parâmetro', 'Valor'],
+    ['Ritmo da régua (k)',            p.k],
+    ['Horizonte de excelência (T)',   p.T],
+    ['Piso do acréscimo',             p.piso],
+    ['Teto do acréscimo',             p.teto],
+    ['Patamar de fluxo da rede',      p.patP],
+    ['Ritmo de recuperação do fluxo', p.ritmoP],
+    ['Fator de recuperação da queda', p.queda],
+    [],
+    ['Edite B5:B11 — a aba de metas recalcula sozinha.'],
+    ['A meta é o MAIOR entre três candidatos; cada um fecha uma brecha:'],
+    ['  1. régua sobre o IDEB — o caso geral'],
+    ['  2. régua sobre o desempenho × meta de fluxo — impede cumprir a meta só aprovando mais'],
+    ['  3. recuperação de metade da queda — impede que cair renda meta mais fácil'],
+    [],
+    ['Gerado pelo MAPA em ' + new Date().toLocaleString('pt-BR')],
+  ];
+  const wsPar = XLSX.utils.aoa_to_sheet(par);
+  wsPar['!cols'] = [{ wch: 46 }, { wch: 16 }];
+  ['B9'].forEach(c => { if (wsPar[c]) wsPar[c].z = '0.0%'; });
+
+  const CAB = ['Escola', 'IDEB anterior', 'IDEB atual', 'Desempenho N', 'Fluxo P',
+               'META de fluxo', 'Cand. 1 régua', 'Cand. 2 desemp.×fluxo', 'Cand. 3 recuperação',
+               'META de IDEB', 'META de desempenho', 'Acréscimo', 'Regra determinante'];
+  const linhas = calc
+    .slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+    .map(c => [c.nome, c.idebAnt, c.ideb, c.n, c.fl]);
+
+  const ws = XLSX.utils.aoa_to_sheet([CAB, ...linhas]);
+  const P = n => `Parametros!$B$${n}`;   // 5=k 6=T 7=piso 8=teto 9=patP 10=ritmoP 11=queda
+  const F = (c, f, z) => { ws[c] = { t: 'n', f }; if (z) ws[c].z = z; };
+  const T = (c, f) => { ws[c] = { t: 's', f }; };
+
+  for (let r = 2; r <= 1 + linhas.length; r++) {
+    F(`F${r}`, `IF(E${r}<${P(9)},ROUND(E${r}+${P(10)}*(${P(9)}-E${r}),3),ROUND(E${r},3))`, '0.0%');
+    F(`G${r}`, `ROUND(C${r}+MIN(${P(8)},MAX(${P(7)},${P(5)}*(${P(6)}-C${r}))),1)`, '0.0');
+    F(`H${r}`, `ROUND((D${r}+MIN(${P(8)},MAX(${P(7)},${P(5)}*(${P(6)}-D${r}))))*F${r},1)`, '0.0');
+    F(`I${r}`, `IF(AND(B${r}<>"",B${r}>C${r}),ROUND(C${r}+${P(11)}*(B${r}-C${r}),1),"")`, '0.0');
+    F(`J${r}`, `MAX(G${r},H${r},IF(I${r}="",-1,I${r}))`, '0.0');
+    F(`K${r}`, `ROUND(MAX(J${r}/F${r},D${r}),2)`, '0.00');
+    F(`L${r}`, `ROUND(J${r}-C${r},1)`, '0.0');
+    T(`M${r}`, `IF(G${r}>=J${r},"Régua do IDEB",IF(H${r}>=J${r},"Desempenho × fluxo","Recuperação da queda"))`);
+    ['B','C','D'].forEach(cl => { if (ws[`${cl}${r}`]) ws[`${cl}${r}`].z = '0.0'; });
+    if (ws[`E${r}`]) ws[`E${r}`].z = '0.0%';
+  }
+  ws['!ref'] = `A1:M${1 + linhas.length}`;
+  ws['!cols'] = [{ wch: 40 }, ...Array(12).fill({ wch: 15 })];
+  ws['!freeze'] = { xSplit: 1, ySplit: 1 };
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsPar, 'Parametros');
+  XLSX.utils.book_append_sheet(wb, ws, 'Metas por Escola');
+  XLSX.writeFile(wb, `Metas_IDEB_${etapa === 'AI' ? 'anos_iniciais' : 'anos_finais'}.xlsx`);
+}
+
 /* ── Abas ── */
 function trocarAba(qual) {
   const flu = qual === 'flu';
@@ -1465,8 +1544,15 @@ function trocarAba(qual) {
   document.getElementById('paneIdeb').hidden = flu;
   document.getElementById('abaFlu').classList.toggle('ativa', flu);
   document.getElementById('abaIdeb').classList.toggle('ativa', !flu);
-  document.getElementById('selAvaliacao').parentElement.hidden = !flu;
-  document.getElementById('boxEtapa').hidden = flu;
+  // display, NÃO hidden: os dois contêineres têm a classe d-flex do Bootstrap,
+  // que traz display:flex !important e vence o hidden do navegador. Sem isto os
+  // dois seletores aparecem ao mesmo tempo — o de avaliação, que é da Fluência,
+  // ao lado do de etapa, que é do IDEB.
+  document.getElementById('selAvaliacao').parentElement.style.display = flu ? '' : 'none';
+  document.getElementById('boxEtapa').style.display = flu ? 'none' : '';
+  const btn = document.getElementById('btnExportar');
+  if (btn) btn.title = flu ? 'Baixar as metas de Fluência por escola'
+                           : 'Baixar as metas de IDEB por escola';
   // A URL acompanha a aba: a tela é pública e as pessoas compartilham o
   // endereço. Sem isto, quem chega por #ideb, troca para Fluência e copia a
   // URL manda ao destinatário uma tela diferente da que estava vendo.
