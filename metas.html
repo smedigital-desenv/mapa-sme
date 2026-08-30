@@ -161,6 +161,11 @@
     .nivel-pct { font-size:1.35rem; font-weight:900; color:var(--primary); line-height:1; }
     .nivel-nome { font-weight:800; font-size:.84rem; color:#1e293b; }
     .nivel-det { font-size:.74rem; color:#64748b; margin-top:.15rem; }
+    .cx-sel { display:inline-flex; align-items:center; gap:.5rem; background:#eef2f7;
+              border-radius:10px; padding:.42rem .8rem; }
+    .cx-sel .bi { color:#64748b; font-size:.82rem; }
+    .cx-sel select { border:0; background:none; font-weight:800; font-size:.84rem;
+                     color:var(--primary); outline:none; cursor:pointer; max-width:340px; }
     .titulo-linha { display:flex; align-items:flex-start; justify-content:space-between;
                     gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }
     .segmento { display:inline-flex; background:#eef2f7; border-radius:10px; padding:3px; gap:3px; }
@@ -282,18 +287,6 @@
     </div>
   </div>
   <div class="d-flex align-items-center gap-2 flex-wrap">
-    <div class="d-flex align-items-center gap-2"
-         style="background:rgba(255,255,255,.12);border-radius:8px;padding:5px 12px;">
-      <i class="bi bi-clipboard-check" style="font-size:.8rem;"></i>
-      <select id="selAvaliacao" class="border-0 bg-transparent fw-bold p-0"
-              style="font-size:.82rem;color:#fff;outline:none;cursor:pointer;"
-              onchange="recalcular()">
-        <option value="">Carregando…</option>
-      </select>
-    </div>
-    <a class="btn btn-sm btn-outline-light fw-bold" id="voltarFluencia" href="fluencia.html">
-      <i class="bi bi-arrow-left me-1"></i>Fluência Leitora
-    </a>
     <button class="btn btn-sm btn-light fw-bold" id="btnExportar" onclick="exportar()"
             title="Baixar as metas de Fluência por escola">
       <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i>Exportar
@@ -315,8 +308,21 @@
 
   <!-- ── Resultado ── -->
   <div class="card-mapa">
-    <div class="card-titulo"><i class="bi bi-graph-up-arrow"></i>Resultado das metas</div>
-    <div class="card-sub" id="subResultado">Ajuste os controles abaixo e acompanhe aqui.</div>
+    <div class="titulo-linha">
+      <div>
+        <div class="card-titulo"><i class="bi bi-graph-up-arrow"></i>Resultado das metas</div>
+        <div class="card-sub mb-0" id="subResultado">Carregando…</div>
+      </div>
+      <!-- Junto da tabela que ele muda, como o segmento de etapa no IDEB. Aqui
+           continua sendo um select: o número de avaliações cresce a cada
+           edição, e botões lado a lado deixariam de caber. -->
+      <div class="cx-sel">
+        <i class="bi bi-clipboard-check"></i>
+        <select id="selAvaliacao" onchange="recalcular()">
+          <option value="">Carregando…</option>
+        </select>
+      </div>
+    </div>
     <div class="kpi-grid" id="kpis"></div>
 
     <div class="mt-4">
@@ -768,7 +774,7 @@ function recalcular() {
   const corDepois = '#0f766e';
 
   document.getElementById('subResultado').textContent =
-    `${nomes.length} escola${nomes.length !== 1 ? 's' : ''} · ${t.avaliados.toLocaleString('pt-BR')} alunos avaliados · ${avAtual()}`;
+    `${nomes.length} escola${nomes.length !== 1 ? 's' : ''} · ${t.avaliados.toLocaleString('pt-BR')} alunos avaliados`;   // a avaliação já está no seletor ao lado
 
   document.getElementById('kpis').innerHTML = `
     <div class="kpi">
@@ -1633,7 +1639,6 @@ function trocarAba(qual) {
   // que traz display:flex !important e vence o hidden do navegador. Sem isto os
   // dois seletores aparecem ao mesmo tempo — o de avaliação, que é da Fluência,
   // ao lado do de etapa, que é do IDEB.
-  document.getElementById('selAvaliacao').parentElement.style.display = flu ? '' : 'none';
   const btn = document.getElementById('btnExportar');
   if (btn) btn.title = flu ? 'Baixar as metas de Fluência por escola'
                            : 'Baixar as metas de IDEB por escola';
@@ -1651,7 +1656,6 @@ function trocarAba(qual) {
 function ajustarModoPublico() {
   if (!window.MAPA_MODO_PUBLICO) return;
   document.querySelectorAll('.mg-nav, .mg-actions').forEach(el => el.remove());
-  document.getElementById('voltarFluencia')?.remove();
   const brand = document.querySelector('.mg-brand');
   if (brand) { brand.style.cursor = 'default'; brand.onclick = null; }
   const barra = document.querySelector('header.mg-header');
