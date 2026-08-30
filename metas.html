@@ -161,6 +161,15 @@
     .nivel-pct { font-size:1.35rem; font-weight:900; color:var(--primary); line-height:1; }
     .nivel-nome { font-weight:800; font-size:.84rem; color:#1e293b; }
     .nivel-det { font-size:.74rem; color:#64748b; margin-top:.15rem; }
+    .titulo-linha { display:flex; align-items:flex-start; justify-content:space-between;
+                    gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }
+    .segmento { display:inline-flex; background:#eef2f7; border-radius:10px; padding:3px; gap:3px; }
+    .seg-btn { border:0; background:none; border-radius:8px; padding:.42rem .95rem;
+               font-weight:800; font-size:.82rem; color:#64748b; cursor:pointer; white-space:nowrap; }
+    .seg-btn:hover { color:var(--primary); }
+    .seg-btn.ativo { background:#fff; color:var(--primary); box-shadow:0 1px 3px rgba(0,0,0,.12); }
+    .seg-btn:disabled { opacity:.45; cursor:not-allowed; }
+    .seg-n { font-weight:700; font-size:.72rem; opacity:.7; }
     .tbl-wrap { overflow-x: auto; }
     @media (min-width: 992px) { .tbl-wrap { overflow-x: visible; } }
     .modal { display: none; }
@@ -282,16 +291,6 @@
         <option value="">Carregando…</option>
       </select>
     </div>
-    <div class="d-flex align-items-center gap-2" id="boxEtapa"
-         style="display:none;background:rgba(255,255,255,.12);border-radius:8px;padding:5px 12px;">
-      <i class="bi bi-mortarboard" style="font-size:.8rem;"></i>
-      <select id="selEtapa" class="border-0 bg-transparent fw-bold p-0"
-              style="font-size:.82rem;color:#fff;outline:none;cursor:pointer;"
-              onchange="recalcIdeb()">
-        <option value="AI">Anos Iniciais</option>
-        <option value="AF">Anos Finais</option>
-      </select>
-    </div>
     <a class="btn btn-sm btn-outline-light fw-bold" id="voltarFluencia" href="fluencia.html">
       <i class="bi bi-arrow-left me-1"></i>Fluência Leitora
     </a>
@@ -388,8 +387,22 @@
     <div id="avisoIdeb"></div>
 
     <div class="card-mapa">
-      <div class="card-titulo"><i class="bi bi-flag-fill"></i>Metas de IDEB <button class="btn-ajuda" onclick="abrirComoCalcula()" title="Como a meta é calculada">?</button> <span id="idebCiclo" style="font-weight:600;color:#64748b;font-size:.85rem;"></span></div>
-      <div class="card-sub" id="idebSub">Carregando…</div>
+      <div class="titulo-linha">
+        <div>
+          <div class="card-titulo"><i class="bi bi-flag-fill"></i>Metas de IDEB
+            <button class="btn-ajuda" onclick="abrirComoCalcula()" title="Como a meta é calculada">?</button>
+            <span id="idebCiclo" style="font-weight:600;color:#64748b;font-size:.85rem;"></span></div>
+          <div class="card-sub mb-0" id="idebSub">Carregando…</div>
+        </div>
+        <!-- Segmento fica JUNTO do que ele governa, e num clique. Antes era um
+             select na barra do topo: longe da tabela e a dois cliques. -->
+        <div class="segmento" role="group" aria-label="Etapa de ensino">
+          <button type="button" id="segAI" class="seg-btn ativo" onclick="trocarEtapa('AI')">
+            Anos Iniciais <span class="seg-n" id="nAI"></span></button>
+          <button type="button" id="segAF" class="seg-btn" onclick="trocarEtapa('AF')">
+            Anos Finais <span class="seg-n" id="nAF"></span></button>
+        </div>
+      </div>
       <div class="kpi-grid" id="idebKpis"></div>
 
     </div>
@@ -1079,6 +1092,32 @@ const IDEB_FAIXAS = [
   { lbl:'7,0 ou mais',   teste:v=>v>=7,           cor:'#15803d' },
 ];
 const IDEB = { porEscola: {}, anos: [], parcial: false };
+let ETAPA = 'AI';   // 'AI' | 'AF'
+
+// Troca de segmento. Etapa sem dado não é clicável: melhor o botão dizer que
+// não há nada do que abrir um painel vazio sem explicação.
+function trocarEtapa(qual) {
+  if (qual === ETAPA) return;
+  ETAPA = qual;
+  document.getElementById('segAI').classList.toggle('ativo', qual === 'AI');
+  document.getElementById('segAF').classList.toggle('ativo', qual === 'AF');
+  recalcIdeb();
+}
+
+// Quantas escolas cada etapa tem. Vai no próprio botão: sem isso a pessoa
+// precisa clicar para descobrir que os anos finais ainda não foram importados.
+function marcarSegmentos() {
+  ['AI', 'AF'].forEach(et => {
+    const n = Object.keys(IDEB.porEscola[et] || {}).length;
+    const bt = document.getElementById('seg' + et);
+    const sp = document.getElementById('n' + et);
+    if (sp) sp.textContent = n ? `(${n})` : '';
+    if (bt) {
+      bt.disabled = !n;
+      bt.title = n ? `${n} escola(s) nesta etapa` : 'Sem dados importados para esta etapa';
+    }
+  });
+}
 
 const _r1 = v => Math.round(v * 10) / 10;
 const _r2 = v => Math.round(v * 100) / 100;
@@ -1145,6 +1184,17 @@ async function carregarIdeb() {
     ((por[et] = por[et] || {})[r.escola] = por[et][r.escola] || {})[+r.ano] = r;
   });
   IDEB.porEscola = por;
+  marcarSegmentos();
+  // Se a etapa corrente estiver vazia e a outra não, começa pela que tem dado —
+  // abrir num painel vazio quando existe conteúdo ao lado é só atrito.
+  if (!Object.keys(IDEB.porEscola[ETAPA] || {}).length) {
+    const outra = ETAPA === 'AI' ? 'AF' : 'AI';
+    if (Object.keys(IDEB.porEscola[outra] || {}).length) {
+      ETAPA = outra;
+      document.getElementById('segAI').classList.toggle('ativo', ETAPA === 'AI');
+      document.getElementById('segAF').classList.toggle('ativo', ETAPA === 'AF');
+    }
+  }
   montarCtrlIdeb();
   aplicarSalvos('ideb', IDS_IDEB());
   marcarOrigem('ideb');
@@ -1194,7 +1244,7 @@ function recalcIdeb() {
   });
 
   renderResumoIdeb();
-  const etapa = document.getElementById('selEtapa').value;
+  const etapa = ETAPA;
   const porEsc = IDEB.porEscola[etapa] || {};
   const nomes = Object.keys(porEsc);
   const anos = IDEB.anos;
@@ -1231,8 +1281,8 @@ function recalcIdeb() {
   const med = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0;
 
   document.getElementById('idebSub').textContent =
-    `${calc.length} escola${calc.length !== 1 ? 's' : ''} · ${etapa === 'AI' ? 'anos iniciais' : 'anos finais'}` +
-    (incompletos ? ` · ${incompletos} sem desempenho/fluxo` : '');
+    `${calc.length} escola${calc.length !== 1 ? 's' : ''}` +
+    (incompletos ? ` · ${incompletos} sem desempenho/fluxo` : '');   // a etapa já está no segmento
 
   if (incompletos) {
     avisoIdeb(`${incompletos} escola(s) sem a nota de desempenho (N) ou o indicador de rendimento (P). ` +
@@ -1497,7 +1547,7 @@ function exportar() {
    números cravados que envelhecem no primeiro ajuste. Mesma escolha do export
    de Fluência. */
 function exportarIdeb() {
-  const etapa = document.getElementById('selEtapa').value;
+  const etapa = ETAPA;
   const calc = (window._idebCalc || []).filter(c => !c.semDado);
   if (!calc.length) { alert('Não há dados de IDEB para exportar nesta etapa.'); return; }
   const p = idebParams();
@@ -1584,7 +1634,6 @@ function trocarAba(qual) {
   // dois seletores aparecem ao mesmo tempo — o de avaliação, que é da Fluência,
   // ao lado do de etapa, que é do IDEB.
   document.getElementById('selAvaliacao').parentElement.style.display = flu ? '' : 'none';
-  document.getElementById('boxEtapa').style.display = flu ? 'none' : '';
   const btn = document.getElementById('btnExportar');
   if (btn) btn.title = flu ? 'Baixar as metas de Fluência por escola'
                            : 'Baixar as metas de IDEB por escola';
