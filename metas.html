@@ -263,7 +263,7 @@
   </div>
 
   <!-- ── Controles ── -->
-  <div class="card-mapa">
+  <div class="card-mapa" id="card_fluencia">
     <div class="card-titulo"><i class="bi bi-sliders"></i>Quanto de cada nível deve virar leitor</div>
     <div class="card-sub">
       Leitor = Iniciante + Fluente. Quanto mais perto de ler, mais fácil avançar — por isso o N4
@@ -284,13 +284,18 @@
 
     <div id="ctrlNiveis"></div>
 
-    <div class="d-flex flex-wrap gap-2 mt-3 pt-3" style="border-top:1px solid #e2e8f0;">
+    <div id="origem_fluencia" style="font-size:.74rem;color:#0f766e;font-weight:700;margin-top:.6rem;"></div>
+    <div id="resumo_fluencia" hidden style="font-size:.78rem;color:#475569;margin-top:.5rem;"></div>
+    <div class="d-flex flex-wrap gap-2 mt-3 pt-3" id="acoes_fluencia" style="border-top:1px solid #e2e8f0;">
       <span style="font-size:.72rem;font-weight:800;color:#64748b;align-self:center;">Cenários:</span>
       <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="aplicarPreset('conservador')">Conservador</button>
       <button class="btn btn-sm btn-outline-primary preset-btn" onclick="aplicarPreset('equilibrado')">Equilibrado</button>
       <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="aplicarPreset('ambicioso')">Ambicioso</button>
       <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="aplicarPreset('minimo')">Mínimo p/ meta</button>
       <button class="btn btn-sm btn-link preset-btn text-decoration-none" onclick="aplicarPreset('zerar')">Zerar</button>
+      <button class="btn btn-sm btn-success fw-bold ms-auto" id="btnSalvarFlu"
+              onclick="salvarParametros('fluencia', IDS_FLU(), 'btnSalvarFlu')">
+        <i class="bi bi-save me-1"></i>Gravar metas para a rede</button>
     </div>
     <div style="font-size:.72rem;color:#b45309;margin-top:.8rem;">
       <i class="bi bi-exclamation-triangle-fill me-1"></i>
@@ -351,18 +356,23 @@
       </div>
     </div>
 
-    <div class="card-mapa">
+    <div class="card-mapa" id="card_ideb">
       <div class="card-titulo"><i class="bi bi-sliders"></i>Parâmetros do critério</div>
       <div class="card-sub">
         Régua de convergência: mede-se quanto falta para o horizonte de excelência e exige-se
         uma fração dessa distância por ciclo. Quem está mais longe avança mais.
       </div>
       <div id="idebCtrls"></div>
-      <div class="d-flex flex-wrap gap-2 mt-3 pt-3" style="border-top:1px solid #e2e8f0;">
+      <div id="origem_ideb" style="font-size:.74rem;color:#0f766e;font-weight:700;margin-top:.6rem;"></div>
+      <div id="resumo_ideb" hidden style="font-size:.78rem;color:#475569;margin-top:.5rem;"></div>
+      <div class="d-flex flex-wrap gap-2 mt-3 pt-3" id="acoes_ideb" style="border-top:1px solid #e2e8f0;">
         <span style="font-size:.72rem;font-weight:800;color:#64748b;align-self:center;">Cenários:</span>
         <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="presetIdeb('conservador')">Conservador</button>
         <button class="btn btn-sm btn-outline-primary preset-btn"   onclick="presetIdeb('padrao')">Padrão</button>
         <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="presetIdeb('ambicioso')">Ambicioso</button>
+        <button class="btn btn-sm btn-success fw-bold ms-auto" id="btnSalvarIdeb"
+                onclick="salvarParametros('ideb', IDS_IDEB(), 'btnSalvarIdeb')">
+          <i class="bi bi-save me-1"></i>Gravar metas para a rede</button>
       </div>
     </div>
 
@@ -488,6 +498,13 @@ async function carregarDados() {
     const sel = document.getElementById('selAvaliacao');
     sel.innerHTML = S.avaliacoes.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
     montarControles();
+    aplicarSalvos('fluencia', IDS_FLU());
+    marcarOrigem('fluencia');
+    trancarControles('fluencia', 'card_fluencia', () => {
+      const p = params();
+      return 'Meta da rede: <b>' + Math.round(p.meta*100) + '%</b> de leitores · ' +
+        NIVEIS.map(n => n.nome.replace('Pré-leitor ','') + ' <b>' + Math.round(p[n.key]*100) + '%</b>').join(' · ');
+    });
     recalcular();
   } catch (e) {
     semDados('Não foi possível carregar os dados: ' + e.message);
@@ -722,6 +739,109 @@ function esc(s) {
 
 
 /* ═══════════════════════════════════════════════════════════
+   PARÂMETROS GRAVADOS
+
+   As metas são decisão da SME, não preferência de quem abre a tela: ficam numa
+   tabela e todo mundo vê os MESMOS números. Só super admin move os controles.
+
+   ⚠️ O gate daqui é conforto, não segurança — qualquer pessoa pode chamar a API
+   direto. Quem impede a escrita é a policy de metas_parametros no Postgres.
+   Se você mexer aqui, não presuma que isso protege alguma coisa.
+   ═══════════════════════════════════════════════════════════ */
+const METAS_TABELA = 'metas_parametros';
+let METAS_SALVAS = {};   // { fluencia: {...}, ideb: {...} }
+let METAS_META   = {};   // { fluencia: {atualizado_em}, ... }
+
+function souSuperAdmin() {
+  try { return !!(window.MapaAuth && window.MapaAuth.perfil && window.MapaAuth.perfil.is_super_admin); }
+  catch (e) { return false; }
+}
+
+async function carregarParametros() {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${METAS_TABELA}?select=escopo,parametros,atualizado_em`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    });
+    if (!r.ok) return;                       // tabela ainda não existe: segue nos padrões
+    (await r.json()).forEach(l => {
+      if (l && l.escopo && l.parametros) {
+        METAS_SALVAS[l.escopo] = l.parametros;
+        METAS_META[l.escopo] = { em: l.atualizado_em };
+      }
+    });
+  } catch (e) { /* segue nos padrões */ }
+}
+
+// Aplica valores gravados aos controles de um escopo. Os ids dos controles são
+// a chave do que se grava, para não haver um segundo dicionário divergindo.
+function aplicarSalvos(escopo, ids) {
+  const p = METAS_SALVAS[escopo]; if (!p) return false;
+  let algum = false;
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && p[id] != null && isFinite(+p[id])) { el.value = +p[id]; algum = true; }
+  });
+  return algum;
+}
+
+function coletar(ids) {
+  const o = {};
+  ids.forEach(id => { const el = document.getElementById(id); if (el) o[id] = +el.value; });
+  return o;
+}
+
+const IDS_FLU  = () => ['sMeta', ...NIVEIS.map(n => 's_' + n.key)];
+const IDS_IDEB = () => IDEB_PAR.map(d => 'i_' + d.key);
+
+async function salvarParametros(escopo, ids, botaoId) {
+  const btn = document.getElementById(botaoId);
+  const antes = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Gravando…'; }
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${METAS_TABELA}?on_conflict=escopo`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
+        Prefer: 'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify([{ escopo, parametros: coletar(ids) }]),
+    });
+    if (!r.ok) throw new Error((await r.text()) || r.status);
+    METAS_SALVAS[escopo] = coletar(ids);
+    METAS_META[escopo] = { em: new Date().toISOString() };
+    if (btn) { btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Gravado'; }
+    marcarOrigem(escopo);
+    setTimeout(() => { if (btn) { btn.innerHTML = antes; btn.disabled = false; } }, 2500);
+  } catch (e) {
+    if (btn) { btn.innerHTML = antes; btn.disabled = false; }
+    alert('Não foi possível gravar as metas.\n\n' + (e.message || e) +
+          '\n\nA gravação é restrita a super administradores.');
+  }
+}
+
+function marcarOrigem(escopo) {
+  const el = document.getElementById('origem_' + escopo); if (!el) return;
+  const m = METAS_META[escopo];
+  el.textContent = m && m.em
+    ? 'Metas definidas pela SME em ' + new Date(m.em).toLocaleString('pt-BR')
+    : 'Ainda não há metas gravadas — os valores abaixo são a proposta de partida.';
+}
+
+// Para quem não é super admin, o cartão de controles vira leitura: os mesmos
+// números, sem o que mexer. Esconder sem mostrar nada deixaria a pessoa vendo
+// metas sem saber de onde saíram.
+function trancarControles(escopo, containerId, descreve) {
+  if (souSuperAdmin()) return;
+  const box = document.getElementById(containerId); if (!box) return;
+  box.querySelectorAll('input[type=range]').forEach(el => { el.disabled = true; });
+  const acoes = document.getElementById('acoes_' + escopo);
+  if (acoes) acoes.hidden = true;
+  const resumo = document.getElementById('resumo_' + escopo);
+  if (resumo) { resumo.innerHTML = descreve(); resumo.hidden = false; }
+}
+
+/* ═══════════════════════════════════════════════════════════
    METAS DE IDEB — régua de convergência
 
    Critério: mede-se quanto falta para o horizonte de excelência (T) e exige-se
@@ -830,6 +950,14 @@ async function carregarIdeb() {
   });
   IDEB.porEscola = por;
   montarCtrlIdeb();
+  aplicarSalvos('ideb', IDS_IDEB());
+  marcarOrigem('ideb');
+  trancarControles('ideb', 'card_ideb', () => {
+    const p = idebParams();
+    return 'Ritmo da régua <b>' + (p.k*100).toFixed(0) + '%</b> · horizonte <b>' + p.T.toFixed(1) +
+      '</b> · acréscimo entre <b>' + p.piso.toFixed(2).replace('.',',') + '</b> e <b>' +
+      p.teto.toFixed(2).replace('.',',') + '</b> · patamar de fluxo <b>' + (p.patP*100).toFixed(1).replace('.',',') + '%</b>';
+  });
   recalcIdeb();
 }
 
@@ -1023,7 +1151,10 @@ function trocarAba(qual) {
   if (!flu && !IDEB.anos.length) carregarIdeb();
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
+  // Antes de montar controle nenhum: senão a tela pisca no padrão e depois
+  // salta para a meta gravada, e quem vê o primeiro quadro anota o número errado.
+  await carregarParametros();
   carregarDados();
   // Chegando da tela de IDEB (metas.html#ideb), abre já na aba certa em vez de
   // obrigar a pessoa a procurá-la.
