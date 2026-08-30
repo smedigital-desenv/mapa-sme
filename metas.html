@@ -510,9 +510,22 @@ async function apiFetch(path) {
 async function carregarDados() {
   try {
     await aguardarAuth();
-    let dados = await apiFetch(
-      'v_metas_fluencia_publico?select=avaliacao,escola,avaliados,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1&order=avaliacao.asc,escola.asc'
-    );
+    // A view pública é a fonte. Enquanto ela não existir no banco, quem TEM
+    // sessão cai para a view operacional — que é o que esta tela lia antes de
+    // se tornar pública. Sem isso, publicar o front antes do SQL derruba a tela
+    // para todo mundo. Visitante sem sessão não tem esse caminho: para ele a
+    // tela avisa que as metas ainda não foram publicadas.
+    let dados;
+    try {
+      dados = await apiFetch(
+        'v_metas_fluencia_publico?select=avaliacao,escola,avaliados,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1&order=avaliacao.asc,escola.asc'
+      );
+    } catch (e) {
+      if (!_faltaObjeto(e) || window.MAPA_MODO_PUBLICO) throw e;
+      dados = await apiFetch(
+        'v_fluencia_por_turma?select=avaliacao,escola,avaliados,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1&order=avaliacao.asc,escola.asc'
+      );
+    }
     dados = filtrarPorEscola(dados);
     if (!dados.length) return semDados('Nenhum dado de fluência disponível para o seu acesso.');
 
@@ -547,8 +560,26 @@ async function carregarDados() {
     });
     recalcular();
   } catch (e) {
-    semDados('Não foi possível carregar os dados: ' + e.message);
+    semDados(mensagemDeErro(e));
   }
+}
+
+// PGRST205 = o objeto não existe no cache de esquema do PostgREST: a view
+// pública ainda não foi criada. Não é avaria — é ordem de implantação. Numa
+// tela pública, despejar o JSON do PostgREST expõe nome de objeto interno e
+// não diz nada a quem está lendo.
+const _faltaObjeto = e => /PGRST205|Could not find the table|does not exist/i
+  .test(String((e && e.message) || e || ''));
+
+function mensagemDeErro(e) {
+  const t = String((e && e.message) || e || '');
+  if (/PGRST205|Could not find the table|does not exist/i.test(t)) {
+    console.warn('[metas] objeto ainda não publicado no banco:', t);
+    return 'As metas ainda não foram publicadas. Esta tela passa a mostrar os dados assim que a '
+         + 'Secretaria concluir a preparação da base.';
+  }
+  console.error('[metas]', t);
+  return 'Não foi possível carregar os dados agora. Tente novamente em alguns minutos.';
 }
 
 function semDados(msg) {
@@ -946,18 +977,22 @@ function metaIdeb(e, p) {
 
 /* ── Carregamento ── */
 async function carregarIdeb() {
-  const base = 'v_metas_ideb_publico?select=';
-  let linhas = null;
-  try {
-    linhas = await apiFetch(base + 'escola,ano,etapa,ideb,nota,rendimento');
-  } catch (e) {
-    // Colunas ainda não existem no banco (o ALTER TABLE não rodou). Sem elas o
-    // critério fica incompleto — a tela diz isso em vez de mostrar número menor
-    // em silêncio.
-    IDEB.parcial = true;
-    try { linhas = await apiFetch(base + 'escola,ano,etapa,ideb'); }
-    catch (e2) { return avisoIdeb('Não foi possível ler o IDEB: ' + e2.message, true); }
+  // Ordem das tentativas: view pública completa → view pública sem os
+  // componentes (ALTER TABLE ainda não rodou) → tabela operacional, e essa
+  // ÚLTIMA só para quem tem sessão. Cada queda perde alguma coisa, e a tela diz
+  // o que perdeu em vez de mostrar número menor em silêncio.
+  const fontes = ['v_metas_ideb_publico', ...(window.MAPA_MODO_PUBLICO ? [] : ['av_ideb'])];
+  let linhas = null, ultimo = null;
+  for (const fonte of fontes) {
+    try { linhas = await apiFetch(fonte + '?select=escola,ano,etapa,ideb,nota,rendimento'); break; }
+    catch (e) {
+      ultimo = e;
+      if (!_faltaObjeto(e)) { IDEB.parcial = true; }
+      try { linhas = await apiFetch(fonte + '?select=escola,ano,etapa,ideb'); IDEB.parcial = true; break; }
+      catch (e2) { ultimo = e2; }
+    }
   }
+  if (!linhas) return avisoIdeb(mensagemDeErro(ultimo), true);
   linhas = filtrarPorEscola(linhas || []);
   if (!linhas.length) return avisoIdeb('Nenhum dado de IDEB disponível para o seu acesso.', true);
 
