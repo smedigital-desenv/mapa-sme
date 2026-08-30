@@ -89,6 +89,20 @@
             font-size:.72rem; font-weight:800; color:#fff; }
     .aviso-soma { color:#b45309; font-size:.7rem; font-weight:700; }
     .preset-btn { font-size:.74rem; font-weight:700; }
+    .btn-ajuda {
+      border:0; background:var(--primary); color:#fff; width:20px; height:20px; border-radius:50%;
+      font-weight:900; font-size:.72rem; line-height:1; cursor:pointer; vertical-align:middle;
+    }
+    .btn-ajuda:hover { background:#014a91; }
+    .lnk-esc {
+      border:0; background:none; padding:0; text-align:left; font:inherit; font-weight:700;
+      color:#0f4c81; cursor:pointer; text-decoration:underline; text-decoration-style:dotted;
+    }
+    .lnk-esc:hover { color:var(--primary); }
+    .lnk-esc .bi { font-size:.72rem; opacity:.55; }
+    .conta { font-family:Consolas,"SF Mono",Menlo,monospace; font-size:.8rem; }
+    .conta-l { padding:.35rem 0; border-bottom:1px dashed #e2e8f0; }
+    .venceu { background:#ecfdf5; border-left:3px solid #0f766e; padding-left:.5rem; }
     .abas { display:flex; gap:.4rem; border-bottom:2px solid #e2e8f0; }
     .aba {
       background:none; border:0; border-bottom:3px solid transparent; margin-bottom:-2px;
@@ -342,7 +356,7 @@
     <div id="avisoIdeb"></div>
 
     <div class="card-mapa">
-      <div class="card-titulo"><i class="bi bi-flag-fill"></i>Metas de IDEB <span id="idebCiclo" style="font-weight:600;color:#64748b;font-size:.85rem;"></span></div>
+      <div class="card-titulo"><i class="bi bi-flag-fill"></i>Metas de IDEB <button class="btn-ajuda" onclick="abrirComoCalcula()" title="Como a meta é calculada">?</button> <span id="idebCiclo" style="font-weight:600;color:#64748b;font-size:.85rem;"></span></div>
       <div class="card-sub" id="idebSub">Carregando…</div>
       <div class="kpi-grid" id="idebKpis"></div>
 
@@ -395,13 +409,25 @@
             <th>Meta<br>IDEB</th><th>Acrésc.</th>
             <th>Desemp.<br>N atual</th><th>Meta<br>N</th>
             <th>Fluxo<br>P atual</th><th>Meta<br>P</th>
-            <th>Regra determinante</th><th>Classificação de apoio</th>
+            <th>Regra determinante</th>
           </tr></thead>
           <tbody id="idebCorpo"></tbody>
         </table>
       </div>
     </div>
   </div><!-- /paneIdeb -->
+
+  <div class="modal fade" id="modalExplica" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header" style="background:var(--primary);color:#fff;">
+          <div style="font-weight:900;" id="explicaTitulo"></div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="explicaCorpo"></div>
+      </div>
+    </div>
+  </div>
 
 </div>
 
@@ -881,10 +907,10 @@ const IDEB_PAR = [
     obs:'Em 100% a escola volta integralmente ao patamar anterior.' },
 ];
 const IDEB_FAIXAS = [
-  { lbl:'Abaixo de 5,0', teste:v=>v<5,            cor:'#b91c1c', classe:'Prioridade máxima' },
-  { lbl:'5,0 a 5,9',     teste:v=>v>=5 && v<6,    cor:'#ea580c', classe:'Apoio intensivo' },
-  { lbl:'6,0 a 6,9',     teste:v=>v>=6 && v<7,    cor:'#ca8a04', classe:'Acompanhamento' },
-  { lbl:'7,0 ou mais',   teste:v=>v>=7,           cor:'#15803d', classe:'Manutenção + equidade' },
+  { lbl:'Abaixo de 5,0', teste:v=>v<5,            cor:'#b91c1c' },
+  { lbl:'5,0 a 5,9',     teste:v=>v>=5 && v<6,    cor:'#ea580c' },
+  { lbl:'6,0 a 6,9',     teste:v=>v>=6 && v<7,    cor:'#ca8a04' },
+  { lbl:'7,0 ou mais',   teste:v=>v>=7,           cor:'#15803d' },
 ];
 const IDEB = { porEscola: {}, anos: [], parcial: false };
 
@@ -920,7 +946,7 @@ function metaIdeb(e, p) {
   const faixa = IDEB_FAIXAS.find(f => f.teste(ideb)) || IDEB_FAIXAS[0];
   return {
     metaP, c1, c2, c3, metaIdeb: _r1(alvo), metaN: _r2(Math.max(alvo / metaP, n)),
-    acr: _r1(alvo - ideb), regra, classe: faixa.classe, fluxoAtiva: fl < p.patP,
+    acr: _r1(alvo - ideb), regra, fluxoAtiva: fl < p.patP,
   };
 }
 
@@ -1121,10 +1147,10 @@ function renderIdebTabela() {
   document.getElementById('idebCorpo').innerHTML = lista.map(c => {
     if (c.incompleto || c.semDado) return `<tr>
       <td>${esc(c.nome)}</td><td>${fmt2(c.idebAnt)}</td><td>${fmt2(c.ideb)}</td>
-      <td colspan="8" class="aviso-soma">sem desempenho (N) ou fluxo (P) — critério não aplicável</td></tr>`;
+      <td colspan="7" class="aviso-soma">sem desempenho (N) ou fluxo (P) — critério não aplicável</td></tr>`;
     const f = IDEB_FAIXAS.find(x => x.teste(c.ideb)) || IDEB_FAIXAS[0];
     return `<tr>
-      <td>${esc(c.nome)}</td>
+      <td><button class="lnk-esc" onclick="detalharEscola(this.dataset.n)" data-n="${esc(c.nome)}">${esc(c.nome)} <i class="bi bi-info-circle"></i></button></td>
       <td>${fmt2(c.idebAnt)}</td>
       <td><span class="pill" style="background:${f.cor};">${fmt2(c.ideb)}</span></td>
       <td><b style="color:#0f766e;">${fmt2(c.metaIdeb)}</b></td>
@@ -1134,9 +1160,122 @@ function renderIdebTabela() {
       <td>${pc(c.fl)}</td>
       <td>${c.fluxoAtiva ? `<b style="color:#b45309;">${pc(c.metaP)}</b>` : '<span class="text-muted">mantém</span>'}</td>
       <td style="font-size:.74rem;">${c.regra}</td>
-      <td style="font-size:.74rem;color:${f.cor};font-weight:700;">${c.classe}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="11" class="text-center text-muted py-4">Nenhuma escola no filtro.</td></tr>';
+}
+
+/* ── Explicação do cálculo ────────────────────────────────────────────────
+   Dois níveis, porque a pergunta que a tabela provoca não é "como funciona o
+   critério" e sim "por que a MINHA meta é 6,9". O "?" do cabeçalho explica a
+   regra; o nome da escola abre a conta daquela escola, com os números dela. */
+function _modal() {
+  return bootstrap.Modal.getOrCreateInstance(document.getElementById('modalExplica'));
+}
+function _abrir(titulo, corpo) {
+  document.getElementById('explicaTitulo').textContent = titulo;
+  document.getElementById('explicaCorpo').innerHTML = corpo;
+  _modal().show();
+}
+const _n = (v, c) => v == null ? '—' : (Math.round(v * Math.pow(10, c == null ? 2 : c)) / Math.pow(10, c == null ? 2 : c)).toFixed(c == null ? 2 : c).replace('.', ',');
+
+function abrirComoCalcula() {
+  const p = idebParams();
+  _abrir('Como a meta de IDEB é calculada', `
+    <p>O IDEB é o produto de <b>aprendizagem</b> (nota N do SAEB) por <b>fluxo</b>
+       (indicador de rendimento P). A meta trata os dois separadamente, de propósito.</p>
+
+    <h6 class="fw-bold mt-3">A régua de convergência</h6>
+    <p>Em vez de exigir o mesmo crescimento de todas, mede-se quanto falta para o
+       horizonte de excelência (<b>${_n(p.T,1)}</b>) e pede-se <b>${(p.k*100).toFixed(0)}%</b>
+       dessa distância por ciclo. Quem está mais longe avança mais; quem está perto,
+       menos — porque cada décimo custa mais no alto da escala. O acréscimo fica
+       entre <b>${_n(p.piso)}</b> e <b>${_n(p.teto)}</b>: ninguém fica dispensado de
+       melhorar, ninguém recebe meta irreal.</p>
+
+    <h6 class="fw-bold mt-3">A meta é o MAIOR entre três candidatos</h6>
+    <p>Cada um existe para fechar uma brecha:</p>
+    <ol style="font-size:.92rem;">
+      <li><b>Régua sobre o IDEB</b> — o caso geral.</li>
+      <li><b>Régua sobre o desempenho, vezes a meta de fluxo</b> — sem ele, escola com
+          fluxo baixo cumpriria a meta só aprovando mais, sem aprender nada.</li>
+      <li><b>Recuperação de metade da queda</b> — sem ele, cair de um ciclo para o
+          outro renderia meta <i>mais fácil</i> do que não ter caído.</li>
+    </ol>
+
+    <h6 class="fw-bold mt-3">Por que duas metas separadas</h6>
+    <p>Além da meta de IDEB, cada escola recebe uma <b>meta de desempenho</b> — a meta de
+       IDEB dividida pela meta de fluxo, nunca abaixo da nota atual. É o que a escola
+       precisa aprender, já descontado o que virá do fluxo.</p>
+    <p>A <b>meta de fluxo</b> só existe para quem está abaixo do patamar da rede
+       (<b>${(p.patP*100).toFixed(1).replace('.',',')}%</b>): essas fecham
+       <b>${(p.ritmoP*100).toFixed(0)}%</b> da distância até ele. As demais mantêm o que têm.</p>
+
+    <p class="text-muted" style="font-size:.84rem;">Os parâmetros acima são decisão da SME e
+       valem para toda a rede. Clique no nome de uma escola na tabela para ver a conta dela.</p>`);
+}
+
+function detalharEscola(nome) {
+  const c = (window._idebCalc || []).find(x => x.nome === nome);
+  if (!c) return;
+  if (c.incompleto || c.semDado) {
+    _abrir(nome, '<p>Esta escola não tem a nota de desempenho (N) ou o indicador de rendimento (P) ' +
+      'publicados para a edição mais recente. Sem esses dois o critério não pode ser aplicado — ' +
+      'por isso ela aparece sem meta, em vez de receber um número calculado pela metade.</p>');
+    return;
+  }
+  const p = idebParams();
+  const ganhoI = Math.min(p.teto, Math.max(p.piso, p.k * (p.T - c.ideb)));
+  const ganhoN = Math.min(p.teto, Math.max(p.piso, p.k * (p.T - c.n)));
+  const caiu = c.idebAnt != null && c.ideb < c.idebAnt;
+  const linha = (venceu, titulo, conta, valor) => `
+    <div class="conta-l ${venceu ? 'venceu' : ''}">
+      <div style="font-weight:700;font-size:.85rem;">${titulo} ${venceu ? '<span style="color:#0f766e;">← determinou a meta</span>' : ''}</div>
+      <div class="conta" style="color:#475569;">${conta}</div>
+      <div style="font-weight:800;">${valor}</div>
+    </div>`;
+
+  _abrir(nome, `
+    <div style="font-size:.86rem;color:#475569;margin-bottom:.8rem;">
+      Ponto de partida: IDEB <b>${_n(c.ideb,1)}</b>${c.idebAnt != null ? ` (ciclo anterior ${_n(c.idebAnt,1)})` : ''}
+      · desempenho N <b>${_n(c.n,3)}</b> · fluxo P <b>${(c.fl*100).toFixed(2).replace('.',',')}%</b>
+    </div>
+
+    <h6 class="fw-bold">1. Meta de fluxo</h6>
+    <div class="conta-l">
+      <div class="conta">${c.fluxoAtiva
+        ? `${(c.fl*100).toFixed(2).replace('.',',')}% está ABAIXO do patamar da rede (${(p.patP*100).toFixed(1).replace('.',',')}%) → fecha ${(p.ritmoP*100).toFixed(0)}% da distância`
+        : `${(c.fl*100).toFixed(2).replace('.',',')}% já está no patamar da rede (${(p.patP*100).toFixed(1).replace('.',',')}%) → mantém`}</div>
+      <div style="font-weight:800;">Meta de fluxo = ${(c.metaP*100).toFixed(1).replace('.',',')}%</div>
+    </div>
+
+    <h6 class="fw-bold mt-3">2. Os três candidatos</h6>
+    ${linha(c.regra === 'Régua do IDEB', 'Régua do IDEB',
+        `${_n(c.ideb,1)} + ${_n(ganhoI)} &nbsp;(= ${(p.k*100).toFixed(0)}% de ${_n(p.T - c.ideb)}, limitado entre ${_n(p.piso)} e ${_n(p.teto)})`,
+        `${_n(c.c1,1)}`)}
+    ${linha(c.regra === 'Desempenho × fluxo', 'Desempenho × fluxo',
+        `(${_n(c.n,3)} + ${_n(ganhoN)}) × ${_n(c.metaP,3)}`,
+        `${_n(c.c2,1)}`)}
+    ${caiu
+      ? linha(c.regra === 'Recuperação da queda', 'Recuperação da queda',
+          `${_n(c.ideb,1)} + ${(p.queda*100).toFixed(0)}% de ${_n(c.idebAnt - c.ideb,1)} (a queda desde o ciclo anterior)`,
+          `${_n(c.c3,1)}`)
+      : `<div class="conta-l" style="color:#94a3b8;"><div style="font-weight:700;font-size:.85rem;">Recuperação da queda</div>
+         <div class="conta">não se aplica — a escola não caiu em relação ao ciclo anterior</div></div>`}
+
+    <h6 class="fw-bold mt-3">3. Resultado</h6>
+    <div class="conta-l venceu">
+      <div style="font-weight:800;font-size:1.05rem;">Meta de IDEB = ${_n(c.metaIdeb,1)}
+        <span style="font-weight:600;color:#475569;font-size:.85rem;">(acréscimo de ${_n(c.acr,1)})</span></div>
+      <div class="conta" style="color:#475569;">o maior dos candidatos acima</div>
+    </div>
+    <div class="conta-l">
+      <div style="font-weight:800;">Meta de desempenho = ${_n(c.metaN)}</div>
+      <div class="conta" style="color:#475569;">${_n(c.metaIdeb,1)} ÷ ${_n(c.metaP,3)} — o que precisa ser aprendido,
+        já descontado o que virá do fluxo (nunca abaixo do N atual, ${_n(c.n,3)})</div>
+    </div>
+
+    <p class="text-muted mt-3" style="font-size:.82rem;">Empate entre candidatos é atribuído ao primeiro
+      na ordem acima. Os parâmetros do critério são definidos pela SME e valem para toda a rede.</p>`);
 }
 
 /* ── Abas ── */
