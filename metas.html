@@ -130,6 +130,11 @@
     .conta { font-family:Consolas,"SF Mono",Menlo,monospace; font-size:.8rem; }
     .conta-l { padding:.35rem 0; border-bottom:1px dashed #e2e8f0; }
     .venceu { background:#ecfdf5; border-left:3px solid #0f766e; padding-left:.5rem; }
+    /* Rede de segurança: se o CSS do Bootstrap não carregar (CDN fora), o modal
+       não pode ficar aberto no meio da página com os controles à mostra. O
+       Bootstrap aplica display:block INLINE ao abrir, então esta regra não
+       atrapalha o funcionamento normal. */
+    .modal { display: none; }
     .abas { display:flex; gap:.4rem; border-bottom:2px solid #e2e8f0; }
     .aba {
       background:none; border:0; border-bottom:3px solid transparent; margin-bottom:-2px;
@@ -305,34 +310,21 @@
 
   <!-- ── Controles ── -->
   <div class="card-mapa" id="card_fluencia">
-    <div class="card-titulo"><i class="bi bi-sliders"></i><span id="tit_fluencia">Quanto de cada nível deve virar leitor</span></div>
+    <div class="card-titulo"><i class="bi bi-flag-fill"></i>Metas definidas
+      <button class="btn-ajuda" onclick="abrirComoFluencia()" title="Como a meta é calculada">?</button></div>
     <div class="card-sub">
-      Leitor = Iniciante + Fluente. Quanto mais perto de ler, mais fácil avançar — por isso o N4
-      costuma receber a meta mais ambiciosa e o N1 a mais modesta.
-      <b>Cada unidade recebe a meta que resulta de aplicar estes percentuais à composição dela</b>,
-      então a meta é diferente em cada escola: não há alvo único para a rede.
+      Leitor = Iniciante + Fluente. Cada unidade recebe a meta que resulta de aplicar estes
+      percentuais à composição dela — não há alvo único para a rede.
     </div>
 
-    <div id="ctrlNiveis"></div>
-
-    <div id="origem_fluencia" style="font-size:.74rem;color:#0f766e;font-weight:700;margin-top:.6rem;"></div>
-    <div id="resumo_fluencia" hidden style="font-size:.78rem;color:#475569;margin-top:.5rem;"></div>
-    <div class="d-flex flex-wrap gap-2 mt-3 pt-3" id="acoes_fluencia" style="border-top:1px solid #e2e8f0;">
-      <span style="font-size:.72rem;font-weight:800;color:#64748b;align-self:center;">Cenários:</span>
-      <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="aplicarPreset('conservador')">Conservador</button>
-      <button class="btn btn-sm btn-outline-primary preset-btn" onclick="aplicarPreset('equilibrado')">Equilibrado</button>
-      <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="aplicarPreset('ambicioso')">Ambicioso</button>
-      <button class="btn btn-sm btn-link preset-btn text-decoration-none" onclick="aplicarPreset('zerar')">Zerar</button>
-      <button class="btn btn-sm btn-success fw-bold ms-auto" id="btnSalvarFlu"
-              onclick="salvarParametros('fluencia', IDS_FLU(), 'btnSalvarFlu')">
-        <i class="bi bi-save me-1"></i>Gravar metas para a rede</button>
-    </div>
-    <div style="font-size:.72rem;color:#b45309;margin-top:.8rem;">
-      <i class="bi bi-exclamation-triangle-fill me-1"></i>
-      Estes percentuais são decisão pedagógica, não medição: o sistema não guarda série histórica
-      de evolução entre níveis que permita calibrá-los.
+    <div id="resumoFluencia"></div>
+    <div id="origem_fluencia" style="font-size:.74rem;color:#0f766e;font-weight:700;margin-top:.8rem;"></div>
+    <div id="acaoFluencia" style="display:none;margin-top:.9rem;">
+      <button class="btn btn-sm btn-primary fw-bold" onclick="abrirAjuste('fluencia')">
+        <i class="bi bi-sliders me-1"></i>Ajustar metas</button>
     </div>
   </div>
+
 
   <!-- ── Tabela ── -->
   <div class="card-mapa">
@@ -381,22 +373,17 @@
     </div>
 
     <div class="card-mapa" id="card_ideb">
-      <div class="card-titulo"><i class="bi bi-sliders"></i><span id="tit_ideb">Parâmetros do critério</span></div>
+      <div class="card-titulo"><i class="bi bi-flag-fill"></i>Critério definido
+        <button class="btn-ajuda" onclick="abrirComoCalcula()" title="Como a meta é calculada">?</button></div>
       <div class="card-sub">
         Régua de convergência: mede-se quanto falta para o horizonte de excelência e exige-se
         uma fração dessa distância por ciclo. Quem está mais longe avança mais.
       </div>
-      <div id="idebCtrls"></div>
-      <div id="origem_ideb" style="font-size:.74rem;color:#0f766e;font-weight:700;margin-top:.6rem;"></div>
-      <div id="resumo_ideb" hidden style="font-size:.78rem;color:#475569;margin-top:.5rem;"></div>
-      <div class="d-flex flex-wrap gap-2 mt-3 pt-3" id="acoes_ideb" style="border-top:1px solid #e2e8f0;">
-        <span style="font-size:.72rem;font-weight:800;color:#64748b;align-self:center;">Cenários:</span>
-        <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="presetIdeb('conservador')">Conservador</button>
-        <button class="btn btn-sm btn-outline-primary preset-btn"   onclick="presetIdeb('padrao')">Padrão</button>
-        <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="presetIdeb('ambicioso')">Ambicioso</button>
-        <button class="btn btn-sm btn-success fw-bold ms-auto" id="btnSalvarIdeb"
-                onclick="salvarParametros('ideb', IDS_IDEB(), 'btnSalvarIdeb')">
-          <i class="bi bi-save me-1"></i>Gravar metas para a rede</button>
+      <div id="resumoIdeb"></div>
+      <div id="origem_ideb" style="font-size:.74rem;color:#0f766e;font-weight:700;margin-top:.8rem;"></div>
+      <div id="acaoIdeb" style="display:none;margin-top:.9rem;">
+        <button class="btn btn-sm btn-primary fw-bold" onclick="abrirAjuste('ideb')">
+          <i class="bi bi-sliders me-1"></i>Ajustar critério</button>
       </div>
     </div>
 
@@ -426,6 +413,53 @@
       </div>
     </div>
   </div><!-- /paneIdeb -->
+
+  <div class="modal fade" id="modalAjuste" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header" style="background:var(--primary);color:#fff;">
+          <div style="font-weight:900;" id="ajusteTitulo"></div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="ajusteFluencia" hidden>
+            <p style="font-size:.86rem;color:#475569;">
+              Estes percentuais valem para toda a rede. A meta de cada unidade é o que resulta de
+              aplicá-los à composição dela.</p>
+            <div id="ctrlNiveis"></div>
+            <div class="d-flex flex-wrap gap-2 mt-3 pt-3" style="border-top:1px solid #e2e8f0;">
+              <span style="font-size:.72rem;font-weight:800;color:#64748b;align-self:center;">Cenários:</span>
+              <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="aplicarPreset('conservador')">Conservador</button>
+              <button class="btn btn-sm btn-outline-primary preset-btn" onclick="aplicarPreset('equilibrado')">Equilibrado</button>
+              <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="aplicarPreset('ambicioso')">Ambicioso</button>
+              <button class="btn btn-sm btn-link preset-btn text-decoration-none" onclick="aplicarPreset('zerar')">Zerar</button>
+            </div>
+            <div style="font-size:.74rem;color:#b45309;margin-top:.9rem;">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i>
+              Estes percentuais são decisão pedagógica, não medição: o sistema não guarda série
+              histórica de evolução entre níveis que permita calibrá-los.
+            </div>
+          </div>
+          <div id="ajusteIdeb" hidden>
+            <p style="font-size:.86rem;color:#475569;">
+              Alterar aqui muda a meta de todas as escolas. O efeito aparece na tela ao fechar.</p>
+            <div id="idebCtrls"></div>
+            <div class="d-flex flex-wrap gap-2 mt-3 pt-3" style="border-top:1px solid #e2e8f0;">
+              <span style="font-size:.72rem;font-weight:800;color:#64748b;align-self:center;">Cenários:</span>
+              <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="presetIdeb('conservador')">Conservador</button>
+              <button class="btn btn-sm btn-outline-primary preset-btn"   onclick="presetIdeb('padrao')">Padrão</button>
+              <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="presetIdeb('ambicioso')">Ambicioso</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar sem gravar</button>
+          <button type="button" class="btn btn-success fw-bold" id="btnGravar" onclick="gravarAjuste()">
+            <i class="bi bi-save me-1"></i>Gravar metas para a rede</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="modal fade" id="modalExplica" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -552,7 +586,8 @@ async function carregarDados() {
     montarControles();
     aplicarSalvos('fluencia', IDS_FLU());
     marcarOrigem('fluencia');
-    trancarControles('fluencia', 'card_fluencia');
+    aplicarPapel();
+    renderResumoFluencia();
     recalcular();
   } catch (e) {
     semDados(mensagemDeErro(e));
@@ -665,6 +700,8 @@ function recalcular() {
   // caso medido — e o controle passaria a contradizer a tabela em silêncio.
   const convRede = {};
   NIVEIS.forEach(n => { convRede[n.key] = calc.reduce((s, c) => s + c.porNivel[n.key], 0); });
+  window._convRede = convRede;   // o resumo do cartão lê daqui, para não recalcular diferente
+  renderResumoFluencia();
 
   NIVEIS.forEach(n => {
     document.getElementById('out_' + n.key).textContent = Math.round(p[n.key] * 100) + '%';
@@ -874,25 +911,101 @@ function marcarOrigem(escopo) {
     : 'Ainda não há metas gravadas — os valores abaixo são a proposta de partida.';
 }
 
-// Ajustar meta é de super admin. Para todos os demais — inclusive quem entra
-// sem login — o cartão vira LEITURA: some o que se arrasta e ficam os números
-// definidos, com quantos alunos cada percentual representa.
+// Ajustar meta é de super admin, e os controles moram num modal. Aqui só se
+// decide quem enxerga o botão que o abre.
 //
-// Deixar o controle visível e apenas desabilitado é pior que escondê-lo: a
-// pessoa tenta arrastar, nada acontece, e a tela parece quebrada. Mas some só
-// o controle, não a informação — quem lê precisa saber de onde a meta saiu.
-function trancarControles(escopo, containerId) {
-  if (souSuperAdmin()) return;
-  const box = document.getElementById(containerId); if (!box) return;
-  box.querySelectorAll('input[type=range]').forEach(el => { el.style.display = 'none'; });
-  const acoes = document.getElementById('acoes_' + escopo);
-  if (acoes) acoes.hidden = true;
-  const resumo = document.getElementById('resumo_' + escopo);
-  if (resumo) {
-    resumo.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Metas definidas pela Secretaria. '
-      + 'O ajuste dos percentuais é restrito a super administradores.';
-    resumo.hidden = false;
-  }
+// ⚠️ Use display, NÃO o atributo hidden: estes contêineres carregam classes do
+// Bootstrap com display:flex !important, que vence o hidden do navegador. Foi
+// assim que o botão "Gravar metas para a rede" continuou aparecendo para quem
+// não podia gravar — e o teste não pegou porque conferia a propriedade .hidden
+// em vez da visibilidade de fato.
+function aplicarPapel() {
+  const pode = souSuperAdmin();
+  ['acaoFluencia', 'acaoIdeb'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = pode ? '' : 'none';
+  });
+}
+
+let _escopoAjuste = null;
+function abrirAjuste(escopo) {
+  if (!souSuperAdmin()) return;
+  _escopoAjuste = escopo;
+  document.getElementById('ajusteTitulo').textContent =
+    escopo === 'fluencia' ? 'Ajustar as metas de Fluência Leitora' : 'Ajustar o critério do IDEB';
+  document.getElementById('ajusteFluencia').hidden = escopo !== 'fluencia';
+  document.getElementById('ajusteIdeb').hidden     = escopo !== 'ideb';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAjuste')).show();
+}
+
+function gravarAjuste() {
+  // Guarda no manipulador, além do que decide mostrar o botão: se o modal ficar
+  // alcançável por qualquer caminho, a gravação ainda depende do papel. Quem
+  // recusa de verdade é a policy de metas_parametros — isto só evita a
+  // requisição inútil e a mensagem de erro para quem nunca poderia gravar.
+  if (!souSuperAdmin()) return;
+  if (_escopoAjuste === 'fluencia') salvarParametros('fluencia', IDS_FLU(), 'btnGravar');
+  else if (_escopoAjuste === 'ideb') salvarParametros('ideb', IDS_IDEB(), 'btnGravar');
+}
+
+// O resumo é o que TODO MUNDO vê, inclusive quem ajusta. Uma leitura só, para
+// não haver dois lugares dizendo a meta com números diferentes.
+function renderResumoFluencia() {
+  const el = document.getElementById('resumoFluencia'); if (!el) return;
+  const p = params(), t = totais();
+  const conv = window._convRede || {};
+  el.innerHTML = NIVEIS.map(n => `
+    <div class="ctrl" style="padding:.5rem 0;">
+      <div class="ctrl-topo" style="margin-bottom:0;">
+        <div class="ctrl-bolha" style="background:${n.cor};">${n.key.slice(-2).toUpperCase()}</div>
+        <div>
+          <div class="ctrl-nome">${n.nome}</div>
+          <div class="ctrl-qtd">${(t[n.key] || 0).toLocaleString('pt-BR')} alunos hoje</div>
+        </div>
+        <div class="ctrl-saida">
+          <span class="pct">${Math.round(p[n.key] * 100)}%</span><br>
+          <span style="font-weight:600;color:#64748b;">devem virar leitores:
+            <b>${(conv[n.key] || 0).toLocaleString('pt-BR')}</b></span>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function renderResumoIdeb() {
+  const el = document.getElementById('resumoIdeb'); if (!el) return;
+  const p = idebParams();
+  const linha = (rot, val) => `
+    <div class="ctrl" style="padding:.42rem 0;">
+      <div class="ctrl-topo" style="margin-bottom:0;">
+        <div class="ctrl-nome">${rot}</div>
+        <div class="ctrl-saida"><span class="pct">${val}</span></div>
+      </div>
+    </div>`;
+  el.innerHTML =
+      linha('Ritmo da régua', (p.k * 100).toFixed(0) + '%')
+    + linha('Horizonte de excelência', p.T.toFixed(1).replace('.', ','))
+    + linha('Acréscimo por ciclo', p.piso.toFixed(2).replace('.', ',') + ' a ' + p.teto.toFixed(2).replace('.', ','))
+    + linha('Patamar de fluxo da rede', (p.patP * 100).toFixed(1).replace('.', ',') + '%')
+    + linha('Recuperação do fluxo', (p.ritmoP * 100).toFixed(0) + '%')
+    + linha('Recuperação da queda', (p.queda * 100).toFixed(0) + '%');
+}
+
+function abrirComoFluencia() {
+  const p = params();
+  _abrir('Como a meta de cada unidade é calculada', `
+    <p><b>Leitor = Iniciante + Fluente.</b> A meta de uma unidade é quantos leitores ela deve ter
+       ao fim do período, e sai de aplicar um percentual a cada nível de pré-leitor DELA.</p>
+    <h6 class="fw-bold mt-3">Por que percentuais diferentes por nível</h6>
+    <p>Quanto mais perto de ler, mais fácil avançar. Por isso o N4 recebe o percentual mais alto
+       (${Math.round(p.pre_n4 * 100)}%) e o N1 o mais baixo (${Math.round(p.pre_n1 * 100)}%):
+       exigir o mesmo de todos pediria o impossível de quem está no começo da alfabetização.</p>
+    <h6 class="fw-bold mt-3">Por que não há alvo único</h6>
+    <p>Duas escolas com a mesma proporção de leitores hoje podem estar em situações muito
+       diferentes: uma com os pré-leitores quase lendo, outra no início. Um alvo único trataria as
+       duas como iguais. Aplicando os percentuais à composição de cada uma, a primeira recebe meta
+       maior — porque tem mais alunos ao alcance.</p>
+    <p class="text-muted" style="font-size:.84rem;">Clique no nome de uma escola na tabela para ver
+       a conta dela. Os percentuais são definidos pela SME e valem para toda a rede.</p>`);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1010,7 +1123,7 @@ async function carregarIdeb() {
   montarCtrlIdeb();
   aplicarSalvos('ideb', IDS_IDEB());
   marcarOrigem('ideb');
-  trancarControles('ideb', 'card_ideb');
+  aplicarPapel();
   recalcIdeb();
 }
 
@@ -1055,6 +1168,7 @@ function recalcIdeb() {
                    : v.toFixed(1);
   });
 
+  renderResumoIdeb();
   const etapa = document.getElementById('selEtapa').value;
   const porEsc = IDEB.porEscola[etapa] || {};
   const nomes = Object.keys(porEsc);
