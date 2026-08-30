@@ -305,7 +305,7 @@
 
   <!-- ── Controles ── -->
   <div class="card-mapa" id="card_fluencia">
-    <div class="card-titulo"><i class="bi bi-sliders"></i>Quanto de cada nível deve virar leitor</div>
+    <div class="card-titulo"><i class="bi bi-sliders"></i><span id="tit_fluencia">Quanto de cada nível deve virar leitor</span></div>
     <div class="card-sub">
       Leitor = Iniciante + Fluente. Quanto mais perto de ler, mais fácil avançar — por isso o N4
       costuma receber a meta mais ambiciosa e o N1 a mais modesta.
@@ -381,7 +381,7 @@
     </div>
 
     <div class="card-mapa" id="card_ideb">
-      <div class="card-titulo"><i class="bi bi-sliders"></i>Parâmetros do critério</div>
+      <div class="card-titulo"><i class="bi bi-sliders"></i><span id="tit_ideb">Parâmetros do critério</span></div>
       <div class="card-sub">
         Régua de convergência: mede-se quanto falta para o horizonte de excelência e exige-se
         uma fração dessa distância por ciclo. Quem está mais longe avança mais.
@@ -552,12 +552,7 @@ async function carregarDados() {
     montarControles();
     aplicarSalvos('fluencia', IDS_FLU());
     marcarOrigem('fluencia');
-    trancarControles('fluencia', 'card_fluencia', () => {
-      const p = params();
-      return 'Quanto de cada nível deve virar leitor: ' +
-        NIVEIS.map(n => n.nome.replace('Pré-leitor ','') + ' <b>' + Math.round(p[n.key]*100) + '%</b>').join(' · ') +
-        '. A meta de cada unidade resulta destes percentuais aplicados à composição dela.';
-    });
+    trancarControles('fluencia', 'card_fluencia');
     recalcular();
   } catch (e) {
     semDados(mensagemDeErro(e));
@@ -879,17 +874,25 @@ function marcarOrigem(escopo) {
     : 'Ainda não há metas gravadas — os valores abaixo são a proposta de partida.';
 }
 
-// Para quem não é super admin, o cartão de controles vira leitura: os mesmos
-// números, sem o que mexer. Esconder sem mostrar nada deixaria a pessoa vendo
-// metas sem saber de onde saíram.
-function trancarControles(escopo, containerId, descreve) {
+// Ajustar meta é de super admin. Para todos os demais — inclusive quem entra
+// sem login — o cartão vira LEITURA: some o que se arrasta e ficam os números
+// definidos, com quantos alunos cada percentual representa.
+//
+// Deixar o controle visível e apenas desabilitado é pior que escondê-lo: a
+// pessoa tenta arrastar, nada acontece, e a tela parece quebrada. Mas some só
+// o controle, não a informação — quem lê precisa saber de onde a meta saiu.
+function trancarControles(escopo, containerId) {
   if (souSuperAdmin()) return;
   const box = document.getElementById(containerId); if (!box) return;
-  box.querySelectorAll('input[type=range]').forEach(el => { el.disabled = true; });
+  box.querySelectorAll('input[type=range]').forEach(el => { el.style.display = 'none'; });
   const acoes = document.getElementById('acoes_' + escopo);
   if (acoes) acoes.hidden = true;
   const resumo = document.getElementById('resumo_' + escopo);
-  if (resumo) { resumo.innerHTML = descreve(); resumo.hidden = false; }
+  if (resumo) {
+    resumo.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Metas definidas pela Secretaria. '
+      + 'O ajuste dos percentuais é restrito a super administradores.';
+    resumo.hidden = false;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1007,12 +1010,7 @@ async function carregarIdeb() {
   montarCtrlIdeb();
   aplicarSalvos('ideb', IDS_IDEB());
   marcarOrigem('ideb');
-  trancarControles('ideb', 'card_ideb', () => {
-    const p = idebParams();
-    return 'Ritmo da régua <b>' + (p.k*100).toFixed(0) + '%</b> · horizonte <b>' + p.T.toFixed(1) +
-      '</b> · acréscimo entre <b>' + p.piso.toFixed(2).replace('.',',') + '</b> e <b>' +
-      p.teto.toFixed(2).replace('.',',') + '</b> · patamar de fluxo <b>' + (p.patP*100).toFixed(1).replace('.',',') + '%</b>';
-  });
+  trancarControles('ideb', 'card_ideb');
   recalcIdeb();
 }
 
@@ -1355,6 +1353,12 @@ function trocarAba(qual) {
   document.getElementById('abaIdeb').classList.toggle('ativa', !flu);
   document.getElementById('selAvaliacao').parentElement.hidden = !flu;
   document.getElementById('boxEtapa').hidden = flu;
+  // A URL acompanha a aba: a tela é pública e as pessoas compartilham o
+  // endereço. Sem isto, quem chega por #ideb, troca para Fluência e copia a
+  // URL manda ao destinatário uma tela diferente da que estava vendo.
+  // replaceState, não pushState: alternar aba não é passo de navegação, e o
+  // Voltar do navegador deve sair da tela, não desfazer cliques de aba.
+  try { history.replaceState(null, '', flu ? location.pathname + location.search : '#ideb'); } catch (e) {}
   if (!flu && !IDEB.anos.length) carregarIdeb();
 }
 
