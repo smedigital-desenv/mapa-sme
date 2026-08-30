@@ -148,7 +148,7 @@
 
   <div class="ad-up" id="adUpload" style="display:none">
     <div class="secLabel" style="margin-top:0">Atualizar dados</div>
-    <div class="ad-obs" style="margin-top:0;margin-bottom:.7rem">Envie a planilha <b>IDEB — Série Histórica</b>.</div>
+    <div class="ad-obs" style="margin-top:0;margin-bottom:.7rem">Envie a planilha <b>IDEB — Série Histórica</b> ou o arquivo do INEP <i>divulgacao_anos_iniciais_escolas_AAAA</i> / <i>anos_finais</i> — este traz também o desempenho (N) e o fluxo (P), que a tela de Metas usa. O formato é reconhecido sozinho.</div>
     <input type="file" id="adArq" accept=".xlsx" class="form-control form-control-sm" style="max-width:520px">
     <div id="adRes" class="ad-obs" style="margin-top:.7rem"></div>
   </div>
@@ -215,6 +215,68 @@ function render(){
   });
   document.getElementById('tab').innerHTML=h;
 }
+/* ── Arquivo BRUTO do INEP (divulgacao_anos_*_escolas_AAAA) ───────────────
+   Layout: linha 10 traz os códigos legíveis por máquina (SG_UF, ID_ESCOLA,
+   NO_ESCOLA, VL_*), dados da 11 em diante. Interessam quatro famílias:
+
+     VL_OBSERVADO_AAAA      IDEB
+     VL_PROJECAO_AAAA       meta do INEP (só até 2021 — deixou de ser publicada)
+     VL_NOTA_MEDIA_AAAA     desempenho N
+     VL_INDICADOR_REND_AAAA fluxo P
+
+   ⚠️ CASA POR CÓDIGO INEP, NUNCA POR NOME. No arquivo do INEP a mesma escola
+   aparece como "JOSE DELIBO VEREADOR EMEF"; no banco ela é "EMEF Vereador José
+   Delibo". Importar por nome criaria uma escola paralela por unidade — 31 numa
+   passada — e o estrago só apareceria depois, com a rede duplicada na tela.
+   Medido: o código casa 31 de 31; o nome, nenhum.
+
+   Código desconhecido NÃO entra: sai na mensagem para conferência humana.
+   Errar para o lado de esconder é visível e reclamável; criar unidade errada é
+   silencioso e some no meio de 112. */
+function parseInep(wb, mapaInep){
+  const nome0 = wb.SheetNames[0];
+  const etapa = /finais/i.test(nome0) ? 'AF' : /iniciais/i.test(nome0) ? 'AI' : null;
+  if(!etapa) return null;
+  const L=XLSX.utils.sheet_to_json(wb.Sheets[nome0],{header:1,raw:true,defval:null});
+  // acha a linha dos códigos (não é fixa entre edições)
+  let h=-1;
+  for(let i=0;i<Math.min(L.length,25);i++){
+    const r=(L[i]||[]).map(v=>String(v==null?'':v).trim());
+    if(r.includes('ID_ESCOLA') && r.includes('NO_ESCOLA')){ h=i; break; }
+  }
+  if(h<0) return null;
+  const hdr=(L[h]||[]).map(v=>String(v==null?'':v).trim());
+  const at=n=>hdr.indexOf(n);
+  const jCod=at('ID_ESCOLA'), jNome=at('NO_ESCOLA');
+  const campos={VL_OBSERVADO:'ideb', VL_PROJECAO:'meta', VL_NOTA_MEDIA:'nota', VL_INDICADOR_REND:'rendimento'};
+  const cols=[];
+  hdr.forEach((t,j)=>{
+    const m=t.match(/^(VL_OBSERVADO|VL_PROJECAO|VL_NOTA_MEDIA|VL_INDICADOR_REND)_(\d{4})$/);
+    if(m) cols.push({j, campo:campos[m[1]], ano:Number(m[2])});
+  });
+  if(!cols.length) return null;
+
+  const out=[], desconhecidas=[];
+  for(let i=h+1;i<L.length;i++){
+    const r=L[i]; if(!r) continue;
+    const cod=numero(r[jCod]); if(!cod) continue;
+    const ref=mapaInep.get(cod);
+    if(!ref){ desconhecidas.push(cod+' — '+String(r[jNome]||'').trim()); continue; }
+    const porAno=new Map();
+    cols.forEach(c=>{
+      if(!porAno.has(c.ano)) porAno.set(c.ano,{ideb:null,meta:null,nota:null,rendimento:null});
+      porAno.get(c.ano)[c.campo]=numero(r[c.j]);
+    });
+    porAno.forEach((v,ano)=>{
+      if(v.ideb==null&&v.meta==null&&v.nota==null&&v.rendimento==null) return;
+      out.push({escola:ref.escola, ano, etapa, ideb:v.ideb, meta:v.meta,
+                nota:v.nota, rendimento:v.rendimento,
+                codigo_escola:ref.codigo_escola, codigo_inep:cod});
+    });
+  }
+  return { linhas: out, etapa, desconhecidas };
+}
+
 function parsePlanilha(wb){
   const L=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null});
   const hdr=L[2]||[]; const cols=[];
@@ -390,10 +452,38 @@ function ligarUpload(){
     res.textContent='Lendo a planilha…';
     try{
       const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
-      const linhas=parsePlanilha(wb);
-      if(!linhas||!linhas.length){ res.innerHTML='Planilha não reconhecida. Envie a <b>IDEB — Série Histórica</b>.'; return; }
+
+      // Dois formatos aceitos. O bruto do INEP é tentado primeiro porque traz
+      // o desempenho (N) e o fluxo (P), que a Série Histórica não tem e sem os
+      // quais a tela de Metas não consegue aplicar o critério.
+      const mapaInep=new Map();
+      ESCOLAS.forEach(e=>{ if(e.codigo_inep!=null) mapaInep.set(Number(e.codigo_inep), e); });
+      // Sem o catálogo carregado, TODA escola cairia como desconhecida e o
+      // arquivo pareceria incompatível. Recarrega antes de desistir.
+      if(!mapaInep.size){ await carregarEscolas(); ESCOLAS.forEach(e=>{ if(e.codigo_inep!=null) mapaInep.set(Number(e.codigo_inep), e); }); }
+      const inep=parseInep(wb, mapaInep);
+
+      let linhas, aviso='';
+      if(inep){
+        linhas=inep.linhas;
+        if(inep.desconhecidas.length){
+          // Não entram: sem correspondência de código, gravar criaria unidade
+          // paralela com o nome do INEP.
+          aviso='<div style="color:#b45309;margin-top:.5rem"><b>'+inep.desconhecidas.length
+              +' escola(s) do arquivo sem código correspondente no banco — NÃO importadas:</b><br>'
+              +inep.desconhecidas.map(esc).join('<br>')+'</div>';
+        }
+        if(!linhas.length){
+          res.innerHTML='Arquivo do INEP reconhecido ('+inep.etapa+'), mas nenhuma escola casou pelo código INEP.'+aviso;
+          return;
+        }
+      } else {
+        linhas=parsePlanilha(wb);
+      }
+      if(!linhas||!linhas.length){ res.innerHTML='Planilha não reconhecida. Envie a <b>IDEB — Série Histórica</b> ou o arquivo do INEP (<i>divulgacao_anos_*_escolas_AAAA</i>).'; return; }
       await gravar(linhas,res);
-      res.innerHTML='<b>Pronto.</b> '+linhas.length+' linhas atualizadas.';
+      res.innerHTML='<b>Pronto.</b> '+linhas.length+' linhas atualizadas'
+                  + (inep?' a partir do arquivo do INEP ('+(inep.etapa==='AI'?'anos iniciais':'anos finais')+')':'')+'.'+aviso;
       await carregarRede(); await carregarEscolas();
     }catch(e){ console.error(e); res.innerHTML='Falhou: '+esc(e.message||e); }
     finally{ inp.value=''; }
