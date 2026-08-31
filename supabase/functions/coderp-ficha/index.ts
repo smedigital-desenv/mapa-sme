@@ -39,11 +39,16 @@
        supabase functions deploy coderp-ficha
    E o secret precisa existir antes do primeiro uso:
        supabase secrets set CODERP_TOKEN=...
-   Opcional: CODERP_URL para trocar a URL base (padrão: ambiente dsv).
+   AMBIENTE: o padrão é o de TESTES do CODERP. Produção é configuração, não
+   código — cadastre o secret:
+       CODERP_URL=https://gxeduc.coderp.sp.gov.br/xsapr/ObterFichaAvaliacao
+   (e o CODERP_TOKEN correspondente ao ambiente). Atenção: o projeto Supabase
+   é um só, então homologação e produção do site consomem o MESMO ambiente
+   CODERP — o que estiver nos secrets vale para os dois.
    ============================================================================ */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
-const URL_BASE_PADRAO = 'https://gxeducdsv.coderp.sp.gov.br/xsaapids/ObterFichaAvaliacao';
+const URL_BASE_PADRAO = 'https://gxeducdsv.coderp.sp.gov.br/xsads/ObterFichaAvaliacao';
 
 // Cada nível tem seu endpoint e o NOME DO CAMPO que envelopa os parâmetros no
 // corpo (parms/parmsrede/parmsescola/parmsturma — assim mesmo, é o contrato

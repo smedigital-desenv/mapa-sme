@@ -116,7 +116,11 @@ e **nunca vai para o navegador nem para este repositório**. A função:
    mesmo TTL de propósito.
 
 Secrets: `CODERP_TOKEN` (obrigatório) e `CODERP_URL` (opcional; o padrão é o
-ambiente `dsv`).
+ambiente de **testes** `gxeducdsv...«/xsads/»`; produção é
+`https://gxeduc.coderp.sp.gov.br/xsapr/ObterFichaAvaliacao`, cadastrada como
+secret — cada ambiente tem o seu token). ⚠️ O projeto Supabase é um só:
+produção e homologação do site consomem o MESMO ambiente CODERP definido nos
+secrets.
 
 **Quem consome em produção é a `avaliacao.html`**: as abas de bimestre
 (`pacoteViaFichaApi`), o **Total** e a **Análise de Consistência** (ambos via
