@@ -6,7 +6,10 @@ desktop.ini
 # Editores
 .vscode/
 .idea/
-.claude/
+# Config compartilhada do Claude Code (.claude/settings.json) é versionada;
+# só os arquivos locais ficam de fora.
+.claude/settings.local.json
+.claude/launch.json
 *.swp
 *.swo
 *~
@@ -36,3 +39,12 @@ node_modules/
 # Dados exportados/gerados da rotina local de devolutivas (dados pessoais).
 tools/relatorios/visitas-*.json
 tools/relatorios/devolutivas-*.json
+
+# Entradas do tools/conferir-grafias.js (listas de nome de unidade). Não têm
+# dado pessoal, mas export não se versiona — a regra da rede vale igual.
+tools/grafias-*.txt
+tools/catalogo-*.txt
+
+# Redirecionamento mal escapado ('2>\&1' em vez de '2>&1') cria um arquivo
+# chamado '&1', que um `git add -A` varre para dentro do commit sem ninguém ver.
+&1

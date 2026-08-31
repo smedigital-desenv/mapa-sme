@@ -100,13 +100,16 @@ body::before{
     radial-gradient(96% 58% at 50% 106%, rgba(var(--halo),var(--halo-baixo)) 0%, rgba(var(--halo),0) 74%);
 }
 #ceu{ position:fixed; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
+/* Arcos bem mais fracos que no portal. São estáticos e servem só para o
+   fundo não ficar chapado; num sistema de trabalho não devem competir com
+   a tabela. */
 .v2-orbita{
   position:fixed; z-index:0; pointer-events:none;
-  border-radius:50%; border:1px dotted rgba(var(--halo),.34);
+  border-radius:50%; border:1px dotted rgba(var(--halo),.16);
 }
 .v2-orbita--1{ width:150vw; height:150vw; left:-25vw; top:-96vw; }
-.v2-orbita--2{ width:104vw; height:104vw; left:2vw; top:-58vw; border-color:rgba(var(--halo),.26); }
-.v2-orbita--3{ width:126vw; height:126vw; right:-38vw; top:-40vw; border-color:rgba(var(--halo),.24); }
+.v2-orbita--2{ width:104vw; height:104vw; left:2vw; top:-58vw; border-color:rgba(var(--halo),.12); }
+.v2-orbita--3{ display:none; }   /* três arcos era ruído; dois bastam */
 
 /* Conteúdo acima do fundo. O cabeçalho fica FORA desta regra de propósito:
    ela fixava position:relative, matando o position:sticky original, e dava a
@@ -476,6 +479,7 @@ hr{ border-color:var(--borda) !important; opacity:1; }
   *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
 }
 
+/* >>> INÍCIO DO BLOCO GERADO POR tools/extrair-claros.py — NÃO EDITAR À MÃO >>> */
 /* ─── 11. CORES CRAVADAS NAS PÁGINAS ────────────────────── */
 /* Gerado por tools/extrair-claros.py. As telas foram escritas para tema
    claro, com a cor fixada em dezenas de classes próprias de cada uma.
@@ -484,18 +488,34 @@ hr{ border-color:var(--borda) !important; opacity:1; }
 
 /* fundos claros -> superfície do tema escuro */
 #totalMainChartContainer,
+.ad-chip,
+.ad-up,
 .avaliacao-header-card,
+.aviso,
 .backlog-item,
 .backlog-vazio,
 .badge-per,
 .banner,
 .bar,
 .barra-perfis,
+.barwrap,
+.be-card,
+.be-card>h3,
+.be-chip,
+.be-empty,
+.be-head,
+.be-modal,
+.be-obs,
+.be-t td.lbl,
+.be-t th,
+.be-tab,
 .bk-badge,
 .bloco-info,
 .btn-action-ia,
 .btn-ic,
 .btn-ic:hover,
+.callout-chip,
+.card2,
 .cfg-btn-ghost,
 .cfg-btn-ghost:hover,
 .cfg-btn-icon,
@@ -519,6 +539,7 @@ hr{ border-color:var(--borda) !important; opacity:1; }
 .chip-pre3,
 .chip.active,
 .config-card,
+.ctx-chip,
 .detail-box,
 .detail-row,
 .detail-row .detail-box,
@@ -550,6 +571,9 @@ hr{ border-color:var(--borda) !important; opacity:1; }
 .grp-escola,
 .grp-escola:hover,
 .grp-turma,
+.hier-ano.ativa .hier-count,
+.hier-ano:hover,
+.hier-anos,
 .hier-count,
 .hier-turma.ativa .hier-count,
 .hier-turma:hover,
@@ -560,8 +584,10 @@ hr{ border-color:var(--borda) !important; opacity:1; }
 .hm-rot,
 .hm-tema,
 .kpi,
+.legend-alvo.legend-clicavel:hover, .legend-alvo.legend-clicavel:focus-visible,
 .legend-box, .legenda-grafico,
 .legend-clicavel:hover, .legend-clicavel:focus-visible,
+.legend-mini,
 .legenda-grafico,
 .loading-soft,
 .lr-bloco,
@@ -620,6 +646,9 @@ hr{ border-color:var(--borda) !important; opacity:1; }
 .tema-barra,
 .tema-linha.ativo,
 .tema-linha.clic:hover,
+.tg,
+.tg .mk,
+.tg[aria-pressed="true"] .mk,
 .turma-ppa-check,
 .turmas-count,
 .turmas-current-chip,
@@ -630,6 +659,7 @@ hr{ border-color:var(--borda) !important; opacity:1; }
 .turmas-dropdown-search,
 .turmas-item-icon,
 .turmas-menu-select-btn,
+table.ad th,
 table.mapa tbody tr:hover,
 table.matriz tbody th,
 table.matriz thead th,
@@ -641,6 +671,7 @@ table.tbl-cob tbody tr:hover,
 td.cell-na,
 td.cell-nok,
 td.cell-ok,
+td.lbl,
 th,
 tr.tot{
   background:var(--superficie) !important;
@@ -650,13 +681,20 @@ tr.tot{
 /* textos escuros -> texto claro */
 #print-area,
 .avaliacao-title,
+.aviso,
+.aviso-sem-fonte i,
 .backlog-vazio,
 .badge-per,
 .banner,
+.be-btn,
+.be-t td.lbl,
+.be-tab.active,
 .bk-nome,
 .btn-detalhe-eixo,
 .btn-ic,
 .btn-modo.active,
+.callout-chip b,
+.callout-n,
 .cap, .note,
 .card-meta-info,
 .cfg-btn-ghost,
@@ -688,6 +726,8 @@ tr.tot{
 .fchip,
 .fchip.clear,
 .grade-grupo-header,
+.hab td.des,
+.hier-ano,
 .hier-count,
 .hier-turma,
 .hier-unidade,
@@ -715,10 +755,17 @@ tr.tot{
 .news-list li,
 .news-text,
 .news-title,
+.nivel-avancado,
+.nivel-basico,
+.nivel-nao-proficiente,
+.nivel-proficiente,
 .pdf-cab-marca span,
 .pdf-cab-sub,
 .pdf-opt,
 .pend-visuBtn.active,
+.percentual.alto,
+.percentual.baixo,
+.percentual.medio,
 .periodo-badge.diag,
 .pill-dev,
 .pill-no,
@@ -744,6 +791,7 @@ tr.tot{
 .tema-nome,
 .tema-num,
 .text-aluno,
+.tg,
 .tipo-escola-header .tipo-count,
 .turma-info .t-sub,
 .turma-info .t-titulo,
@@ -758,15 +806,19 @@ h3,
 table.matriz td .big,
 table.matriz thead th,
 table.mtx td .big,
-table.mtx thead th{
+table.mtx thead th,
+td.des,
+td.lbl{
   color:var(--texto) !important;
 }
 
 /* bordas claras -> borda do tema escuro */
 #totalMainChartContainer,
 .avaliacao-header-card,
+.aviso,
 .banner,
 .bloco-info,
+.callout-chip,
 .card-kpi-click:hover,
 .cfg-erro,
 .cfg-form,
@@ -789,10 +841,13 @@ table.mtx thead th{
 .grade-grupo-chips,
 .grade-grupo-header,
 .grp-turma td:first-child,
+.hier-ano,
+.hier-anos,
 .hier-turmas,
 .hier-unidade,
 .hm-tbl th, .hm-tbl td,
 .kpi,
+.legend-alvo.legend-clicavel:hover, .legend-alvo.legend-clicavel:focus-visible,
 .legend-box, .legenda-grafico,
 .legenda-grafico,
 .loading-soft,
@@ -807,11 +862,14 @@ table.mtx thead th{
 .row-ano-escolar,
 .sec, .card-box, .kpi,
 .selbar,
+.selrow select,
 .series-item,
 .spin,
 .subtabs,
 .tab-btn,
 .table-saldo td,
+.tg,
+.tg[aria-pressed="true"] .mk,
 .turma-ppa-check,
 .turmas-dropdown-menu,
 .turmas-dropdown-search,
@@ -836,6 +894,7 @@ th{
 [style*="background:#e4f5ea"],
 [style*="background:#e9ecef"],
 [style*="background:#ede9fe"],
+[style*="background:#eef1f6"],
 [style*="background:#eef2ff"],
 [style*="background:#eef4ff"],
 [style*="background:#f0f4ff"],
@@ -855,6 +914,7 @@ th{
 [style*="background:#fef2f2"],
 [style*="background:#fef3c7"],
 [style*="background:#fef9c3"],
+[style*="background:#ffd166"],
 [style*="background:#fff"],
 [style*="background:#fff0f0"],
 [style*="background:#fff7ed"],
@@ -871,6 +931,7 @@ th{
 [style*="color:#065f46"],
 [style*="color:#0ea5e9"],
 [style*="color:#0f172a"],
+[style*="color:#166534"],
 [style*="color:#16a34a"],
 [style*="color:#1d4ed8"],
 [style*="color:#1e293b"],
@@ -891,6 +952,7 @@ th{
 [style*="color:#8B5CF6"],
 [style*="color:#92400e"],
 [style*="color:#991b1b"],
+[style*="color:#9f1239"],
 [style*="color:#EC4899"],
 [style*="color:#b45309"],
 [style*="color:#b91c1c"],
@@ -901,26 +963,55 @@ th{
 [style*="color:#ef4444"]{
   color:var(--texto) !important;
 }
+/* <<< FIM DO BLOCO GERADO <<< */
 
 /* ─── 12. FUNDOS CLAROS EM style= ───────────────────────── */
 /* Dezenas de elementos trazem a cor no atributo style, que vence qualquer
    folha de estilo. Só um seletor de atributo com !important alcança. */
-[style*="#fff"],[style*="#FFF"],[style*="#f8fafc"],[style*="#f1f5f9"],
-[style*="#e2e8f0"],[style*="#eef2ff"],[style*="#f5f7ff"],[style*="#f9fafb"],
-[style*="#f3f4f6"],[style*="#eef4ff"],[style*="white"]{
+/* ⚠️ Ancore o branco à PROPRIEDADE, nunca ao valor solto. `[style*="#fff"]`
+   também casa com `color:#ffffff`, e foi isso que apagou a escala de cores das
+   telas de avaliação: as duas faixas extremas — verde-escuro #15803d e
+   vermelho #b91c1c — são as únicas com tinta branca, então eram justamente a
+   melhor e a pior situação que perdiam o fundo e viravam cinza. Medido em
+   2026-08 com dados de teste: 17 células nas cinco telas de avaliação, mais os
+   cabeçalhos verdes (#198754) da Atribuição e das Avaliações e o botão azul
+   (#0ea5e9) do Boletim.
+   O sufixo ` i` cobre #FFF, #FFFFFF e WHITE sem multiplicar seletor. */
+[style*="background:#fff" i],[style*="background: #fff" i],
+[style*="background-color:#fff" i],[style*="background-color: #fff" i],
+[style*="background:white" i],[style*="background: white" i],
+[style*="background-color:white" i],[style*="background-color: white" i],
+[style*="#f8fafc" i],[style*="#f1f5f9" i],
+[style*="#e2e8f0" i],[style*="#eef2ff" i],[style*="#f5f7ff" i],[style*="#f9fafb" i],
+[style*="#f3f4f6" i],[style*="#eef4ff" i]{
   background-color:var(--superficie) !important;
   color:var(--texto) !important;
 }
-/* avisos mantêm a matiz semântica, só trocam o preenchimento */
-[style*="#fee2e2"],[style*="#fef2f2"]{
-  background-color:rgba(240,119,107,.12) !important;
-  color:var(--critico) !important;
+/* Os cabeçalhos de modal escrevem `background:var(--primary);color:#fff`, e
+   --primary aqui é TINTA clara (seção 13) — sem esta regra eles ficariam
+   branco sobre branco. Antes só não quebravam por causa do casamento acidental
+   com "#fff" que a correção acima desfez. São 16 telas. */
+[style*="background:var(--primary)" i]{
+  background:#101C26 !important;
+  color:var(--texto) !important;
 }
-[style*="#fef3c7"],[style*="#fffbeb"]{
+/* ⚠️ Estado tem MATIZ, e a matiz é o dado. As três pílulas do Relatório
+   Executivo (#e4f5ea atendida, #fbeed3 pendência, #fbe2e2 fora) caíam todas na
+   regra genérica de fundo claro e saíam com a MESMA superfície cinza: três
+   situações diferentes com a mesma aparência, distinguíveis só pelo texto.
+   Elas entram nos grupos semânticos abaixo, junto das grafias que já estavam. */
+/* avisos mantêm a matiz semântica, só trocam o preenchimento */
+[style*="#fee2e2"],[style*="#fef2f2"],[style*="#fbe2e2"]{
+  background-color:rgba(240,119,107,.12) !important;
+  /* um passo mais claro que --critico: medido sobre o cartão, o token puro
+     dava 4,32:1, abaixo do mínimo. */
+  color:#F3948B !important;
+}
+[style*="#fef3c7"],[style*="#fffbeb"],[style*="#fbeed3"]{
   background-color:rgba(232,181,74,.12) !important;
   color:var(--atencao) !important;
 }
-[style*="#dcfce7"],[style*="#f0fdf4"]{
+[style*="#dcfce7"],[style*="#f0fdf4"],[style*="#e4f5ea"]{
   background-color:rgba(63,214,154,.12) !important;
   color:var(--ok) !important;
 }
@@ -992,4 +1083,220 @@ tr:hover > td,tr.selecionada > td,tr.ativa > td,
   background:var(--acento) !important;
   border-color:var(--acento) !important;
   color:var(--acento-tinta) !important;
+}
+
+/* ─── 14. IDENTIDADE POR COR: O QUE NÃO PODE VIRAR CINZA ──────────────────── */
+
+/* ⚠️ Os ladrilhos dos cartões do portal trazem a cor da FAMÍLIA do sistema no
+   style=, e a regra de fundo claro os igualava: catorze cartões com o mesmo
+   tom de acento, distinguíveis só pelo glifo. Cor que identifica entidade não
+   é decoração — é o que faz a pessoa achar o sistema de sempre sem ler.
+
+   ⚠️ Devolver a cor CHAPADA não serve, e isso foi medido: sobre #0ea5e9 o
+   glifo de acento fica em 1,60:1 e o branco em 2,77:1, os dois abaixo do
+   mínimo de 3:1 para elemento gráfico. A matiz entra como VÉU (22%) sobre o
+   fundo escuro e o glifo recebe um passo claro da mesma matiz — identidade
+   preservada, 4,6–5,4:1 de contraste. Mesmo padrão das pílulas de estado. */
+.ic[style*="#0284c7" i]{ background:rgba(2,132,199,.22)  !important; color:#4DA8D7 !important; }
+.ic[style*="#059669" i]{ background:rgba(5,150,105,.22)  !important; color:#50B596 !important; }
+.ic[style*="#0ea5e9" i]{ background:rgba(14,165,233,.22) !important; color:#56C0EF !important; }
+.ic[style*="#7c3aed" i]{ background:rgba(124,58,237,.22) !important; color:#B088F4 !important; }
+.ic[style*="#d97706" i]{ background:rgba(217,119,6,.22)  !important; color:#E49F50 !important; }
+.ic[style*="#0d9488" i]{ background:rgba(13,148,136,.22) !important; color:#55B4AB !important; }
+.ic[style*="#0891b2" i]{ background:rgba(8,145,178,.22)  !important; color:#52B2C9 !important; }
+.ic[style] > i{ color:inherit !important; }
+
+/* As etiquetas de assunto do portal saíam em TRÊS tratamentos ao mesmo tempo:
+   umas claras como no tema claro (#e0f2fe não estava na lista), outras cinza e
+   uma âmbar. Todas passam a ser véu da própria matiz, como as pílulas. */
+/* ⚠️ A tinta é medida contra o fundo REAL do elemento, não contra o fundo da
+   página: estas etiquetas ficam dentro de cartões (--superficie-2), que são
+   mais claros, e o mesmo tom que dava 5,2:1 sobre a página caía para 4,0:1
+   ali dentro. Os passos abaixo já saem calculados sobre o cartão. */
+[style*="#e0f2fe" i]{ background-color:rgba(90,169,240,.14) !important; color:#7EBBF3 !important; }
+[style*="#d1fae5" i]{ background-color:rgba(63,214,154,.14) !important; color:#3FD69A !important; }
+[style*="#ede9fe" i]{ background-color:rgba(169,139,239,.16) !important; color:#C4B0F4 !important; }
+
+/* ⚠️ Os chips de nível da Fluência Leitora reprovavam em AA — e reprovam
+   TAMBÉM na tela em produção, não é efeito da pele escura. Medido com texto
+   branco: Pré-leitor N3 2,15:1, Fluente 2,54:1, Iniciante 3,68:1, Pré-leitor
+   N2 3,78:1, Pré-leitor N4 4,47:1, contra o mínimo de 4,5:1.
+
+   A correção segue o que a escala TRI já faz nesta rede: a PALETA não muda,
+   muda a tinta. Cada chip recebe a própria matiz levada quase ao preto —
+   4,7 a 6,1:1 — e a cor continua legível como cor.
+
+   ⚠️ Dois casos não se resolvem só pela tinta:
+   · Pré-leitor N3 (#F59E0B) é claro o bastante para o extrair-claros.py o ter
+     classificado como fundo claro, então ele chegava aqui já CINZA — tinta
+     escura sobre cinza escuro deu 1,05:1 na primeira tentativa. O fundo é
+     devolvido junto com a tinta;
+   · Pré-leitor N4 (#6366F1) está na zona morta: nem branco (4,47) nem preto
+     (4,70) passam com folga. Ali o fundo escurece 10% e o branco fica. */
+.chip-fluente  { color:#043324 !important; }
+.chip-iniciante{ color:#0B1A31 !important; }
+.chip-pre2     { color:#330019 !important; }
+.chip-pre3     { background:#F59E0B !important; color:#442C03 !important; }
+.chip-pre4     { background:#595BD8 !important; color:#fff !important; }
+
+/* ─── 15. AJUSTES FINOS MEDIDOS ───────────────────────────────────────────── */
+
+/* ⚠️ Medido com o Bootstrap REALMENTE carregado — sem ele a medição mente, e
+   erramos isso uma vez: um botão sem regra cai no cinza padrão do navegador e
+   aparenta 1,6:1 que na página de verdade não existe.
+   O que sobra depois de medir direito é um caso só: o filtro "Não atribuídas"
+   da Atribuição fica em 4,03:1 com o token --critico puro, abaixo do mínimo de
+   4,5:1. Um passo mais claro leva a 5,1:1. Os irmãos verdes já passavam
+   (6,0:1 e 7,6:1) e por isso NÃO têm regra aqui. */
+.btn-outline-danger{ color:#F1877C !important; }
+
+/* Cabeçalho do Boletim Estatístico: ele imita papel timbrado, com o navy
+   #002b5e cravado na tinta do nome da Prefeitura e cinza #64748B no da
+   Secretaria. Sobre a superfície escura isso deu 1,02:1 e 2,98:1 — o nome do
+   órgão era praticamente invisível. Passa a usar os tokens de tinta. */
+.be-org b{ color:var(--texto) !important; }
+.be-org span{ color:var(--texto-2) !important; }
+
+/* Os botões do mesmo cabeçalho têm fundo de cor viva (ciano #00b8d4, âmbar
+   #ffd166) e herdavam a tinta clara do tema: 2,03:1. Com a tinta escura do
+   acento vão a 7,0:1 e 11,6:1, e a cor do botão continua dizendo o que diz. */
+.be-btn{ color:var(--acento-tinta) !important; }
+
+/* Cabeçalhos de modal com cor de estado: o verde #198754 e o vermelho #ef4444
+   vêm do tema claro, onde o título é branco puro. Sob a tinta gelo do tema
+   escuro davam 3,86:1 e 3,21:1. Um passo mais escuro da MESMA matiz resolve
+   sem trocar a cor de significado: 5,1:1 e 5,2:1.
+   ⚠️ Ancorado à propriedade de propósito — #ef4444 também aparece como BORDA
+   em botões cujo fundo já é tratado, e casar pelo valor solto os repintaria. */
+[style*="background:#198754" i],[style*="background: #198754" i],
+[style*="background-color:#198754" i],[style*="background-color: #198754" i]{
+  background-color:#157247 !important;
+}
+[style*="background:#ef4444" i],[style*="background: #ef4444" i],
+[style*="background-color:#ef4444" i],[style*="background-color: #ef4444" i]{
+  background-color:#B33333 !important;
+}
+
+/* Linha de meta do Boletim Estatístico: cinza #64748B cravado, 3,37:1. */
+.be-metaline{ color:var(--texto-2) !important; }
+
+/* ─── 16. A FAIXA-TÍTULO DA TELA ──────────────────────────────────────────── */
+
+/* O bloco do topo é UM: marca da rede, menu e, logo abaixo, o nome da tela.
+   A regra 5b já dissolvia a segunda barra quando ela é irmã imediata do
+   cabeçalho — é assim que Boletim, Fluência e Educação Especial ficam.
+
+   ⚠️ Nas Avaliações a faixa está dentro de outro elemento, então 5b não a
+   alcança e ela caía na regra de fundo escuro da seção 13: medido, #101C26
+   opaco contra o fundo #14232F da página, mais o filete de 5px de neon e
+   74px de altura contra 52px das demais telas. Era esse degrau de cor — e o
+   tamanho — que chamava atenção no topo.
+
+   Aqui a faixa vira o que ela é: uma legenda do cabeçalho, não uma segunda
+   barra. Sem fundo próprio, sem filete grosso, tipografia menor. O ícone
+   FICA — é ele que identifica a tela de relance —, só perde o brilho e o
+   corpo de 22px. A altura cai para ~48px nas oito telas que têm a faixa,
+   nas duas grafias que ela tem no HTML (.nav-header e .faixa). */
+.nav-header,.faixa{
+  background:transparent !important;
+  background-image:none !important;
+  box-shadow:none !important;
+  border-bottom:1px solid var(--borda) !important;
+  padding:.35rem 1.4rem .5rem !important;
+}
+/* o ícone continua, discreto: some o halo e o corpo grande */
+.nav-header > div > i,.nav-header i.bi,.faixa .ic{
+  font-size:1rem !important;
+  filter:none !important;
+  color:var(--acento) !important;
+  opacity:.9;
+}
+.nav-header h5,.faixa h5{
+  font-size:.92rem !important;
+  font-weight:500 !important;
+  letter-spacing:.005em !important;
+  color:var(--texto) !important;
+}
+/* a linha de contexto usa a MESMA fonte da assinatura da marca, no topo:
+   são a mesma coisa — metadado — e escrevê-las igual costura as duas partes
+   do bloco em vez de anunciar que são barras diferentes. */
+.nav-header h5 + div,.faixa .sub{
+  font-family:var(--mono) !important;
+  /* .58rem é exatamente o corpo de .mg-brand-sub, a assinatura sob a marca —
+     igualar os dois é o que faz as duas linhas lerem como a mesma voz. */
+  font-size:.58rem !important;
+  font-weight:400 !important;
+  letter-spacing:.14em !important;
+  color:var(--texto-3) !important;
+}
+
+/* A sub-navegação da tela (Rede · Diagnóstica · 1º Bim. …) vem logo abaixo da
+   faixa-título com um azul opaco cravado — `rgba(0,43,94,.95)` mais um filete
+   de neon. Com a faixa-título agora silenciosa, era ELA que passava a gritar
+   no topo: uma tarja azul-marinho de ponta a ponta sobre o fundo petróleo.
+
+   ⚠️ O azul aparece em duas grafias: no `style=` das Avaliações e da
+   Atribuição, e na classe `.toolbar` da Análise de Jornada e do Retrato. As
+   duas entram aqui — corrigir só uma deixaria duas telas irmãs diferentes.
+
+   O bloco do topo termina, então, num filete só: marca, menu, nome da tela e
+   sub-navegação lendo como uma coisa só. Os botões continuam com a borda de
+   acento, que é o que diz onde clicar. */
+[style*="background:rgba(0,43,94" i]{
+  background:transparent !important;
+  border-bottom:1px solid var(--borda) !important;
+}
+/* ⚠️ O .toolbar da Análise de Jornada e do Retrato é `position:sticky`, e
+   barra grudada no topo NÃO pode ser transparente: o conteúdo rolaria por
+   baixo e a barra viraria uma sopa de texto sobreposto. Ali o fundo é o da
+   própria página — opaco, mesma cor, nenhum degrau visível, e o que passa por
+   trás continua escondido. */
+.toolbar{
+  background:var(--fundo) !important;
+  border-bottom:1px solid var(--borda) !important;
+}
+
+/* ─── 17. GRADIENTES: O PONTO CEGO ────────────────────────────────────────── */
+
+/* ⚠️ Gradiente é `background-image`, não `background-color`. As regras que
+   devolvem fundo claro ao tema escuro trabalham por cor CHAPADA e passam
+   direto por ele — e a auditoria, que lia só background-color, também passava.
+   Foi assim que estes dois ficaram meses ilegíveis sem ninguém medir.
+
+   A faixa-título das telas de avaliação é `linear-gradient(135deg,
+   var(--primary), var(--pri2))`. Como a seção 13 remapeia --primary para TINTA
+   clara e --pri2 continua o azul-petróleo original, o gradiente ia de #E6EEF4
+   a #075F82: claro à esquerda, escuro à direita, com texto branco por cima.
+   Medido: 1,17:1 — o título simplesmente não existia na metade esquerda.
+
+   Ela vira uma superfície do mesmo sistema dos cartões: sem gradiente, com o
+   filete de sempre. O texto passa aos tokens de tinta, e a linha de contexto
+   à direita usa a mesma fonte de metadado do resto do topo. */
+.titbar{
+  background:var(--superficie) !important;
+  background-image:none !important;
+  border:1px solid var(--borda) !important;
+  box-shadow:none !important;
+}
+.titbar .t{ color:var(--texto) !important; font-weight:600 !important; }
+.titbar .meta{
+  font-family:var(--mono) !important;
+  font-weight:400 !important;
+  font-size:.62rem !important;
+  letter-spacing:.1em !important;
+  text-transform:uppercase;
+  color:var(--texto-2) !important;
+  opacity:1 !important;
+}
+
+/* O cabeçalho do Relatório Executivo é o mesmo caso: gradiente de dois azuis
+   que o tema escuro não alcançou, com texto branco por cima — 2,14:1 no
+   título e 2,51:1 na linha de apoio, que ainda é branco a 82% de opacidade.
+   Aqui o azul FICA, porque é a identidade do documento; o que muda é o passo,
+   levado a 60% da luminosidade original. Medido: 4,7:1 no pior texto (a linha
+   de 82%) e 6,1:1 no branco puro. */
+header.report{
+  background:linear-gradient(135deg,#254E78,#366590) !important;
+  box-shadow:none !important;
+  border:1px solid var(--borda) !important;
 }

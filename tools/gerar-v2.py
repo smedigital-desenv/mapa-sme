@@ -14,12 +14,19 @@ uma cópia <nome>-v2.html idêntica, com quatro acréscimos:
 Os links internos passam a apontar para as versões -v2, para a
 navegação não cair na página em uso no meio do teste.
 
+Antes de gerar, roda tools/extrair-claros.py --aplicar, que atualiza o
+bloco de cores cravadas dentro de mapa-v2.css. São duas etapas do mesmo
+serviço: quem mexe no CSS embutido de uma tela precisa das duas, e separá-las
+só cria a chance de rodar uma e esquecer a outra.
+
 Uso:   python3 tools/gerar-v2.py
+       python3 tools/gerar-v2.py --sem-css    (não mexe em mapa-v2.css)
        python3 tools/gerar-v2.py --limpar     (apaga as -v2)
 """
 
 import os
 import re
+import subprocess
 import sys
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -94,6 +101,31 @@ def limpar():
     print(f"{n} páginas -v2 removidas")
 
 
+# "SME Ribeirão Preto · Rede · Diagnóstica" -> "Rede · Diagnóstica";
+# "SME Ribeirão Preto" sozinho -> a linha inteira sai, sobra só o nome.
+_RE_ASSINATURA = re.compile(r"SME\s+Ribeir[ãa]o\s+Preto\s*(?:·\s*)?", re.I)
+_RE_FAIXA = re.compile(r'class="(?:nav-header|faixa)"')
+_RE_LINHA_VAZIA = re.compile(r"<div[^>]*>\s*</div>")
+
+# ⚠️ Janela de tamanho fixo, não "casar o bloco todo". Regex não equilibra
+# tags: um `(.*?)</div>` para no primeiro fechamento INTERNO, que aqui é o da
+# própria linha de contexto — foi o que deixou a linha vazia para trás na
+# primeira tentativa. A faixa tem título e subtítulo nos primeiros ~900
+# caracteres em todas as telas; fora dessa janela nada é tocado.
+_JANELA_FAIXA = 900
+
+
+def _enxugar_faixa(s):
+    m = _RE_FAIXA.search(s)
+    if not m:
+        return s
+    ini = m.start()
+    fim = min(len(s), ini + _JANELA_FAIXA)
+    trecho = _RE_ASSINATURA.sub("", s[ini:fim])
+    trecho = _RE_LINHA_VAZIA.sub("", trecho)
+    return s[:ini] + trecho + s[fim:]
+
+
 def converter(nome, todas):
     caminho = os.path.join(RAIZ, nome)
     with open(caminho, encoding="utf-8") as fh:
@@ -138,6 +170,16 @@ def converter(nome, todas):
     if i != -1:
         s = s[:i] + CEU + s[i:]
 
+    # 4b. a faixa-título repete "SME Ribeirão Preto", que já está sob a marca,
+    # a três centímetros dali. Na versão de teste sobra só o nome do sistema e
+    # o contexto real da tela ("Rede · Diagnóstica · Bimestres").
+    #
+    # ⚠️ O recorte é feito DENTRO do bloco da faixa, nunca no texto da página
+    # inteira: a mesma frase aparece 66 vezes no repositório, e quase todas são
+    # a assinatura sob "MAPA" — que fica. Trocar por busca global apagaria a
+    # assinatura da rede de todas as telas.
+    s = _enxugar_faixa(s)
+
     # 5. navegação interna fica dentro da versão de teste
     for outra in todas:
         base = outra[:-5]
@@ -150,10 +192,22 @@ def converter(nome, todas):
     return os.path.basename(destino), None
 
 
+def atualizar_css():
+    script = os.path.join(RAIZ, "tools", "extrair-claros.py")
+    if not os.path.exists(script):
+        return
+    r = subprocess.run([sys.executable, script, "--aplicar"])
+    if r.returncode:
+        sys.exit("extrair-claros.py falhou; as -v2 não foram geradas "
+                 "para não sair CSS e página em versões diferentes.")
+
+
 def main():
     if "--limpar" in sys.argv:
         limpar()
         return
+    if "--sem-css" not in sys.argv:
+        atualizar_css()
     todas = paginas()
     print(f"{len(todas)} páginas encontradas\n")
     ok = falhas = 0

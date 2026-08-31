@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-tema="claro" data-acento="neon-blue" data-fundo="vazio" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comparativo de Escolas — MAPA SME</title>
+
+  <script src="auth-guard.js"></script>
+  <script>window.MAPA_SISTEMA = 'mapa';</script>
+  <script src="auth.js" defer></script>
+  <script src="unidades.js"></script>
+  <script src="ficha-coderp.js"></script>
+  <script src="leitura-rede.js"></script>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+<script>
+/* defaults do Chart.js para o visual de teste — acrescentado por gerar-v2.py */
+(function () {
+  if (!window.Chart) return;
+  var C = window.Chart;
+  C.defaults.color = '#94A0AB';
+  C.defaults.borderColor = 'rgba(255,255,255,.10)';
+  C.defaults.font.family = 'DM Sans, system-ui, sans-serif';
+  if (C.defaults.plugins && C.defaults.plugins.legend) {
+    C.defaults.plugins.legend.labels.color = '#94A0AB';
+  }
+  if (C.defaults.scales) {
+    ['linear', 'category', 'radialLinear'].forEach(function (k) {
+      if (!C.defaults.scales[k]) return;
+      if (C.defaults.scales[k].grid) C.defaults.scales[k].grid.color = 'rgba(255,255,255,.08)';
+      if (C.defaults.scales[k].ticks) C.defaults.scales[k].ticks.color = '#8996A3';
+    });
+  }
+})();
+</script>
+
+
+  <style>
+    /* Cabeçalho padrão da rede — copiado das demais telas.
+       ⚠️ Não há include: item novo no menu precisa entrar em cada .html. */
+    .mg-header{background:var(--primary);color:#fff;border-bottom:5px solid var(--neon-blue);
+      padding:.95rem 1.6rem;display:flex;align-items:center;justify-content:space-between;
+      gap:1rem;flex-wrap:wrap;position:sticky;top:0;z-index:1050;box-shadow:0 6px 18px rgba(0,43,94,.18);}
+    .mg-brand{display:flex;align-items:center;gap:.6rem;min-width:180px;}
+    .mg-brand-icon{width:34px;height:34px;display:grid;place-items:center;color:var(--neon-blue);
+      font-size:1.4rem;filter:drop-shadow(0 0 6px rgba(0,229,255,.55));}
+    .mg-brand h4{margin:0;font-weight:900;letter-spacing:.03em;font-size:1.4rem;line-height:1;}
+    .mg-brand-sub{font-size:.63rem;color:rgba(255,255,255,.68);font-weight:800;
+      letter-spacing:.08em;text-transform:uppercase;margin-top:2px;}
+    .mg-nav{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;flex:1;min-width:280px;}
+    .mg-nav-btn{display:inline-flex;align-items:center;gap:.4rem;justify-content:center;min-width:130px;
+      font-size:.78rem;font-weight:900;padding:6px 14px;border-radius:8px;border:2px solid transparent;
+      color:#fff;text-decoration:none;transition:.2s;white-space:nowrap;}
+    .mg-nav-btn:hover{border-color:rgba(255,255,255,.4);}
+    .mg-nav-btn.active{background:#fff;color:var(--primary);box-shadow:0 2px 10px rgba(0,0,0,.18);}
+    .mg-actions{min-width:86px;display:flex;justify-content:flex-end;align-items:center;}
+    .mg-action-btn{display:inline-flex;align-items:center;gap:.35rem;font-size:.76rem;font-weight:800;
+      padding:5px 12px;border-radius:8px;border:1.5px solid rgba(255,255,255,.45);
+      background:transparent;color:#fff;cursor:pointer;transition:.2s;}
+    .mg-action-btn:hover{background:rgba(255,255,255,.12);border-color:#fff;}
+    @media (max-width:992px){.mg-nav-btn{min-width:auto;}}
+
+    /* Faixa de contexto sob o cabeçalho, no padrão da tela de Boletim
+       Estatístico: fica colada logo abaixo do menu e diz onde a pessoa está. */
+    .ctx-bar{background:#013a7a;padding:.55rem 1.4rem;display:flex;gap:12px;
+      align-items:center;flex-wrap:wrap;position:sticky;top:64px;z-index:900;}
+    .ctx-bar .ctx-tit{color:#fff;font-weight:900;font-size:.95rem;display:flex;
+      align-items:center;gap:.5rem;}
+    .ctx-chip{background:rgba(255,255,255,.16);color:#fff;border-radius:99px;
+      padding:.15rem .7rem;font-size:.72rem;font-weight:800;letter-spacing:.03em;}
+
+    :root {
+      --primary: #002b5e;
+      --secondary: #0062ff;
+      --neon-blue: #00e5ff;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --info: #3b82f6;
+      --text-1: #1e293b;
+      --text-2: #475569;
+      --text-3: #94a3b8;
+      --bg-light: #f8fafc;
+      --bg-card: #ffffff;
+      --border-color: #e2e8f0;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-tema="claro"]) {
+        --primary: #1e3a5f;
+        --text-1: #f1f5f9;
+        --text-2: #cbd5e1;
+        --text-3: #64748b;
+        --bg-light: #0f172a;
+        --bg-card: #1e293b;
+        --border-color: #334155;
+      }
+    }
+
+    body {
+      background-color: var(--bg-light);
+      color: var(--text-1);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .main-content {
+      padding: 2rem;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .page-header {
+      margin-bottom: 2rem;
+    }
+
+    .page-title {
+      font-size: 1.6rem;
+      font-weight: 900;
+      color: var(--secondary);
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      hyphens: auto;
+    }
+
+    .page-subtitle {
+      color: var(--text-3);
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+      line-height: 1.5;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .filters-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 2rem;
+      align-items: start;
+    }
+
+    .year-filter {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .year-filter label {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-2);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    .year-buttons {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .ano-fixo {
+      background: var(--secondary);
+      color: #fff;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .level-selector {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .btn-level {
+      background: var(--bg-light);
+      border: 1px solid var(--border-color);
+      color: var(--text-1);
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .btn-level:hover {
+      background: var(--border-color);
+    }
+
+    .btn-level.active {
+      background: var(--secondary);
+      color: white;
+      border-color: var(--secondary);
+    }
+
+    /* "Leitores" é o agrupamento que a tela existe para mostrar; os
+       pré-leitores vêm depois, para quem quiser abrir. */
+    .btn-level-destaque { border-color: var(--secondary); color: var(--secondary); }
+    .btn-level-destaque.active { color: #fff; }
+
+    .opc-linha { display:flex; align-items:center; gap:.45rem; margin-top:.9rem;
+      font-size:.82rem; color:var(--text-2); }
+
+    .level-label {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-2);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .table-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+
+    .table-header {
+      background: linear-gradient(135deg, var(--primary) 0%, #003d7a 100%);
+      color: white;
+      padding: 1.5rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1000px;
+    }
+
+    thead {
+      background-color: var(--bg-light);
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    th {
+      padding: 1rem;
+      text-align: left;
+      font-weight: 700;
+      color: var(--text-1);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.9rem;
+    }
+
+    tbody tr:hover {
+      background-color: var(--bg-light);
+    }
+
+    .escola-nome {
+      font-weight: 700;
+      color: var(--primary);
+      max-width: 200px;
+      overflow-wrap: break-word;
+    }
+
+    .percentual {
+      font-weight: 600;
+      text-align: center;
+      min-width: 80px;
+    }
+
+    .percentual.alto {
+      color: #059669;
+    }
+
+    .percentual.medio {
+      color: #d97706;
+    }
+
+    .percentual.baixo {
+      color: #dc2626;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-3);
+    }
+
+    .text-muted { color: var(--text-3); }
+
+    .aviso-sem-fonte {
+      display: flex;
+      gap: .9rem;
+      align-items: flex-start;
+      background: rgba(245, 158, 11, .12);
+      border: 1px solid rgba(245, 158, 11, .45);
+      border-left: 4px solid #d97706;
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 2rem;
+      color: var(--text-1);
+      font-size: .92rem;
+      line-height: 1.55;
+    }
+    .aviso-sem-fonte i { color: #d97706; font-size: 1.2rem; line-height: 1.4; }
+
+    @media (max-width: 992px) {
+      .filters-section {
+        grid-template-columns: 1fr;
+      }
+
+      .main-content {
+        padding: 1rem;
+      }
+
+      th, td {
+        padding: 0.75rem;
+        font-size: 0.8rem;
+      }
+
+      .percentual {
+        min-width: 60px;
+      }
+    }
+  </style>
+
+<!-- ↓↓↓ acrescentado por tools/gerar-v2.py — pele de teste ↓↓↓ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mapa-v2.css">
+<!-- ↑↑↑ -->
+</head>
+<body>
+<div class="v2-faixa">
+  <b>VERSÃO 2 · TESTE</b>
+  <span>Esta página é uma cópia para avaliar o visual novo. A que está em uso continua em</span>
+  <a href="comparativo-escolas-v2.html">comparativo-escolas.html</a>
+</div>
+<canvas id="ceu" aria-hidden="true"></canvas>
+<span class="v2-orbita v2-orbita--1" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--2" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--3" aria-hidden="true"></span>
+
+
+<header class="mg-header">
+  <div class="mg-brand" style="cursor:pointer;" onclick="location.href='index.html'" title="Página inicial do MAPA">
+    <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div>
+    <div><h4>MAPA</h4><div class="mg-brand-sub">SME Ribeirão Preto</div></div>
+  </div>
+  <nav class="mg-nav">
+    <a class="mg-nav-btn" href="index-v2.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
+    <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
+      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao-v2.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="avaliacao-v2.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item" href="avaliacao-diagnostica-v2.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+        <a class="mg-dd-item" href="av-oral-matematica-v2.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+        <a class="mg-dd-item" href="saresp-v2.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+        <a class="mg-dd-item" href="ideb-v2.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+        <a class="mg-dd-item" href="iee-v2.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
+        <a class="mg-dd-item" href="elefante-v2.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+        <a class="mg-dd-item" href="fluencia-v2.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn" href="atribuicao-v2.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="educacao_especial-v2.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <div class="mg-dd" data-tela-any="frequencia,boletim_estatistico">
+      <a class="mg-nav-btn mg-dd-toggle" href="frequencia-v2.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="frequencia-v2.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+        <a class="mg-dd-item" href="boletim-estatistico-v2.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn" href="relatorios-v2.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+    <a class="mg-nav-btn" href="boletim-v2.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+    <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none;min-width:auto;padding:6px 10px;" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
+  </nav>
+  <div class="mg-actions">
+    <button class="mg-action-btn" onclick="location.reload()" title="Atualizar"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button>
+  </div>
+</header>
+
+<div class="ctx-bar">
+  <div class="ctx-tit"><i class="bi bi-building"></i>Comparativo de Escolas</div>
+  <span class="ctx-chip">Percentual de leitores · 2º ano · EMEF</span>
+</div>
+
+<main class="main-content">
+  <div class="page-header">
+    <h1 class="page-title">
+      <i class="bi bi-building"></i>
+      Comparativo de Desempenho por Escola
+    </h1>
+    <p class="page-subtitle">Visualize o desempenho das escolas ao longo de todas as avaliações</p>
+  </div>
+
+  <div class="aviso-sem-fonte">
+    <i class="bi bi-info-circle-fill"></i>
+    <div>
+      <strong>Leitores = L. Iniciante + L. Fluente</strong>, o mesmo corte que
+      decide o selo Adequado/Alerta/Crítico nas telas de bimestre. As seis
+      colunas medem esse nível nas seis avaliações — Fluência e Diagnóstica vêm
+      do banco, os bimestres da ficha do CODERP. O percentual é sobre os alunos
+      <strong>avaliados</strong> no recorte. Célula com <strong>—</strong> é
+      recorte sem apuração, nunca zero.
+      <br>O recorte é o <strong>2º ano das EMEF</strong> — os demais anos e as
+      unidades de educação infantil ficam fora desta tela.
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="filters-section">
+    <div class="year-filter">
+      <label>📚 Ano Escolar</label>
+      <!-- A tela é do 2º ano. Os botões dos outros anos saíram em vez de
+           ficarem desabilitados: botão que não faz nada é convite a clicar. -->
+      <span class="ano-fixo">2º Ano</span>
+    </div>
+
+    <div>
+      <div class="level-label">🎯 Selecione o Nível</div>
+      <div class="level-selector" id="levelSelector"></div>
+      <label class="opc-linha">
+        <input type="checkbox" id="chkSoComDado" checked>
+        Mostrar só unidades com apuração neste recorte
+      </label>
+    </div>
+  </div>
+
+  <!-- Tabela de Escolas -->
+  <div class="table-container">
+    <div class="table-header">
+      <i class="bi bi-building"></i>
+      <span>Percentual de Leitores por Avaliação</span>
+    </div>
+    <div class="table-wrapper">
+      <div id="tableContainer" style="padding: 2rem; text-align: center;">
+        <div class="loading">
+          <div class="spinner-border spinner-border-sm mb-2"></div><br>
+          Carregando dados...
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+/* Esta tela é a leitura; o CÁLCULO vive em `leitura-rede.js`, compartilhado
+   com a Análise de Desempenho. Ver os avisos lá antes de mexer na conta. */
+
+function esc(s) {
+  return String(s??'').replace(/[&<>"']/g,
+    c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ⚠️ NÃO use `await window.MapaAuth.pronto`: o `auth.js` cria um STUB de
+   `window.MapaAuth` no início, e o stub NÃO tem `.pronto`. Como
+   `await undefined` resolve na hora, a tela seguia antes de a sessão abrir.
+   O sinal correto é o evento, como nas demais telas. */
+function aguardarAuth() {
+  return new Promise(resolve => {
+    if (window.MapaAuth && window.MapaAuth.perfil) return resolve();
+    document.addEventListener('mapa-auth-pronto', () => resolve(), { once: true });
+    setTimeout(resolve, 8000);
+  });
+}
+
+const L = () => window.MapaLeitura;
+
+/* Alvos do seletor: o agrupamento "Leitores" vem PRIMEIRO e é o padrão —
+   a tela se chama "Percentual de Leitores", e a pergunta da SME é "quantos
+   já leem", não "quantos estão no N3". O corte é o mesmo de
+   `ehRespostaAdequada()` em avaliacao.html: Iniciante + Fluente. */
+/* Os níveis avulsos do seletor são só os PRÉ-LEITORES. L. Iniciante e
+   L. Fluente saíram de propósito: eles são exatamente o que o agrupamento
+   "Leitores" já mostra, e tê-los soltos ao lado convidava a ler uma metade
+   como se fosse o todo. Eles continuam existindo no cálculo — o módulo
+   precisa deles para somar "Leitores" e para as faixas da Análise de
+   Desempenho —, o que saiu foi o botão. */
+function alvos() {
+  const PRE = ['pre_n1', 'pre_n2', 'pre_n3', 'pre_n4'];
+  return [{ key: 'leitores', label: 'Leitores', destaque: true }]
+    .concat(L().NIVEIS.filter(n => PRE.includes(n.key))
+                      .map(n => ({ key: n.key, label: n.label })));
+}
+
+let DADOS = null;
+let SO_COM_DADO = true;   // esconde unidade sem apuração nenhuma no recorte
+
+function getCorPorcentual(valor) {
+  if (valor >= 60) return 'alto';
+  if (valor >= 40) return 'medio';
+  return 'baixo';
+}
+
+function atualizarTabela(ano, alvo) {
+  const container = document.getElementById('tableContainer');
+  if (!DADOS) { container.innerHTML = '<div class="loading">Carregando...</div>'; return; }
+
+  const AV = L().AVALIACOES;
+  const linhas = DADOS.unidades.map(escola => ({
+    escola,
+    valores: AV.map(av => L().percentual(DADOS.porAvaliacao[av.key], escola, ano, alvo))
+  }));
+
+  // Unidade sem NENHUM número no recorte é ruído: a rede tem EMEI e CEI, que
+  // não têm 1º a 5º ano. Elas somem da tabela, mas o rodapé DIZ quantas —
+  // esconder sem contar transformaria "não casei o nome" em "não tem dado".
+  const comDado = linhas.filter(l => l.valores.some(v => v !== null));
+  const ocultas = linhas.length - comDado.length;
+  const mostrar = SO_COM_DADO ? comDado : linhas;
+
+  if (!mostrar.length) {
+    container.innerHTML = '<div class="loading">Nenhuma unidade tem apuração neste recorte.</div>';
+    return;
+  }
+
+  let html = '<table><thead><tr><th>Escola</th>';
+  AV.forEach(av => { html += `<th style="text-align:center;">${esc(av.label)}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  mostrar.forEach(l => {
+    html += `<tr><td class="escola-nome">${esc(l.escola)}</td>`;
+    l.valores.forEach(v => {
+      html += (v === null)
+        ? '<td class="text-muted" style="text-align:center;" title="sem apuração neste recorte">—</td>'
+        : `<td class="percentual ${getCorPorcentual(v)}" style="text-align:center;">${v}%</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+
+  const rodape = [];
+  if (ocultas) {
+    rodape.push(SO_COM_DADO
+      ? `${ocultas} unidade(s) sem apuração neste recorte não estão listadas.`
+      : `${ocultas} unidade(s) sem apuração neste recorte.`);
+  }
+  if (DADOS.falhas.length) {
+    rodape.push(`Fonte(s) que não responderam: ${esc(DADOS.falhas.join(', '))} — as colunas delas saem como —.`);
+  }
+  if (rodape.length) {
+    html += `<div style="padding:.9rem 1rem;font-size:.82rem;color:var(--text-3);">${rodape.join(' ')}</div>`;
+  }
+  container.innerHTML = html;
+}
+
+function alvoAtivo() {
+  const b = document.querySelector('.btn-level.active');
+  return b ? b.dataset.nivel : 'leitores';
+}
+/* ⚠️ A tela mostra SÓ o 2º ano — decisão da SME. O ano continua sendo um
+   parâmetro do cálculo (`MapaLeitura.percentual` aceita qualquer um, e
+   'TODOS'), então voltar a abrir os outros anos é trocar esta constante e
+   devolver os botões. */
+const ANO_FIXO = '2º ANO';
+function anoAtivo() { return ANO_FIXO; }
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await aguardarAuth();
+  const container = document.getElementById('tableContainer');
+
+  const levelSelector = document.getElementById('levelSelector');
+  alvos().forEach((a, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'btn-level' + (i === 0 ? ' active' : '') + (a.destaque ? ' btn-level-destaque' : '');
+    btn.textContent = a.label;
+    btn.dataset.nivel = a.key;
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-level').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      atualizarTabela(anoAtivo(), a.key);
+    });
+    levelSelector.appendChild(btn);
+  });
+
+  const chk = document.getElementById('chkSoComDado');
+  if (chk) chk.addEventListener('change', () => {
+    SO_COM_DADO = chk.checked;
+    atualizarTabela(anoAtivo(), alvoAtivo());
+  });
+
+  try {
+    // Só EMEF: esta tela compara 1º a 5º ano, e EMEI/CEI não têm
+    // esses anos. Conforto visual — quem entrega a lista é o RLS.
+    DADOS = await L().carregar({ tipos: ['EMEF'] });
+  } catch (e) {
+    console.error('[comparativo] carga falhou:', e);
+    container.innerHTML = '<div class="loading">Não foi possível carregar os dados. '
+      + 'Recarregue a página; se persistir, verifique a sessão.</div>';
+    return;
+  }
+  atualizarTabela(ANO_FIXO, 'leitores');
+});
+</script>
+
+<script src="mapa-v2-ceu.js" defer></script>
+</body>
+</html>

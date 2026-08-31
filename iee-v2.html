@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-bs-theme="dark" data-tema="escuro" data-acento="ciano" data-fundo="medio">
+<head>
+  <meta charset="UTF-8">
+  <script src="auth-guard.js"></script>
+  <script>window.MAPA_SISTEMA = 'mapa';</script>
+  <script src="auth.js" defer></script>
+  <script src="config-central.js" defer></script>
+  <script src="demo-mode.js"></script>
+  <script src="iago.js"></script>
+  <script src="visao-rede.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IEE | SME Ribeirão Preto</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏆</text></svg>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root{--primary:#002b5e;--pri2:#075f82;--neon-blue:#00e5ff;--neon:#00b8d4;
+          --line:#e4e9f0;--ink:#0f172a;--muted:#64748b;}
+    body{background:#eef2f7;font-family:'Segoe UI',sans-serif;padding-bottom:40px;color:var(--ink);}
+    .mg-header{background:var(--primary);color:#fff;border-bottom:5px solid var(--neon-blue);
+      padding:.95rem 1.6rem;display:flex;align-items:center;justify-content:space-between;
+      gap:1rem;flex-wrap:wrap;position:sticky;top:0;z-index:1050;box-shadow:0 6px 18px rgba(0,43,94,.18);}
+    .mg-brand{display:flex;align-items:center;gap:.6rem;min-width:180px;}
+    .mg-brand-icon{width:34px;height:34px;display:grid;place-items:center;color:var(--neon-blue);
+      font-size:1.4rem;filter:drop-shadow(0 0 6px rgba(0,229,255,.55));}
+    .mg-brand h4{margin:0;font-weight:900;letter-spacing:.03em;font-size:1.4rem;line-height:1;}
+    .mg-brand-sub{font-size:.63rem;color:rgba(255,255,255,.68);font-weight:800;
+      letter-spacing:.08em;text-transform:uppercase;margin-top:2px;}
+    .mg-nav{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;flex:1;min-width:280px;}
+    .mg-nav-btn{display:inline-flex;align-items:center;gap:.4rem;justify-content:center;min-width:130px;
+      padding:8px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.06);color:#fff;font-weight:800;font-size:.82rem;text-decoration:none;transition:.15s;}
+    .mg-nav-btn:hover{border-color:rgba(255,255,255,.4);color:#fff;}
+    .mg-nav-btn.active{background:#fff;color:var(--primary);box-shadow:0 2px 10px rgba(0,0,0,.18);}
+    .mg-dd{position:relative;}
+    /* Ponte invisível sobre o vão de 6px entre o botão e o menu. Sem ela o
+       ponteiro sai de .mg-dd no meio do caminho e o menu fecha. Fica ABAIXO
+       do menu (1099 < 1100) para não roubar o clique do primeiro item. */
+    .mg-dd:hover::after{content:"";position:absolute;top:100%;left:0;right:0;height:12px;z-index:1099;}
+    .mg-dd-menu{position:absolute;top:calc(100% + 6px);left:0;background:#fff;border-radius:12px;
+      box-shadow:0 12px 30px rgba(2,16,38,.22);padding:6px;min-width:230px;visibility:hidden;opacity:0;transition:opacity .15s ease .25s,visibility 0s linear .4s;z-index:1100;max-height:calc(100vh - 90px);overflow-y:auto;overscroll-behavior:contain;}
+    .mg-dd:hover .mg-dd-menu,.mg-dd:focus-within .mg-dd-menu{visibility:visible;opacity:1;transition:opacity .12s ease,visibility 0s;}
+    .mg-dd-item{display:flex;align-items:center;gap:.5rem;padding:8px 12px;border-radius:9px;
+      color:#1e293b;font-weight:700;font-size:.82rem;text-decoration:none;}
+    .mg-dd-item:hover,.mg-dd-item:focus-visible{background:#dbeafe;color:var(--primary);
+      box-shadow:inset 3px 0 0 var(--neon,#00b8d4);outline:none;}
+    .mg-dd-item.active{background:var(--primary);color:#fff;}
+    .mg-dd-item.active:hover,.mg-dd-item.active:focus-visible{background:#014a91;color:#fff;}
+    .mg-actions{display:flex;gap:.5rem;}
+    .mg-action-btn{display:inline-flex;align-items:center;gap:.4rem;padding:8px 14px;border-radius:12px;
+      border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;font-weight:800;font-size:.82rem;}
+    @media (max-width:992px){.mg-nav-btn{min-width:auto;}}
+    .ad-bar{background:#013a7a;padding:.55rem 1.6rem;display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+    .ad-bar label{color:#cfe3ff;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;}
+    .ad-bar select{border:0;border-radius:9px;padding:.4rem .7rem;font-weight:700;max-width:420px;}
+    .ad-chip{background:rgba(255,255,255,.16);color:#fff;border-radius:999px;padding:3px 12px;font-weight:800;font-size:.72rem;}
+    .page{max-width:1240px;margin:0 auto;padding:1.1rem 1rem;}
+    .titbar{background:linear-gradient(135deg,var(--primary),var(--pri2));color:#fff;border-radius:14px;
+      padding:.85rem 1.2rem;margin-bottom:.9rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+    .titbar .t{font-weight:900;font-size:1.12rem;} .titbar .meta{font-size:.78rem;opacity:.92;font-weight:700;}
+    .secLabel{font-weight:900;color:var(--primary);font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;
+      margin:1.1rem .2rem .5rem;display:flex;align-items:center;gap:8px;}
+    .secLabel::before{content:"";width:5px;height:16px;background:var(--neon);border-radius:3px;}
+    .card2{background:#fff;border-radius:14px;box-shadow:0 4px 16px rgba(2,16,38,.06);overflow:auto;}
+    table.ad{border-collapse:collapse;width:100%;font-size:.8rem;}
+    table.ad th,table.ad td{padding:.5rem;border:1px solid var(--line);text-align:center;vertical-align:middle;}
+    table.ad th{background:#f6f8fb;color:var(--muted);font-weight:800;font-size:.64rem;text-transform:uppercase;}
+    td.lbl{text-align:left;font-weight:800;color:#334155;background:#fafbfc;white-space:nowrap;}
+    .val{font-weight:900;} .rd{font-size:.62rem;font-weight:800;color:var(--muted);margin-top:1px;display:none;}
+    td.c{font-weight:900;} td.c .rd{color:inherit;opacity:.85;}
+    body.op-rede .rd{display:block;}
+    .leg{font-size:.68rem;color:var(--muted);margin-top:.4rem;}
+    .ops{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:0 .2rem .9rem;}
+    .ops .rot{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:800;}
+    .tg{border:1px solid #cdd7e3;background:#fff;color:#475569;border-radius:999px;padding:.36rem .8rem;
+      font-size:.76rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;font-family:inherit;}
+    .tg:hover{border-color:#94aec9;}
+    .tg .mk{width:13px;height:13px;border-radius:3px;border:1.5px solid #b9c6d6;background:#fff;position:relative;flex:none;}
+    .tg[aria-pressed="true"]{background:var(--primary);border-color:var(--primary);color:#fff;}
+    .tg[aria-pressed="true"] .mk{background:#fff;border-color:#fff;}
+    .tg[aria-pressed="true"] .mk::after{content:"";position:absolute;left:3.5px;top:.5px;width:4px;height:8px;
+      border:solid var(--primary);border-width:0 2px 2px 0;transform:rotate(45deg);}
+    .ad-up{background:#fff;border-radius:14px;box-shadow:0 4px 16px rgba(2,16,38,.06);padding:1rem 1.15rem;margin-top:1.2rem;}
+    .ad-obs{font-size:.74rem;color:var(--muted);border-left:3px solid var(--line);padding-left:.6rem;margin-top:.6rem;}
+    .spark{height:38px;width:100%;display:block;}
+  </style>
+
+<!-- ↓↓↓ acrescentado por tools/gerar-v2.py — pele de teste ↓↓↓ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mapa-v2.css">
+<!-- ↑↑↑ -->
+</head>
+<body>
+<div class="v2-faixa">
+  <b>VERSÃO 2 · TESTE</b>
+  <span>Esta página é uma cópia para avaliar o visual novo. A que está em uso continua em</span>
+  <a href="iee-v2.html">iee.html</a>
+</div>
+<canvas id="ceu" aria-hidden="true"></canvas>
+<span class="v2-orbita v2-orbita--1" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--2" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--3" aria-hidden="true"></span>
+
+
+<header class="mg-header">
+  <div class="mg-brand" style="cursor:pointer;" onclick="location.href='index.html'">
+    <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div>
+    <div><h4>MAPA</h4><div class="mg-brand-sub">SME Ribeirão Preto</div></div>
+  </div>
+  <nav class="mg-nav">
+    <a class="mg-nav-btn" href="index-v2.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
+    <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
+      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao-v2.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="avaliacao-v2.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item" href="avaliacao-diagnostica-v2.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+        <a class="mg-dd-item" href="av-oral-matematica-v2.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+        <a class="mg-dd-item" href="saresp-v2.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+        <a class="mg-dd-item" href="ideb-v2.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+        <a class="mg-dd-item active" href="iee-v2.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
+        <a class="mg-dd-item" href="elefante-v2.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+        <a class="mg-dd-item" href="fluencia-v2.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn" href="atribuicao-v2.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="educacao_especial-v2.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <div class="mg-dd" data-tela-any="frequencia,boletim_estatistico">
+      <a class="mg-nav-btn mg-dd-toggle" href="frequencia-v2.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="frequencia-v2.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+        <a class="mg-dd-item" href="boletim-estatistico-v2.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn" href="relatorios-v2.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+    <a class="mg-nav-btn" href="boletim-v2.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+    <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none;min-width:auto;padding:6px 10px;" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
+  </nav>
+  <div class="mg-actions">
+    <button class="mg-action-btn" onclick="location.reload()"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button>
+  </div>
+</header>
+
+<div class="ad-bar">
+  <label>Unidade</label>
+  <select id="adSel"><option>Carregando…</option></select>
+  <span class="ad-chip" id="adCod">Cód. —</span>
+  <span class="ad-chip" id="adInep">INEP —</span>
+</div>
+
+<div class="page">
+  <div class="titbar"><div class="t" id="adNome">—</div><div class="meta">Índice de Excelência Educacional · 2024–2026</div></div>
+  <div class="ops">
+    <span class="rot">Mostrar</span>
+    <button class="tg" id="bRede" aria-pressed="false"><i class="mk"></i>Comparar com a rede</button>
+  </div>
+  <div class="secLabel">IEE, meta, cumprimento e prêmio</div>
+  <div class="card2"><table class="ad" id="tab"></table></div>
+  <div class="leg" id="legenda">A cor da linha do IEE mede a distância da <b>meta do ano</b>: verde-escuro superou em 5% ou mais · verde alcançou · amarelo até 5% abaixo · laranja até 15% abaixo · vermelho abaixo disso. Meta, ICM e prêmio não recebem faixa — não são desempenho. O ICM indica o cumprimento da meta.</div>
+
+  <div class="ad-up" id="adUpload" style="display:none">
+    <div class="secLabel" style="margin-top:0">Atualizar dados</div>
+    <div class="ad-obs" style="margin-top:0;margin-bottom:.7rem">Envie a planilha <b>IEE — Série Histórica</b>.</div>
+    <input type="file" id="adArq" accept=".xlsx" class="form-control form-control-sm" style="max-width:520px">
+    <div id="adRes" class="ad-obs" style="margin-top:.7rem"></div>
+  </div>
+</div>
+
+<script>
+const PERFIL_FLUXO = 's.fluxoescolar@educacao.pmrp.sp.gov.br';
+const TABELA = 'av_iee';
+function sb(){ return window.MAPA_SB; }
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nf = (v,d) => (v==null||isNaN(v)) ? '—' : Number(v).toFixed(d==null?1:d).replace('.',',');
+
+let DADOS=[], REDE=new Map(), ESCOLAS=[], atual=null;
+
+// Converte célula de planilha em número. Devolve null para QUALQUER coisa que
+// não seja número finito — não só para os marcadores que já vimos. O arquivo do
+// IDEB usa '-' E 'ND'; tratar só '-' fazia Number('ND') virar NaN e 55 linhas
+// de NaN irem para o banco. Marcador novo num arquivo futuro vira null sozinho.
+function numero(v){
+  if(v==null) return null;
+  if(typeof v==='number') return isFinite(v) ? v : null;
+  const s=String(v).replace(/\u00a0/g,' ').replace(/R\$/g,'').trim().replace(/\.(?=\d{3}\b)/g,'').replace(',','.');
+  if(!s || s==='-' || /^[a-zA-Z]/.test(s)) return null;
+  const n=Number(s);
+  return isFinite(n) ? n : null;
+}
+const CAMPOS='ano,iee,meta,icm,premio';
+const chavesRede = r => [[String(r.ano), r.iee]];
+const brl = v => (v==null||isNaN(v)) ? '—' : Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
+/* ── Escala de 5 faixas, a mesma paleta da Diagnóstica ──────────────────────
+   A referência é a META do ano, como no IDEB, e pela mesma razão a escala é
+   assimétrica: alcançar a meta já é verde. Só a linha do IEE recebe faixa —
+   Meta, ICM e prêmio não são desempenho, e colori-los sugeriria uma leitura
+   que eles não têm.
+
+   A tinta acompanha a faixa: sobre os três tons do meio o texto branco fica
+   abaixo de 4,5:1; com tinta escura sobe para 5,0–6,1:1. Não devolva o texto
+   para branco. */
+const FAIXAS=[
+  {min: .05, bg:'#15803d', fg:'#ffffff'},
+  {min: 0,   bg:'#65a30d', fg:'#132000'},
+  {min:-.05, bg:'#ca8a04', fg:'#231700'},
+  {min:-.15, bg:'#ea580c', fg:'#2b0d00'},
+  {min:-Infinity, bg:'#b91c1c', fg:'#ffffff'},
+];
+const SEM_COR={bg:'#cbd5e1', fg:'#0f172a'};
+function faixaRel(v, ref){
+  if(v==null||isNaN(v)||ref==null||isNaN(ref)||!ref) return SEM_COR;
+  const d=(v-ref)/Math.abs(ref);
+  return FAIXAS.find(f=>d>=f.min) || SEM_COR;
+}
+function render(){
+  const anos=Array.from(new Set(DADOS.map(r=>r.ano))).sort();
+  const idx=new Map(DADOS.map(r=>[String(r.ano),r]));
+  const linhas=[
+    ['IEE', r=>r?r.iee:null, (v,r)=>'<span class="val">'+nf(v,2)+'</span>'],
+    ['Meta', r=>r?r.meta:null, v=>'<span style="color:#475569;font-weight:700">'+nf(v,2)+'</span>'],
+    ['ICM (cumpriu a meta)', r=>r?r.icm:null,
+        v=>v==null?'—':'<span style="font-weight:800;color:'+(v>=1?'#166534':'#b91c1c')+'">'+(v>=1?'Sim':'Não')+'</span>'],
+    ['Valor do prêmio', r=>r?r.premio:null, v=>'<span style="font-weight:800">'+brl(v)+'</span>'],
+  ];
+  let h='<tr><th style="text-align:left">Indicador</th>'+anos.map(a=>'<th>'+a+'</th>').join('')+'</tr>';
+  linhas.forEach(([nome,get,fmt])=>{
+    h+='<tr><td class="lbl">'+nome+'</td>'+anos.map(a=>{
+      const r=idx.get(String(a)), v=get(r);
+      if(nome!=='IEE') return '<td>'+fmt(v,r)+'</td>';
+      const f=faixaRel(v, r?r.meta:null);
+      return '<td class="c" style="background:'+f.bg+';color:'+f.fg+'">'+fmt(v,r)
+           + '<div class="rd">rede '+nf(REDE.get(String(a)),2)+'</div></td>';
+    }).join('')+'</tr>';
+  });
+  document.getElementById('tab').innerHTML=h;
+}
+function parsePlanilha(wb){
+  const L=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null});
+  const hdr=L[1]||[]; const cols=[];
+  const CAMPO={'IEE':'iee','METAIEE':'meta','ICMIEE':'icm','VALORPREMIO':'premio'};
+  for(let j=3;j<hdr.length;j++){
+    const m=String(hdr[j]||'').trim().match(/^(META\s+IEE|ICM\s+IEE|VALOR\s+PR[ÊE]MIO|IEE)\s+(\d{4})/i);
+    if(!m) continue;
+    const tipo=m[1].toUpperCase().replace(/\s+/g,'').replace('Ê','E');
+    if(CAMPO[tipo]) cols.push({j,campo:CAMPO[tipo],ano:Number(m[2])});
+  }
+  if(!cols.length) return null;
+  const val = numero;   // " R$ -   " e máscaras viram null pelo conversor comum
+  const out=[];
+  for(let i=2;i<L.length;i++){
+    const r=L[i]; if(!r) continue;
+    const nome=String(r[2]||'').trim(); if(!nome) continue;
+    const agg=new Map();
+    cols.forEach(c=>{
+      if(!agg.has(c.ano)) agg.set(c.ano,{iee:null,meta:null,icm:null,premio:null});
+      agg.get(c.ano)[c.campo]=val(r[c.j]);
+    });
+    agg.forEach((v,ano)=>{
+      if(v.iee==null&&v.meta==null&&v.icm==null&&v.premio==null) return;
+      out.push(Object.assign({escola:nome,ano:ano},v,
+        {codigo_escola:numero(r[0]), codigo_inep:numero(r[1])}));
+    });
+  }
+  return out;
+}
+
+
+async function carregarEscolas(){
+  const { data, error } = await sb().from(TABELA).select('escola,codigo_escola,codigo_inep');
+  if(error) throw error;
+  const m=new Map();
+  (data||[]).forEach(r=>{ if(r.escola && r.escola!=='REDE' && !m.has(r.escola)) m.set(r.escola,r); });
+  ESCOLAS=Array.from(m.values()).sort((a,b)=>a.escola.localeCompare(b.escola,'pt-BR'));
+  const sel=document.getElementById('adSel');
+  if(!ESCOLAS.length){ sel.innerHTML='<option>— sem dados importados —</option>'; document.getElementById('tab').innerHTML=''; return; }
+  sel.innerHTML=ESCOLAS.map(e=>'<option value="'+esc(e.escola)+'">'+esc(e.escola)+'</option>').join('');
+  sel.onchange=()=>selecionar(sel.value);
+  // preparar() acrescenta a opção "Todas as unidades" quando há mais de uma
+  // para comparar, e devolve o que a tela deve abrir.
+  selecionar(window.MapaVisaoRede ? MapaVisaoRede.preparar(sel,ESCOLAS) : ESCOLAS[0].escola);
+}
+
+async function selecionar(nome){
+  if(window.MapaVisaoRede && MapaVisaoRede.interceptar(nome)) return;
+  atual=ESCOLAS.find(e=>e.escola===nome)||{escola:nome};
+  document.getElementById('adNome').textContent=nome;
+  document.getElementById('adCod').textContent='Cód. '+(atual.codigo_escola??'—');
+  document.getElementById('adInep').textContent='INEP '+(atual.codigo_inep??'—');
+  const { data, error } = await sb().from(TABELA).select(CAMPOS).eq('escola',nome);
+  if(error) throw error;
+  DADOS=data||[];
+  render();
+}
+
+// A média da rede não vem nas planilhas de série histórica: é calculada sobre
+// as escolas com dado naquele recorte. Uma consulta só, na abertura.
+async function carregarRede(){
+  // A média da rede vem de uma função SECURITY DEFINER que devolve SÓ o
+  // agregado. Calcular no navegador somando as linhas visíveis parecia
+  // equivalente e não é: sob RLS, um perfil de escola enxerga apenas a própria
+  // unidade, então a "média da rede" virava a média dela mesma — e no SARESP
+  // isso zerava a distância e pintava tudo de amarelo, inclusive uma unidade
+  // em situação crítica.
+  const { data, error } = await sb().rpc('av_iee_rede');
+  if(!error && data){
+    REDE=new Map(data.map(r=>[String(r.ano), r.media]));
+    return;
+  }
+  // Enquanto a função não estiver publicada, cai no cálculo antigo — que é
+  // correto para quem vê a rede toda, que é justamente quem opera hoje.
+  console.warn('av_iee_rede indisponível; média da rede calculada no navegador', error);
+  const res = await sb().from(TABELA).select(CAMPOS);
+  if(res.error) throw res.error;
+  const soma=new Map();
+  (res.data||[]).forEach(r=>{
+    chavesRede(r).forEach(([k,v])=>{
+      if(v==null) return;
+      const s=soma.get(k)||{t:0,n:0}; s.t+=Number(v); s.n++; soma.set(k,s);
+    });
+  });
+  REDE=new Map(Array.from(soma.entries()).map(([k,s])=>[k,s.t/s.n]));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Comparativo "Todas as unidades"
+   O IEE é um índice por ano, uma linha por unidade — não há recorte a somar.
+   Meta, ICM e prêmio entram como colunas de contexto e continuam SEM faixa de
+   cor: não são desempenho, e colori-los sugeriria uma leitura que não têm.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function anosDaRede(){
+  return Array.from(REDE.keys()).sort().reverse().map(a=>({v:a,t:a}));
+}
+function instalarComparativo(){
+  if(!window.MapaVisaoRede) return;
+  MapaVisaoRede.instalar({
+    sel: document.getElementById('adSel'),
+    escolher: selecionar,
+    titulo: 'IEE por unidade × rede',
+    rotuloValor: 'IEE',
+    fmt: v => nf(v,2),
+    casasDif: 2, unidadeDif: '',
+    filtros: [ {id:'ano', rotulo:'Ano', opcoes: anosDaRede} ],
+    colunas: [
+      {id:'meta', t:'Meta', v:l=>l.cols.meta, fmt:v=>nf(v,2)},
+      {id:'icm', t:'Cumpriu a meta', v:l=>l.cols.icm,
+       fmt:v=>'<span style="font-weight:800;color:'+(v>=1?'#166534':'#b91c1c')+'">'
+              +(v>=1?'Sim':'Não')+'</span>'},
+      {id:'premio', t:'Prêmio', v:l=>l.cols.premio, fmt:v=>brl(v)}
+    ],
+    carregar: async f => {
+      const ano = Number(f.ano);
+      if(!ano) return {linhas:[]};
+      const dados = await MapaVisaoRede.buscarTudo(() =>
+        sb().from(TABELA).select('escola,ano,iee,meta,icm,premio')
+            .eq('ano',ano).order('escola'));
+      const rd = REDE.get(String(ano));
+      const ag = MapaVisaoRede.agregador();
+      dados.forEach(r => {
+        if(!r.escola || r.escola==='REDE' || r.iee==null) return;
+        ag.add(r.escola, r.iee, rd, {meta:r.meta, icm:r.icm, premio:r.premio});
+      });
+      return {linhas: ag.linhas()};
+    },
+    legenda: 'IEE de cada unidade no ano escolhido, ao lado da média da rede. A cor mede a '
+           + 'distância relativa da rede. Meta, cumprimento e prêmio ficam sem faixa — não '
+           + 'são desempenho. Clique no nome da unidade para abrir a série dela.'
+  });
+}
+
+async function gravar(linhas,res){
+  const LOTE=500;
+  for(let i=0;i<linhas.length;i+=LOTE){
+    const { error } = await sb().from(TABELA).upsert(linhas.slice(i,i+LOTE));
+    if(error) throw error;
+    res.textContent='Gravando… '+Math.min(i+LOTE,linhas.length)+' de '+linhas.length;
+  }
+}
+
+function ligarUpload(){
+  const inp=document.getElementById('adArq'), res=document.getElementById('adRes');
+  inp.addEventListener('change', async ()=>{
+    const f=inp.files&&inp.files[0]; if(!f) return;
+    res.textContent='Lendo a planilha…';
+    try{
+      const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+      const linhas=parsePlanilha(wb);
+      if(!linhas||!linhas.length){ res.innerHTML='Planilha não reconhecida. Envie a <b>IEE — Série Histórica</b>.'; return; }
+      await gravar(linhas,res);
+      res.innerHTML='<b>Pronto.</b> '+linhas.length+' linhas atualizadas.';
+      await carregarRede(); await carregarEscolas();
+    }catch(e){ console.error(e); res.innerHTML='Falhou: '+esc(e.message||e); }
+    finally{ inp.value=''; }
+  });
+}
+
+/* Gate do upload — conforto, não segurança: quem decide é a policy de escrita. */
+async function aplicarGate(){
+  try{
+    const { data } = await sb().auth.getUser();
+    const email=((data&&data.user&&data.user.email)||'').toLowerCase();
+    let redeToda=false;
+    try{ redeToda=!!(await sb().rpc('vejo_a_rede_toda')).data; }catch(e){}
+    if(email===PERFIL_FLUXO||redeToda) document.getElementById('adUpload').style.display='';
+  }catch(e){}
+}
+
+(function(){
+  const b=document.getElementById('bRede');
+  b.addEventListener('click',()=>{
+    const on=b.getAttribute('aria-pressed')==='true';
+    b.setAttribute('aria-pressed',String(!on));
+    document.body.classList.toggle('op-rede',!on);
+    try{ localStorage.setItem('hist_rede',String(!on)); }catch(e){}
+  });
+  try{ if(localStorage.getItem('hist_rede')==='true') b.click(); }catch(e){}
+})();
+
+(async function(){
+  // window.MAPA_SB nasce no auth.js quando a sessão abre. Criar cliente próprio
+  // aqui geraria requisição sem identidade, que o banco recusa.
+  for(let i=0;i<160 && !window.MAPA_SB;i++) await new Promise(r=>setTimeout(r,100));
+  if(!window.MAPA_SB){ document.getElementById('adNome').textContent='Sessão indisponível'; return; }
+  try{ ligarUpload(); aplicarGate(); await carregarRede(); instalarComparativo(); await carregarEscolas(); }
+  catch(e){ console.error(e); document.getElementById('adNome').textContent='Erro ao carregar: '+(e.message||e); }
+})();
+</script>
+<script src="mapa-v2-ceu.js" defer></script>
+</body>
+</html>

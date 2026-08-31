@@ -14,12 +14,35 @@
     var st = document.createElement('style');
     st.textContent =
       '.mg-dd{position:relative;display:inline-block;}' +
+      // Ponte invisível sobre o vão entre o botão e o menu. Sem ela o ponteiro
+      // sai de .mg-dd no meio do caminho e o menu fecha — quanto mais devagar
+      // o movimento, mais fácil de acontecer. Só existe durante o hover, para
+      // não interceptar cliques no resto da página, e fica ABAIXO do menu
+      // (1099 < 1100) para não roubar o clique do primeiro item.
+      '.mg-dd:hover::after{content:"";position:absolute;top:100%;left:0;right:0;height:12px;z-index:1099;}' +
+      // max-height + rolagem: o submenu de Aprendizagem tem 8 itens e, em tela
+      // baixa, os últimos ficavam fora da janela sem forma de alcançá-los.
       '.mg-dd-menu{position:absolute;top:100%;left:0;min-width:212px;background:#fff;border-radius:10px;' +
-      'box-shadow:0 12px 30px rgba(0,0,0,.25);padding:6px;display:none;z-index:1100;}' +
-      '.mg-dd:hover .mg-dd-menu,.mg-dd:focus-within .mg-dd-menu{display:block;}' +
+      'box-shadow:0 12px 30px rgba(0,0,0,.25);padding:6px;z-index:1100;' +
+      'max-height:calc(100vh - 90px);overflow-y:auto;overscroll-behavior:contain;' +
+      // Fechar por visibility, e não por display, para haver um tempo de
+      // tolerância: o menu continua visível ~250 ms depois que o ponteiro sai,
+      // e como ele é descendente de .mg-dd, voltar sobre ele reacende o hover.
+      // Com display:none não há o que reacender — some no primeiro pixel fora.
+      'visibility:hidden;opacity:0;transition:opacity .15s ease .25s,visibility 0s linear .4s;}' +
+      '.mg-dd:hover .mg-dd-menu,.mg-dd:focus-within .mg-dd-menu{' +
+      'visibility:visible;opacity:1;transition:opacity .12s ease,visibility 0s;}' +
       '.mg-dd-item{display:flex;align-items:center;gap:.5rem;padding:8px 12px;border-radius:8px;' +
       'color:#002b5e;font-weight:800;font-size:.82rem;text-decoration:none;white-space:nowrap;}' +
-      '.mg-dd-item:hover{background:#eef4ff;}.mg-dd-item.active{background:#002b5e;color:#fff;}' +
+      // O realce do item sob o cursor precisa ser visível: #eef4ff sobre branco
+      // é quase imperceptível, e sem ele não dá para saber o que se vai clicar.
+      // A barra à esquerda existe porque a cor sozinha não serve a quem não a
+      // distingue. O item ATIVO também reage — senão a linha da tela atual
+      // parece morta justo quando o cursor está nela.
+      '.mg-dd-item:hover,.mg-dd-item:focus-visible{background:#dbeafe;color:#002b5e;' +
+      'box-shadow:inset 3px 0 0 #00b8d4;outline:none;}' +
+      '.mg-dd-item.active{background:#002b5e;color:#fff;}' +
+      '.mg-dd-item.active:hover,.mg-dd-item.active:focus-visible{background:#014a91;color:#fff;}' +
       '.mg-dd-toggle .bi-chevron-down{transition:transform .15s;}' +
       '.mg-dd:hover .mg-dd-toggle .bi-chevron-down{transform:rotate(180deg);}';
     (document.head || document.documentElement).appendChild(st);

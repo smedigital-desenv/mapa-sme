@@ -225,19 +225,31 @@
     </div>
   </div>
   <nav class="mg-nav">
-    <div class="mg-dd" data-tela-any="avaliacao,elefante,fluencia">
+    <a class="mg-nav-btn" href="index-v2.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
+    <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
       <a class="mg-nav-btn mg-dd-toggle" href="avaliacao-v2.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
       <div class="mg-dd-menu">
         <a class="mg-dd-item" href="avaliacao-v2.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item" href="avaliacao-diagnostica-v2.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+        <a class="mg-dd-item" href="av-oral-matematica-v2.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+        <a class="mg-dd-item" href="saresp-v2.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+        <a class="mg-dd-item" href="ideb-v2.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+        <a class="mg-dd-item" href="iee-v2.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
         <a class="mg-dd-item" href="elefante-v2.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
         <a class="mg-dd-item" href="fluencia-v2.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
       </div>
     </div>
-    <a class="mg-nav-btn" href="atribuicao-v2.html"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
-    <a class="mg-nav-btn" href="educacao_especial-v2.html"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
-    <a class="mg-nav-btn" href="frequencia-v2.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
-    <a class="mg-nav-btn active" href="relatorios-v2.html"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
-    <a class="mg-nav-btn" href="boletim-v2.html"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+    <a class="mg-nav-btn" href="atribuicao-v2.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="educacao_especial-v2.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <div class="mg-dd" data-tela-any="frequencia,boletim_estatistico">
+      <a class="mg-nav-btn mg-dd-toggle" href="frequencia-v2.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="frequencia-v2.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+        <a class="mg-dd-item" href="boletim-estatistico-v2.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn active" href="relatorios-v2.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+    <a class="mg-nav-btn" href="boletim-v2.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
     <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none;min-width:auto;padding:6px 10px;" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
   </nav>
   <div class="mg-actions">
@@ -784,10 +796,37 @@ function onDados(res) {
     dadosPorSegmento.infantil = [];
   }
   _sincronizarAuthGlobal();
+
+  // Porta da tela. Fica aqui, depois do MapaAuth estar pronto, para ter o
+  // perfil em mãos — e antes de qualquer renderização, para não exibir nada.
+  if (!podeVerRelatorios(window.MapaAuth && window.MapaAuth.perfil)) {
+    telaRestrita();
+    return;
+  }
+
   // Renderiza os cards imediatamente; as devolutivas carregam em 2º plano
   // (apenas para preencher a contagem do badge) sem bloquear a tela.
   mudarSegmento('fundamental');
   carregarDevolutivas();
+}
+
+// Relatórios é restrito a SECRETARIA e SUPER ADMIN.
+// Nega por padrão: perfil ausente, ou sem `tipo` definido, não entra. A regra
+// de verdade está no banco (as funções relat_* fazem a mesma checagem) — isto
+// aqui é só para não abrir uma tela que voltaria vazia.
+function podeVerRelatorios(perfil) {
+  if (!perfil) return false;
+  if (perfil.is_super_admin) return true;
+  return String(perfil.tipo || '').trim().toLowerCase() === 'secretaria';
+}
+
+function telaRestrita() {
+  document.getElementById('main').innerHTML =
+    '<div class="alert alert-warning shadow-sm text-center py-4">'
+    + '<i class="bi bi-lock-fill fs-3 d-block mb-2"></i>'
+    + '<div class="fw-bold mb-1">Tela restrita</div>'
+    + '<div class="small">Relatórios está disponível apenas para perfis da secretaria. '
+    + 'Se você precisa de acesso, fale com a administração da rede.</div></div>';
 }
 
 // Deriva identidade/admin do sistema global de login (auth.js / window.MapaAuth).
@@ -2437,6 +2476,7 @@ function exportarCoberturaCSV() {
 })();
 </script>
 
+  <script src="iago.js"></script>
 <script src="mapa-v2-ceu.js" defer></script>
 </body>
 </html>

@@ -1,136 +1,130 @@
 /* ============================================================
-   sme-ceu.js — campo de estrelas e riscos de luz do fundo.
-   Use junto do sme-ui.css:
-     <canvas id="ceu" aria-hidden="true"></canvas>
-     <script src=".../sme-ceu.js" defer></script>
-   Sem dependências. Para quando a aba perde foco e desenha um
-   quadro parado se a pessoa pediu menos movimento.
-   ============================================================ */
-/* ============================================================
-   Campo de estrelas e riscos de luz — canvas atrás de tudo.
-   Substitui o risco único em CSS. Para quando a aba sai de foco,
-   e desenha um quadro parado se a pessoa pediu menos movimento.
+   mapa-v2-ceu.js — o céu das telas do MAPA.
+
+   Aqui NÃO há animação, de propósito. O portal usa um campo com riscos
+   de luz atravessando a tela, que é bom numa página de entrada; numa
+   tela de trabalho, movimento atrás de tabela disputa a atenção com o
+   dado e atrapalha a leitura. Este arquivo desenha uma vez só e
+   redesenha apenas quando a janela muda de tamanho. Sem laço de
+   animação, sem consumo contínuo de processador — o que também ajuda
+   nas máquinas mais antigas das escolas.
+
+   ⚠️ O BRILHO TEM TETO MEDIDO, e ele é o motivo de o código ser mais do
+   que um laço de pontos aleatórios. Um ponto atrás de texto clareia o
+   fundo daquele pedaço e derruba o contraste. Medido sobre o fundo
+   #14232F, com a estrela em #CEECFF:
+
+     · legenda   (--texto-2 #A3AFBB) aguenta até alfa 0,16 e fica em 4,57:1
+     · terciário (--texto-3 #95A2AF) aguenta até alfa 0,11 e fica em 4,56:1
+
+   O terciário é quem pinta rótulo de filtro e cabeçalho de tabela, então
+   ele é o teto que vale: DENTRO da coluna de conteúdo nenhuma estrela
+   passa de 0,11 (o limite medido). Fora da coluna — a margem lateral, que é
+   área vazia de verdade — o teto sobe e as estrelas ganham halo, que faz o
+   fundo parecer céu em vez de chuvisco.
+
+   ⚠️ Em tela estreita não existe margem, e a conta devolve o teto baixo
+   para a tela inteira sozinha. Não "simplifique" tirando o cálculo de
+   folga: é ele que garante que no notebook da escola o texto continue
+   legível, e nenhuma auditoria automática pega isso — o canvas fica
+   ATRÁS do conteúdo, não é fundo herdado, e some do cálculo de contraste.
    ============================================================ */
 (function () {
   "use strict";
-  var cv = document.getElementById('ceu');
+
+  var cv = document.getElementById("ceu");
   if (!cv || !cv.getContext) return;
-  var ctx = cv.getContext('2d');
-  var reduz = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var ctx = cv.getContext("2d");
 
-  var L = 0, A = 0, pontos = [], riscos = [], quadro = 0, raf = null;
+  /* ⚠️ A largura da coluna é MEDIDA, não cravada. Havia 1240 aqui — o valor
+     da maioria das telas —, mas Relatórios monta 1312px de layout, e a faixa
+     que a conta considerava "margem vazia" caía em cima do conteúdo dele.
+     Estrela clara atrás de texto é exatamente o que este arquivo existe para
+     evitar. O piso de 1240 cobre a tela que ainda não renderizou. */
+  var SELETORES = ".page,.container,.container-fluid,.layout-wrapper,main,.be-page";
+  function larguraDaColuna() {
+    var maior = 1240;
+    var els = document.querySelectorAll(SELETORES);
+    for (var i = 0; i < els.length; i++) {
+      var w = els[i].getBoundingClientRect().width;
+      if (w > maior) maior = w;
+    }
+    return maior;
+  }
+  var TETO_TEXTO = 0.11;  // sob a coluna: limite medido para terciário
+  var TETO_LIVRE = 0.42;  // na margem vazia
+  var COR = "206,236,255";
+  var COR_ACENTO = "120,214,242";   // uma minoria puxa para o acento da pele
 
-  function dimensionar() {
+  /* Quanto aquele ponto está "livre" de conteúdo: 0 dentro da coluna,
+     1 bem fora dela. A transição é suave para não aparecer uma borda
+     vertical de brilho no meio da tela. */
+  function folga(x, L, COLUNA) {
+    var meia = Math.max(0, (L - COLUNA) / 2);
+    if (meia <= 0) return 0;                    // tela estreita: sem margem
+    var borda = (L - COLUNA) / 2;               // onde a coluna começa
+    var d = (x < L / 2) ? (borda - x) : (x - (L - borda));
+    if (d <= 0) return 0;
+    return Math.min(1, d / Math.max(60, meia));
+  }
+
+  function desenhar() {
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
-    L = cv.clientWidth; A = cv.clientHeight;
+    var L = cv.clientWidth;
+    var A = cv.clientHeight;
+    if (!L || !A) return;
+
     cv.width = Math.round(L * dpr);
     cv.height = Math.round(A * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    semear();
-  }
+    ctx.clearRect(0, 0, L, A);
 
-  function semear() {
-    // densidade proporcional à área, com teto para não pesar em máquina antiga
-    var n = Math.max(40, Math.min(150, Math.round(L * A / 11000)));
-    pontos = [];
+    /* ⚠️ Adensar é seguro; clarear não é. O teto vale POR ESTRELA, e
+       uma letra cobre uma ou duas — então mais pontos não pioram o contraste.
+       Aumentado de 4500 para 2400 (~87% mais estrelas) para presença visual. */
+    var n = Math.max(180, Math.min(720, Math.round(L * A / 2400)));
+    var COLUNA = larguraDaColuna();
+
     for (var i = 0; i < n; i++) {
-      pontos.push({
-        x: Math.random() * L,
-        y: Math.random() * A,
-        r: 0.4 + Math.random() * 1.5,
-        a: 0.14 + Math.random() * 0.5,
-        vx: (Math.random() - 0.5) * 0.05,
-        vy: -0.015 - Math.random() * 0.055,
-        f: Math.random() * 6.283,
-        vf: 0.004 + Math.random() * 0.013
-      });
-    }
-  }
+      var x = Math.random() * L;
+      var y = Math.random() * A;
+      var livre = folga(x, L, COLUNA);
 
-  function novoRisco() {
-    var desce = Math.random() < 0.72;
-    var grau = desce ? (4 + Math.random() * 10) : -(3 + Math.random() * 8);
-    riscos.push({
-      ang: grau * Math.PI / 180,
-      x: -240,
-      y: A * (0.04 + Math.random() * 0.78),
-      v: 1.6 + Math.random() * 3.4,
-      comp: 130 + Math.random() * 200,
-      esp: 0.7 + Math.random() * 1.3,
-      a: 0.30 + Math.random() * 0.5
-    });
-  }
+      /* Distribuição de potência: reduzido de 2.6 para 1.9 para mais presença
+         de estrelas médias e grandes. Mantém os pequenos pontos mas eleva
+         o piso de brilho — mais visível mas ainda céu. */
+      var q = Math.pow(Math.random(), 1.9);
+      var teto = TETO_TEXTO + (TETO_LIVRE - TETO_TEXTO) * livre;
+      var a = 0.055 + q * (teto - 0.055);
+      /* Dentro da coluna a estrela cresce em vez de clarear: área maior no
+         mesmo alfa lê melhor, e não mexe no contraste. Tamanho maior para
+         maior presença e visibilidade no fundo. */
+      var r = 0.55 + q * (livre > 0.5 ? 2.0 : 1.4);
+      var cor = (Math.random() < 0.18) ? COR_ACENTO : COR;
 
-  function desenharPontos() {
-    for (var i = 0; i < pontos.length; i++) {
-      var p = pontos[i];
-      p.x += p.vx; p.y += p.vy; p.f += p.vf;
-      if (p.y < -4) { p.y = A + 4; p.x = Math.random() * L; }
-      if (p.x < -4) p.x = L + 4;
-      if (p.x > L + 4) p.x = -4;
-      var a = p.a * (0.5 + 0.5 * Math.sin(p.f));
+      // halo nas estrelas médias e grandes fora da coluna (reduzido de 0.72)
+      if (q > 0.60 && livre > 0.5) {
+        var g = ctx.createRadialGradient(x, y, 0, x, y, r * 6);
+        g.addColorStop(0, "rgba(" + cor + "," + (a * 0.55).toFixed(3) + ")");
+        g.addColorStop(1, "rgba(" + cor + ",0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 6, 0, 6.283);
+        ctx.fill();
+      }
+
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, 6.283);
-      ctx.fillStyle = 'rgba(206,236,255,' + a.toFixed(3) + ')';
+      ctx.arc(x, y, r, 0, 6.283);
+      ctx.fillStyle = "rgba(" + cor + "," + a.toFixed(3) + ")";
       ctx.fill();
     }
   }
 
-  function desenharRiscos() {
-    for (var i = riscos.length - 1; i >= 0; i--) {
-      var s = riscos[i];
-      var dx = Math.cos(s.ang), dy = Math.sin(s.ang);
-      s.x += dx * s.v; s.y += dy * s.v;
-      var x2 = s.x - dx * s.comp, y2 = s.y - dy * s.comp;
-
-      // halo largo e fraco por baixo, depois o núcleo fino: dá brilho sem
-      // shadowBlur, que é caro
-      var g1 = ctx.createLinearGradient(s.x, s.y, x2, y2);
-      g1.addColorStop(0, 'rgba(120,205,240,' + (s.a * 0.30).toFixed(3) + ')');
-      g1.addColorStop(1, 'rgba(120,205,240,0)');
-      ctx.strokeStyle = g1; ctx.lineWidth = s.esp * 5; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(x2, y2); ctx.stroke();
-
-      var g2 = ctx.createLinearGradient(s.x, s.y, x2, y2);
-      g2.addColorStop(0, 'rgba(232,248,255,' + s.a.toFixed(3) + ')');
-      g2.addColorStop(0.3, 'rgba(140,215,245,' + (s.a * 0.5).toFixed(3) + ')');
-      g2.addColorStop(1, 'rgba(140,215,245,0)');
-      ctx.strokeStyle = g2; ctx.lineWidth = s.esp;
-      ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(x2, y2); ctx.stroke();
-
-      if (s.x - s.comp > L + 60) riscos.splice(i, 1);
-    }
-  }
-
-  function laco() {
-    ctx.clearRect(0, 0, L, A);
-    desenharPontos();
-    desenharRiscos();
-    quadro++;
-    // três a quatro riscos convivendo, entrando em intervalos irregulares
-    if (quadro % 42 === 0 && riscos.length < 4 && Math.random() < 0.6) novoRisco();
-    raf = requestAnimationFrame(laco);
-  }
-
-  function comecar() { if (!raf && !reduz) { raf = requestAnimationFrame(laco); } }
-  function parar() { if (raf) { cancelAnimationFrame(raf); raf = null; } }
-
-  dimensionar();
-  if (reduz) {
-    // um quadro parado: as estrelas ficam, o movimento não
-    ctx.clearRect(0, 0, L, A);
-    desenharPontos();
-  } else {
-    for (var k = 0; k < 2; k++) novoRisco();
-    comecar();
-  }
+  desenhar();
 
   var espera = null;
-  window.addEventListener('resize', function () {
+  window.addEventListener("resize", function () {
     clearTimeout(espera);
-    espera = setTimeout(dimensionar, 180);
-  });
-  document.addEventListener('visibilitychange', function () {
-    if (document.hidden) parar(); else comecar();
+    espera = setTimeout(desenhar, 200);
   });
 })();

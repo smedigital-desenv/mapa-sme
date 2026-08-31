@@ -27,10 +27,328 @@ Site estático (HTML/JS puro, sem framework nem build) publicado no GitHub Pages
 sob `smedigital.com.br/mapa-sme/`. Os dados ficam num projeto Supabase próprio.
 
 **Telas:** Avaliações (Diagnóstica, 1º a 4º Bimestre, Total, Análise de
-Consistência), Atribuição, Retrato Quantitativo de Atribuições, Análise de
-Jornada, Educação Especial, Gerência de Liminares, Frequência × Distância,
-Fluência Leitora, Elefante Letrado, Boletim da Escola, Relatórios,
+Consistência), Av. Diagnóstica SME/Vunesp, Produção Escrita (IRC),
+Av. Oral de Matemática, SARESP,
+IDEB, IEE, Atribuição, Retrato Quantitativo de Atribuições, Análise de Jornada,
+Educação Especial, Gerência de Liminares, Frequência × Distância, Fluência
+Leitora, Elefante Letrado, Boletim da Escola, Boletim Estatístico, Relatórios,
 Relatório Executivo.
+
+### Telas de avaliação externa (tabelas `av_*`)
+
+Alimentadas por **upload de planilha** na própria tela (gated), não por API.
+As tabelas seguem o RLS padrão: `anon` sem nada, recorte por escola com as
+chamadas dentro de `(select ...)`, escrita exigindo `posso_editar()`.
+
+⚠️ **`av_diag_item` guarda uma linha por ITEM da prova, não por habilidade.**
+Metade das habilidades é medida por mais de um item e a dispersão entre itens
+da MESMA habilidade é de 13 p.p. em média (chega a 73 p.p. na rede — medido em
+2026-06). Agregar por habilidade transformaria "uma questão todos acertam,
+outra quase ninguém" num meio-termo que não descreve nenhuma das duas. Não
+"simplifique" isso somando por habilidade.
+
+#### Produção Escrita — Itens de Resposta Construída (`av-irc.html`)
+
+Av. Diagnóstica SME/Vunesp de junho/2026, **só 2º ano do Fundamental**. A prova
+trouxe três propostas de produção escrita, corrigidas por CONCEITO (A..E, EB) e
+não por acerto: escrita de duas palavras (`Q1_N1` CABIDE, `Q1_N2` ESTRELA),
+fotolegenda (`Q21`–`Q23`) e bilhete (`Q31`–`Q34`). Medido em 2026-08: 2.775
+estudantes em 31 unidades, 117 turmas, **830 ausentes (29,9%)**.
+
+⚠️ **A tela AGREGA NO NAVEGADOR e só envia contagem.** A planilha da Vunesp tem
+uma linha por aluno, **com nome e RA**. Esses campos não podem chegar ao banco:
+a importação lê o arquivo na máquina de quem importa, agrega por
+unidade × questão × conceito e grava só o número. Não "simplifique" isso
+mandando as linhas cruas e agregando no SQL.
+
+⚠️ **O conceito "D" NÃO é o fim da régua — é outra categoria.** Nas propostas 2
+e 3 (menos no aspecto 4) ele significa "a escrita está em nível silábico ou
+pré-silábico", ou seja, o aspecto **não pôde ser avaliado**. Empilhá-lo no
+degradê de qualidade faz a unidade parecer ruim em ortografia e segmentação
+quando na verdade o aluno ainda não escreve alfabeticamente. Por isso ele tem
+cor própria (âmbar), fora da rampa. No aspecto 4 do bilhete esse papel é do
+"E". Medido na rede: 21% a 26% em D nos aspectos da fotolegenda.
+
+⚠️ **A rampa é sequencial de um tom só**, não o arco-íris do `COR_FIXA`. A
+escala é ordinal (ortográfico → pré-silábico) e cor arco-íris sobre escala
+ordinal esconde a ordem. A tinta do texto acompanha a faixa, como na escala TRI.
+
+⚠️ **Ausente não entra em distribuição nenhuma.** Contá-lo como "em branco"
+misturaria quem faltou com quem entregou a folha vazia — são informações
+pedagógicas diferentes. Com 30% de ausência, a tela anuncia isso num aviso no
+alto: as distribuições descrevem quem foi avaliado, não a turma.
+
+⚠️ **O relatório de correção (PDF) NÃO é versionado.** Os exemplos manuscritos
+trazem primeiros nomes de crianças, e este repositório é público. O botão pede
+uma **URL assinada** ao Storage no momento do clique (bucket privado, 5 min),
+para o endereço não ficar no HTML. `IRC_PDF_URL`/`IRC_PDF_BUCKET`/`IRC_PDF_PATH`
+no topo do arquivo são o único ponto que aponta o documento.
+
+Tabelas: `av_irc` (escola, questao, conceito, alunos), `av_irc_part`
+(participação por unidade) e `av_irc_rubrica` (as grades de correção, lidas das
+abas `Q*` da própria planilha). A linha `escola = 'REDE'` é a referência, como
+nas demais telas de avaliação externa.
+
+#### O painel "Todas as unidades" (`visao-rede.js`)
+
+As cinco telas (Diagnóstica, Av. Oral, SARESP, IDEB, IEE) trazem no filtro de
+unidade a opção **Todas as unidades**, que troca a leitura de uma escola por
+uma lista da rede: média da unidade, referência da rede, diferença, ordenação
+por qualquer coluna e busca por nome. **Clicar no nome da unidade move o filtro
+para ela** e devolve a tela de sempre.
+
+O painel é um arquivo só — `visao-rede.js` — e cada tela liga em três pontos:
+o `<script>`, uma linha no alto de `selecionar()` (`MapaVisaoRede.interceptar`)
+e a troca de `selecionar(ESCOLAS[0].escola)` por `MapaVisaoRede.preparar(...)`.
+O que muda de tela para tela é só o que ela sabe medir (filtros + agregação).
+
+⚠️ **A referência da rede é por unidade, nos MESMOS recortes que ela tem.**
+Unidades cobrem anos escolares e componentes diferentes; comparar a média de
+quem tem 4 recortes com a média da rede em 16 não é comparação. Quando a rede
+não cobre exatamente os recortes daquela unidade, a coluna sai `'—'` — não
+"conserte" isso preenchendo com a média geral.
+
+⚠️ **A consulta é paginada de mil em mil (`buscarTudo`).** O PostgREST corta em
+1.000 linhas e não avisa; sem a paginação o comparativo perderia unidades em
+silêncio. Toda consulta do painel precisa ir com `order()`, senão as páginas
+repetem e perdem linhas.
+
+⚠️ **A opção não aparece para quem tem uma unidade só** — perfil de escola vê
+a própria e um comparativo de uma linha não compara nada. Isso é conforto
+visual, não recorte: quem entrega a lista é o RLS.
+
+⚠️ **A Av. Oral é a única em que a referência da rede é uma LINHA GRAVADA**
+(`av_oral*` com `nivel='rede'`), e não uma função agregada. Quando o arquivo de
+Escolas sobe sem essa linha — ou com ela preenchida só na participação —, não
+há referência, e o painel saía inteiro cinza com `'—'`, sem dizer por quê. Hoje
+ele cai para a **média das unidades listadas**, e isso **se anuncia**: a coluna
+vira "Média das listadas" e a legenda diz o que falta importar. ⚠️ Não devolva o
+cabeçalho para "Rede" — sob RLS a lista é o que o banco entregou, e o rótulo é o
+que impede alguém de ler a média de 5 unidades como se fosse a das 112.
+
+⚠️ **A Diagnóstica exige ano escolar × componente**, não tem "todos". Além de
+as unidades não oferecerem os mesmos anos, a rede inteira em todos os recortes
+passa de 70 mil linhas de item no navegador; um recorte por vez são ~2 mil.
+
+⚠️ **A escala TRI muda a cor do TEXTO junto com a faixa.** Sobre os três tons
+médios (`#65a30d`, `#ca8a04`, `#ea580c`) o texto branco fica em 2,94–3,56:1,
+abaixo do mínimo de 4,5:1; com tinta escura sobe para 5,0–6,1:1. A paleta é a
+mesma — não volte o texto para branco "para uniformizar".
+
+#### As telas Comparativo de Escolas e Análise de Desempenho
+
+As duas leem do mesmo módulo, **`leitura-rede.js`** (terceira exceção
+deliberada ao "cada tela é autocontida"): elas fazem a MESMA conta — alunos por
+unidade × ano × nível de leitura — e perguntam coisas diferentes sobre ela.
+
+⚠️ **Nome de unidade NÃO casa por igualdade de texto.** O catálogo diz
+`ALFEU LUIZ GASPARINI, PROFº., EMEF` e o dado diz `EMEF ALFEU LUIZ GASPARINI
+PROF`. Casar por texto deixou metade da tabela vazia e passou por "não tem
+dado". A chave é a de `tokensUnidade` da `avaliacao.html`: sem pontuação e com
+os tokens **ordenados**. O que nem isso resolve é assunto de `escola_alias`.
+
+⚠️ **"LEITOR" é L. Iniciante + L. Fluente, e não é escolha destas telas:** é o
+corte de `ehRespostaAdequada()`, que decide o selo Adequado/Alerta/Crítico das
+telas de bimestre. Mudou lá, mude aqui — senão a mesma unidade aparece
+adequada numa tela e não na outra.
+
+⚠️ **As quatro faixas da Análise de Desempenho são um AGRUPAMENTO da escala de
+seis, não uma escala nova.** N1+N2 → Não Proficiente, N3+N4 → Básico,
+L. Iniciante → Proficiente, L. Fluente → Avançado. A fronteira
+Básico × Proficiente é a mesma de `ehRespostaAdequada()`. O corte **dentro**
+dos pré-leitores é proposta e aguarda confirmação da SME.
+
+⚠️ **A rede tem EMEI e CEI, que não têm 1º a 5º ano.** Listar as 112 unidades
+com tudo `'—'` é ruído; as telas escondem quem não tem apuração no recorte,
+mas **dizem quantas** esconderam. Esconder sem contar transformaria "não casei
+o nome" em "não tem dado".
+
+As duas telas mostram só o **2º ano** (`ANO_FIXO`, decisão da SME), e diferem
+no recorte de unidade: o **Comparativo** lista só as **EMEF**
+(`carregar({tipos:['EMEF']})`); a **Análise de Desempenho** lista **todas** as
+unidades. O seletor de ano foi REMOVIDO das duas em vez de desabilitado —
+controle que não faz nada é convite a clicar. O ano continua sendo parâmetro do
+cálculo (`MapaLeitura` aceita qualquer ano e `'TODOS'`), então reabrir é trocar
+a constante e devolver o seletor.
+
+⚠️ **O tipo da unidade sai do CATÁLOGO** (`MapaUnidades.tipo()`), e o caminho
+reserva deduz por TOKEN INTEIRO, nunca por substring: `CONCEICAO` contém `CEI`,
+e a unidade viraria creche. A ordem de teste também importa — `EMEIEF` antes de
+`EMEI` e de `EMEF`, senão quem atende as duas etapas cai na primeira que casar.
+
+⚠️ **A `atribuicao.html` tinha o defeito do `includes` e foi corrigida — mas
+ele estava DORMENTE, e isso importa registrar.** Medido em 2026-08-24 sobre as
+112 unidades reais, a regra antiga e a nova concordam em **112 de 112**: hoje
+nenhum nome da rede tem `CEI` dentro de palavra. A troca não mudou número
+nenhum na tela; tirou uma mina do caminho. O mecanismo, com nomes plausíveis
+que a rede ainda não tem:
+
+| nome | `includes` | por token |
+|---|---|---|
+| `NOSSA SENHORA DA CONCEICAO, EMEF` | **CEI** | EMEF |
+| `JARDIM CEIVA, EMEF` | **CEI** | EMEF |
+| `X, EMEIEF` | **EMEI** | EMEF |
+
+⚠️ O `includes('EGYDIO')` que estava ali junto era um remendo com nome próprio:
+a sigla daquela unidade no nome é `CEEEF`, não `EMEF`. Pela descrição do
+catálogo ela resolve sozinha, e o remendo saiu.
+
+#### A tela Comparativo de Escolas
+
+Lista as unidades com o **percentual de alunos em um nível de leitura**, lado a
+lado nas seis avaliações: Fluência, Diagnóstica e 1º a 4º bimestre. Filtro de
+ano escolar (1º a 5º) e seleção do nível.
+
+As três fontes são diferentes e a tela as trata como a mesma grandeza porque
+**são** a mesma: o nível de leitura na escala de seis pontos (N1 a N4
+Pré-leitor, L. Iniciante, L. Fluente).
+
+| coluna | fonte |
+|---|---|
+| Fluência Leitora | Supabase, view `v_fluencia_por_turma` |
+| Diagnóstica | Supabase, RPC `alunos_diagnostica` (eixo LEITURA) |
+| 1º a 4º bimestre | CODERP, via `ficha-coderp.js` (eixo LEITURA) |
+
+⚠️ **A escala tem SEIS níveis, não cinco.** Ela é a de `labelRespostaPainel`
+(LEITURA 1..6) e a das colunas de `v_fluencia_por_turma`. Não invente um 'N5':
+depois do N4 Pré-leitor vem o Leitor Iniciante, e depois dele o Fluente.
+
+⚠️ **Os bimestres NÃO usam `alunosPorItens()`, e isso é correto.** Aquela regra
+existe para descobrir quantos alunos uma turma tem olhando VÁRIOS itens sem
+saber quantas perguntas cada um vale. Aqui a pergunta é outra: dentro de UM
+item (o eixo LEITURA), `qtd_alunos` já conta alunos distintos por resposta, e
+somar as respostas daquele item dá o número exato em cada nível. 🚫 Não
+replique esse atalho para "quantos alunos tem a turma" — ali a premissa cai e a
+regra calibrada volta a ser necessária.
+
+⚠️ **O denominador é quem foi AVALIADO no recorte.** Ausente e não avaliado
+ficam fora dos dois lados da fração; senão a unidade que faltou mais aparece
+melhor ou pior por ausência, não por aprendizagem.
+
+⚠️ **Célula sem apuração sai `'—'`, nunca 0%.** Zero por cento se lê como
+"ninguém está nesse nível" quando a verdade é "não foi medido". Fonte que falha
+também sai `'—'`, e o console registra qual falhou — sem isso o traço esconde
+"não consegui ler" como se fosse "não tem dado".
+
+### A tela AVISA quando o dado não veio da API
+
+⚠️ O pacote do bimestre carrega `origem` (`'coderp'` ou `'banco'`) e
+`incompleto`. Quando o CODERP falha, a tela cai sozinha para a base importada
+— que tem **muito menos lançamento** — e os números despencam. Antes o aviso só
+aparecia com a tela VAZIA; com o banco tendo algum registro, a queda passava
+por erro de contagem. Hoje um selo aparece ao lado do "Filtro ativo" sempre que
+a fonte não é a API, e outro quando o pacote está incompleto.
+
+A sonda `MapaDiagFonte(bimestre)` fecha o diagnóstico em três passos: de que
+fonte veio o que está na tela, o que a API devolve CRU agora (ano a ano,
+linhas e alunos-resposta, `per_cod` distintos, `tur_cod` preenchidos) e se os
+dois são compatíveis. É o que separa "a API mandou menos" de "a tela contou
+menos" sem adivinhação.
+
+### O ano escolar é um NÍVEL da árvore lateral, não um filtro à parte
+
+⚠️ **Não recrie a barra de botões de ano (`#anoFilterBar`).** Ela foi removida
+em 2026-08 por decisão da SME. A árvore lateral das três abas (Diagnóstica,
+Bimestres, Total) é **unidade › ano escolar › turma**.
+
+O motivo não é estética: a barra ficava no topo, separada da unidade, e os dois
+filtros não conversavam. Dava para pedir "5º ano" numa unidade que não tem 5º
+ano — a tela ficava vazia sem dizer por quê. Como nível da árvore, só aparece
+o ano que a unidade realmente tem.
+
+Formato: `arv[unidade][ano][turma] = alunos`. ⚠️ Monte e some **sempre** pelos
+helpers `_arvAdd`, `_arvAnos`, `_arvTurmas`, `_arvTotalAno` e
+`_arvTotalUnidade` — são seis rotinas que montam árvore (as três abas e os
+caminhos reserva de cada uma), e foi o que permitiu trocar o formato num lugar
+só. As três abas compartilham **um** renderizador, `_htmlArvoreLateral()`;
+antes eram três cópias quase iguais, que na prática viviam em três estados
+diferentes ao mesmo tempo.
+
+⚠️ **A árvore NUNCA é filtrada pelo ano.** Ela é o navegador: filtrar por ano
+esconderia os outros anos e não haveria como trocar. Havia cinco pontos que
+faziam isso (`if (anoFiltro !== 'TODOS' && a !== anoFiltro) return`) dentro de
+construtores de árvore — todos foram retirados, e só ali. Os mesmos testes
+aplicados às LINHAS de dado continuam valendo.
+
+⚠️ Quem muda o ano é sempre `_setAnoFiltroAtualSeguro()`, chamado pela árvore.
+`anoFiltroAtual` continua sendo a variável que o resto da tela lê — o estado
+`_hierAnoAtivo` só a alimenta. Manter os dois em sincronia é o que impede a
+tela de mostrar os números de um ano com o rótulo de outro.
+
+⚠️ `switchYear()` **não zera mais a unidade**. Quando o ano era uma barra
+separada, trocar de ano significava recomeçar; agora o ano vive dentro da
+unidade, e limpar a unidade desfaria o clique que a pessoa acabou de dar.
+
+⚠️ A chave do ano é a forma **normalizada** (`'1 ANO'`), que é o que
+`normalizarAnoFiltroFront` devolve — não `'1º ANO'`. `ORDEM_ANO_HIER` escrito
+com o ordinal faz a ordenação errar em silêncio e cair no desempate por texto,
+que só acerta enquanto os anos forem de um dígito. O ordinal aparece só no
+rótulo, por `_rotuloAnoHier()`.
+
+### A rosca da Diagnóstica tem etiqueta externa para a fatia miúda
+
+As três distribuições da Diagnóstica (Leitura, Escrita, Produção Textual) são
+roscas, **por decisão da SME**. O que mudou foi como se clica nelas.
+
+O defeito original: **numa rosca a área de clique é proporcional ao dado**, e a
+categoria que mais interessa é justamente a menor. Medido em `avaliacao.html`
+com os números da rede: `L. Fluente`, 5 alunos em 2.432, ocupa **0,68° de
+arco**. É inclicável — e fica *pior quanto melhor a rede fica*.
+
+⚠️ Três saídas já descartadas, não as retome:
+
+1. **Aumentar a rosca** — 0,68° continua 0,68°, ângulo não depende de raio.
+2. **Inflar a fatia mínima** — mentiria na proporção, que é a única coisa que
+   a rosca faz.
+3. **Anel externo com fatias iguais** — funcionava (alvo de 47°, clique 7/7),
+   mas a SME recusou: virou ruído em volta do gráfico.
+
+O que existe hoje, em `_roscaAlunos()` + `_desenharChamadas()`: a rosca é de
+anel único e fica intacta; a fatia **abaixo de 5%** ganha uma linha de chamada
+até uma **etiqueta fora do gráfico**, com nome e número, e a etiqueta é o alvo.
+As fatias grandes continuam clicáveis nelas mesmas. Medido: **12/12** etiquetas
+abrem a lista certa, sem sobreposição, nos três gráficos.
+
+🚫 **A rosca NÃO tem realce de fatia — em nenhum caminho.** Nem no hover do
+mouse sobre o canvas, nem no da etiqueta, nem no da legenda. Decisão da SME.
+
+O motivo técnico: com `spacing` + `hoverOffset`, o Chart.js degenera o traçado
+de um arco muito fino e pinta o **anel inteiro** com a cor da fatia — medido,
+`Não Avaliado` com 0,35° de arco pintava 75% do anel de cinza. Quem informa é
+o **balão de texto**: o tooltip, a etiqueta externa e a linha da legenda.
+
+⚠️ Por isso `hoverOffset: 0`, `hoverBorderWidth` igual ao normal e
+`hoverBackgroundColor` repetindo as cores — sem esta última o Chart.js
+escurece a fatia por conta própria. Não "reative o hover para dar feedback":
+foi tentado limitar o realce às fatias acima de 2° e não bastou, porque o
+hover NATIVO do canvas não passa por `_realcarFatia`.
+
+⚠️ Pontos que **não** são detalhe:
+
+- **A altura da etiqueta é MEDIDA, nunca constante.** Ela depende da fonte e de
+  quantas linhas o nome ocupa (`N4 Pré-leitor` quebra, `Nível 5` não). Chutar
+  38px produziu etiquetas sobrepostas — a real era 50px. O código desenha,
+  mede com `offsetHeight` e só então empilha.
+- **A folga lateral só é reservada do lado em que há etiqueta** (`layout.padding`),
+  senão a rosca encolhe à toa.
+- **`animation.onComplete` dispara a cada `update()`**, e o realce vindo da
+  legenda chama `update()`. Sem a trava de assinatura (`$chamadasSig`), as
+  etiquetas seriam recriadas sob o cursor: o elemento sob o mouse é
+  substituído, o `mouseout` nunca chega e o realce fica preso aceso.
+- As etiquetas são **DOM de verdade**, não desenho no canvas — é o que lhes dá
+  foco de teclado, leitor de tela e o reaproveitamento dos listeners da legenda
+  (daí a classe `.legend-clicavel` e os `data-cv`/`data-label`).
+
+As linhas da legenda também são alvo, com altura fixa de 44px+ (`.legend-alvo`),
+igual para quem tem 1.372 alunos e para quem tem 5, com barrinha de magnitude.
+
+A paleta de `COR_FIXA` **não** foi mexida: ela é a linguagem visual da rede
+(badges, tabelas, outras telas). Ela é um arco-íris sobre uma escala ordinal —
+o certo seria um degradê de um só tom —, mas trocá-la é decisão da SME, não
+efeito colateral de um ajuste de usabilidade.
+
+⚠️ As roscas **por eixo** e as de **detalhe por pergunta** (mesma tela) ainda
+não têm etiqueta externa: nelas a fatia miúda só é alcançável pela legenda.
 
 ---
 
@@ -87,6 +405,44 @@ A partir daí `auth.uid()` existe no banco do MAPA e as policies funcionam.
   personificação real, restrita a super admin do central e registrada no log da
   função. Sem isso não há como testar o isolamento, já que ele vive no Postgres.
 
+#### O cronômetro do login — `MapaAuthTempos`
+
+⚠️ **"O login está lento" não se investiga no olho.** A abertura de sessão é
+um revezamento entre servidores diferentes — jsdelivr (supabase-js), `/central`
+(config + acesso-sme), a Edge Function `central-bridge` — e sem medir não há
+como saber qual perna atrasou.
+
+O `auth.js` imprime no console, ao fim de TODO desfecho, uma linha com o tempo
+de cada perna: `prerender`, `supabase_cdn`, `config`, `acesso_sme`, `central`,
+`sessao_guardada`, `token_central`, `ponte`, `abrir_sessao`. O objeto fica em
+`window.MapaAuthTempos`. Acima de 4 s a linha sai como `warn` — é o limiar em
+que as pessoas recarregam, e recarregar no meio da abertura de sessão é o que
+produz o "só funciona na segunda vez".
+
+⚠️ **Os três scripts carregam em SÉRIE de propósito.** `acesso-sme.js` é
+servido por `/central` (outro repositório) e pode usar `window.supabase` no
+topo do arquivo. Paralelizar pode fazê-lo rodar antes de o CDN responder, e o
+sintoma seria login quebrado para todo mundo. Se a medição mostrar que o CDN
+domina, o caminho seguro é **servir o supabase-js do próprio domínio**, não
+paralelizar no escuro.
+
+⚠️ **Todo caminho de falha cai para `anon`** (`tok || MAPA_CFG.anonKey`, no
+interceptador e em `api.headers`). Como o `anon` não tem permissão em nada, o
+resultado é tela vazia — e recarregar "resolve", porque a sessão já está no
+`localStorage`. Por isso a saída silenciosa de "sem perfil no central" também
+é registrada: sem ela, não há como distinguir redirecionamento legítimo de
+sessão que não abriu.
+
+⚠️ **O pré-aquecimento é ADAPTATIVO, e isso não é detalhe de desempenho.** As
+4 consultas de `rede` (baratas) vêm primeiro e **decidem** o resto: só o
+bimestre que respondeu com linha ganha as 5 consultas por ano escolar mais a
+de `detalherede`. Antes eram 26 chamadas fixas de toda tela, e como 3º e 4º
+bimestre não têm lançamento, **14 delas iam ao CODERP só para receber 404** —
+de todo usuário, a cada 10 minutos. Elas batem na MESMA runtime de Edge
+Function que atende o `central-bridge`, ou seja, atrapalhavam o próprio login.
+Hoje são 16, e voltam a ser 26 sozinhas no dia em que o 3º bimestre for
+lançado.
+
 ### Integração CODERP — Edge Function `coderp-ficha`
 
 A API **ObterFichaAvaliacao** do CODERP (Ficha de Acompanhamento e Avaliação
@@ -109,11 +465,345 @@ e **nunca vai para o navegador nem para este repositório**. A função:
 4. mantém **cache em memória de 10 min** (gzip; inclui o nível aluno) — a
    permissão é checada por requisição ANTES do cache, que guarda só a
    resposta do CODERP. O `auth.js` **pré-aquece** de qualquer tela (rede dos
-   4 bimestres + fichas por escola do 1º/2º) e guarda as respostas num
+   4 bimestres + `detalherede` do 1º/2º) e guarda as respostas num
    **cache local do navegador** (`window.MapaFichaCache`, IndexedDB + gzip,
    TTL 10 min): a tela de Avaliações lê dali sem rede — é o que a torna
    instantânea. As três camadas (IndexedDB, memória da função, CODERP) têm o
    mesmo TTL de propósito.
+
+#### O nível sintético `detalherede` — por que ele existe
+
+⚠️ **Leia isto antes de mexer.** `/IndicadorTurma` EXISTE e é a fonte dos
+números das abas de bimestre e do Total — não confunda "a API não tem endpoint
+de turma" (falso) com "a resposta não rotula a turma".
+
+O `pacoteViaFichaApi` **lê `tur_cod`** da resposta do `IndicadorTurma` e o
+console registra o resultado (`X linhas COM tur_cod, Y sem`). Durante muito
+tempo o código cravava `'—'` e **nunca lia o campo** — a afirmação "vem vazio"
+não estava sendo testada por ninguém.
+
+**A API VOLTOU A ROTULAR — medido em 2026-08-17.** Durante um tempo ela não
+rotulava (28.141 linhas do 2º bimestre, zero com `tur_cod`), e é dessa época
+que vem a varredura descrita abaixo. Hoje `tur_cod` e `per_cod` vêm
+preenchidos em **100% das linhas, inclusive sem filtro de escola**: 57.919 de
+57.919 no 1º bimestre. O contador da tela confirma sozinho a cada abertura.
+
+⚠️ Isso torna a varredura por código de turma **desnecessária**, não apenas
+desligada. Ela continua no código como reserva caso a rotulagem regrida, mas
+não deve ser religada sem antes reconferir o contador.
+
+⚠️ Ao testar isso, cuidado com um detalhe que já enganou: um teste feito COM
+`escola` no corpo não responde pela rota da rede, que consulta SEM esse
+filtro. Use a sonda `MapaDiagRotulos(bimestre[, codEscola])`, que mede os dois
+recortes e dá o veredicto.
+
+🚫 **A VARREDURA POR TURMA ESTÁ DESLIGADA (`?turmas=1` liga) — ela corrompe a
+contagem de alunos.** Medido em produção: ALCINA passou de 236 (correto) para
+68 no 1º bim e 466 no 2º. A causa NÃO é o filtro da API (esse funciona), é a
+forma de contar: alunos por turma sai do **mínimo entre os itens**, regra que
+assume que todo aluno responde todo item. Isso é FALSO para itens que só valem
+para parte da turma — Atendimento Educacional Especializado e Educação
+Especial aparecem no 1º bimestre. ⚠️ A conferência não pega esse erro porque
+ela confere a **soma crua** (alunos-resposta), e a soma crua fecha; o que está
+errado é a **contagem de alunos**, outra grandeza. Antes de religar, é preciso
+uma forma confiável de contar aluno por turma a partir do nível agregado — ou
+usar o nível aluno, que conta REMA distinto e é exato.
+
+### Como se conta ALUNO a partir do nível agregado — `alunosPorItens()`
+
+⚠️ **Esta é a regra que já errou duas vezes.** O mesmo defeito que derrubou a
+varredura por turma (acima) estava também na rota principal: em 2026-08 a tela
+mostrava **4.522 alunos no 1º bimestre contra 13.095 no 2º**, e o 2º só estava
+certo por acidente — a Ed. Especial ainda não havia sido lançada nele.
+
+A regra vive em `alunosPorItens()`, em `avaliacao.html`, e é usada nos **três**
+lugares que contam aluno pelo agregado (rota de rede, detalhe por turma e
+índice do Total). Se você mexer em um, mexa nos três — ou melhor, mexa só na
+função.
+
+⚠️ **Ela fica no escopo compartilhado, NÃO dentro do adaptador Supabase.** O
+índice do Total vive em outro bloco `<script>`; enquanto a regra esteve dentro
+daquele IIFE, o Total contava por conta própria e a lateral dele mostrava **12**
+onde o 1º bimestre mostrava **232** — 12 era a quantidade de combinações
+ano×turma, não de alunos. `disciplinaContaAluno()` também normaliza por conta
+própria, sem chamar `normalizar()`: aquele helper carrega depois, e a
+dependência quebrava em silêncio, caindo no mínimo entre itens.
+
+🚫 **NUNCA aplique esta regra sobre as `linhas` do pacote do Total.** Ali o
+eixo já passou por `normalizarEixoTotal()`, e itens diferentes da prova
+colapsam no mesmo rótulo **somando** suas quantidades — o que destrói a
+premissa "um item = uma pergunta por aluno". Foi exatamente essa a segunda
+tentativa errada: a lateral do Total passou a mostrar **452** onde o 1º
+bimestre mostra **232**, com o 3º ano exatamente 4× maior.
+
+🚫 **E NÃO derive a contagem do pacote do Total, de jeito nenhum.** Foram duas
+tentativas, ambas erradas por motivos diferentes: pelas `linhas` o eixo já vem
+normalizado (itens colapsam somando, e a ALCINA foi para 452); pelos `grupos`
+o formato muda entre a API e a RPC do banco, e a mesma unidade foi para 12.
+
+O que vale hoje: a lateral do Total mostra a **estrutura** do pacote (ele
+conhece turma sem resposta pontuável) e a **contagem de `getHierarquiaTotal`**,
+que consulta a MESMA fonte (`fichaRedeTurma`) e aplica a MESMA regra da aba de
+bimestre. Se as duas telas têm de mostrar o mesmo número, que venham do mesmo
+cálculo — `_contarArvoreTotalPelaFicha()`. Turma que a contagem não conhece
+fica com zero: some o número, nunca a turma.
+
+⚠️ Os dois caminhos de detalhe do Total seguem a mesma divisão: o de UMA
+unidade é nível aluno e conta **REMA distinto** (exato); o `detalherede` é
+agregado e usa a regra sobre os itens crus.
+
+⚠️ **Mudou o formato do pacote? Suba a versão da chave de cache no mesmo
+commit.** `_chavePacoteTotal` e `_chavePacoteBimestre` carregam um número de
+versão justamente por isso: o pacote vive no sessionStorage e sobrevive ao
+recarregamento normal. Acrescentar a 4ª coluna de `arvoreLinhas` sem subir a
+versão fez a tela ler `al[3]` de um pacote que não a tinha — a lateral do
+Total zerou, sem erro nenhum no console. `_isPacoteTotalValido()` hoje recusa
+pacote com `arvoreLinhas` de menos de 4 colunas, como cinto de segurança.
+
+⚠️ **A tabela `alunos` (Diagnóstica) NÃO tem uma linha por aluno: tem uma por
+aluno × EIXO.** Contar linhas ali multiplicou a turma pelo número de eixos — a
+ALCINA apareceu com **1.938** alunos onde o 1º bimestre mostra 232, e o fator
+variava por ano porque o número de eixos lançados varia. A mesma regra dos
+itens resolve sem precisar do REMA: cada eixo tem uma linha por aluno, então a
+soma de um eixo já É o número de alunos.
+
+⚠️ **A Diagnóstica não eleva a contagem do Total**: ela só preenche turma que
+os bimestres não cobrem. A Diagnóstica não pode fazer a mesma turma aparecer
+com dois números conforme a aba — decisão da SME.
+
+⚠️ **Entre BIMESTRES, porém, o Total fica com o MAIOR de cada turma**
+(`Math.max` em `getHierarquiaTotal`) — e por isso ele **não** iguala nenhuma
+aba quando a turma muda de tamanho no ano. Isso é decisão da SME (2026-08-18),
+não descuido: o Total responde "quantos alunos passaram por esta turma no
+ano", e o máximo é a aproximação barata disso.
+
+Medido na ALCINA: 1º Bim 234, 2º Bim 235, Total 238. As três divergem por
+motivos diferentes, e nenhuma é defeito:
+
+- **1º × 2º bimestre** — a composição muda de verdade (3º B vai de 27 para 25;
+  4º A e 4º B de 17 para 18; 5º B de 27 para 29). Os exatos dos dois bimestres
+  são 235, e coincidem por acaso.
+- **234 em vez de 235** no 1º bimestre — é o resíduo de −2,0% da regra de
+  contagem, turma em que nenhum item foi lançado por inteiro.
+- **238 no Total** — a soma dos máximos por turma dá 239; sai 238 porque o 1º
+  bimestre entra com aquele −1 numa turma em que ele era o máximo.
+
+🚫 Não "conserte" o Total para igualar a aba de bimestre. Igualar exigiria
+escolher um bimestre e descartar quem esteve na turma só no outro. A união
+exata (REMA distinto somando os bimestres) seria melhor, mas exige o nível
+aluno unidade a unidade — inviável para as 112 de uma vez.
+
+A sonda `MapaDiagTotal([texto da unidade])` mostra o que a tela está lendo:
+quantas colunas o pacote tem, os alunos por ano e turma, e avisa se a turma
+agregada `'—'` está convivendo com turmas reais (dupla contagem).
+
+1. A soma de um item é `alunos × nº de perguntas daquele item` — um item pode
+   ter mais de uma pergunta por aluno (Ciências/Matéria e Energia tem 3).
+2. **Educação Especial e AEE ficam FORA da conta.** Elas atendem só parte da
+   turma, então quebram a premissa de que todo aluno responde todo item. Isso
+   NÃO as esconde da tela: elas continuam como disciplina e nos percentuais; o
+   que elas deixam de fazer é decidir quantos alunos existem.
+3. A escala de "um aluno por resposta" é identificada pelo **PERCENTIL 25** das
+   somas dos itens restantes, e entre os itens dentro de 1,15× a âncora vale
+   o **MAIOR**, que é o mais completamente lançado.
+
+🚫 **Os dois extremos já estiveram aqui e os dois quebraram em produção.**
+
+**NÃO ancore no mínimo:** basta **um** item com 1 resposta para a janela virar
+`[1, 1.15)` e a conta devolver 1 aluno por turma. Medido com um item de 1
+resposta injetado em cada balde: **0 de 657** baldes exatos, a rede caindo 96%.
+Foi o que a tela mostrou (ALCINA com 12 em TODAS as abas, porque a regra é
+compartilhada).
+
+**NÃO ancore na mediana:** ela assume que o item típico tem UMA pergunta por
+aluno, e isso é falso em bimestre com poucos eixos (ver o bloco sobre a
+premissa, adiante). Medido: 249 de 422 baldes no 2º bimestre, com a rede **69%
+inflada**.
+
+⚠️ **A âncora é o que decide; a janela quase não pesa.** Na grade de 7
+percentis × 7 janelas, p25 dá o mesmo resultado de 1,10 a 1,40. De p30 para
+cima o 2º bimestre desaba (338/422, +17%) porque a âncora passa a cair em eixo
+de 2 perguntas; de p20 para baixo o 1º bimestre perde (−2,7% a −9,5%) porque
+ela cai em item lançado pela metade. **p25 é o ponto entre os dois**, não um
+número escolhido a dedo.
+
+Calibrado com `MapaDiagCalibrar` sobre **821 baldes de 25 unidades**, com o
+exato ao lado, nos dois bimestres:
+
+| regra | bim 1 | bim 2 | exatos | com sabotagem |
+|---|---|---|---|---|
+| **p25 ×1,15** (atual) | 340/399 | 418/422 | **92,3%** | 92,2% |
+| mediana ×1,5 | 337/399 | 249/422 | 71,4% | 81,6% |
+| mínimo ×1,5 | — | — | — | **0,0%** |
+
+⚠️ O que sobra de diferença (−2,0% no 1º bimestre, −0,5% no 2º) **não é defeito
+de código, é lançamento incompleto** — turma em que nenhum item foi lançado por
+inteiro. Não tente fechar isso inflando a estimativa: errar 2% para baixo é
+muito melhor que os 69% para cima da mediana.
+
+⚠️ **Zero não entra na amostra.** Item com soma 0 não é item lançado, e deixá-lo
+entrar puxa o percentil para baixo. O filtro `v > 0` faz parte da regra
+calibrada — tirá-lo muda o resultado.
+
+⚠️ **Trocar a regra muda os números GRAVADOS no pacote.** Suba as quatro chaves
+de cache no mesmo commit (`_chavePacoteBimestre`, `_chavePacoteTotal`,
+`_chaveHierarquiaTotal` e a do Total por filtro) — o pacote vive no
+sessionStorage e sobrevive ao recarregamento normal.
+
+⚠️ O nível **Aluno** conta REMA distinto e é exato — não precisa desta regra.
+Ela existe só porque cobrir a rede pelo nível aluno é inviável no navegador.
+
+⚠️ **Calibre a regra contra o exato, nunca no olho.** `MapaDiagContagem(unidade,
+bimestre)` põe os dois lado a lado para UMA escola — exato (REMA distinto do
+nível aluno) × estimado (a regra sobre o agregado) — e, para a turma que mais
+erra, imprime o mapa de itens que a regra recebeu, com o tempo de cada etapa.
+Se o número certo não estiver entre as somas desse mapa, nenhuma regra sobre
+ele acerta e o problema está no que a API devolve. Três ajustes de heurística
+foram feitos sem esse dado e os três erraram o alvo.
+
+⚠️ **`MapaDiagCalibrar(bimestre[, N ou lista de códigos])` é o passo obrigatório
+antes de trocar a regra.** Ele monta os baldes de várias unidades, com o exato
+ao lado, e roda as regras candidatas sobre os MESMOS baldes — duas vezes: sem
+sabotagem e com um item de 1 resposta injetado em cada balde, que é o cenário
+que derrubou a âncora no mínimo em produção. O relatório traz baldes exatos,
+erro total e o pior balde de cada regra.
+
+⚠️ **Erro total baixo com poucos baldes exatos é compensação de erros, não
+acerto.** Uma regra que erra metade para cima e metade para baixo fecha a rede
+e mente em cada turma. Olhe a coluna de baldes exatos primeiro.
+
+⚠️ **A premissa "o item típico tem uma pergunta por aluno" NÃO vale em todo
+bimestre — foi ela que derrubou a âncora na mediana.** Medido em 2026-08-18 na
+ALCINA, 2º bimestre, 1º ano A (26 alunos):
+as somas por eixo são `26 (×5), 52 (×12), 78, 104` — múltiplos exatos do número
+de alunos, porque cada eixo tem um número próprio de perguntas. Com 12 dos 19
+eixos valendo 2 perguntas, a MEDIANA cai em 52 e a janela de 1,5× devolve 78 —
+o triplo. O 2º bimestre tem menos eixos que o 1º (5.345 linhas contra 7.579 no
+1º ano), e quanto menos eixos, mais os de múltiplas perguntas dominam a
+mediana. Por isso a regra inflava 80% no 2º bimestre e 9% no 1º.
+
+🚫 **Inferir quantas perguntas cada eixo tem e dividir JÁ FOI TENTADO e perdeu.**
+Parece o caminho principiado — o número de perguntas é propriedade da prova,
+igual em toda a rede — mas medido dá **112 de 258** baldes no 2º bimestre,
+contra 256 da âncora por percentil. O motivo aparece no próprio mapa que a
+inferência devolve: `MATEMÁTICA||NÚMEROS` sai com 3 perguntas quando na ALCINA
+aquele eixo soma 52 numa turma de 26, ou seja, 2. A inferência normaliza cada
+balde por um percentil dele, e quando esse percentil já é um eixo de 2
+perguntas o `p` sai escalado errado — **dividir por `p` errado erra mais do que
+não dividir**. As duas variantes seguem em `MapaDiagCalibrar` como candidatas
+para o dia em que a API rotular o item; enquanto o `p` for estimado, não
+retome.
+
+### O que `per_cod` traz, e por que a tela fica em 1º a 5º ano
+
+O `per_cod` (o ano escolar) devolve **18 valores distintos** quando a consulta
+vai sem filtro. Medido em 2026-08, 1º bimestre, 57.919 linhas:
+
+| `per_cod` | o que é | disciplinas |
+|---|---|---|
+| 1 ANO … 5 ANO | Fundamental — anos iniciais | **10** |
+| 6 ANO … 9 ANO | Fundamental — anos finais | 2 |
+| CIC 2/3/4 | Educação Infantil, ciclos | 2 |
+| ETP 1/2 | Educação Infantil, etapas I e II | 2 |
+| PECAI | PEC dos Anos Iniciais | 2 |
+| TAIMS / TAFMS | Termos Multi Seriados (treinamento) | 2 |
+| TREIN | Prática Desportiva masc./fem. | 1 |
+
+⚠️ **A coluna "disciplinas" é a razão do recorte, e ela engana quem olha rápido.**
+Só de 1º a 5º ano existe avaliação curricular (Língua Portuguesa, Matemática,
+Geografia, História, Ciências, Arte, Ed. Física, Inglês, além de Educação
+Especial e AEE). De 6º a 9º — e em todos os demais — vêm **apenas Educação
+Especial e AEE**: é ficha de outra natureza, não currículo.
+
+⚠️ Não conclua "dá para incluir" comparando o vocabulário na direção errada.
+Perguntar "o que existe em 6º–9º e não existe em 1º–5º" devolve ZERO nos três
+eixos (disciplina, item, resposta) — porque 6º–9º é SUBCONJUNTO. A pergunta
+que decide é a inversa.
+
+Por decisão da SME (2026-08), a tela de Avaliações cobre **1º a 5º ano**. As
+fichas de Educação Especial dos demais anos são assunto da tela de Educação
+Especial, não desta. `PER_COD_FORA`, em `avaliacao.html`, é lista de EXCLUSÃO
+de propósito: `per_cod` novo entra e aparece, em vez de sumir calado.
+
+⚠️ Os `tur_cod` fora do padrão de letra única (`3C`, `TA`) são todos de
+`per_cod = TREIN` — 51 linhas em 2 unidades. Não são "3º ano turma C".
+
+✅ **MEDIDO: o filtro `turma` FUNCIONA.** A sonda `MapaDiagTurma(2)` comparou
+as consultas filtradas com a sem filtro (2026, 2º bim, 1 ANO): 92.756
+alunos-resposta sem filtro contra 92.360 somando A–F — as partes reproduzem o
+todo. Então a turma vem do que é **PEDIDO**, não do que a resposta devolve.
+
+É por isso que a rede abre por turma com **~40 consultas leves por bimestre**
+(5 anos × códigos de turma) em vez do leque de 112 fichas de escola. Os
+códigos saem da tabela `turmas` do MAPA (`letra_turma`); a varredura para
+depois de 2 códigos vazios seguidos, porque a cauda é rarefeita (a turma F já
+só existe em 6 unidades).
+
+⚠️ **O CODERP responde `404`, e não lista vazia, quando não há dado** — turma
+que não existe naquele ano, bimestre sem lançamento. Isso é RESPOSTA, não
+avaria: o front trata 404 como vazio (e memoiza, senão cada abertura repetiria
+a consulta). Tratar 404 como falha fazia a varredura abortar no primeiro código
+inexistente. O erro carrega `err.coderpStatus` justamente para essa distinção.
+
+⚠️ **Ano que falha de verdade (não 404) marca o pacote como `incompleto`, e
+pacote incompleto NÃO entra em cache.** Sem isso, um bimestre em que 4 dos 5
+anos falharam ficaria 45 min na tela mostrando um quinto da rede sem avisar.
+
+⚠️ **A aprovação é por unidade × ANO, e o CODERP dá timeout esporádico.** Já
+aconteceu de um único 504 no 3º ano deixar a rede INTEIRA sem turma: a
+consulta era tentada uma vez só, e a reprovação valia para a unidade inteira.
+Hoje a consulta insiste 3 vezes, e o ano reprovado apenas continua agregado
+('—') sem custar os outros quatro. O `_aplicarDetalheUnidade` respeita
+`det.anos` — trocar as linhas '—' de anos NÃO detalhados apagaria alunos.
+
+⚠️ **NADA é aplicado sem conferência.** Esta rota rotula pelo que foi pedido,
+então um código faltando na lista sumiria com alunos **em silêncio**. Por isso
+o pacote agregado carrega `bruto` (soma crua por unidade/ano) e o detalhe só
+substitui as linhas de uma unidade quando a soma das turmas **reproduz
+exatamente** esse número, em TODOS os anos daquela unidade. Quem não fecha
+continua com `'—'` e sai no console. Se você mexer aqui, não remova a
+conferência: sem ela o erro é invisível.
+
+A aba **Total** usa a MESMA rota e a MESMA conferência, com uma diferença: ela
+pontua pelo `fqr_vl` CRU, não pelo rótulo normalizado — rótulos diferentes
+colapsam no mesmo texto e o `respostaScore` precisa do código para dar a nota
+certa. Por isso a varredura devolve duas agregações (`ag` normalizada para as
+abas de bimestre, `agCru` para o Total).
+
+O nível `detalherede` (leque por escola dentro da Edge Function) continua
+escrito e é a reserva para o dia em que o filtro `turma` deixar de funcionar —
+aí a turma só existiria no nível Aluno, e cobrir a rede custaria **~300 MB de
+JSON por bimestre**. Ele NÃO está publicado; enquanto não estiver, a chamada
+responde 400 e a tela segue pela rota por turma.
+
+Fazer isso **no navegador** já foi tentado duas vezes e é inviável — baixar e
+desserializar ~3 MB por unidade na thread da interface travava a tela por
+minutos, **e o custo se repetia para cada pessoa**. ⚠️ Não reintroduza esse
+laço no front (o comentário em `_prefetchTurmasFicha` diz o mesmo).
+
+O nível `detalherede` (`POST { nivel:'detalherede', parms:{anoLetivo,bimestre} }`)
+faz o leque **dentro da Edge Function**, com concorrência 8, e devolve só o
+agregado: ~9 MB de JSON, **~600 kB comprimido**, servido do cache de 10 min
+para todos. É a diferença entre 300 MB por usuário e 600 kB compartilhados.
+
+Pontos que **não** são detalhe:
+
+- **A função não nomeia nada.** Devolve os campos crus
+  (`[uni_cod, per_cod, tur_cod, fnc_des, fne_des, fqr_vl, fqr_txt, qtd]`); a
+  normalização de unidade/disciplina/resposta continua só no front. Duplicá-la
+  no servidor criaria duas verdades que divergem em silêncio.
+- **`qtd` conta alunos DISTINTOS (REMA)**, nunca linhas — um item pode ter mais
+  de uma pergunta por aluno.
+- **Leques simultâneos são deduplicados** (`_emVoo`): sem isso, dez pessoas
+  abrindo a tela com o cache frio disparariam dez leques de 112 consultas.
+- **Resposta parcial não entra em cache nenhum** (nem na função, nem no
+  IndexedDB): congelar uma rede incompleta por 10 min esconderia unidades de
+  quem tem direito a elas. Parcial ainda é útil — o front mescla o que chegou
+  sobre o pacote agregado, que já tem os totais certos.
+- **Orçamento de 100 s**; o que não coube volta em `faltando` e continua
+  descendo por clique.
+- O front **degrada sozinho**: se o nível não estiver publicado, a chamada
+  responde 400 e a tela volta ao comportamento de detalhar por clique.
 
 Secrets: `CODERP_TOKEN` (obrigatório) e `CODERP_URL` (opcional; o padrão é o
 ambiente de **testes** `gxeducdsv...«/xsads/»`; produção é
@@ -122,13 +812,53 @@ secret — cada ambiente tem o seu token). ⚠️ O projeto Supabase é um só:
 produção e homologação do site consomem o MESMO ambiente CODERP definido nos
 secrets.
 
+#### Desenhado e AINDA NÃO LIGADO: a conferência Rede × Turma
+
+⚠️ **Só ligar depois que os níveis voltarem a fechar entre si.** Hoje eles não
+fecham, e a conferência acusaria em toda abertura de tela — o aviso viraria
+ruído e as pessoas aprenderiam a ignorá-lo, que é o pior estado possível para
+um alerta.
+
+O que está desenhado, para quando fechar:
+
+- `/IndicadorRede` é a **única fonte independente** de total que a API oferece.
+  Toda conferência que existe hoje compara o detalhe por turma contra a soma
+  da própria rota — ou seja, **o dado se confere contra ele mesmo**, e um erro
+  na origem passa inteiro. O comentário em `avaliacao.html` (rota
+  `fichaRedeTotais`) já dizia isso antes de a diferença aparecer.
+- Uma chamada de Rede por bimestre, comparada contra a soma do pacote de
+  Turma. Divergindo além da margem, acende o mesmo selo de
+  `_seloFonteBimestre()` — hoje ele só aparece quando a API **falha**, e não
+  quando ela responde número implausível.
+- Custo: uma consulta leve por bimestre (251 linhas medidas), memoizável junto
+  com o resto do pacote.
+
+⚠️ **A arquitetura alvo, quando os agregados voltarem a fechar:** `IndicadorTurma`
+é superconjunto de Escola e de Rede — uma consulta por bimestre entrega a
+árvore inteira (unidade › ano › turma) e os níveis acima saem de uma soma no
+front. Isso substitui as 5 consultas por ano escolar. Duas condições para
+migrar, e **as duas** precisam valer: `qtd_alunos` agregando, e a consulta sem
+`anoescolar` devolvendo só o nível Turma. `fichaRedeTudo()` já está escrita
+para esse dia e **não é chamada por ninguém** de propósito — ligá-la antes
+disso traz linhas de outro nível para dentro do pacote.
+
+⚠️ Nada disso dispensa `alunosPorItens()`: mesmo com o campo correto, o aluno
+aparece em várias linhas, e continuar sendo preciso somar por item e escolher
+o representativo é próprio do nível agregado, não de defeito nenhum.
+
 **Quem consome em produção é a `avaliacao.html`**: as abas de bimestre
-(`pacoteViaFichaApi`), o **Total** e a **Análise de Consistência** (ambos via
-`fichaAlunosBimestre`: descobre as unidades com lançamento e baixa as fichas
-aluno a aluno, por lotes — único nível que rotula ano/turma; a API não fornece
-nome de aluno, só REMA). Uma
+(`pacoteViaFichaApi`), o **Total** (`fichaGruposTotal`, nível **agregado** —
+4 bimestres × 5 anos via `fichaRedeTurma`, turma `—`; o detalhe por turma de
+UMA unidade desce sob demanda ao clicar, via `fichaDetalheUnidadeTotal`.
+⚠️ NÃO voltar o Total para o nível aluno da rede inteira: 112 escolas × 4
+bimestres no navegador congelava a tela por minutos — a média ponderada pela
+qtd dá o MESMO número) e a **Análise de Consistência** (essa sim via
+`fichaAlunosBimestre`, memoizada por bimestre: baixa as fichas aluno a aluno,
+por lotes — a API não fornece nome de aluno, só REMA). Uma
 chamada `IndicadorTurma` por ano escolar, sem `escola`, devolve a rede aberta
-por unidade. O código CODERP (`uni_cod`) vira
+por unidade. O front nunca grava erro/vazio-com-Messages nos caches (session,
+IndexedDB) e usa tokens de geração para descartar resposta atrasada de outra
+aba — não "simplificar" esses guardas. O código CODERP (`uni_cod`) vira
 nome pela tabela **`escolas_catalogo`** (código, nome, tipo, setor, geoloc —
 fonte CODERP/SAE; separada do catálogo `escolas` do RLS, de propósito). Se a
 API falhar ou o perfil não tiver permissão, a tela cai sozinha para a RPC
@@ -163,8 +893,45 @@ uma avaria a ser corrigida com `grant`.
 
 ### Invariantes — quebrar qualquer uma reabre o vazamento
 
-1. **`anon` não tem permissão em nada.** Nem tabela, nem função. Se você
-   escrever `grant ... to anon`, está reabrindo o buraco.
+1. **`anon` não tem permissão em nada** — com UMA exceção, deliberada e
+   nomeada abaixo. Nem tabela, nem função. Se você escrever `grant ... to
+   anon` fora dessa exceção, está reabrindo o buraco.
+
+   ⚠️ **A exceção: a tela de Metas (`metas.html`) é pública por decisão da
+   SME.** O `anon` tem `select` em exatamente três objetos, e em mais nenhum:
+
+   | Objeto | O que expõe |
+   |---|---|
+   | `v_metas_ideb_publico` | IDEB por escola — o INEP já publica |
+   | `v_metas_fluencia_publico` | fluência **agregada por escola** |
+   | `metas_parametros` | os parâmetros do critério (configuração) |
+
+   As duas views são `security definer` e **agregam por escola de propósito**:
+   turma, período e qualquer recorte que aproxime da criança ficam de fora.
+   Não as reescreva para "aproveitar" a view por turma, e não acrescente
+   coluna sem perguntar — o que está aberto aqui é irrecuperável.
+
+   As tabelas operacionais (`fluencia_estudantes`, `av_ideb`,
+   `v_fluencia_por_turma`) seguem fechadas para `anon`.
+
+   ⚠️ **A `metas.html` NÃO passa pelo gate do central.** Ela não carrega
+   `auth-guard.js` nem `auth.js`. O gate barra por permissão de TELA, e numa
+   tela pública isso produzia o absurdo de quem está logado ver MENOS que um
+   visitante anônimo — foi o que aconteceu. Não "conserte" isso recolocando o
+   gate: quem protege o dado são os grants e as policies acima.
+
+   Consequência: a tela **não precisa estar cadastrada no catálogo do central**,
+   ao contrário de todas as outras (§7). Se ela for cadastrada um dia, nada
+   muda — o cadastro simplesmente não é consultado.
+
+   ⚠️ **Quem é super admin, nessa tela, é decidido PELO BANCO** — a função
+   `eh_super_admin()`, a mesma que a policy de escrita usa. Nas outras telas o
+   dado vem do perfil do central (`MapaAuth.perfil.is_super_admin`). Perguntar
+   ao banco faz o botão e a policy concordarem por construção: não dá para a
+   tela oferecer um botão que a gravação vai recusar.
+
+   A sessão sai do armazenamento local, posta ali pelo `auth.js` das OUTRAS
+   telas. Sem sessão — ou com sessão expirada — a tela abre em leitura.
 2. **`bimestres` e as views materializadas não são alcançáveis pelo REST.**
    O acesso a elas passa obrigatoriamente por funções `SECURITY DEFINER` que
    aplicam o recorte por unidade. View materializada **ignora RLS** — proteger
@@ -197,6 +964,66 @@ uma avaria a ser corrigida com `grant`.
 **`vejo_a_rede_toda()` nega por padrão:** quem o banco não reconhece não vê
 nada. A versão ingênua ("sem vínculo = vê tudo") fazia o oposto.
 
+### Toda função que recorta precisa da SAÍDA de rede toda
+
+⚠️ **Este é o padrão errado, e ele esteve em produção:**
+
+```
+se super admin        → devolve tudo
+senão                 → devolve só as escolas vinculadas ao perfil
+```
+
+Falta o caso do meio. Quem é da **secretaria e não tem vínculo** cai no segundo
+ramo com a lista de escolas VAZIA, e o `= any(array[]::text[])` não casa com
+nada: **zero linhas para exatamente quem deveria ver a rede inteira** — o
+oposto do que "sem vínculo" significa em `vejo_a_rede_toda()`.
+
+Foi o que aconteceu com `relat_visitas` e `relat_devolutivas` (medido e
+corrigido em 2026-08): a tela de Relatórios abria vazia para TODO perfil de
+secretaria, e o IAgo, que lê as mesmas funções, respondia "nenhuma visita". O
+sintoma não aponta para a causa — parece falta de permissão de tela, e leva a
+procurar defeito no central, que está certo.
+
+A forma correta:
+
+```sql
+rede_toda := coalesce((perms#>>'{perfil,is_super_admin}')::boolean, false)
+             or public.vejo_a_rede_toda();
+if rede_toda then return query select * from ...; return; end if;
+-- só então o recorte por escola
+```
+
+⚠️ **Auditar isso por `grep` tem ponto cego.** Procurar só por
+`vejo_a_rede_toda` marca como desprotegida quem usa **`posso_ver_unidade()`** —
+que é a forma CORRETA quando a unidade vem como parâmetro, porque ela já chama
+`vejo_a_rede_toda()` por dentro e ainda resolve apelido de grafia.
+`freq_evasao_alunos` foi acusada assim e está certa. Uma varredura honesta
+precisa aceitar a família toda: `vejo_a_rede_toda`, `posso_ver_unidade`,
+`posso_editar`, `minhas_grafias_norm`, `is_super_admin` e os portões de tela
+(`posso_ver_relatorios`, `eh_fluxo_ou_admin`).
+
+⚠️ **Função `_interno` só é segura enquanto `authenticated` NÃO puder
+executá-la.** O par `freq_ativos_resumo` / `freq_ativos_resumo_interno` é o
+desenho certo — o invólucro checa, a interna trabalha —, e ele só se sustenta
+porque a interna tem ACL `{postgres, service_role}`. Um `grant execute` a
+`authenticated` transforma o invólucro em decoração, sem quebrar nada e sem
+aviso nenhum. Conferência:
+
+```sql
+select p.proname, coalesce(p.proacl::text, '(sem ACL — PUBLIC executa)')
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public' and p.proname like '%\_interno';
+```
+
+⚠️ `proacl` vazio **não** é "ninguém tem acesso": função sem ACL explícita é
+executável por **PUBLIC**.
+
+⚠️ **Função `SECURITY DEFINER` de ESCRITA não pode ter `execute` para
+`authenticated` sem portão por dentro.** `relat_sync_escolas(jsonb)` estava
+assim: qualquer pessoa logada podia reescrever o catálogo de escolas dos
+Relatórios, mandando o conteúdo no próprio parâmetro. Revogado em 2026-08 —
+rotina administrativa roda por `service_role` ou pelo SQL Editor.
+
 ### Desempenho do RLS — não é detalhe
 
 As policies **precisam** envolver as chamadas em `(select ...)`:
@@ -219,6 +1046,54 @@ catálogo, ou a marca como fora da rede municipal (alunos de liminar em escola
 particular ou estadual, que existem e são legítimos).
 
 **Ela sobrevive à reimportação dos dados; corrigir a grafia na origem não.**
+
+⚠️ **O `unidades.js` LÊ essa tabela** (desde 2026-08-24), e é o que permitiu
+tirar os apelidos cravados no front. Colunas: `nome_no_dado`, `escola_id`
+(→ `escolas.id`, não `escolas_catalogo`), `fora_da_rede`, `observacao`.
+
+⚠️ **`fora_da_rede = true` é RESPOSTA, não falha.** São particulares e
+estaduais que aparecem legitimamente no dado (alunos de liminar). Elas ficam
+FORA de `naoResolvidos()`: contá-las encheria o `relatar()` de linha já
+classificada, e aviso ruidoso é aviso ignorado.
+
+⚠️ **Dois apelidos que normalizam igual e apontam para unidades diferentes
+NÃO resolvem** — desistem, como as chaves ambíguas. Resolver para uma delas
+seria pior que não resolver, porque pareceria certo.
+
+⚠️ **A supressão de `fora_da_rede` CONFIA no cadastro, e a semeadura
+automática não foi conferida.** Se ela errar, a unidade some da tela **e do
+aviso** — o pior par possível, porque a supressão que reduz ruído esconde o
+erro. Por isso `MapaDiagUnidades()` lista as linhas `fora_da_rede` **ainda não
+revisadas** (as que a `observacao` marca como semeadas), pondo na frente as
+que têm sigla municipal no nome.
+
+⚠️ **Isso é FILA, não veredicto — e a sigla NÃO decide.** Medido em
+2026-08-24: das duas linhas `fora_da_rede` com sigla municipal, **uma estava
+certa** (`…, EMEF` de uma escola que não é da rede; a rede tem uma unidade de
+nome parecido, mas é outra pessoa e é EMEI). A sigla é o que alguém digitou,
+não o que a unidade é. Quem decide é gente, e **ajustar a `observacao` tira a
+linha da fila — inclusive quando a resposta é "está certo, é de fora"**.
+Detector que continua gritando depois de revisado é detector que as pessoas
+desligam.
+
+⚠️ `CRECHE`, `EEI`, `AMES` e `NEI` ficam FORA de `SIGLAS_MUNICIPAIS`: no
+catálogo elas aparecem em convênio e OSC (`AUTA DE SOUZA, CRECHE` é CONVENIO,
+`ANTONIO VICENTE GOLFETO, EEI` também).
+
+⚠️ **Antes de "corrigir" uma linha da fila, veja se ela tem DADO.** As duas
+levantadas em 2026-08-24 não aparecem em `turmas`, `v_fluencia_por_turma` nem
+`av_diag_item` — são grafias remanescentes de importação antiga, e nenhuma
+unidade está invisível por causa delas. E se uma tiver dado: nome que não
+existe em `escolas` não pode simplesmente virar `fora_da_rede = false`, porque
+`escola_id` não teria para onde apontar. Ou é grafia de unidade existente (e aí
+falta descobrir QUAL **por dado**, nunca por semelhança de nome), ou é unidade
+ausente do catálogo (e aí entra nele primeiro).
+
+⚠️ **O apelido é DADO, e é por isso que ele vence a regra de token.** O caso
+que prova: `'… EMEF – UNID I'` significa a MATRIZ e `'… Unidade II, EMEF'`
+significa a OUTRA escola. A tabela aponta cada um para o seu `escola_id` (55 e
+5). Nenhuma normalização adivinha isso — e a `fluencia.html` tentava, cortando
+o nome no token `UNID`, o que fundia as duas.
 
 ⚠️ **O apelido casa por igualdade exata**, incluindo maiúsculas e acentos. Ao
 cadastrar, copie a grafia exatamente como aparece no dado — não "arrume" a
@@ -249,6 +1124,52 @@ workflow `deploy-pages.yml` manualmente pela aba Actions depois de publicar.
 ```bash
 git fetch origin -q && git rev-parse --short origin/main
 ```
+
+### As páginas `-v2` (homologação)
+
+A `develop` carrega uma cópia de cada tela com o sufixo `-v2`, para avaliar o
+visual novo sem tocar nas telas em uso. Elas são **geradas**, não escritas:
+`tools/gerar-v2.py` copia cada página da raiz e acrescenta os atributos de
+tema, o `mapa-v2.css`, o fundo e os defaults do Chart.js. Ele também **enxuga
+a faixa-título**: tira dela o "SME Ribeirão Preto", que já está sob a marca a
+três centímetros dali, e some com a linha quando não sobra contexto (o Elefante
+Letrado fica só com o nome). ⚠️ O recorte é feito numa **janela de 900
+caracteres** a partir da faixa, nunca no texto da página: a mesma frase aparece
+66 vezes no repositório e quase todas são a assinatura da rede sob "MAPA".
+Tentar casar o bloco inteiro com regex também não serve — `(.*?)</div>` para no
+primeiro fechamento INTERNO, que é o da própria linha de contexto. O mesmo comando
+atualiza, dentro de `mapa-v2.css`, o bloco entre os marcadores
+`>>> INÍCIO DO BLOCO GERADO ... >>>` e `<<< FIM DO BLOCO GERADO <<<`, que
+devolve ao tema escuro as cores claras cravadas no CSS embutido das telas.
+
+**Isso roda sozinho no deploy**, dentro de `_src/develop`, antes da montagem
+do site — não é preciso lembrar de rodar nada ao alterar uma tela. Para ver o
+resultado antes de publicar, rode localmente:
+
+```bash
+python3 tools/gerar-v2.py          # regenera as -v2 e o bloco do CSS
+python3 tools/gerar-v2.py --limpar # apaga as -v2
+```
+
+⚠️ **O céu de fundo (`mapa-v2-ceu.js`) tem TETO DE BRILHO medido, e ele não é
+enfeite.** Uma estrela atrás de texto clareia aquele pedaço e derruba o
+contraste: sobre `#14232F`, o terciário `--texto-3` aguenta até **alfa 0,11**
+(4,56:1) e é ele quem pinta rótulo de filtro e cabeçalho de tabela. Por isso
+**dentro da coluna de conteúdo nenhuma estrela passa de 0,10**; só na margem
+lateral — medida em tempo de desenho, não cravada — o brilho sobe e as estrelas
+ganham halo. Adensar é seguro (o teto é por estrela, e uma letra cobre uma ou
+duas); clarear não é. ⚠️ Nenhuma auditoria automática pega isso: o canvas fica
+ATRÁS do conteúdo, não é fundo herdado, e some do cálculo de contraste.
+
+⚠️ **Não edite `*-v2.html` nem o bloco entre os marcadores de `mapa-v2.css`.**
+A próxima publicação reescreve os dois. Ajuste na tela original, ou no CSS
+escrito à mão fora dos marcadores.
+
+⚠️ Se os marcadores sumirem do `mapa-v2.css`, o gerador **para com erro** em
+vez de reescrever a folha inteira — o restante dela é trabalho manual. O passo
+do workflow tem `continue-on-error`, para que uma falha na geração não impeça
+a publicação da produção; quando isso acontece, o resumo da execução avisa e
+o `/teste` sai com as cópias antigas.
 
 ⚠️ **As Edge Functions não vão junto no deploy.** Alterar
 `supabase/functions/central-bridge/index.ts` exige republicar pelo painel do
@@ -300,8 +1221,239 @@ Antes de investigar código, descarte causas de plataforma. Os sintomas abaixo
   **não é segurança** — é conforto visual. A segurança está no Postgres. Não
   remova, mas não confie nele.
 - Comentários e mensagens de usuário em português.
+- `visao-rede.js` expõe `window.MapaVisaoRede`, o painel "Todas as unidades"
+  compartilhado pelas telas de avaliação externa (seção 1). É a exceção
+  deliberada ao "cada tela é autocontida": eram 200 linhas iguais em cinco
+  arquivos, que divergiriam na primeira correção feita em quatro deles.
+- `ficha-coderp.js` expõe `window.MapaFicha.criar(url)`, a **camada de
+  transporte** da ficha do CODERP, compartilhada por `avaliacao.html` e
+  `comparativo-escolas.html`. Segunda exceção deliberada, pelo mesmo motivo.
+  ⚠️ O que mora nela é transporte — chamada à Edge Function, cache local,
+  404 × falha, `PER_COD_FORA`, memo por (bimestre, ano). **`alunosPorItens()`
+  NÃO subiu para lá** e não deve subir: a regra de contar aluno é específica
+  do que cada tela pergunta. Ao mexer no módulo, lembre que conserta (ou
+  quebra) as duas telas ao mesmo tempo.
+- `leitura-rede.js` expõe `window.MapaLeitura`, o **cálculo** do nível de
+  leitura por unidade × ano, compartilhado por `comparativo-escolas.html` e
+  `analise-desempenho.html`. Terceira exceção deliberada. Ele junta as três
+  fontes (view de fluência, RPC da diagnóstica, ficha do CODERP) numa grandeza
+  só, e é onde vivem o casamento de grafia, o agrupamento "leitores" e o
+  recorte por tipo de unidade.
+- `unidades.js` expõe `window.MapaUnidades`, o **resolvedor do nome da
+  unidade** pelo catálogo `escolas_catalogo`. Quarta exceção deliberada.
+  ⚠️ **`carregar()` não pode tocar `window.MAPA_SB` antes de a sessão
+  existir.** O cliente nasce no `auth.js`, DEPOIS que as telas são
+  interpretadas; tocá-lo antes estoura um TypeError **síncrono**, que nenhum
+  `.catch()` do chamador pega — sem promessa, não há o que encadear. Hoje ele
+  espera em silêncio e **não memoiza a desistência**, para que a chamada do
+  evento `mapa-auth-pronto` carregue de verdade.
+
+  ⚠️ **REGRA: todo sistema novo integrado ao MAPA passa o nome da unidade por
+  `MapaUnidades.oficial()` antes de exibir ou agregar.** Não escreva uma
+  normalização própria — já houve SEIS, e elas discordavam entre si.
+
+  ⚠️ **Isto NÃO é segurança.** Quem recorta por unidade é o Postgres (RLS:
+  `escolas` + `escola_alias` + `mapa_norm`). O módulo resolve o NOME para
+  exibir e agregar. **A lista de QUEM aparece continua vindo de `escolas`**,
+  com o RLS de sempre — trocar por `escolas_catalogo` mostraria as 112
+  unidades a um perfil de escola.
+
+  ⚠️ `oficial()` **nunca descarta um nome**: o que o catálogo não reconhece
+  volta intacto. É o que garante que adotar o módulo numa tela só possa
+  canonizar grafia, nunca fazer unidade sumir — o defeito mais grave porque é
+  invisível. O que não casou fica em `naoResolvidos()`, e é candidato a
+  `escola_alias`.
+
+  ⚠️ **Chave ambígua NÃO resolve — ela desiste.** Duas unidades do catálogo
+  podem cair na mesma chave (mesmo núcleo de nome, diferindo só por um título
+  que a normalização remove). Sem trava, a primeira indexada venceria e o nome
+  resolveria para a unidade ERRADA — pior que não resolver, porque parece certo.
+  `indexar()` marca a chave como ambígua (`null`) na colisão, nos DOIS índices
+  (`T|` com tipo e `S|` sem), e o nome volta intacto para `naoResolvidos()`.
+  Desambiguar essas é trabalho de `escola_alias`, não de mais regra de token.
+
+  ⚠️ **`relatar(ondeChamou)` é o que impede o defeito silencioso.** Grafia que
+  não casa é invisível justamente porque ninguém desconfia: a tela abre, tem
+  linhas, e só falta uma unidade. Toda tela que adota o módulo chama `relatar()`
+  ao fim do carregamento — se sobrou nome sem casar, sai um `warn` com a lista.
+  A sonda manual só ajuda quem já suspeita; o aviso automático cria a suspeita.
+
+  ⚠️ **A coluna `tipo` de `escolas_catalogo` NÃO é a sigla — é a descrição por
+  extenso** (`ESCOLA MUNICIPAL DE ENSINO FUNDAMENTAL`). Presumir que ali vinha
+  `EMEF` fez o filtro casar com ZERO e a tela do Comparativo ficar vazia em
+  homologação. `siglaDoTipo()` faz a conversão; descrição que ele não conhece
+  cai para a dedução pelo nome, para a unidade não sumir.
+
+  ⚠️ **O catálogo é MUITO mais amplo que a rede municipal.** Medido em 2026-08:
+  **258 unidades em 15 tipos** — EMEF 34, EMEI 43, CEI 36, mais 70 estaduais,
+  43 de convênio, 13 de OSC, parcerias e extensões. Os ~112 da rede são só as
+  três primeiras. É mais uma razão para a LISTA continuar vindo de `escolas`
+  com o RLS: usar o catálogo como lista traria escola estadual para dentro da
+  tela.
+
+  ⚠️ **As siglas de tipo vivem numa lista só (`SIGLAS_TIPO`).** Elas estavam
+  repetidas em três lugares e a lista mais curta perdia casamento em silêncio:
+  a `boletim.html` já descartava `EMEIF`, `CEMEFEJA`, `EEI`, `CRECHE`, `AMES` e
+  `NEI`, e aqui elas ficavam na chave — bastava uma grafia trazer a sigla e a
+  outra não para os tokens não baterem. Sigla nova entra ali, e os usos
+  acompanham.
+
+  **`node tools/testar-unidades.js`** exercita a regra de casamento sem banco,
+  sobre um catálogo inventado (o repositório é público; o teste não precisa de
+  dado real). Cobre a grafia invertida, as homônimas de tipos diferentes, as
+  ambíguas que têm de desistir, as siglas de tipo e o "nunca descarta".
+  ⚠️ Ele **não** substitui ver a tela com dado real: prova que a regra faz o
+  que diz, não que o catálogo do dia cobre as grafias que as fontes mandam.
+
+  **`node tools/conferir-grafias.js <catalogo.txt> <grafias.txt>`** responde
+  justamente essa outra pergunta, e **sem banco, sem sessão e sem proxy**: se o
+  catálogo DE HOJE cobre as grafias que as fontes mandam HOJE. É função pura de
+  duas listas de NOME DE ESCOLA — não passa dado pessoal por ela. Ele separa
+  três coisas: grafia que não casou (candidata a `escola_alias`), grafia
+  ambígua, e — a que importa na migração — **unidade do catálogo que nenhuma
+  grafia alcança**, que é a que SOME da tela sem ninguém perceber. Grafia que
+  não casa aparece com o nome da fonte: feio, mas visível.
+
+  ⚠️ Não versione as entradas. Não têm dado pessoal, mas export não se
+  versiona; o `.gitignore` cobre `tools/grafias-*.txt` e `tools/catalogo-*.txt`.
+
+  **MEDIDO em 2026-08-24, com o catálogo e a lista reais** (`conferir-grafias`):
+
+  - `escolas` (a lista do RLS, `ativo`) tem **112** unidades: EMEF 34, EMEI 41,
+    CEI 36, EMEPB 1. **As 112 casaram com o catálogo — 100%.** É o número que
+    autoriza a migração: nenhuma unidade some ao adotar `oficial()`.
+  - `escolas_catalogo` tem **258** em 11 tipos, e `siglaDoTipo()` reproduz a
+    distribuição inteira sem cair na dedução pelo nome uma vez sequer —
+    inclusive `EGYDIO PEDRESCHI, CEEEF` (sigla CEEEF, tipo EMEF) e
+    `ESCOLA DE EDUCACAO INFANTIL VILA TIBERIO` (nome sem sigla nenhuma).
+  - **`SEBASTIAO DE AGUIAR AZEVEDO, EMEF` e `… EMEF - UN. II` são DUAS linhas
+    do catálogo, e o resolvedor as distingue.** A grafia da fonte sem o sufixo
+    resolve para a matriz, como deve.
+
+  **As três fontes de dado foram conferidas contra o catálogo — 149 grafias,
+  100% em todas:** `turmas` 112/112 (alimenta Atribuição, Retrato e Boletim),
+  `av_diag_item` 33/33 (Diagnóstica), `v_fluencia_por_turma` 4/4 (Fluência,
+  Boletim — só 4 unidades têm apuração de fluência hoje). Com isto, migrar as
+  telas para `oficial()` não é aposta: **nenhuma grafia em produção deixa de
+  casar.**
+
+  ⚠️ **`av_diag_item` traz uma linha `'REDE'`** — agregado ocupando a coluna de
+  unidade. Ela NÃO é candidata a `escola_alias`: cadastrá-la criaria uma escola
+  fantasma; a tela é que deve excluí-la ao agregar. `SINTETICOS`/`ehSintetico()`
+  a mantêm fora de `naoResolvidos()`, senão `relatar()` avisaria sobre ela em
+  TODA abertura da Diagnóstica — e aviso que sempre aparece é aviso que as
+  pessoas aprendem a ignorar, que é o pior estado possível para um alerta (o
+  mesmo motivo pelo qual a conferência Rede × Turma segue desligada).
+  ⚠️ Só entre nessa lista rótulo confirmadamente agregado: unidade de verdade
+  posta ali some do aviso, que é exatamente o defeito invisível.
+
+  ⚠️ **A rede tem DUAS unidades que diferem só pelo sufixo de unidade**
+  (`…, EMEF` e `…, EMEF - UN. II`) — confirmado pela SME em 2026-08-24. Varridas
+  todas as normalizações do repositório contra esse par, **só a `boletim.html`
+  as fundia**; `tokensUnidade`, `_normEscola`, `MapaUnidades.chave` e
+  `oficial()` sempre as distinguiram. O par virou caso fixo em
+  `tools/testar-unidades.js`, com nomes fictícios de mesma forma, justamente
+  para impedir que alguém reintroduza a fusão "simplificando" a chave.
+
+  ⚠️ **O catálogo tem unidade cadastrada em duplicata**, diferindo só por ponto
+  final: `CASA DA CRIANCA IRMA CRUCIFIXA` tem TRÊS linhas (`.`, `..`), e
+  `AUTA DE SOUZA, CRECHE` / `FUNDAÇÃO EDUCANDÁRIO…` / `INSTITUTO … (IJEPAM)` /
+  `UNIFICAÇÃO KARDECISTA…` têm duas cada. O resolvedor faz o certo (a chave é
+  ambígua, então desiste e devolve o nome intacto), mas a causa é o CADASTRO.
+  Todas são CONVENIO/OSC: **não afetam** as telas de EMEF/EMEI/CEI; afetam
+  Educação Especial e Gerência de Liminares. Consulta que as lista:
+
+  ```sql
+  select regexp_replace(upper(unaccent(nome)), '[^A-Z0-9]', '', 'g') as nucleo,
+         count(*), array_agg(nome order by nome)
+    from public.escolas_catalogo group by 1 having count(*) > 1;
+  ```
+
+  ⚠️ **Duas EMEI do catálogo não estão em `escolas`** (`ESCOLA DE EDUCACAO
+  INFANTIL VILA TIBERIO` e `MARIA APARECIDA DE ALMEIDA PAULINO, EMEI`). Isso
+  não é falha de casamento — é a lista do RLS que não as tem. Se forem
+  unidades ativas, estão invisíveis em TODAS as telas.
+
+  ⚠️ **O corte `UNID` de `fluencia.html` é uma mina não pisada.** `_normEscola`
+  faz `if (w === 'UNID') break;`, e o catálogo grafa `UN. II` — então hoje ele
+  distingue a matriz da unidade II por acidente de grafia. Se qualquer fonte
+  escrever `UNID II`, as duas viram a MESMA unidade, somando os alunos de duas
+  escolas numa linha só. Ao migrar a tela, **não reproduza esse corte.**
+
+  ⚠️ **O Postgres SUGERE a correção errada.** Ler `escolas_catalogo` sem sessão
+  responde `42501` com `hint: GRANT SELECT ON public.escolas_catalogo TO anon`.
+  Seguir esse `hint` é exatamente o que a seção 3 proíbe — abriria a tabela a
+  qualquer visitante. O 401 ali é o sistema funcionando.
+
+  A sonda **`MapaDiagUnidades('EMEF')`** responde, no console: quantas
+  unidades o catálogo tem por tipo, quais nomes chegaram sem casar, e — nas
+  telas que publicam `window.MapaTelaUnidades()` — **quais unidades do
+  catálogo não apareceram na tela**.
+- `auth.js` publica `window.MAPA_SUPABASE` quando a página não traz a sua, para
+  que uma segunda tela não precise repetir a URL do projeto. Página que declara
+  a própria (como a `avaliacao.html`) continua mandando.
 - `?demo=0` desliga o modo demonstração, que também intercepta `fetch` e
   atrapalha diagnóstico de autenticação.
+
+### As SEIS normalizações de nome de unidade — e a migração
+
+Levantado em 2026-08: o repositório respondia "que unidade é esta?" de seis
+formas diferentes, que discordavam entre si. **Todas migradas em 2026-08-24** —
+hoje quem responde é `unidades.js`, e cada tela tem só um caminho reserva para
+quando o catálogo não carrega.
+
+| onde | como | situação |
+|---|---|---|
+| `unidades.js` | catálogo `escolas_catalogo`, tokens ordenados sem título | **o padrão** |
+| `leitura-rede.js` | delega ao `unidades.js` | migrado |
+| `avaliacao.html` | delega ao `unidades.js` | **migrado** |
+| `atribuicao.html` | delega ao `unidades.js` | **migrado** |
+| `retrato-atribuicao.html` | delega ao `unidades.js` | **migrado** |
+| `fluencia.html` | delega ao `unidades.js` | **migrado**; o apelido voltou para `escola_alias` |
+| `boletim.html` | delega ao `unidades.js` | **migrado** (somava escola alheia) |
+
+⚠️ **O de `boletim.html` não era risco hipotético — foi MEDIDO.** Cruzando as
+112 unidades reais entre si (12.544 pares), o casamento por subconjunto
+declarava iguais duas escolas distintas da rede:
+
+```
+"SEBASTIAO DE AGUIAR AZEVEDO, EMEF"  ==  "SEBASTIAO DE AGUIAR AZEVEDO, EMEF - UN. II"
+```
+
+`coreTokens` removia a sigla, sobravam 4 tokens, e 4 tokens são subconjunto de
+`… UN II` — casava. O boletim da matriz vinha somando os alunos da Unidade II
+nas CINCO seções de uma vez (diagnóstica, atribuição, Elefante, fluência,
+educação especial). Era o único defeito de grafia do sistema que trazia dado
+ALHEIO em vez de omitir o próprio — os demais escondem, este inventava.
+
+Depois da troca: **0 pares falsos, 0 casamentos perdidos** nos mesmos 12.544.
+
+⚠️ O caminho reserva da tela (sem catálogo) é igualdade normalizada, mais
+ESTRITA que o resolvedor de propósito: pode faltar linha, nunca trazer a de
+outra escola. Errar escondendo é visível e reclamável; errar mostrando é
+invisível e grave.
+
+⚠️ A migração é segura por construção (`oficial()` nunca descarta nome), mas
+**cada tela migrada precisa ser vista com dado real**: o sintoma de um erro
+aqui é unidade sumindo da tela, que ninguém percebe olhando o console.
+
+### O cabeçalho é copiado em cada tela — e isso tem consequência
+
+Não há include: o `<header class="mg-header">` está escrito por extenso em cada
+`.html`. **Item novo no menu precisa entrar nas ~17 telas que o têm**, senão o
+usuário perde a navegação ao mudar de tela. Já aconteceu de o submenu ficar em
+três estados diferentes ao mesmo tempo.
+
+⚠️ **O CSS do submenu vem do `auth-guard.js`**, injetado antes do primeiro
+render para não haver flash. Seis telas redeclaram `.mg-dd-menu` na própria
+folha e, por especificidade, **vencem a regra compartilhada** — mexer só no
+`auth-guard.js` conserta 11 telas e deixa 6 para trás. Mexa nos dois lugares.
+
+⚠️ **Classe de item é `mg-dd-item`, e só.** Uma variação inventada
+(`mg-dd-item__ATIVO`) não casa com o seletor, o item perde o `display:flex` e
+os links viram texto corrido embolado — o menu continua "funcionando", então
+o defeito passa por revisão. A tela atual leva `mg-dd-item active`, uma por
+página.
 
 ---
 
@@ -315,6 +1467,34 @@ O **central** (`smedigital-desenv.github.io`) é o hub: catálogo de sistemas,
 telas, papéis, perfis e vínculos de escola. Alterações no modelo de permissão
 acontecem lá, não aqui.
 
+### Tela nova não existe até ser cadastrada no central
+
+Publicar o `.html` e criar as tabelas **não basta**. Enquanto a tela não estiver
+no catálogo do central e liberada para o perfil, ela não é alcançável — e o
+sintoma não diz isso: aparece como erro de permissão na tela, o que leva a
+procurar defeito nas policies do MAPA, que estão certas.
+
+No banco do **central** (projeto separado, não o do MAPA):
+
+```sql
+-- 1) uma linha por tela, no sistema 'mapa'
+insert into public.telas (sistema_id, slug, nome, ordem)
+select id, 'saresp', 'SARESP', 3 from public.sistemas where slug='mapa';
+
+-- 2) liberar para o perfil (perfil_tela: pode_ver / pode_editar / pode_exportar)
+insert into public.perfil_tela (perfil_id, tela_id, pode_ver, pode_editar, pode_exportar)
+select p.id, t.id, true, true, true
+  from public.perfis p, public.telas t
+ where p.auth_user_id = '<uuid do usuário>' and t.slug = 'saresp';
+```
+
+⚠️ A identidade em `perfis` é o **`auth_user_id` (uuid)**, não o `id` (bigint)
+da própria tabela — o join errado falha com `operator does not exist: uuid =
+bigint`. `sistemas` e `telas` identificam por **`slug`**, não por `codigo`.
+
+O `data-tela` no HTML das telas do MAPA é **decorativo** — hoje nada o lê. O
+gate de verdade é o do central.
+
 ---
 
 ## 8. Ao investigar um problema
@@ -322,11 +1502,25 @@ acontecem lá, não aqui.
 1. **`403` / `permission denied` em `bimestres` ou `mv_*` é esperado.** Não
    conceda acesso; verifique se a função que deveria alcançar o dado está como
    `SECURITY DEFINER`.
-2. **Tela vazia para perfil de escola** costuma ser grafia de unidade ausente
+2. **Tela vazia para perfil de ESCOLA** costuma ser grafia de unidade ausente
    em `escola_alias` — uma linha resolve, não é código.
-3. **Erro intermitente que "funciona depois de algumas tentativas"** é assinatura
+3. **Tela vazia para perfil de SECRETARIA é outra coisa.** Perfil de secretaria
+   não tem vínculo, então `escola_alias` não explica nada: procure função de
+   recorte sem a saída de rede toda (seção 3). Antes de mexer, confirme com
+   `select public.vejo_a_rede_toda()` na sessão DA PESSOA — o "Ver como" troca
+   a identidade no banco de verdade, então serve para isso. Se der `true` e a
+   tela seguir vazia, o corte está dentro da função que a tela chama, não no
+   RLS.
+4. **`google is not defined` na tela de Avaliações não é sobre o Apps Script.**
+   O adaptador Supabase instala `google.script.run` nas ÚLTIMAS linhas de um
+   IIFE de milhares de linhas; qualquer exceção dentro dele aborta antes disso
+   e a camada de dados inteira some. O erro que aparece é o da primeira
+   consulta, não o da causa. Procure a **primeira** exceção do console — em
+   2026-08 era uma linha do catálogo de unidades, trinta arquivos de distância.
+   Um teste depois do IIFE avisa quando isso acontece.
+5. **Erro intermitente que "funciona depois de algumas tentativas"** é assinatura
    de corrida, não de configuração. Procure o que executa o mesmo código duas
    vezes (prerender, prefetch, listener duplicado).
-4. **Timeout em tabela pequena** é estatística velha ou instância saturada,
+6. **Timeout em tabela pequena** é estatística velha ou instância saturada,
    não policy mal escrita.
-5. **Antes de propor `grant`**, releia a seção 3.
+7. **Antes de propor `grant`**, releia a seção 3.
