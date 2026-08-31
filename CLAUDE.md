@@ -844,6 +844,15 @@ caminho. Peculiaridades já tratadas no código — não "simplificar":
   isso a função exige recorte: perfil de escola só consulta com o código da
   própria unidade (`escolas_catalogo` → `posso_ver_unidade()`), e nível de
   rede exige `vejo_a_rede_toda()`.
+- **Perfil de escola tem rota própria** (`fichaMinhasEscolas` +
+  `pacoteViaFichaEscolas`): descobre o código CODERP das unidades do vínculo
+  por conjunto de palavras e consulta SÓ elas, no nível aluno. As consultas
+  de rede nem são tentadas (voltariam `403 escola_obrigatoria`). ⚠️ Quem
+  autoriza é o banco: `posso_ver_unidade()` precisa reconhecer a grafia
+  CODERP — as grafias do catálogo foram semeadas em `escola_alias`
+  (2026-08-31, casamento por tokens idênticos com a grafia oficial); sem o
+  apelido a consulta volta 403 e a tela cai para o banco, que é o lado
+  seguro.
 
 ---
 
