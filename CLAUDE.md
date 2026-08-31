@@ -875,9 +875,24 @@ uma avaria a ser corrigida com `grant`.
    As tabelas operacionais (`fluencia_estudantes`, `av_ideb`,
    `v_fluencia_por_turma`) seguem fechadas para `anon`.
 
-   A `metas.html` carrega o gate do central **só quando já existe sessão** no
-   navegador; sem sessão ela roda em modo público e de leitura. Isso não é
-   proteção — é conforto. Quem protege é o grant.
+   ⚠️ **A `metas.html` NÃO passa pelo gate do central.** Ela não carrega
+   `auth-guard.js` nem `auth.js`. O gate barra por permissão de TELA, e numa
+   tela pública isso produzia o absurdo de quem está logado ver MENOS que um
+   visitante anônimo — foi o que aconteceu. Não "conserte" isso recolocando o
+   gate: quem protege o dado são os grants e as policies acima.
+
+   Consequência: a tela **não precisa estar cadastrada no catálogo do central**,
+   ao contrário de todas as outras (§7). Se ela for cadastrada um dia, nada
+   muda — o cadastro simplesmente não é consultado.
+
+   ⚠️ **Quem é super admin, nessa tela, é decidido PELO BANCO** — a função
+   `eh_super_admin()`, a mesma que a policy de escrita usa. Nas outras telas o
+   dado vem do perfil do central (`MapaAuth.perfil.is_super_admin`). Perguntar
+   ao banco faz o botão e a policy concordarem por construção: não dá para a
+   tela oferecer um botão que a gravação vai recusar.
+
+   A sessão sai do armazenamento local, posta ali pelo `auth.js` das OUTRAS
+   telas. Sem sessão — ou com sessão expirada — a tela abre em leitura.
 2. **`bimestres` e as views materializadas não são alcançáveis pelo REST.**
    O acesso a elas passa obrigatoriamente por funções `SECURITY DEFINER` que
    aplicam o recorte por unidade. View materializada **ignora RLS** — proteger

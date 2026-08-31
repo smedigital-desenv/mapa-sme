@@ -4,34 +4,35 @@
   <meta charset="UTF-8">
   <script>
   /* ═══════════════════════════════════════════════════════════
-     ESTA TELA É PÚBLICA. Metas de IDEB e de Fluência são decisão divulgada da
-     SME e ficam legíveis sem login.
+     ESTA TELA É PÚBLICA E NÃO PASSA PELO GATE DO CENTRAL.
 
-     O gate do central (acesso-sme.js) REDIRECIONA para o login quando não há
-     sessão — por isso ele não pode ser carregado incondicionalmente aqui. A
-     regra é: carrega o gate SÓ se já existe sessão do MAPA neste navegador.
+     Metas de IDEB e de Fluência são decisão divulgada da SME. A tela não carrega
+     auth-guard.js nem auth.js: o gate do central barra por PERMISSÃO DE TELA, e
+     numa tela pública isso produzia o absurdo de quem está logado ver MENOS que
+     um visitante anônimo — era exatamente o que acontecia.
 
-       com sessão  → tudo como nas outras telas; super admin grava as metas
-       sem sessão  → modo público, leitura, sem ida ao login
+     ⚠️ Isso NÃO afrouxa nada. O que protege o dado são os grants e as policies:
+     o anon só alcança v_metas_ideb_publico, v_metas_fluencia_publico e
+     metas_parametros, todas agregadas por escola. As tabelas operacionais
+     seguem fechadas, e a gravação exige eh_super_admin() no Postgres.
 
-     ⚠️ Não troque isto por "carregar sempre e tratar o erro": o redirecionamento
-     acontece dentro do módulo do central, antes de qualquer erro chegar aqui.
+     ⚠️ Quem é super admin é decidido PELO BANCO (rpc/eh_super_admin), com a
+     MESMA função que a policy de escrita usa. Antes vinha do perfil do central;
+     perguntar ao banco faz o botão e a policy concordarem por construção — não
+     dá para a tela oferecer um botão que a gravação vai recusar.
 
-     ⚠️ O que protege o dado NÃO é esta linha — é a policy. Só as views
-     v_metas_*_publico são legíveis por anon, e elas expõem agregado por escola.
-     As tabelas operacionais seguem fechadas.
+     A sessão sai do armazenamento local, posta ali pelo auth.js das OUTRAS
+     telas. Sem sessão, a tela abre em leitura. Sem sessão VÁLIDA (expirada),
+     também — e aí basta abrir qualquer outra tela do MAPA para renová-la.
      ═══════════════════════════════════════════════════════════ */
   (function () {
-    var temSessao = false;
-    try { temSessao = !!localStorage.getItem('sb-gmwotfulohkmuqrezeef-auth-token'); } catch (e) {}
-    window.MAPA_MODO_PUBLICO = !temSessao;
-    window.MAPA_SISTEMA = 'mapa';
-    if (!temSessao) return;
-    ['auth-guard.js', 'auth.js', 'config-central.js', 'demo-mode.js'].forEach(function (src) {
-      var t = document.createElement('script');
-      t.src = src; t.async = false;          // preserva a ordem, como o defer faz
-      document.head.appendChild(t);
-    });
+    var t = null;
+    try {
+      var bruto = localStorage.getItem('sb-gmwotfulohkmuqrezeef-auth-token');
+      if (bruto) t = (JSON.parse(bruto) || {}).access_token || null;
+    } catch (e) {}
+    window.MAPA_TOKEN = t;
+    window.MAPA_MODO_PUBLICO = !t;
   })();
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -558,16 +559,9 @@ const NIVEIS = [
 const S = { avaliacoes: [], porEscola: {} };
 
 /* ── Acesso a dados (mesmo caminho da tela de Fluência) ── */
-function aguardarAuth() {
-  return new Promise(resolve => {
-    // Em modo público o auth.js nem foi carregado: esperar por ele custaria os
-    // 8 s do timeout abaixo, com a tela vazia.
-    if (window.MAPA_MODO_PUBLICO) return resolve();
-    if (window.MapaAuth && window.MapaAuth.perfil) return resolve();
-    document.addEventListener('mapa-auth-pronto', () => resolve(), { once: true });
-    setTimeout(resolve, 8000);
-  });
-}
+// A tela não carrega o auth.js, então não há o que esperar. Mantida para não
+// espalhar a mudança por todas as chamadas.
+function aguardarAuth() { return Promise.resolve(); }
 function filtrarPorEscola(rows) {
   try {
     if (window.MapaAuth && window.MapaAuth.restritoEscola)
@@ -575,6 +569,30 @@ function filtrarPorEscola(rows) {
   } catch (e) {}
   return rows;
 }
+// Com sessão vai o token de quem está logado — é o que faz a RLS reconhecer a
+// pessoa. Sem sessão vai a chave anon, que só alcança as views públicas.
+function cabecalhos(extra) {
+  const h = Object.assign({
+    apikey: SUPABASE_KEY,
+    Authorization: `Bearer ${window.MAPA_TOKEN || SUPABASE_KEY}`,
+  }, extra || {});
+  return h;
+}
+
+// Pergunta ao BANCO, não ao central: é a mesma função que a policy de escrita
+// usa, então o botão e a gravação não podem discordar.
+let _SUPER = false;
+async function verificarSuperAdmin() {
+  if (!window.MAPA_TOKEN) return;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/eh_super_admin`, {
+      method: 'POST', headers: cabecalhos({ 'Content-Type': 'application/json' }), body: '{}',
+    });
+    if (r.ok) _SUPER = (await r.json()) === true;
+    else console.warn('[metas] eh_super_admin respondeu', r.status);
+  } catch (e) { console.warn('[metas] eh_super_admin indisponível:', e.message); }
+}
+
 async function apiFetch(path) {
   const key = _CACHE_PREFIX + path;
   try {
@@ -585,7 +603,7 @@ async function apiFetch(path) {
     }
   } catch (e) {}
   const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    headers: cabecalhos()
   });
   if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
   const data = await r.json();
@@ -887,15 +905,12 @@ const METAS_TABELA = 'metas_parametros';
 let METAS_SALVAS = {};   // { fluencia: {...}, ideb: {...} }
 let METAS_META   = {};   // { fluencia: {atualizado_em}, ... }
 
-function souSuperAdmin() {
-  try { return !!(window.MapaAuth && window.MapaAuth.perfil && window.MapaAuth.perfil.is_super_admin); }
-  catch (e) { return false; }
-}
+function souSuperAdmin() { return _SUPER; }
 
 async function carregarParametros() {
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${METAS_TABELA}?select=escopo,parametros,atualizado_em`, {
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+      headers: cabecalhos()
     });
     if (!r.ok) return;                       // tabela ainda não existe: segue nos padrões
     (await r.json()).forEach(l => {
@@ -936,9 +951,8 @@ async function salvarParametros(escopo, ids, botaoId) {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${METAS_TABELA}?on_conflict=escopo`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
-        Prefer: 'resolution=merge-duplicates,return=minimal',
+        ...cabecalhos({ 'Content-Type': 'application/json',
+                        Prefer: 'resolution=merge-duplicates,return=minimal' }),
       },
       body: JSON.stringify([{ escopo, parametros: coletar(ids) }]),
     });
@@ -1674,7 +1688,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   ajustarTopoFixo();
   // Antes de montar controle nenhum: senão a tela pisca no padrão e depois
   // salta para a meta gravada, e quem vê o primeiro quadro anota o número errado.
-  await carregarParametros();
+  // O papel vem junto, pelo mesmo motivo: o botão de ajustar não pode aparecer
+  // e sumir.
+  await Promise.all([carregarParametros(), verificarSuperAdmin()]);
   carregarDados();
   // Chegando da tela de IDEB (metas.html#ideb), abre já na aba certa em vez de
   // obrigar a pessoa a procurá-la.
