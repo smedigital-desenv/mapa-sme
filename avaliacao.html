@@ -2976,11 +2976,11 @@ function _chaveBimestre(key, filtros) {
 function _chavePacoteBimestre(key, filtrosBase) {
   filtrosBase = filtrosBase || {};
   // v8: fonte CODERP ao vivo — invalida os pacotes v7 (banco) já em cache.
-  return ['pacote_bim_supa_v9_coderp', key, filtrosBase.ano || 'TODOS'].join('|');
+  return ['pacote_bim_supa_v10_coderp', key, filtrosBase.ano || 'TODOS'].join('|');
 }
 
 function _chaveTotal(filtros) {
-  return ['total_supa_v9_coderp', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
+  return ['total_supa_v10_coderp', filtros.unidade || 'TODAS', filtros.ano || 'TODOS', filtros.turma || 'TODAS'].join('|');
 }
 
 function _chaveDetalhe(key, filtros) {
@@ -2996,7 +2996,7 @@ function _chaveBimestreCompleto(key) {
 }
 
 function _chaveHierarquiaTotal(ano) {
-  return ['hier_total_supa_v9_coderp', ano || 'TODOS'].join('|');
+  return ['hier_total_supa_v10_coderp', ano || 'TODOS'].join('|');
 }
 
 // ===========================================================
