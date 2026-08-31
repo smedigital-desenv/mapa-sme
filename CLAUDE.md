@@ -771,7 +771,11 @@ Pontos que **não** são detalhe:
   responde 400 e a tela volta ao comportamento de detalhar por clique.
 
 Secrets: `CODERP_TOKEN` (obrigatório) e `CODERP_URL` (opcional; o padrão é o
-ambiente `dsv`).
+ambiente de **testes** `gxeducdsv...«/xsads/»`; produção é
+`https://gxeduc.coderp.sp.gov.br/xsapr/ObterFichaAvaliacao`, cadastrada como
+secret — cada ambiente tem o seu token). ⚠️ O projeto Supabase é um só:
+produção e homologação do site consomem o MESMO ambiente CODERP definido nos
+secrets.
 
 #### Desenhado e AINDA NÃO LIGADO: a conferência Rede × Turma
 
