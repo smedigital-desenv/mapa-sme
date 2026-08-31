@@ -8441,6 +8441,85 @@ function _renderTabelaTotal(linhas) {
 
   const fichaAnoLetivo = _FICHA.fichaAnoLetivo;
 
+  /* ── Perfil de escola: quais são as MINHAS unidades no catálogo CODERP? ──
+     Perfil de escola não pode consultar a rede (a função nega por desenho,
+     com `escola_obrigatoria`): a leitura ao vivo dele é a própria unidade,
+     no nível aluno. Aqui só se DESCOBRE o código CODERP das unidades do
+     vínculo — por conjunto exato de palavras, o mesmo critério do resolvedor.
+     Quem AUTORIZA continua sendo o banco (`posso_ver_unidade`, via
+     `escola_alias`): se a grafia CODERP não estiver apelidada lá, a consulta
+     volta 403 e a tela cai para o banco, como hoje. */
+  let _fichaMinhasPromise = null;
+  function fichaMinhasEscolas() {
+    if (!_fichaMinhasPromise) {
+      _fichaMinhasPromise = (async () => {
+        const A = window.MapaAuth;
+        if (!A || !A.restritoEscola || !Array.isArray(A.escolas) || !A.escolas.length) return [];
+        const chaveTokens = nome => normalizar(String(nome || ''))
+          .replace(/[^A-Z0-9 ]/g, ' ').split(/\s+/).filter(Boolean).sort().join(' ');
+        const minhas = new Set(A.escolas.map(e => chaveTokens(e.nome)).filter(Boolean));
+        const catalogo = await fichaCatalogo();
+        const achadas = [];
+        catalogo.forEach((nome, codigo) => {
+          if (minhas.has(chaveTokens(nome))) achadas.push({ codigo: codigo, nome: nome });
+        });
+        if (!achadas.length) {
+          console.warn('[MAPA CODERP] perfil de escola sem casamento no catálogo CODERP — '
+            + 'a leitura ao vivo fica indisponível e o banco assume.');
+        }
+        return achadas;
+      })().catch(() => { _fichaMinhasPromise = null; return []; });
+    }
+    return _fichaMinhasPromise;
+  }
+
+  // Pacote de bimestre restrito às unidades do perfil: nível aluno de cada
+  // uma (memoizado) — turmas reais e contagem exata desde a primeira carga.
+  async function pacoteViaFichaEscolas(minhas, bimestre, anoFiltro) {
+    const alvoAno = (anoFiltro && anoFiltro !== 'TODOS') ? normalizar(anoFiltro) : null;
+    const partes = await Promise.all(minhas.map(m =>
+      fichaDetalheUnidade(bimestre, m.nome).catch(err => {
+        if (!(err && err.coderpStatus === 404)) {
+          console.warn('[MAPA CODERP] unidade do perfil falhou:', m.nome, err);
+        }
+        return null;
+      })));
+    if (!partes.some(Boolean)) throw new Error('nenhuma unidade do perfil respondeu pela API');
+
+    const linhas = [];
+    const hierLinhas = [];
+    const disciplinas = new Set();
+    const anosSet = new Set();
+    const bruto = {};
+    partes.forEach(det => {
+      if (!det || !det.ok) return;
+      (det.linhas || []).forEach(l => {
+        if (alvoAno && l[1] !== alvoAno) return;
+        linhas.push(l);
+        disciplinas.add(l[3]);
+        anosSet.add(l[1]);
+      });
+      (det.hierLinhas || []).forEach(h => {
+        if (alvoAno && h[1] !== alvoAno) return;
+        hierLinhas.push(h);
+        const kb = h[0] + '||' + h[1];
+        bruto[kb] = (bruto[kb] || 0) + Number(h[3] || 0);
+      });
+    });
+    if (!linhas.length) throw new Error('CODERP sem linhas para as unidades do perfil no bimestre ' + bimestre);
+
+    return {
+      ok: true,
+      linhas: linhas,
+      hierLinhas: hierLinhas,
+      disciplinas: Array.from(disciplinas).sort(),
+      anos: Array.from(anosSet).sort(),
+      bruto: bruto,
+      incompleto: partes.some(p => !p),
+      generatedAt: new Date().toISOString()
+    };
+  }
+
   // Memo do pacote do Total por filtro (TTL 10 min, alinhado às outras camadas).
   const _totalPacoteMemo = new Map();
   // ── Rede inteira numa consulta só, recortada por per_cod ──────────────────
@@ -9557,6 +9636,12 @@ function _renderTabelaTotal(linhas) {
   // Uma chamada por ano escolar: IndicadorTurma sem `escola` devolve a rede
   // inteira aberta por unidade, filtrada pelo `anoescolar`.
   async function pacoteViaFichaApi(bimestre, anoFiltro) {
+    // Perfil de escola: a rede está fora do alcance dele (por desenho) — a
+    // leitura ao vivo é a própria unidade. Evita as 5 consultas de rede que
+    // voltariam 403 e enchem o console de "escola_obrigatoria".
+    const minhas = await fichaMinhasEscolas();
+    if (minhas.length) return pacoteViaFichaEscolas(minhas, bimestre, anoFiltro);
+
     const anos = (anoFiltro && anoFiltro !== 'TODOS') ? [normalizar(anoFiltro)] : FICHA_ANOS_ESCOLARES;
 
     const [catalogo, ...respostas] = await Promise.all([
@@ -9670,6 +9755,24 @@ function _renderTabelaTotal(linhas) {
   // A turma nasce '—' e o detalhe real desce sob demanda ao clicar na unidade
   // (getDetalheUnidadeFichaTotal) — o mesmo padrão das abas de bimestre.
   async function fichaGruposTotal() {
+    // Perfil de escola: monta o Total pelas fichas das unidades do vínculo
+    // (nível aluno, memoizado) — as consultas de rede seriam negadas.
+    const minhasT = await fichaMinhasEscolas();
+    if (minhasT.length) {
+      const grupos = [];
+      let veioAlgo = false;
+      const porBim = await Promise.all([1, 2, 3, 4].map(b => fichaAlunosBimestre(b).catch(() => null)));
+      porBim.forEach((rows, bi) => {
+        if (!rows) return;
+        veioAlgo = true;
+        rows.forEach(r => grupos.push([bi + 1, r.nome_unidade, r.ano_escolar || 'TODOS',
+          String(r.turma || '—'), r.fnc_disciplina, r.descricao_fne,
+          r.valor_resposta, r.valor_resposta, 1, r.texto_resposta || '']));
+      });
+      if (!veioAlgo) throw new Error('nenhuma unidade do perfil respondeu pela API');
+      return grupos;
+    }
+
     const catalogo = await fichaCatalogo();
     const grupos = [];
     let algumaFonte = false;
@@ -10032,8 +10135,14 @@ function _renderTabelaTotal(linhas) {
       });
       if (!unis.length) throw new Error('unidade sem código no catálogo: ' + filtros.unidade);
     } else {
-      const esc = await chamarFichaApi('escola', { anoLetivo: anoLetivo, bimestre: bimestre });
-      unis = Array.from(new Set((esc.fichasAvaliacoesEscola || []).map(r => Number(r.uni_cod))));
+      // 'TODAS' para perfil de escola = as unidades do vínculo, não a rede.
+      const minhas = await fichaMinhasEscolas();
+      if (minhas.length) {
+        unis = minhas.map(m => Number(m.codigo));
+      } else {
+        const esc = await chamarFichaApi('escola', { anoLetivo: anoLetivo, bimestre: bimestre });
+        unis = Array.from(new Set((esc.fichasAvaliacoesEscola || []).map(r => Number(r.uni_cod))));
+      }
     }
 
     const nomes = await fichaNomesAlunos();
@@ -10097,8 +10206,16 @@ function _renderTabelaTotal(linhas) {
   async function _fichaAlunosBimestreImpl(bimestre, aoProgresso) {
     const catalogo = await fichaCatalogo();
     const anoLetivo = fichaAnoLetivo();
-    const esc = await chamarFichaApi('escola', { anoLetivo: anoLetivo, bimestre: bimestre });
-    const unis = Array.from(new Set((esc.fichasAvaliacoesEscola || []).map(r => Number(r.uni_cod))));
+    // Perfil de escola: só as unidades do vínculo (a consulta de rede que
+    // lista as escolas seria negada — e nem faria sentido para ele).
+    const minhas = await fichaMinhasEscolas();
+    let unis;
+    if (minhas.length) {
+      unis = minhas.map(m => Number(m.codigo));
+    } else {
+      const esc = await chamarFichaApi('escola', { anoLetivo: anoLetivo, bimestre: bimestre });
+      unis = Array.from(new Set((esc.fichasAvaliacoesEscola || []).map(r => Number(r.uni_cod))));
+    }
 
     const rows = [];
     const LOTE = 5;
