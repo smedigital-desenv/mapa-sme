@@ -104,6 +104,14 @@ duas letras, ou letra única seguida de outra palavra com inicial maiúscula.
 Sem essa estreiteza, a descrição legítima `"A escrita apresentada pelo
 estudante…"` viraria `"escrita apresentada…"`.
 
+⚠️ **Clicar na FAIXA abre quem está naquele conceito**, sem passar pela grade
+— é onde o olho vai primeiro. ⚠️ A faixa da REDE não é clicável de propósito: o
+detalhe por estudante existe só para a unidade selecionada. ⚠️ Os segmentos
+ficam FORA da ordem de tabulação, também de propósito: são ~5 por aspecto em 9
+aspectos, e 45 paradas de teclado enterrariam o resto da página. O mesmo
+destino é alcançável pelo teclado nas linhas da grade, que são `role="button"`
+— o clique na barra é atalho de mouse para ação que já tem caminho acessível.
+
 ⚠️ **Clicar num conceito abre QUEM está nele — por REMA, nunca por nome.**
 A tabela `av_irc_aluno` guarda `escola, turma, rema, questao, conceito` e mais
 nada. Nome e RA continuam morrendo dentro de `agregar()`, no navegador: o REMA

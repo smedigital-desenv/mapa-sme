@@ -99,6 +99,12 @@
     .seg{display:flex;align-items:center;justify-content:center;font-size:.74rem;font-weight:800;
       color:#fff;white-space:nowrap;overflow:hidden;cursor:default;}
     .faixa.rede .seg{font-size:0;}
+    /* Realce por CONTORNO, não por cor: mudar o preenchimento no hover
+       distorceria a única coisa que a faixa comunica, que é a proporção
+       daquela cor. */
+    .seg.clicavel{cursor:pointer;}
+    .faixa:hover .seg.clicavel{opacity:.88;}
+    .seg.clicavel:hover{opacity:1;box-shadow:inset 0 0 0 3px rgba(255,255,255,.85);}
     .rotRede{font-size:.66rem;color:var(--muted);font-weight:800;letter-spacing:.06em;
       text-transform:uppercase;margin-top:3px;}
 
@@ -471,7 +477,19 @@ function rotuloDe(prop, conceito){
 }
 
 /* ── Render ───────────────────────────────────────────────────────────────── */
-function faixaHTML(dist, ordem, cor, prop, compacta){
+/* A faixa da UNIDADE é clicável segmento a segmento: clicar em "A 71%" abre
+   quem está no A, sem passar pela grade. É onde o olho vai primeiro.
+
+   ⚠️ A faixa da REDE (compacta) NÃO é clicável, e isso não é esquecimento: o
+   detalhe por estudante existe só para a unidade selecionada — abrir a lista
+   da rede inteira não faz sentido para ninguém e ampliaria a exposição.
+
+   ⚠️ Os segmentos ficam FORA da ordem de tabulação de propósito. São ~5 por
+   aspecto e 9 aspectos: 45 paradas de teclado antes de chegar em qualquer
+   outra coisa. O mesmo destino é alcançável pelo teclado nas linhas da grade,
+   que são `role="button"` e recebem Enter/Espaço — o clique na barra é atalho
+   de mouse para uma ação que já tem caminho acessível. */
+function faixaHTML(dist, ordem, cor, prop, compacta, asp){
   const total = ordem.reduce((s, c) => s + (dist.get(c) || 0), 0);
   if (!total) return '<div class="faixa"><div class="seg" style="flex:1;color:#94a3b8">sem dado</div></div>';
   const segs = ordem.map(c => {
@@ -481,9 +499,13 @@ function faixaHTML(dist, ordem, cor, prop, compacta){
     const rot = rotuloDe(prop, c);
     // Só rotula dentro da faixa quando cabe: abaixo de 7% o texto vira borrão.
     const dentro = (!compacta && pc >= 7) ? (c + ' ' + pc.toFixed(0) + '%') : '';
-    return '<div class="seg" style="flex:' + pc.toFixed(4) + ';background:' + cor[c]
+    const alvo = (!compacta && asp);
+    return '<div class="seg' + (alvo ? ' clicavel' : '') + '"'
+         + (alvo ? ' data-q="' + esc(asp.q) + '" data-c="' + esc(c) + '"' : '')
+         + ' style="flex:' + pc.toFixed(4) + ';background:' + cor[c]
          + ';color:' + tintaSobre(cor[c]) + '" title="' + esc(c + ' · ' + rot + ' — '
-         + num(v) + ' alunos (' + pc.toFixed(1) + '%)') + '">' + dentro + '</div>';
+         + num(v) + ' aluno' + (v > 1 ? 's' : '') + ' (' + pc.toFixed(1) + '%)'
+         + (alvo ? ' — clique para ver quem' : '')) + '">' + dentro + '</div>';
   }).join('');
   return '<div class="faixa' + (compacta ? ' rede' : '') + '">' + segs + '</div>';
 }
@@ -576,7 +598,7 @@ function render(){
             + (asp.cod ? '<span class="cod">' + esc(asp.cod) + '</span> ' : '')
             + esc(asp.nome)
             + '</span><span class="n">' + num(n) + ' avaliados</span></div>'
-            + faixaHTML(dist, ordem, cor, prop, false);
+            + faixaHTML(dist, ordem, cor, prop, false, asp);
 
       // A rede entra como uma faixa fina logo abaixo — comparação sem sair da
       // linha de leitura. Só aparece quando existe: unidade sem rede não
@@ -711,8 +733,8 @@ function ligarDrawer(){
   // Delegação: as linhas nascem e morrem a cada troca de unidade, então o
   // ouvinte fica no container, não em cada <tr>.
   document.getElementById('irConteudo').addEventListener('click', ev => {
-    const tr = ev.target.closest('tr.clicavel');
-    if (tr) mostrarEstudantes(tr.dataset.q, tr.dataset.c);
+    const alvo = ev.target.closest('tr.clicavel, .seg.clicavel');
+    if (alvo) mostrarEstudantes(alvo.dataset.q, alvo.dataset.c);
   });
   document.getElementById('irConteudo').addEventListener('keydown', ev => {
     if (ev.key !== 'Enter' && ev.key !== ' ') return;
