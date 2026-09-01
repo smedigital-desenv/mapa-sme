@@ -155,7 +155,6 @@
 </div>
 
 <script>
-const PERFIL_FLUXO = 's.fluxoescolar@educacao.pmrp.sp.gov.br';
 const TABELA = 'av_iee';
 function sb(){ return window.MAPA_SB; }
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -382,14 +381,32 @@ function ligarUpload(){
 }
 
 /* Gate do upload — conforto, não segurança: quem decide é a policy de escrita. */
+/* ── Gate do upload — conforto, não segurança ──────────────────────────────
+   ⚠️ Quem pode importar é decidido PELO BANCO, pela MESMA função que a policy
+   de escrita usa (`pode_importar_avaliacao`). Perguntar ao banco faz o botão e
+   a policy concordarem por construção: não dá para a tela oferecer um botão
+   que a gravação vai recusar, nem esconder de quem o banco aceitaria.
+
+   ⚠️ NÃO volte a usar `vejo_a_rede_toda()` aqui. Ela é verdadeira para super
+   admin OU para qualquer perfil sem vínculo de unidade — ou seja, toda a
+   secretaria. A importação SUBSTITUI a base da avaliação, então um arquivo
+   errado de qualquer um deles apagaria a edição inteira.
+
+   Reserva: sem a função no banco, cai para `eh_super_admin()`, que é o
+   subconjunto seguro — some o botão de quem depende do e-mail liberado, e
+   nunca o contrário. */
+async function podeImportarAvaliacao(cli){
+  try{
+    const r = await cli.rpc('pode_importar_avaliacao');
+    if(!r.error) return !!r.data;
+  }catch(e){ /* função ainda não publicada */ }
+  try{ return !!(await cli.rpc('eh_super_admin')).data; }catch(e){ return false; }
+}
+
 async function aplicarGate(){
   try{
-    const { data } = await sb().auth.getUser();
-    const email=((data&&data.user&&data.user.email)||'').toLowerCase();
-    let redeToda=false;
-    try{ redeToda=!!(await sb().rpc('vejo_a_rede_toda')).data; }catch(e){}
-    if(email===PERFIL_FLUXO||redeToda) document.getElementById('adUpload').style.display='';
-  }catch(e){}
+    if(await podeImportarAvaliacao(sb())) document.getElementById('adUpload').style.display='';
+  }catch(e){ /* sem sessão: o guard já redirecionou */ }
 }
 
 (function(){

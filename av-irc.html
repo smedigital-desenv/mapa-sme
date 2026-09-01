@@ -991,14 +991,26 @@ document.addEventListener('mapa-auth-pronto', async () => {
   ligarPdf();
   ligarDrawer();
   try {
-    // ⚠️ O gate é `eh_super_admin()`, NÃO `vejo_a_rede_toda()`.
-    // A diferença não é sutil: `vejo_a_rede_toda()` é verdadeiro para super
-    // admin OU para qualquer perfil sem vínculo de unidade — toda a
-    // secretaria. E esta importação SUBSTITUI a base inteira (delete + insert),
+    // ⚠️ Quem pode importar é decidido PELO BANCO, pela MESMA função que a
+    // policy de escrita usa. Perguntar ao banco faz o botão e a policy
+    // concordarem por construção — a tela não oferece o que a gravação recusa.
+    //
+    // ⚠️ NÃO volte a usar `vejo_a_rede_toda()`: ela é verdadeira para super
+    // admin OU para qualquer perfil sem vínculo de unidade, ou seja, toda a
+    // secretaria. Esta importação SUBSTITUI a base inteira (delete + insert),
     // então um arquivo errado de qualquer um deles apagaria a edição.
-    // Continua sendo conforto visual: quem recusa de verdade é o RLS.
-    const { data: sa } = await window.MAPA_SB.rpc('eh_super_admin');
-    if (sa) { document.getElementById('irUpBox').style.display = 'block'; ligarUpload(); }
+    //
+    // Reserva: sem a função no banco, cai para `eh_super_admin()` — o
+    // subconjunto seguro. Erra escondendo, nunca mostrando.
+    let pode = false;
+    try {
+      const r = await window.MAPA_SB.rpc('pode_importar_avaliacao');
+      if (!r.error) pode = !!r.data;
+      else throw r.error;
+    } catch (e) {
+      pode = !!(await window.MAPA_SB.rpc('eh_super_admin')).data;
+    }
+    if (pode) { document.getElementById('irUpBox').style.display = 'block'; ligarUpload(); }
   } catch (e) { /* sem a função ou sem permissão: a caixa some, e está certo */ }
 
   try {

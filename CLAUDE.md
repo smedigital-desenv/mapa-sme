@@ -111,13 +111,7 @@ nada. Nome e RA continuam morrendo dentro de `agregar()`, no navegador: o REMA
 permite a escola achar a criança na própria lista sem o MAPA guardar a
 identificação. 🚫 Não acrescente `Nome_Aluno` nem `RA_do_Aluno` a essa tabela.
 
-⚠️ **O gate da importação é `eh_super_admin()`, NÃO `vejo_a_rede_toda()`.**
-A diferença não é sutil: `vejo_a_rede_toda()` é verdadeiro para super admin
-**ou para qualquer perfil sem vínculo de unidade** — toda a secretaria. E a
-importação SUBSTITUI a base inteira (delete + insert), então um arquivo errado
-de qualquer um deles apagaria a edição. ⚠️ A `avaliacao-diagnostica.html` faz o
-mesmo teste e guarda o resultado numa variável chamada `superAdmin`, o que
-engana quem lê rápido — ela não é super admin.
+⚠️ **Quem importa é `pode_importar_avaliacao()` — ver a seção logo abaixo.**
 
 Tabelas: `av_irc` (escola, questao, conceito, alunos), `av_irc_part`
 (participação por unidade), `av_irc_aluno` (uma linha por estudante × questão,
@@ -133,6 +127,37 @@ seguem o padrão de recorte por unidade. Ao auditar, confira que o `anon`
 continua sem privilégio nas três: tabela nova no schema `public` nasce com
 grant para `anon` e `authenticated` no Supabase, e só o RLS não basta para
 manter a invariante nº 1.
+
+#### Quem pode IMPORTAR nas telas de avaliação externa
+
+As seis telas com upload de planilha — Diagnóstica, Produção Escrita (IRC),
+Av. Oral, SARESP, IDEB e IEE — usam **um único critério**, decidido pelo banco:
+
+```sql
+public.pode_importar_avaliacao()   -- super admin OU a conta da Av. Aprendizagem
+```
+
+⚠️ **NÃO volte a usar `vejo_a_rede_toda()` nesse gate.** Era o que estava lá, e
+ela é verdadeira para super admin **ou para qualquer perfil sem vínculo de
+unidade** — ou seja, **toda a secretaria**. Como a importação SUBSTITUI a base
+da avaliação (delete + insert), um arquivo errado de qualquer um deles apagaria
+a edição inteira. ⚠️ A `avaliacao-diagnostica.html` guardava o resultado numa
+variável chamada `superAdmin`, o que engana quem lê rápido — ela nunca foi.
+
+⚠️ **A tela PERGUNTA AO BANCO, pela mesma função que a policy de escrita usa.**
+É o que faz o botão e a policy concordarem por construção: a tela não oferece o
+que a gravação vai recusar, nem esconde de quem o banco aceitaria. Mesmo
+princípio da `metas.html`. O e-mail liberado mora **só** na função — trocá-lo
+não exige tocar em nenhuma das seis telas.
+
+⚠️ A reserva, quando a função ainda não existe no banco, é `eh_super_admin()` —
+o subconjunto seguro. Erra escondendo o botão de quem depende do e-mail, nunca
+mostrando para quem não pode. Medido nos quatro cenários (função diz sim, diz
+não, não existe com super admin, não existe sem).
+
+⚠️ O `PERFIL_FLUXO` (`s.fluxoescolar@…`) que liberava as cinco telas antigas
+**saiu**. Se aquela conta precisar importar de novo, o lugar de acrescentá-la é
+a função, não o HTML.
 
 #### O painel "Todas as unidades" (`visao-rede.js`)
 
