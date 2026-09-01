@@ -109,6 +109,15 @@ Tabelas: `av_irc` (escola, questao, conceito, alunos), `av_irc_part`
 abas `Q*` da própria planilha). A linha `escola = 'REDE'` é a referência, como
 nas demais telas de avaliação externa.
 
+⚠️ **`av_irc_rubrica` tem `select using (true)` de propósito, e ela APARECE na
+auditoria de policies permissivas** (seção 3). Não é regressão: a rubrica é a
+grade de correção da prova — documentação, sem dado de aluno — e todo perfil
+logado precisa dela para entender o que cada letra significa. As outras duas
+seguem o padrão de recorte por unidade. Ao auditar, confira que o `anon`
+continua sem privilégio nas três: tabela nova no schema `public` nasce com
+grant para `anon` e `authenticated` no Supabase, e só o RLS não basta para
+manter a invariante nº 1.
+
 #### O painel "Todas as unidades" (`visao-rede.js`)
 
 As cinco telas (Diagnóstica, Av. Oral, SARESP, IDEB, IEE) trazem no filtro de
