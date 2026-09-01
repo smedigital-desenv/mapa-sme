@@ -5,6 +5,12 @@
   <script src="auth-guard.js"></script>
   <script>window.MAPA_SISTEMA = 'mapa';</script>
   <script>window.MAPA_TELA = 'atribuicao';</script>
+  <!-- ⚠️ O nome do ARQUIVO tem hífen; o slug no catálogo do central tem
+       underline. O `acesso-sme.js` deriva a tela do nome do arquivo, então sem
+       esta linha os dois não casam e a pessoa leva "Acesso não autorizado" —
+       mas SÓ quem não é super admin, porque `can()` devolve true de saída para
+       super admin. Por isso o defeito ficou invisível para quem administra. -->
+  <script>window.ACESSO_TELA = 'analise_jornada';</script>
   <script src="auth.js" defer></script>
   <script src="config-central.js" defer></script>
   <script src="demo-mode.js"></script>

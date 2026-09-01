@@ -1,0 +1,1781 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <script>
+  /* ═══════════════════════════════════════════════════════════
+     ESTA TELA É PÚBLICA E NÃO PASSA PELO GATE DO CENTRAL.
+
+     Metas de IDEB e de Fluência são decisão divulgada da SME. A tela não carrega
+     auth-guard.js nem auth.js: o gate do central barra por PERMISSÃO DE TELA, e
+     numa tela pública isso produzia o absurdo de quem está logado ver MENOS que
+     um visitante anônimo — era exatamente o que acontecia.
+
+     ⚠️ Isso NÃO afrouxa nada. O que protege o dado são os grants e as policies:
+     o anon só alcança v_metas_ideb_publico, v_metas_fluencia_publico e
+     metas_parametros, todas agregadas por escola. As tabelas operacionais
+     seguem fechadas, e a gravação exige eh_super_admin() no Postgres.
+
+     ⚠️ Quem é super admin é decidido PELO BANCO (rpc/eh_super_admin), com a
+     MESMA função que a policy de escrita usa. Antes vinha do perfil do central;
+     perguntar ao banco faz o botão e a policy concordarem por construção — não
+     dá para a tela oferecer um botão que a gravação vai recusar.
+
+     A sessão sai do armazenamento local, posta ali pelo auth.js das OUTRAS
+     telas. Sem sessão, a tela abre em leitura. Sem sessão VÁLIDA (expirada),
+     também — e aí basta abrir qualquer outra tela do MAPA para renová-la.
+     ═══════════════════════════════════════════════════════════ */
+  (function () {
+    var t = null;
+    try {
+      var bruto = localStorage.getItem('sb-gmwotfulohkmuqrezeef-auth-token');
+      if (bruto) t = (JSON.parse(bruto) || {}).access_token || null;
+    } catch (e) {}
+    window.MAPA_TOKEN = t;
+    window.MAPA_MODO_PUBLICO = !t;
+  })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Metas de Fluência Leitora | SME Ribeirão Preto</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --primary: #002b5e;
+      --neon-blue: #00e5ff;
+      --c-flu: #10B981; --c-ini: #3B82F6;
+      --c-n4: #6366F1;  --c-n3: #F59E0B; --c-n2: #FF007F; --c-n1: #dc2626;
+    }
+    body { background:#f1f5f9; font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif; }
+    .card-mapa {
+      background:#fff; border-radius:14px; border:1px solid #e2e8f0;
+      box-shadow:0 1px 3px rgba(0,0,0,.05); padding:1.15rem 1.35rem; margin-bottom:1.1rem;
+    }
+    .card-titulo {
+      font-weight:900; color:var(--primary); font-size:1.02rem;
+      display:flex; align-items:center; gap:.5rem; margin-bottom:.2rem;
+    }
+    .card-sub { font-size:.79rem; color:#64748b; margin-bottom:1rem; }
+
+    /* ── KPIs ── */
+    .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:.9rem; }
+    .kpi {
+      background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px;
+      padding:.9rem 1rem; text-align:center;
+    }
+    .kpi-val { font-size:1.75rem; font-weight:900; line-height:1.1; }
+    .kpi-lbl { font-size:.7rem; font-weight:800; color:#64748b;
+               text-transform:uppercase; letter-spacing:.05em; margin-top:.3rem; }
+    .kpi-nota { font-size:.72rem; color:#94a3b8; margin-top:.15rem; }
+
+    /* ── Controles deslizantes ── */
+    .ctrl { padding:.75rem 0; border-bottom:1px dashed #e2e8f0; }
+    .ctrl:last-child { border-bottom:0; }
+    .ctrl-topo { display:flex; align-items:center; gap:.6rem; margin-bottom:.45rem; flex-wrap:wrap; }
+    .ctrl-bolha {
+      width:30px; height:30px; border-radius:9px; color:#fff; font-weight:900;
+      font-size:.76rem; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    }
+    .ctrl-nome { font-weight:800; color:#1e293b; font-size:.88rem; }
+    .ctrl-qtd  { font-size:.75rem; color:#64748b; }
+    .ctrl-saida {
+      margin-left:auto; text-align:right; font-size:.8rem; font-weight:800; color:#0f766e;
+      white-space:nowrap;
+    }
+    .ctrl-saida .pct { font-size:1.05rem; }
+    input[type=range] { width:100%; height:26px; cursor:pointer; accent-color:var(--primary); }
+    input[type=range]:disabled { cursor:not-allowed; opacity:.45; }
+
+    /* ── Barra de composição ── */
+    .barra { display:flex; height:34px; border-radius:9px; overflow:hidden; border:1px solid #e2e8f0; }
+    .barra div { display:flex; align-items:center; justify-content:center;
+                 font-size:.68rem; font-weight:800; color:#fff; overflow:hidden; }
+    .barra-wrap { position:relative; }
+    .linha-meta {
+      position:absolute; top:-5px; bottom:-5px; width:3px; background:#0f172a; z-index:3;
+    }
+    .linha-meta::after {
+      content:'META'; position:absolute; top:-16px; left:50%; transform:translateX(-50%);
+      font-size:.56rem; font-weight:900; color:#0f172a; letter-spacing:.06em;
+    }
+
+    /* ── Tabela ── */
+    .tbl { width:100%; font-size:.82rem; border-collapse:separate; border-spacing:0; }
+    .tbl thead th {
+      background:#f8fafc; color:#475569; font-size:.68rem; font-weight:800;
+      text-transform:uppercase; letter-spacing:.04em; padding:.6rem .5rem;
+      border-bottom:2px solid #e2e8f0; position:sticky; top:var(--topo-fixo,0px); z-index:2; text-align:center;
+    }
+    .tbl thead th:first-child { text-align:left; }
+    .tbl td { padding:.5rem; border-bottom:1px solid #f1f5f9; text-align:center; }
+    .tbl td:first-child { text-align:left; font-weight:700; color:#1e293b; }
+    .tbl tbody tr:hover { background:#f8fafc; }
+    .pill { display:inline-block; padding:.12rem .5rem; border-radius:99px;
+            font-size:.72rem; font-weight:800; color:#fff; }
+    .aviso-soma { color:#b45309; font-size:.7rem; font-weight:700; }
+    .preset-btn { font-size:.74rem; font-weight:700; }
+    .btn-ajuda {
+      border:0; background:var(--primary); color:#fff; width:20px; height:20px; border-radius:50%;
+      font-weight:900; font-size:.72rem; line-height:1; cursor:pointer; vertical-align:middle;
+    }
+    .btn-ajuda:hover { background:#014a91; }
+    .lnk-esc {
+      border:0; background:none; padding:0; text-align:left; font:inherit; font-weight:700;
+      color:#0f4c81; cursor:pointer; text-decoration:underline; text-decoration-style:dotted;
+    }
+    .lnk-esc:hover { color:var(--primary); }
+    .lnk-esc .bi { font-size:.72rem; opacity:.55; }
+    .conta { font-family:Consolas,"SF Mono",Menlo,monospace; font-size:.8rem; }
+    .conta-l { padding:.35rem 0; border-bottom:1px dashed #e2e8f0; }
+    .venceu { background:#ecfdf5; border-left:3px solid #0f766e; padding-left:.5rem; }
+    /* Rede de segurança: se o CSS do Bootstrap não carregar (CDN fora), o modal
+       não pode ficar aberto no meio da página com os controles à mostra. O
+       Bootstrap aplica display:block INLINE ao abrir, então esta regra não
+       atrapalha o funcionamento normal. */
+    /* A tabela não rola por dentro — rola a página, e todas as escolas ficam à
+       vista. A caixa só ganha rolagem horizontal onde a tabela não cabe:
+       medido, ela se ajusta sozinha até 1024px e só aperta abaixo disso.
+       ⚠️ overflow-x:auto faz a div virar contêiner de rolagem NOS DOIS eixos, e
+       aí o cabeçalho sticky passa a grudar nela (que não rola) em vez de na
+       janela — ou seja, para de funcionar. Por isso o overflow é visible na
+       largura em que a tabela cabe. */
+    /* Dois cartões lado a lado quando cabe. Empilhar tudo numa coluna deixava a
+       tabela de faixas ocupando um terço da largura com dois terços vazios. */
+    .dupla { display:grid; grid-template-columns:1fr 1fr; gap:1.1rem; align-items:start; }
+    @media (max-width: 1100px) { .dupla { grid-template-columns:1fr; } }
+
+    /* Rótulo e valor perto um do outro. Em linha de largura inteira, o valor
+       ficava a meia tela de distância do que ele nomeia. */
+    .grade-val { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:.15rem 1.4rem; }
+    .val-item { padding:.42rem 0; border-bottom:1px dashed #e2e8f0; display:flex;
+                align-items:baseline; justify-content:space-between; gap:.8rem; }
+    .val-rot { font-size:.78rem; color:#475569; }
+    .val-num { font-weight:800; color:var(--primary); white-space:nowrap; }
+    /* Os quatro níveis lado a lado: em linhas de largura inteira, quatro linhas
+       empurravam a tabela de escolas para fora da tela. */
+    .grade-nivel { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:.7rem; }
+    .nivel-cx { border:1px solid #e2e8f0; border-radius:11px; padding:.7rem .8rem; background:#f8fafc; }
+    .nivel-topo { display:flex; align-items:center; justify-content:space-between; margin-bottom:.4rem; }
+    .nivel-pct { font-size:1.35rem; font-weight:900; color:var(--primary); line-height:1; }
+    .nivel-nome { font-weight:800; font-size:.84rem; color:#1e293b; }
+    .nivel-det { font-size:.74rem; color:#64748b; margin-top:.15rem; }
+    .cx-sel { display:inline-flex; align-items:center; gap:.5rem; background:#eef2f7;
+              border-radius:10px; padding:.42rem .8rem; }
+    .cx-sel .bi { color:#64748b; font-size:.82rem; }
+    .cx-sel select { border:0; background:none; font-weight:800; font-size:.84rem;
+                     color:var(--primary); outline:none; cursor:pointer; max-width:340px; }
+    .titulo-linha { display:flex; align-items:flex-start; justify-content:space-between;
+                    gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }
+    .segmento { display:inline-flex; background:#eef2f7; border-radius:10px; padding:3px; gap:3px; }
+    .seg-btn { border:0; background:none; border-radius:8px; padding:.42rem .95rem;
+               font-weight:800; font-size:.82rem; color:#64748b; cursor:pointer; white-space:nowrap; }
+    .seg-btn:hover { color:var(--primary); }
+    .seg-btn.ativo { background:#fff; color:var(--primary); box-shadow:0 1px 3px rgba(0,0,0,.12); }
+    .seg-btn:disabled { opacity:.45; cursor:not-allowed; }
+    .seg-n { font-weight:700; font-size:.72rem; opacity:.7; }
+    .tbl-wrap { overflow-x: auto; }
+    @media (min-width: 992px) { .tbl-wrap { overflow-x: visible; } }
+    .modal { display: none; }
+    .abas { display:flex; gap:.4rem; border-bottom:2px solid #e2e8f0; }
+    .aba {
+      background:none; border:0; border-bottom:3px solid transparent; margin-bottom:-2px;
+      padding:.55rem 1.1rem; font-weight:800; font-size:.88rem; color:#64748b; cursor:pointer;
+    }
+    .aba:hover { color:var(--primary); }
+    .aba.ativa { color:var(--primary); border-bottom-color:var(--primary); }
+    @media (max-width: 768px) { .kpi-val { font-size:1.4rem; } }
+  </style>
+<style>
+  /* ═══ HEADER GLOBAL MAPA — opção 2 (página nativa) ═══ */
+  .mg-header {
+    background: var(--primary, #002b5e); color: #fff;
+    border-bottom: 5px solid var(--neon-blue, #00e5ff);
+    padding: .95rem 1.6rem;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; flex-wrap: wrap;
+    position: sticky; top: 0; z-index: 1050;
+    box-shadow: 0 6px 18px rgba(0,43,94,.18);
+  }
+  .mg-brand { display: flex; align-items: center; gap: .6rem; min-width: 180px; }
+  .mg-brand-icon {
+    width: 34px; height: 34px; display: grid; place-items: center;
+    color: var(--neon-blue, #00e5ff); font-size: 1.4rem;
+    filter: drop-shadow(0 0 6px rgba(0,229,255,.55));
+  }
+  .mg-brand h4 { margin: 0; font-weight: 900; letter-spacing: .03em; font-size: 1.4rem; line-height: 1; }
+  .mg-brand-sub {
+    font-size: .63rem; color: rgba(255,255,255,.68); font-weight: 800;
+    letter-spacing: .08em; text-transform: uppercase; margin-top: 2px;
+  }
+  .mg-nav { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; flex: 1; min-width: 280px; }
+  .mg-nav-btn {
+    display: inline-flex; align-items: center; gap: .4rem; justify-content: center;
+    min-width: 150px; font-size: .78rem; font-weight: 900;
+    padding: 6px 14px; border-radius: 8px; border: 2px solid transparent;
+    color: #fff; text-decoration: none; transition: .2s; white-space: nowrap;
+  }
+  .mg-nav-btn:hover { border-color: rgba(255,255,255,.4); }
+  .mg-nav-btn.active { background: #fff; color: var(--primary, #002b5e); box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+  .mg-actions { min-width: 86px; display: flex; justify-content: flex-end; align-items: center; }
+  .mg-action-btn {
+    display: inline-flex; align-items: center; gap: .35rem;
+    font-size: .76rem; font-weight: 800; padding: 5px 12px;
+    border-radius: 8px; border: 1.5px solid rgba(255,255,255,.45);
+    background: transparent; color: #fff; cursor: pointer; transition: .2s;
+  }
+  .mg-action-btn:hover { background: rgba(255,255,255,.12); border-color: #fff; }
+  @media (max-width: 992px) { .mg-nav-btn { min-width: auto; } }
+  /* header próprio do módulo não fixa (só o global) */
+  .nav-header { position: static !important; }
+</style>
+</head>
+<body>
+
+<header class="mg-header">
+  <div class="mg-brand" style="cursor:pointer;" onclick="location.href='index.html'" title="Página inicial do MAPA">
+    <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div>
+    <div>
+      <h4>MAPA</h4>
+      <div class="mg-brand-sub">SME Ribeirão Preto</div>
+    </div>
+  </div>
+  <nav class="mg-nav">
+    <a class="mg-nav-btn" href="index.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
+    <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_irc,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
+      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item" href="avaliacao-diagnostica.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+        <a class="mg-dd-item" href="av-irc.html" data-tela="avaliacao_irc"><i class="bi bi-pencil-fill"></i>Produção Escrita (IRC)</a>
+        <a class="mg-dd-item" href="av-oral-matematica.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+        <a class="mg-dd-item" href="saresp.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+        <a class="mg-dd-item" href="ideb.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+        <a class="mg-dd-item" href="iee.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
+        <a class="mg-dd-item" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+        <a class="mg-dd-item active" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <div class="mg-dd" data-tela-any="frequencia,boletim_estatistico">
+      <a class="mg-nav-btn mg-dd-toggle" href="frequencia.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <div class="mg-dd-menu">
+        <a class="mg-dd-item" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+        <a class="mg-dd-item" href="boletim-estatistico.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+      </div>
+    </div>
+    <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+    <a class="mg-nav-btn" href="boletim.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+    <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none;min-width:auto;padding:6px 10px;" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
+  </nav>
+  <div class="mg-actions">
+    <button class="mg-action-btn" onclick="_limparCacheFlu();location.reload()" title="Atualizar (dados frescos)"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button>
+  </div>
+</header>
+<div style="background:linear-gradient(135deg,#002b5e,#075f82);color:#fff;padding:1rem 1.6rem;
+            display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+  <div style="display:flex;align-items:center;gap:.75rem;">
+    <i class="bi bi-bullseye" style="font-size:1.5rem;"></i>
+    <div>
+      <div style="font-weight:900;font-size:1.15rem;line-height:1.1;">Metas de Fluência Leitora</div>
+      <div style="font-size:.63rem;color:rgba(255,255,255,.65);font-weight:800;
+                  letter-spacing:.08em;text-transform:uppercase;">
+        Simulador por nível de pré-leitor
+      </div>
+    </div>
+  </div>
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <button class="btn btn-sm btn-light fw-bold" id="btnExportar" onclick="exportar()"
+            title="Baixar as metas de Fluência por escola">
+      <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i>Exportar
+    </button>
+  </div>
+</div>
+
+<div class="container-fluid px-3 px-lg-4 py-3" style="max-width:1500px;">
+
+  <div class="abas mb-3">
+    <button class="aba ativa" id="abaFlu"  onclick="trocarAba('flu')">
+      <i class="bi bi-book-half me-1"></i>Fluência Leitora</button>
+    <button class="aba"       id="abaIdeb" onclick="trocarAba('ideb')">
+      <i class="bi bi-bar-chart-line-fill me-1"></i>IDEB</button>
+  </div>
+
+  <div id="paneFlu">
+  <div id="aviso"></div>
+
+  <!-- ── Resultado ── -->
+  <div class="card-mapa">
+    <div class="titulo-linha">
+      <div>
+        <div class="card-titulo"><i class="bi bi-graph-up-arrow"></i>Resultado das metas</div>
+        <div class="card-sub mb-0" id="subResultado">Carregando…</div>
+      </div>
+      <!-- Junto da tabela que ele muda, como o segmento de etapa no IDEB. Aqui
+           continua sendo um select: o número de avaliações cresce a cada
+           edição, e botões lado a lado deixariam de caber. -->
+      <div class="cx-sel">
+        <i class="bi bi-clipboard-check"></i>
+        <select id="selAvaliacao" onchange="recalcular()">
+          <option value="">Carregando…</option>
+        </select>
+      </div>
+    </div>
+    <div class="kpi-grid" id="kpis"></div>
+
+    <div class="mt-4">
+      <div style="font-size:.72rem;font-weight:800;color:#64748b;text-transform:uppercase;
+                  letter-spacing:.05em;margin-bottom:.9rem;">Composição da rede</div>
+      <div style="font-size:.7rem;color:#94a3b8;margin-bottom:.3rem;">Hoje</div>
+      <div class="barra-wrap mb-3"><div class="barra" id="barraHoje"></div></div>
+      <div style="font-size:.7rem;color:#94a3b8;margin-bottom:.3rem;">Com as metas aplicadas</div>
+      <div class="barra-wrap"><div class="barra" id="barraMeta"></div></div>
+      <div class="d-flex flex-wrap gap-3 mt-3" style="font-size:.7rem;color:#64748b;">
+        <span><span class="pill" style="background:var(--c-flu);">&nbsp;</span> Fluente</span>
+        <span><span class="pill" style="background:var(--c-ini);">&nbsp;</span> Iniciante</span>
+        <span><span class="pill" style="background:var(--c-n4);">&nbsp;</span> Pré N4</span>
+        <span><span class="pill" style="background:var(--c-n3);">&nbsp;</span> Pré N3</span>
+        <span><span class="pill" style="background:var(--c-n2);">&nbsp;</span> Pré N2</span>
+        <span><span class="pill" style="background:var(--c-n1);">&nbsp;</span> Pré N1</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Controles ── -->
+  <div class="card-mapa" id="card_fluencia">
+    <div class="card-titulo"><i class="bi bi-flag-fill"></i>Metas definidas
+      <button class="btn-ajuda" onclick="abrirComoFluencia()" title="Como a meta é calculada">?</button></div>
+    <div class="card-sub">
+      Leitor = Iniciante + Fluente. Cada unidade recebe a meta que resulta de aplicar estes
+      percentuais à composição dela — não há alvo único para a rede.
+    </div>
+
+    <div id="resumoFluencia"></div>
+    <div id="origem_fluencia" style="font-size:.74rem;color:#0f766e;font-weight:700;margin-top:.8rem;"></div>
+    <div id="acaoFluencia" style="display:none;margin-top:.9rem;">
+      <button class="btn btn-sm btn-primary fw-bold" onclick="abrirAjuste('fluencia')">
+        <i class="bi bi-sliders me-1"></i>Ajustar metas</button>
+    </div>
+  </div>
+
+
+  <!-- ── Tabela ── -->
+  <div class="card-mapa">
+    <div class="card-titulo"><i class="bi bi-list-ul"></i>Meta por escola</div>
+    <div class="card-sub" id="subTabela"></div>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <input id="busca" class="form-control form-control-sm" style="max-width:280px;"
+             placeholder="Buscar escola…" oninput="renderTabela()">
+      <select id="ordem" class="form-select form-select-sm" style="max-width:230px;" onchange="renderTabela()">
+        <option value="hoje">% hoje (menor primeiro)</option>
+        <option value="meta">Maior meta primeiro</option>
+        <option value="novos">Mais alunos a evoluir</option>
+        <option value="nome">Nome (A–Z)</option>
+      </select>
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr>
+          <th>Escola</th><th>Aval.</th>
+          <th>N4</th><th>N3</th><th>N2</th><th>N1</th>
+          <th>Leitores hoje</th><th>% hoje</th>
+          <th>A evoluir</th><th>Meta da unidade<br>(leitores)</th><th>Meta da unidade<br>(%)</th>
+        </tr></thead>
+        <tbody id="corpo"></tbody>
+      </table>
+    </div>
+  </div>
+  </div><!-- /paneFlu -->
+
+  <div id="paneIdeb" hidden>
+    <div id="avisoIdeb"></div>
+
+    <div class="card-mapa">
+      <div class="titulo-linha">
+        <div>
+          <div class="card-titulo"><i class="bi bi-flag-fill"></i>Metas de IDEB
+            <button class="btn-ajuda" onclick="abrirComoCalcula()" title="Como a meta é calculada">?</button>
+            <span id="idebCiclo" style="font-weight:600;color:#64748b;font-size:.85rem;"></span></div>
+          <div class="card-sub mb-0" id="idebSub">Carregando…</div>
+        </div>
+        <!-- Segmento fica JUNTO do que ele governa, e num clique. Antes era um
+             select na barra do topo: longe da tabela e a dois cliques. -->
+        <div class="segmento" role="group" aria-label="Etapa de ensino">
+          <button type="button" id="segAI" class="seg-btn ativo" onclick="trocarEtapa('AI')">
+            Anos Iniciais <span class="seg-n" id="nAI"></span></button>
+          <button type="button" id="segAF" class="seg-btn" onclick="trocarEtapa('AF')">
+            Anos Finais <span class="seg-n" id="nAF"></span></button>
+        </div>
+      </div>
+      <div class="kpi-grid" id="idebKpis"></div>
+
+    </div>
+
+    <div class="dupla">
+      <div class="card-mapa">
+        <div class="card-titulo"><i class="bi bi-bar-chart-steps"></i>Escolas por faixa</div>
+        <div class="card-sub">Onde a rede está hoje e onde ficaria com as metas.</div>
+        <table class="tbl">
+          <thead><tr><th>Faixa</th><th>Hoje</th><th>Com as metas</th></tr></thead>
+          <tbody id="idebFaixas"></tbody>
+        </table>
+      </div>
+
+      <div class="card-mapa" id="card_ideb">
+        <div class="card-titulo"><i class="bi bi-rulers"></i>Critério definido
+          <button class="btn-ajuda" onclick="abrirComoCalcula()" title="Como a meta é calculada">?</button></div>
+        <div class="card-sub">
+          Régua de convergência: exige-se uma fração da distância até o horizonte por ciclo.
+          Quem está mais longe avança mais.
+        </div>
+        <div id="resumoIdeb"></div>
+        <div id="origem_ideb" style="font-size:.74rem;color:#0f766e;font-weight:700;margin-top:.8rem;"></div>
+        <div id="acaoIdeb" style="display:none;margin-top:.9rem;">
+          <button class="btn btn-sm btn-primary fw-bold" onclick="abrirAjuste('ideb')">
+            <i class="bi bi-sliders me-1"></i>Ajustar critério</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-mapa">
+      <div class="card-titulo"><i class="bi bi-list-ul"></i>Meta por escola</div>
+      <div class="card-sub" id="idebSubTab"></div>
+      <div class="d-flex flex-wrap gap-2 mb-3">
+        <input id="idebBusca" class="form-control form-control-sm" style="max-width:280px"
+               placeholder="Buscar escola…" oninput="renderIdebTabela()">
+        <select id="idebOrdem" class="form-select form-select-sm" style="max-width:250px" onchange="renderIdebTabela()">
+          <option value="ideb">Menor IDEB primeiro</option>
+          <option value="acr">Maior acréscimo exigido</option>
+          <option value="nome">Nome (A–Z)</option>
+        </select>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr>
+            <th>Escola</th><th>IDEB<br>anterior</th><th>IDEB<br>atual</th>
+            <th>Meta<br>IDEB</th><th>Acrésc.</th>
+            <th>Desemp.<br>N atual</th><th>Meta<br>N</th>
+            <th>Fluxo<br>P atual</th><th>Meta<br>P</th>
+            <th>Regra determinante</th>
+          </tr></thead>
+          <tbody id="idebCorpo"></tbody>
+        </table>
+      </div>
+    </div>
+  </div><!-- /paneIdeb -->
+
+  <div class="modal fade" id="modalAjuste" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header" style="background:var(--primary);color:#fff;">
+          <div style="font-weight:900;" id="ajusteTitulo"></div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="ajusteFluencia" hidden>
+            <p style="font-size:.86rem;color:#475569;">
+              Estes percentuais valem para toda a rede. A meta de cada unidade é o que resulta de
+              aplicá-los à composição dela.</p>
+            <div id="ctrlNiveis"></div>
+            <div class="d-flex flex-wrap gap-2 mt-3 pt-3" style="border-top:1px solid #e2e8f0;">
+              <span style="font-size:.72rem;font-weight:800;color:#64748b;align-self:center;">Cenários:</span>
+              <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="aplicarPreset('conservador')">Conservador</button>
+              <button class="btn btn-sm btn-outline-primary preset-btn" onclick="aplicarPreset('equilibrado')">Equilibrado</button>
+              <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="aplicarPreset('ambicioso')">Ambicioso</button>
+              <button class="btn btn-sm btn-link preset-btn text-decoration-none" onclick="aplicarPreset('zerar')">Zerar</button>
+            </div>
+            <div style="font-size:.74rem;color:#b45309;margin-top:.9rem;">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i>
+              Estes percentuais são decisão pedagógica, não medição: o sistema não guarda série
+              histórica de evolução entre níveis que permita calibrá-los.
+            </div>
+          </div>
+          <div id="ajusteIdeb" hidden>
+            <p style="font-size:.86rem;color:#475569;">
+              Alterar aqui muda a meta de todas as escolas. O efeito aparece na tela ao fechar.</p>
+            <div id="idebCtrls"></div>
+            <div class="d-flex flex-wrap gap-2 mt-3 pt-3" style="border-top:1px solid #e2e8f0;">
+              <span style="font-size:.72rem;font-weight:800;color:#64748b;align-self:center;">Cenários:</span>
+              <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="presetIdeb('conservador')">Conservador</button>
+              <button class="btn btn-sm btn-outline-primary preset-btn"   onclick="presetIdeb('padrao')">Padrão</button>
+              <button class="btn btn-sm btn-outline-secondary preset-btn" onclick="presetIdeb('ambicioso')">Ambicioso</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar sem gravar</button>
+          <button type="button" class="btn btn-success fw-bold" id="btnGravar" onclick="gravarAjuste()">
+            <i class="bi bi-save me-1"></i>Gravar metas para a rede</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="modalExplica" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header" style="background:var(--primary);color:#fff;">
+          <div style="font-weight:900;" id="explicaTitulo"></div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="explicaCorpo"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   Metas de Fluência Leitora — simulador por nível
+
+   Lê a MESMA view da tela de Fluência (v_fluencia_por_turma) e reusa as
+   MESMAS definições, para não criar uma segunda verdade que diverge em
+   silêncio da tela:
+       base do percentual = AVALIADOS   (não matriculados)
+       leitor             = Iniciante + Fluente
+       meta da rede       = 70% (aqui é ajustável)
+
+   O gradiente sugerido (N4 mais ambicioso … N1 mais modesto) segue a ordem
+   de esforço que calcularMeta() já usa na fluencia.html: N4 peso 1, N3 2,
+   N2 3, N1 4.
+   ═══════════════════════════════════════════════════════════ */
+const SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk';
+
+const _CACHE_PREFIX = 'mapa_flu_';            // mesma chave da tela de Fluência:
+const _CACHE_TTL    = 10 * 60 * 1000;         // se ela já buscou, aqui nem vai à rede
+
+const NIVEIS = [
+  { key:'pre_n4', nome:'Pré-leitor N4', cor:'var(--c-n4)', dif:'mais fácil de avançar', padrao:70 },
+  { key:'pre_n3', nome:'Pré-leitor N3', cor:'var(--c-n3)', dif:'',                      padrao:45 },
+  { key:'pre_n2', nome:'Pré-leitor N2', cor:'var(--c-n2)', dif:'',                      padrao:25 },
+  { key:'pre_n1', nome:'Pré-leitor N1', cor:'var(--c-n1)', dif:'mais difícil',          padrao:10 },
+];
+
+const S = { avaliacoes: [], porEscola: {} };
+
+/* ── Acesso a dados (mesmo caminho da tela de Fluência) ── */
+// A tela não carrega o auth.js, então não há o que esperar. Mantida para não
+// espalhar a mudança por todas as chamadas.
+function aguardarAuth() { return Promise.resolve(); }
+function filtrarPorEscola(rows) {
+  try {
+    if (window.MapaAuth && window.MapaAuth.restritoEscola)
+      return window.MapaAuth.filtrarEscolas(rows, t => t.escola);
+  } catch (e) {}
+  return rows;
+}
+// Com sessão vai o token de quem está logado — é o que faz a RLS reconhecer a
+// pessoa. Sem sessão vai a chave anon, que só alcança as views públicas.
+function cabecalhos(extra) {
+  const h = Object.assign({
+    apikey: SUPABASE_KEY,
+    Authorization: `Bearer ${window.MAPA_TOKEN || SUPABASE_KEY}`,
+  }, extra || {});
+  return h;
+}
+
+// Pergunta ao BANCO, não ao central: é a mesma função que a policy de escrita
+// usa, então o botão e a gravação não podem discordar.
+let _SUPER = false;
+async function verificarSuperAdmin() {
+  if (!window.MAPA_TOKEN) return;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/eh_super_admin`, {
+      method: 'POST', headers: cabecalhos({ 'Content-Type': 'application/json' }), body: '{}',
+    });
+    if (r.ok) _SUPER = (await r.json()) === true;
+    else console.warn('[metas] eh_super_admin respondeu', r.status);
+  } catch (e) { console.warn('[metas] eh_super_admin indisponível:', e.message); }
+}
+
+async function apiFetch(path) {
+  const key = _CACHE_PREFIX + path;
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (raw) {
+      const o = JSON.parse(raw);
+      if (o && o.ts && (Date.now() - o.ts) < _CACHE_TTL) return o.data;
+    }
+  } catch (e) {}
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: cabecalhos()
+  });
+  if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
+  const data = await r.json();
+  try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch (e) {}
+  return data;
+}
+
+async function carregarDados() {
+  try {
+    await aguardarAuth();
+    // A view pública é a fonte. Enquanto ela não existir no banco, quem TEM
+    // sessão cai para a view operacional — que é o que esta tela lia antes de
+    // se tornar pública. Sem isso, publicar o front antes do SQL derruba a tela
+    // para todo mundo. Visitante sem sessão não tem esse caminho: para ele a
+    // tela avisa que as metas ainda não foram publicadas.
+    let dados;
+    try {
+      dados = await apiFetch(
+        'v_metas_fluencia_publico?select=avaliacao,escola,avaliados,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1&order=avaliacao.asc,escola.asc'
+      );
+    } catch (e) {
+      if (!_faltaObjeto(e) || window.MAPA_MODO_PUBLICO) throw e;
+      dados = await apiFetch(
+        'v_fluencia_por_turma?select=avaliacao,escola,avaliados,fluentes,iniciantes,pre_n4,pre_n3,pre_n2,pre_n1&order=avaliacao.asc,escola.asc'
+      );
+    }
+    dados = filtrarPorEscola(dados);
+    if (!dados.length) return semDados('Nenhum dado de fluência disponível para o seu acesso.');
+
+    const por = {};
+    dados.forEach(t => {
+      (por[t.avaliacao] = por[t.avaliacao] || {});
+      (por[t.avaliacao][t.escola] = por[t.avaliacao][t.escola] || []).push(t);
+    });
+    Object.keys(por).forEach(av => {
+      Object.keys(por[av]).forEach(esc => {
+        const ts = por[av][esc];
+        const soma = k => ts.reduce((s, t) => s + (+t[k] || 0), 0);
+        por[av][esc] = {
+          avaliados: soma('avaliados'), fluentes: soma('fluentes'), iniciantes: soma('iniciantes'),
+          pre_n4: soma('pre_n4'), pre_n3: soma('pre_n3'), pre_n2: soma('pre_n2'), pre_n1: soma('pre_n1'),
+        };
+      });
+    });
+    S.porEscola = por;
+    S.avaliacoes = Object.keys(por);
+
+    const sel = document.getElementById('selAvaliacao');
+    sel.innerHTML = S.avaliacoes.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+    montarControles();
+    aplicarSalvos('fluencia', IDS_FLU());
+    marcarOrigem('fluencia');
+    aplicarPapel();
+    renderResumoFluencia();
+    recalcular();
+  } catch (e) {
+    semDados(mensagemDeErro(e));
+  }
+}
+
+// PGRST205 = o objeto não existe no cache de esquema do PostgREST: a view
+// pública ainda não foi criada. Não é avaria — é ordem de implantação. Numa
+// tela pública, despejar o JSON do PostgREST expõe nome de objeto interno e
+// não diz nada a quem está lendo.
+const _faltaObjeto = e => /PGRST205|Could not find the table|does not exist/i
+  .test(String((e && e.message) || e || ''));
+
+function mensagemDeErro(e) {
+  const t = String((e && e.message) || e || '');
+  if (/PGRST205|Could not find the table|does not exist/i.test(t)) {
+    console.warn('[metas] objeto ainda não publicado no banco:', t);
+    return 'As metas ainda não foram publicadas. Esta tela passa a mostrar os dados assim que a '
+         + 'Secretaria concluir a preparação da base.';
+  }
+  console.error('[metas]', t);
+  return 'Não foi possível carregar os dados agora. Tente novamente em alguns minutos.';
+}
+
+function semDados(msg) {
+  document.getElementById('aviso').innerHTML =
+    `<div class="alert alert-warning d-flex align-items-center gap-2">
+       <i class="bi bi-exclamation-triangle-fill"></i><div>${esc(msg)}</div>
+     </div>`;
+  document.getElementById('selAvaliacao').innerHTML = '<option>Sem dados</option>';
+}
+
+/* ── Controles ── */
+function montarControles() {
+  document.getElementById('ctrlNiveis').innerHTML = NIVEIS.map(n => `
+    <div class="ctrl">
+      <div class="ctrl-topo">
+        <div class="ctrl-bolha" style="background:${n.cor};">${n.key.slice(-2).toUpperCase()}</div>
+        <div>
+          <div class="ctrl-nome">${n.nome}</div>
+          <div class="ctrl-qtd"><span id="qtd_${n.key}">—</span> alunos${n.dif ? ' · ' + n.dif : ''}</div>
+        </div>
+        <div class="ctrl-saida">
+          <span class="pct" id="out_${n.key}">${n.padrao}%</span><br>
+          <span style="font-weight:600;color:#64748b;">vira leitor: <b id="conv_${n.key}">—</b></span>
+        </div>
+      </div>
+      <input type="range" id="s_${n.key}" min="0" max="100" step="1" value="${n.padrao}" oninput="recalcular()">
+    </div>`).join('');
+}
+
+function params() {
+  const p = {};
+  NIVEIS.forEach(n => { p[n.key] = (+document.getElementById('s_' + n.key).value || 0) / 100; });
+  return p;
+}
+
+function aplicarPreset(qual) {
+  const mapa = {
+    conservador: { pre_n4:45, pre_n3:25, pre_n2:12, pre_n1:5  },
+    equilibrado: { pre_n4:70, pre_n3:45, pre_n2:25, pre_n1:10 },
+    ambicioso:   { pre_n4:90, pre_n3:65, pre_n2:40, pre_n1:20 },
+    zerar:       { pre_n4:0,  pre_n3:0,  pre_n2:0,  pre_n1:0  },
+  };
+  const v = mapa[qual]; if (!v) return;
+  NIVEIS.forEach(n => { document.getElementById('s_' + n.key).value = v[n.key]; });
+  recalcular();
+}
+
+/* ── Cálculo ── */
+function avAtual() { return document.getElementById('selAvaliacao')?.value || S.avaliacoes[0] || ''; }
+function escolasAtuais() { return S.porEscola[avAtual()] || {}; }
+
+function totais() {
+  const e = escolasAtuais(); const acc = { avaliados:0, fluentes:0, iniciantes:0, pre_n4:0, pre_n3:0, pre_n2:0, pre_n1:0 };
+  Object.values(e).forEach(d => Object.keys(acc).forEach(k => acc[k] += (+d[k] || 0)));
+  acc.leitores = acc.fluentes + acc.iniciantes;
+  return acc;
+}
+
+// Meta de UMA escola. Arredonda por nível: o número tem que ser de aluno
+// inteiro, porque é assim que a coordenação vai usar ("mover 12 do N4").
+function metaEscola(d, p) {
+  const leitores = (+d.fluentes || 0) + (+d.iniciantes || 0);
+  let novos = 0; const porNivel = {};
+  NIVEIS.forEach(n => { const v = Math.round((+d[n.key] || 0) * p[n.key]); porNivel[n.key] = v; novos += v; });
+  const av = +d.avaliados || 0;
+  const soma = leitores + NIVEIS.reduce((s, n) => s + (+d[n.key] || 0), 0);
+  return {
+    avaliados: av, leitores, novos, porNivel,
+    depois: leitores + novos,
+    pctHoje:   av > 0 ? leitores / av * 100 : 0,
+    pctDepois: av > 0 ? (leitores + novos) / av * 100 : 0,
+    fecha: soma === av,          // conferência: as partes reproduzem o todo?
+    somaPartes: soma,
+  };
+}
+
+function recalcular() {
+  const p = params();
+  const t = totais();
+
+  const escolas = escolasAtuais();
+  const nomes = Object.keys(escolas);
+  const calc = nomes.map(nome => ({ nome, ...metaEscola(escolas[nome], p) }));
+  window._calc = calc;
+
+  // O arredondamento é POR ESCOLA (é assim que a meta será usada). Somar as
+  // escolas e arredondar no total daria número diferente — 44 em vez de 45 no
+  // caso medido — e o controle passaria a contradizer a tabela em silêncio.
+  const convRede = {};
+  NIVEIS.forEach(n => { convRede[n.key] = calc.reduce((s, c) => s + c.porNivel[n.key], 0); });
+  window._convRede = convRede;   // o resumo do cartão lê daqui, para não recalcular diferente
+  renderResumoFluencia();
+
+  NIVEIS.forEach(n => {
+    document.getElementById('out_' + n.key).textContent = Math.round(p[n.key] * 100) + '%';
+    document.getElementById('qtd_' + n.key).textContent = (t[n.key] || 0).toLocaleString('pt-BR');
+    document.getElementById('conv_' + n.key).textContent =
+      convRede[n.key].toLocaleString('pt-BR') + ' alunos';
+  });
+
+  const novosRede = calc.reduce((s, c) => s + c.novos, 0);
+  const depoisRede = t.leitores + novosRede;
+  const pctHoje = t.avaliados ? t.leitores / t.avaliados * 100 : 0;
+  const pctDepois = t.avaliados ? depoisRede / t.avaliados * 100 : 0;
+  // Não há mais alvo único: a meta da rede é o RESULTADO de somar as metas das
+  // unidades, não um número escolhido de fora.
+  const comAv = calc.filter(c => c.avaliados > 0);
+  const menor = comAv.length ? Math.min(...comAv.map(c => c.pctDepois)) : 0;
+  const maior = comAv.length ? Math.max(...comAv.map(c => c.pctDepois)) : 0;
+  const corDepois = '#0f766e';
+
+  document.getElementById('subResultado').textContent =
+    `${nomes.length} escola${nomes.length !== 1 ? 's' : ''} · ${t.avaliados.toLocaleString('pt-BR')} alunos avaliados`;   // a avaliação já está no seletor ao lado
+
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi">
+      <div class="kpi-val" style="color:#475569;">${pt1(pctHoje)}%</div>
+      <div class="kpi-lbl">Leitores hoje</div>
+      <div class="kpi-nota">${t.leitores.toLocaleString('pt-BR')} alunos</div>
+    </div>
+    <div class="kpi" style="border-color:${corDepois};">
+      <div class="kpi-val" style="color:${corDepois};">${pt1(pctDepois)}%</div>
+      <div class="kpi-lbl">Meta da rede</div>
+      <div class="kpi-nota">soma das metas das unidades</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" style="color:var(--primary);">+${novosRede.toLocaleString('pt-BR')}</div>
+      <div class="kpi-lbl">Alunos a evoluir</div>
+      <div class="kpi-nota">para virar leitores</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" style="color:var(--primary);">${pt1(menor)}%</div>
+      <div class="kpi-lbl">Menor meta</div>
+      <div class="kpi-nota">entre as unidades</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" style="color:var(--primary);">${pt1(maior)}%</div>
+      <div class="kpi-lbl">Maior meta</div>
+      <div class="kpi-nota">entre as unidades</div>
+    </div>`;
+
+  barra('barraHoje', t, 0, {});
+  barra('barraMeta', t, novosRede, convRede);
+  renderTabela();
+}
+
+// Barra de composição. Os leitores ficam à ESQUERDA para que a linha da meta
+// (em X%) possa ser lida como "os leitores precisam cobrir até aqui".
+function barra(id, t, novos, convertidos) {
+  const av = t.avaliados || 1;
+  const segs = [
+    { v: t.fluentes,   c:'var(--c-flu)', r:'Fluente' },
+    { v: t.iniciantes + novos, c:'var(--c-ini)', r:'Iniciante' },
+    { v: (t.pre_n4 || 0) - (convertidos.pre_n4 || 0), c:'var(--c-n4)', r:'N4' },
+    { v: (t.pre_n3 || 0) - (convertidos.pre_n3 || 0), c:'var(--c-n3)', r:'N3' },
+    { v: (t.pre_n2 || 0) - (convertidos.pre_n2 || 0), c:'var(--c-n2)', r:'N2' },
+    { v: (t.pre_n1 || 0) - (convertidos.pre_n1 || 0), c:'var(--c-n1)', r:'N1' },
+  ];
+  document.getElementById(id).innerHTML = segs.map(s => {
+    const pct = Math.max(0, s.v) / av * 100;
+    if (pct <= 0) return '';
+    return `<div style="width:${pct}%;background:${s.c};" title="${s.r}: ${Math.max(0,s.v).toLocaleString('pt-BR')} (${pct.toFixed(1)}%)">${pct > 6 ? s.r : ''}</div>`;
+  }).join('');
+}
+
+/* ── Tabela ── */
+function renderTabela() {
+  const calc = window._calc || []; const p = params();
+  const termo = (document.getElementById('busca').value || '').toLowerCase().trim();
+  const ordem = document.getElementById('ordem').value;
+
+  let lista = calc.filter(c => !termo || c.nome.toLowerCase().includes(termo));
+
+  lista = lista.slice().sort((a, b) =>
+    ordem === 'nome'  ? a.nome.localeCompare(b.nome, 'pt-BR')
+  : ordem === 'hoje'  ? a.pctHoje - b.pctHoje
+  : ordem === 'novos' ? b.novos - a.novos
+  : ordem === 'meta'  ? b.pctDepois - a.pctDepois
+  : a.pctHoje - b.pctHoje);
+
+  document.getElementById('subTabela').textContent =
+    `${lista.length} de ${calc.length} escola${calc.length !== 1 ? 's' : ''}`;
+
+  document.getElementById('corpo').innerHTML = lista.map(c => {
+    // A cor mede o PATAMAR da meta, não distância a um alvo único (que não
+    // existe mais). Mesma leitura da faixa do IDEB: é descrição, não juízo.
+    const cor = c.pctDepois >= 80 ? '#0f766e' : c.pctDepois >= 60 ? '#ca8a04' : '#dc2626';
+    return `<tr>
+      <td><button class="lnk-esc" onclick="detalharFluencia(this.dataset.n)" data-n="${esc(c.nome)}">${esc(c.nome)} <i class="bi bi-info-circle"></i></button>${c.fecha ? '' : `<div class="aviso-soma"><i class="bi bi-exclamation-triangle-fill"></i> partes somam ${c.somaPartes}, avaliados ${c.avaliados}</div>`}</td>
+      <td>${c.avaliados.toLocaleString('pt-BR')}</td>
+      <td>${(c.porNivel.pre_n4 ? `<b>${c.porNivel.pre_n4}</b>/` : '')}${(escolasAtuais()[c.nome]?.pre_n4 || 0)}</td>
+      <td>${(c.porNivel.pre_n3 ? `<b>${c.porNivel.pre_n3}</b>/` : '')}${(escolasAtuais()[c.nome]?.pre_n3 || 0)}</td>
+      <td>${(c.porNivel.pre_n2 ? `<b>${c.porNivel.pre_n2}</b>/` : '')}${(escolasAtuais()[c.nome]?.pre_n2 || 0)}</td>
+      <td>${(c.porNivel.pre_n1 ? `<b>${c.porNivel.pre_n1}</b>/` : '')}${(escolasAtuais()[c.nome]?.pre_n1 || 0)}</td>
+      <td>${c.leitores.toLocaleString('pt-BR')}</td>
+      <td>${pt1(c.pctHoje)}%</td>
+      <td><b style="color:var(--primary);">+${c.novos}</b></td>
+      <td><b>${c.depois.toLocaleString('pt-BR')}</b></td>
+      <td><span class="pill" style="background:${cor};">${pt1(c.pctDepois)}%</span></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="11" class="text-center text-muted py-4">Nenhuma escola no filtro.</td></tr>';
+}
+
+const pt1 = v => (Math.round(v*10)/10).toFixed(1).replace('.', ',');
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g,
+    c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   PARÂMETROS GRAVADOS
+
+   As metas são decisão da SME, não preferência de quem abre a tela: ficam numa
+   tabela e todo mundo vê os MESMOS números. Só super admin move os controles.
+
+   ⚠️ O gate daqui é conforto, não segurança — qualquer pessoa pode chamar a API
+   direto. Quem impede a escrita é a policy de metas_parametros no Postgres.
+   Se você mexer aqui, não presuma que isso protege alguma coisa.
+   ═══════════════════════════════════════════════════════════ */
+const METAS_TABELA = 'metas_parametros';
+let METAS_SALVAS = {};   // { fluencia: {...}, ideb: {...} }
+let METAS_META   = {};   // { fluencia: {atualizado_em}, ... }
+
+function souSuperAdmin() { return _SUPER; }
+
+async function carregarParametros() {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${METAS_TABELA}?select=escopo,parametros,atualizado_em`, {
+      headers: cabecalhos()
+    });
+    if (!r.ok) return;                       // tabela ainda não existe: segue nos padrões
+    (await r.json()).forEach(l => {
+      if (l && l.escopo && l.parametros) {
+        METAS_SALVAS[l.escopo] = l.parametros;
+        METAS_META[l.escopo] = { em: l.atualizado_em };
+      }
+    });
+  } catch (e) { /* segue nos padrões */ }
+}
+
+// Aplica valores gravados aos controles de um escopo. Os ids dos controles são
+// a chave do que se grava, para não haver um segundo dicionário divergindo.
+function aplicarSalvos(escopo, ids) {
+  const p = METAS_SALVAS[escopo]; if (!p) return false;
+  let algum = false;
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && p[id] != null && isFinite(+p[id])) { el.value = +p[id]; algum = true; }
+  });
+  return algum;
+}
+
+function coletar(ids) {
+  const o = {};
+  ids.forEach(id => { const el = document.getElementById(id); if (el) o[id] = +el.value; });
+  return o;
+}
+
+const IDS_FLU  = () => NIVEIS.map(n => 's_' + n.key);
+const IDS_IDEB = () => IDEB_PAR.map(d => 'i_' + d.key);
+
+async function salvarParametros(escopo, ids, botaoId) {
+  const btn = document.getElementById(botaoId);
+  const antes = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Gravando…'; }
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${METAS_TABELA}?on_conflict=escopo`, {
+      method: 'POST',
+      headers: {
+        ...cabecalhos({ 'Content-Type': 'application/json',
+                        Prefer: 'resolution=merge-duplicates,return=minimal' }),
+      },
+      body: JSON.stringify([{ escopo, parametros: coletar(ids) }]),
+    });
+    if (!r.ok) throw new Error((await r.text()) || r.status);
+    METAS_SALVAS[escopo] = coletar(ids);
+    METAS_META[escopo] = { em: new Date().toISOString() };
+    if (btn) { btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Gravado'; }
+    marcarOrigem(escopo);
+    setTimeout(() => { if (btn) { btn.innerHTML = antes; btn.disabled = false; } }, 2500);
+  } catch (e) {
+    if (btn) { btn.innerHTML = antes; btn.disabled = false; }
+    alert('Não foi possível gravar as metas.\n\n' + (e.message || e) +
+          '\n\nA gravação é restrita a super administradores.');
+  }
+}
+
+function marcarOrigem(escopo) {
+  const el = document.getElementById('origem_' + escopo); if (!el) return;
+  const m = METAS_META[escopo];
+  el.textContent = m && m.em
+    ? 'Metas definidas pela SME em ' + new Date(m.em).toLocaleString('pt-BR')
+    : 'Ainda não há metas gravadas — os percentuais mostrados são a proposta de partida.';
+}
+
+// Ajustar meta é de super admin, e os controles moram num modal. Aqui só se
+// decide quem enxerga o botão que o abre.
+//
+// ⚠️ Use display, NÃO o atributo hidden: estes contêineres carregam classes do
+// Bootstrap com display:flex !important, que vence o hidden do navegador. Foi
+// assim que o botão "Gravar metas para a rede" continuou aparecendo para quem
+// não podia gravar — e o teste não pegou porque conferia a propriedade .hidden
+// em vez da visibilidade de fato.
+function aplicarPapel() {
+  const pode = souSuperAdmin();
+  ['acaoFluencia', 'acaoIdeb'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = pode ? '' : 'none';
+  });
+}
+
+let _escopoAjuste = null;
+function abrirAjuste(escopo) {
+  if (!souSuperAdmin()) return;
+  _escopoAjuste = escopo;
+  document.getElementById('ajusteTitulo').textContent =
+    escopo === 'fluencia' ? 'Ajustar as metas de Fluência Leitora' : 'Ajustar o critério do IDEB';
+  document.getElementById('ajusteFluencia').hidden = escopo !== 'fluencia';
+  document.getElementById('ajusteIdeb').hidden     = escopo !== 'ideb';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAjuste')).show();
+}
+
+function gravarAjuste() {
+  // Guarda no manipulador, além do que decide mostrar o botão: se o modal ficar
+  // alcançável por qualquer caminho, a gravação ainda depende do papel. Quem
+  // recusa de verdade é a policy de metas_parametros — isto só evita a
+  // requisição inútil e a mensagem de erro para quem nunca poderia gravar.
+  if (!souSuperAdmin()) return;
+  if (_escopoAjuste === 'fluencia') salvarParametros('fluencia', IDS_FLU(), 'btnGravar');
+  else if (_escopoAjuste === 'ideb') salvarParametros('ideb', IDS_IDEB(), 'btnGravar');
+}
+
+// O resumo é o que TODO MUNDO vê, inclusive quem ajusta. Uma leitura só, para
+// não haver dois lugares dizendo a meta com números diferentes.
+function renderResumoFluencia() {
+  const el = document.getElementById('resumoFluencia'); if (!el) return;
+  const p = params(), t = totais();
+  const conv = window._convRede || {};
+  el.className = 'grade-nivel';
+  el.innerHTML = NIVEIS.map(n => `
+    <div class="nivel-cx">
+      <div class="nivel-topo">
+        <div class="ctrl-bolha" style="background:${n.cor};">${n.key.slice(-2).toUpperCase()}</div>
+        <div class="nivel-pct">${Math.round(p[n.key] * 100)}%</div>
+      </div>
+      <div class="nivel-nome">${n.nome}</div>
+      <div class="nivel-det">${(t[n.key] || 0).toLocaleString('pt-BR')} alunos ·
+        <b style="color:#0f766e;">${(conv[n.key] || 0).toLocaleString('pt-BR')}</b> devem virar leitores</div>
+    </div>`).join('');
+}
+
+function renderResumoIdeb() {
+  const el = document.getElementById('resumoIdeb'); if (!el) return;
+  const p = idebParams();
+  const linha = (rot, val) =>
+    `<div class="val-item"><span class="val-rot">${rot}</span><span class="val-num">${val}</span></div>`;
+  el.className = 'grade-val';
+  el.innerHTML =
+      linha('Ritmo da régua', (p.k * 100).toFixed(0) + '%')
+    + linha('Horizonte de excelência', p.T.toFixed(1).replace('.', ','))
+    + linha('Acréscimo por ciclo', p.piso.toFixed(2).replace('.', ',') + ' a ' + p.teto.toFixed(2).replace('.', ','))
+    + linha('Patamar de fluxo da rede', (p.patP * 100).toFixed(1).replace('.', ',') + '%')
+    + linha('Recuperação do fluxo', (p.ritmoP * 100).toFixed(0) + '%')
+    + linha('Recuperação da queda', (p.queda * 100).toFixed(0) + '%');
+}
+
+function abrirComoFluencia() {
+  const p = params();
+  _abrir('Como a meta de cada unidade é calculada', `
+    <p><b>Leitor = Iniciante + Fluente.</b> A meta de uma unidade é quantos leitores ela deve ter
+       ao fim do período, e sai de aplicar um percentual a cada nível de pré-leitor DELA.</p>
+    <h6 class="fw-bold mt-3">Por que percentuais diferentes por nível</h6>
+    <p>Quanto mais perto de ler, mais fácil avançar. Por isso o N4 recebe o percentual mais alto
+       (${Math.round(p.pre_n4 * 100)}%) e o N1 o mais baixo (${Math.round(p.pre_n1 * 100)}%):
+       exigir o mesmo de todos pediria o impossível de quem está no começo da alfabetização.</p>
+    <h6 class="fw-bold mt-3">Por que não há alvo único</h6>
+    <p>Duas escolas com a mesma proporção de leitores hoje podem estar em situações muito
+       diferentes: uma com os pré-leitores quase lendo, outra no início. Um alvo único trataria as
+       duas como iguais. Aplicando os percentuais à composição de cada uma, a primeira recebe meta
+       maior — porque tem mais alunos ao alcance.</p>
+    <p class="text-muted" style="font-size:.84rem;">Clique no nome de uma escola na tabela para ver
+       a conta dela. Os percentuais são definidos pela SME e valem para toda a rede.</p>`);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   METAS DE IDEB — régua de convergência
+
+   Critério: mede-se quanto falta para o horizonte de excelência (T) e exige-se
+   a fração k dessa distância por ciclo, com piso e teto no acréscimo. A meta é
+   o MAIOR entre três candidatos, e cada um existe por um motivo:
+
+     1. régua sobre o IDEB          — o caso geral
+     2. régua sobre o desempenho    — × meta de fluxo. Sem ele, escola com
+        fluxo baixo cumpriria a meta só aprovando mais, sem aprender nada.
+     3. recuperação de metade da    — sem ele, cair de 2023 para 2025 renderia
+        queda                         meta MAIS FÁCIL do que não ter caído.
+
+   A meta de desempenho é a meta de IDEB dividida pela meta de fluxo, nunca
+   abaixo do desempenho atual: é o que a escola precisa aprender, já descontado
+   o que virá do fluxo.
+
+   ⚠️ Conferido contra a planilha oficial (Metas_IDEB_2027, 31 escolas dos anos
+   iniciais): meta de IDEB, meta de fluxo, meta de desempenho, acréscimo e regra
+   determinante batem nas 31, e o resumo da rede reproduz (IDEB médio 5,7258 →
+   6,0903; faixas 5/16/9/1 → 0/12/18/1; 8 escolas com meta de fluxo).
+   Se mexer aqui, refaça essa conferência.
+   ═══════════════════════════════════════════════════════════ */
+const IDEB_PAR = [
+  { key:'k',      nome:'Ritmo da régua (k)',        min:1,  max:30,  passo:1, div:100, padrao:10,
+    obs:'Fração da distância até o horizonte fechada por ciclo.' },
+  { key:'T',      nome:'Horizonte de excelência (T)', min:70, max:100, passo:1, div:10,  padrao:90,
+    obs:'Abaixo de 7,5 zera a meta do topo da rede.' },
+  { key:'piso',   nome:'Piso do acréscimo',         min:0,  max:50,  passo:1, div:100, padrao:10,
+    obs:'Impede meta nula para quem já está no topo.' },
+  { key:'teto',   nome:'Teto do acréscimo',         min:10, max:150, passo:5, div:100, padrao:70,
+    obs:'Impede meta irreal para escola em situação crítica.' },
+  { key:'patP',   nome:'Patamar de fluxo da rede',  min:900,max:1000,passo:1, div:1000,padrao:980,
+    obs:'Quem está abaixo recebe meta de fluxo; quem está acima, não.' },
+  { key:'ritmoP', nome:'Ritmo de recuperação do fluxo', min:0, max:100, passo:5, div:100, padrao:50,
+    obs:'Fração da distância até o patamar fechada por ciclo.' },
+  { key:'queda',  nome:'Fator de recuperação da queda', min:0, max:100, passo:5, div:100, padrao:50,
+    obs:'Em 100% a escola volta integralmente ao patamar anterior.' },
+];
+const IDEB_FAIXAS = [
+  { lbl:'Abaixo de 5,0', teste:v=>v<5,            cor:'#b91c1c' },
+  { lbl:'5,0 a 5,9',     teste:v=>v>=5 && v<6,    cor:'#ea580c' },
+  { lbl:'6,0 a 6,9',     teste:v=>v>=6 && v<7,    cor:'#ca8a04' },
+  { lbl:'7,0 ou mais',   teste:v=>v>=7,           cor:'#15803d' },
+];
+const IDEB = { porEscola: {}, anos: [], parcial: false };
+let ETAPA = 'AI';   // 'AI' | 'AF'
+
+// Troca de segmento. Etapa sem dado não é clicável: melhor o botão dizer que
+// não há nada do que abrir um painel vazio sem explicação.
+function trocarEtapa(qual) {
+  if (qual === ETAPA) return;
+  ETAPA = qual;
+  document.getElementById('segAI').classList.toggle('ativo', qual === 'AI');
+  document.getElementById('segAF').classList.toggle('ativo', qual === 'AF');
+  recalcIdeb();
+}
+
+// Quantas escolas cada etapa tem. Vai no próprio botão: sem isso a pessoa
+// precisa clicar para descobrir que os anos finais ainda não foram importados.
+function marcarSegmentos() {
+  ['AI', 'AF'].forEach(et => {
+    const n = Object.keys(IDEB.porEscola[et] || {}).length;
+    const bt = document.getElementById('seg' + et);
+    const sp = document.getElementById('n' + et);
+    if (sp) sp.textContent = n ? `(${n})` : '';
+    if (bt) {
+      bt.disabled = !n;
+      bt.title = n ? `${n} escola(s) nesta etapa` : 'Sem dados importados para esta etapa';
+    }
+  });
+}
+
+const _r1 = v => Math.round(v * 10) / 10;
+const _r2 = v => Math.round(v * 100) / 100;
+const _r3 = v => Math.round(v * 1000) / 1000;
+const _lim = (v, a, b) => Math.min(b, Math.max(a, v));
+
+function idebParams() {
+  const p = {};
+  IDEB_PAR.forEach(d => {
+    const el = document.getElementById('i_' + d.key);
+    p[d.key] = (el ? +el.value : d.padrao) / d.div;
+  });
+  return p;
+}
+
+// Meta de UMA escola numa etapa. Devolve null quando faltam os componentes.
+function metaIdeb(e, p) {
+  const { idebAnt, ideb, n, fl } = e;
+  if (ideb == null) return null;
+  if (n == null || fl == null) return { incompleto: true };
+  const metaP = fl < p.patP ? _r3(fl + p.ritmoP * (p.patP - fl)) : _r3(fl);
+  const c1 = _r1(ideb + _lim(p.k * (p.T - ideb), p.piso, p.teto));
+  const c2 = _r1((n + _lim(p.k * (p.T - n), p.piso, p.teto)) * metaP);
+  const c3 = (idebAnt != null && ideb < idebAnt) ? _r1(ideb + p.queda * (idebAnt - ideb)) : null;
+  const alvo = Math.max(c1, c2, c3 == null ? -Infinity : c3);
+  // No empate, atribui ao PRIMEIRO candidato que alcança o máximo. Atribuir ao
+  // último faria a tela dizer "recuperação da queda" para escola que não caiu.
+  const regra = c1 >= alvo - 1e-9 ? 'Régua do IDEB'
+              : c2 >= alvo - 1e-9 ? 'Desempenho × fluxo'
+              : 'Recuperação da queda';
+  const faixa = IDEB_FAIXAS.find(f => f.teste(ideb)) || IDEB_FAIXAS[0];
+  return {
+    metaP, c1, c2, c3, metaIdeb: _r1(alvo), metaN: _r2(Math.max(alvo / metaP, n)),
+    acr: _r1(alvo - ideb), regra, fluxoAtiva: fl < p.patP,
+  };
+}
+
+/* ── Carregamento ── */
+async function carregarIdeb() {
+  // Ordem das tentativas: view pública completa → view pública sem os
+  // componentes (ALTER TABLE ainda não rodou) → tabela operacional, e essa
+  // ÚLTIMA só para quem tem sessão. Cada queda perde alguma coisa, e a tela diz
+  // o que perdeu em vez de mostrar número menor em silêncio.
+  const fontes = ['v_metas_ideb_publico', ...(window.MAPA_MODO_PUBLICO ? [] : ['av_ideb'])];
+  let linhas = null, ultimo = null;
+  for (const fonte of fontes) {
+    try { linhas = await apiFetch(fonte + '?select=escola,ano,etapa,ideb,nota,rendimento'); break; }
+    catch (e) {
+      ultimo = e;
+      if (!_faltaObjeto(e)) { IDEB.parcial = true; }
+      try { linhas = await apiFetch(fonte + '?select=escola,ano,etapa,ideb'); IDEB.parcial = true; break; }
+      catch (e2) { ultimo = e2; }
+    }
+  }
+  if (!linhas) return avisoIdeb(mensagemDeErro(ultimo), true);
+  linhas = filtrarPorEscola(linhas || []);
+  if (!linhas.length) return avisoIdeb('Nenhum dado de IDEB disponível para o seu acesso.', true);
+
+  const anos = Array.from(new Set(linhas.map(r => +r.ano))).filter(Boolean).sort((a, b) => a - b);
+  IDEB.anos = anos;
+  const por = {};
+  linhas.forEach(r => {
+    const et = String(r.etapa || '').toUpperCase(); if (!et) return;
+    ((por[et] = por[et] || {})[r.escola] = por[et][r.escola] || {})[+r.ano] = r;
+  });
+  IDEB.porEscola = por;
+  marcarSegmentos();
+  // Se a etapa corrente estiver vazia e a outra não, começa pela que tem dado —
+  // abrir num painel vazio quando existe conteúdo ao lado é só atrito.
+  if (!Object.keys(IDEB.porEscola[ETAPA] || {}).length) {
+    const outra = ETAPA === 'AI' ? 'AF' : 'AI';
+    if (Object.keys(IDEB.porEscola[outra] || {}).length) {
+      ETAPA = outra;
+      document.getElementById('segAI').classList.toggle('ativo', ETAPA === 'AI');
+      document.getElementById('segAF').classList.toggle('ativo', ETAPA === 'AF');
+    }
+  }
+  montarCtrlIdeb();
+  aplicarSalvos('ideb', IDS_IDEB());
+  marcarOrigem('ideb');
+  aplicarPapel();
+  recalcIdeb();
+}
+
+function avisoIdeb(msg, duro) {
+  document.getElementById('avisoIdeb').innerHTML =
+    `<div class="alert alert-warning d-flex align-items-center gap-2">
+       <i class="bi bi-exclamation-triangle-fill"></i><div>${esc(msg)}</div></div>`;
+  if (duro) document.getElementById('idebSub').textContent = '';
+}
+
+function montarCtrlIdeb() {
+  document.getElementById('idebCtrls').innerHTML = IDEB_PAR.map(d => `
+    <div class="ctrl">
+      <div class="ctrl-topo">
+        <div>
+          <div class="ctrl-nome">${d.nome}</div>
+          <div class="ctrl-qtd">${d.obs}</div>
+        </div>
+        <div class="ctrl-saida"><span class="pct" id="io_${d.key}"></span></div>
+      </div>
+      <input type="range" id="i_${d.key}" min="${d.min}" max="${d.max}" step="${d.passo}"
+             value="${d.padrao}" oninput="recalcIdeb()">
+    </div>`).join('');
+}
+
+function presetIdeb(qual) {
+  const v = { conservador:{k:8,T:90}, padrao:{k:10,T:90}, ambicioso:{k:12,T:95} }[qual];
+  if (!v) return;
+  document.getElementById('i_k').value = v.k;
+  document.getElementById('i_T').value = v.T;
+  recalcIdeb();
+}
+
+/* ── Cálculo e desenho ── */
+function recalcIdeb() {
+  const p = idebParams();
+  IDEB_PAR.forEach(d => {
+    const el = document.getElementById('io_' + d.key); if (!el) return;
+    const v = p[d.key];
+    el.textContent = d.div === 100 ? Math.round(v * 100) + '%'
+                   : d.div === 1000 ? (v * 100).toFixed(1) + '%'
+                   : v.toFixed(1);
+  });
+
+  renderResumoIdeb();
+  const etapa = ETAPA;
+  const porEsc = IDEB.porEscola[etapa] || {};
+  const nomes = Object.keys(porEsc);
+  const anos = IDEB.anos;
+  const atual = anos[anos.length - 1], ant = anos[anos.length - 2];
+  document.getElementById('idebCiclo').textContent =
+    atual ? `· base ${atual}${ant ? ` (anterior ${ant})` : ''}` : '';
+
+  if (!nomes.length) {
+    document.getElementById('idebSub').textContent =
+      `Sem dados de ${etapa === 'AI' ? 'anos iniciais' : 'anos finais'}.`;
+    document.getElementById('idebKpis').innerHTML = '';
+    document.getElementById('idebFaixas').innerHTML = '';
+    document.getElementById('idebCorpo').innerHTML =
+      '<tr><td colspan="11" class="text-center text-muted py-4">Sem dados nesta etapa.</td></tr>';
+    document.getElementById('idebSubTab').textContent = '';
+    return;
+  }
+
+  const calc = nomes.map(nome => {
+    const reg = porEsc[nome];
+    const e = {
+      nome,
+      idebAnt: ant && reg[ant] ? num(reg[ant].ideb) : null,
+      ideb:    reg[atual] ? num(reg[atual].ideb) : null,
+      n:       reg[atual] ? num(reg[atual].nota) : null,
+      fl:      reg[atual] ? num(reg[atual].rendimento) : null,
+    };
+    return { ...e, ...(metaIdeb(e, p) || { semDado: true }) };
+  }).filter(c => c.ideb != null);
+  window._idebCalc = calc;
+
+  const completos = calc.filter(c => !c.incompleto && !c.semDado);
+  const incompletos = calc.length - completos.length;
+  const med = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0;
+
+  document.getElementById('idebSub').textContent =
+    `${calc.length} escola${calc.length !== 1 ? 's' : ''}` +
+    (incompletos ? ` · ${incompletos} sem desempenho/fluxo` : '');   // a etapa já está no segmento
+
+  if (incompletos) {
+    avisoIdeb(`${incompletos} escola(s) sem a nota de desempenho (N) ou o indicador de rendimento (P). ` +
+      `Para essas, o critério não pode ser aplicado — falta o candidato "desempenho × fluxo" e as duas ` +
+      `metas separadas. Carregue os componentes pela tela de IDEB.`);
+  } else {
+    document.getElementById('avisoIdeb').innerHTML = '';
+  }
+
+  // Sem nenhuma escola com os componentes, não há média: mostrar 0,0 faria um
+  // vazio passar por medição.
+  // Média da rede vai com DUAS casas: com uma só, o cenário conservador (6,06)
+  // e o padrão (6,09) exibem o mesmo "6,1" e o controle parece inerte. Na
+  // tabela, a nota de cada escola segue com uma casa, como o IDEB é publicado.
+  const F2 = v => completos.length ? (Math.round(v*100)/100).toFixed(2).replace('.', ',') : '—';
+  const F  = v => completos.length ? fmt(v) : '—';
+  const PC = v => completos.length ? pc(v)  : '—';
+  const mIdeb = med(completos.map(c => c.ideb)), mMeta = med(completos.map(c => c.metaIdeb));
+  const mN = med(completos.map(c => c.n)),       mMetaN = med(completos.map(c => c.metaN));
+  const mP = med(completos.map(c => c.fl)),      mMetaP = med(completos.map(c => c.metaP));
+  const comFluxo = completos.filter(c => c.fluxoAtiva).length;
+  const abaixo5 = completos.filter(c => c.ideb < 5).length;
+  const abaixo5Meta = completos.filter(c => c.metaIdeb < 5).length;
+
+  document.getElementById('idebKpis').innerHTML = `
+    <div class="kpi">
+      <div class="kpi-val" style="color:#475569;">${F2(mIdeb)}</div>
+      <div class="kpi-lbl">IDEB médio hoje</div>
+      <div class="kpi-nota">${completos.length} escolas</div>
+    </div>
+    <div class="kpi" style="border-color:#0f766e;">
+      <div class="kpi-val" style="color:#0f766e;">${F2(mMeta)}</div>
+      <div class="kpi-lbl">Meta média</div>
+      <div class="kpi-nota">${completos.length ? '+' + F2(mMeta - mIdeb) + ' no ciclo' : 'sem base'}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" style="color:var(--primary);">${F(mN)} → ${F(mMetaN)}</div>
+      <div class="kpi-lbl">Desempenho (N)</div>
+      <div class="kpi-nota">a parcela de aprendizagem</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" style="color:var(--primary);">${PC(mP)} → ${PC(mMetaP)}</div>
+      <div class="kpi-lbl">Fluxo (P)</div>
+      <div class="kpi-nota">${comFluxo} escola(s) com meta de fluxo</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" style="color:${abaixo5Meta ? '#b91c1c' : '#0f766e'};">${abaixo5} → ${abaixo5Meta}</div>
+      <div class="kpi-lbl">Abaixo de 5,0</div>
+      <div class="kpi-nota">prioridade máxima</div>
+    </div>`;
+
+  document.getElementById('idebFaixas').innerHTML = IDEB_FAIXAS.map(f => `
+    <tr>
+      <td><span class="pill" style="background:${f.cor};">&nbsp;</span> ${f.lbl}</td>
+      <td>${completos.filter(c => f.teste(c.ideb)).length}</td>
+      <td><b>${completos.filter(c => f.teste(c.metaIdeb)).length}</b></td>
+    </tr>`).join('');
+
+  renderIdebTabela();
+}
+
+function num(v) { const n = parseFloat(v); return isFinite(n) ? n : null; }
+function fmt(v) { return (Math.round(v * 100) / 100).toFixed(1).replace('.', ','); }
+function pc(v) { return v == null ? '—' : (v * 100).toFixed(1).replace('.', ',') + '%'; }
+function fmt2(v) { return v == null ? '—' : (Math.round(v * 100) / 100).toFixed(2).replace('.', ','); }
+
+function renderIdebTabela() {
+  const calc = window._idebCalc || [];
+  const termo = (document.getElementById('idebBusca').value || '').toLowerCase().trim();
+  const ordem = document.getElementById('idebOrdem').value;
+  let lista = calc.filter(c => !termo || c.nome.toLowerCase().includes(termo));
+  lista = lista.slice().sort((a, b) =>
+      ordem === 'nome' ? a.nome.localeCompare(b.nome, 'pt-BR')
+    : ordem === 'acr'  ? (b.acr || 0) - (a.acr || 0)
+    : (a.ideb - b.ideb));
+
+  document.getElementById('idebSubTab').textContent = `${lista.length} de ${calc.length} escolas`;
+  document.getElementById('idebCorpo').innerHTML = lista.map(c => {
+    if (c.incompleto || c.semDado) return `<tr>
+      <td>${esc(c.nome)}</td><td>${fmt2(c.idebAnt)}</td><td>${fmt2(c.ideb)}</td>
+      <td colspan="7" class="aviso-soma">sem desempenho (N) ou fluxo (P) — critério não aplicável</td></tr>`;
+    const f = IDEB_FAIXAS.find(x => x.teste(c.ideb)) || IDEB_FAIXAS[0];
+    return `<tr>
+      <td><button class="lnk-esc" onclick="detalharEscola(this.dataset.n)" data-n="${esc(c.nome)}">${esc(c.nome)} <i class="bi bi-info-circle"></i></button></td>
+      <td>${fmt2(c.idebAnt)}</td>
+      <td><span class="pill" style="background:${f.cor};">${fmt2(c.ideb)}</span></td>
+      <td><b style="color:#0f766e;">${fmt2(c.metaIdeb)}</b></td>
+      <td>+${fmt2(c.acr)}</td>
+      <td>${fmt2(c.n)}</td>
+      <td><b>${fmt2(c.metaN)}</b></td>
+      <td>${pc(c.fl)}</td>
+      <td>${c.fluxoAtiva ? `<b style="color:#b45309;">${pc(c.metaP)}</b>` : '<span class="text-muted">mantém</span>'}</td>
+      <td style="font-size:.74rem;">${c.regra}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="11" class="text-center text-muted py-4">Nenhuma escola no filtro.</td></tr>';
+}
+
+/* ── Explicação do cálculo ────────────────────────────────────────────────
+   Dois níveis, porque a pergunta que a tabela provoca não é "como funciona o
+   critério" e sim "por que a MINHA meta é 6,9". O "?" do cabeçalho explica a
+   regra; o nome da escola abre a conta daquela escola, com os números dela. */
+function _modal() {
+  return bootstrap.Modal.getOrCreateInstance(document.getElementById('modalExplica'));
+}
+function _abrir(titulo, corpo) {
+  document.getElementById('explicaTitulo').textContent = titulo;
+  document.getElementById('explicaCorpo').innerHTML = corpo;
+  _modal().show();
+}
+const _n = (v, c) => v == null ? '—' : (Math.round(v * Math.pow(10, c == null ? 2 : c)) / Math.pow(10, c == null ? 2 : c)).toFixed(c == null ? 2 : c).replace('.', ',');
+
+function abrirComoCalcula() {
+  const p = idebParams();
+  _abrir('Como a meta de IDEB é calculada', `
+    <p>O IDEB é o produto de <b>aprendizagem</b> (nota N do SAEB) por <b>fluxo</b>
+       (indicador de rendimento P). A meta trata os dois separadamente, de propósito.</p>
+
+    <h6 class="fw-bold mt-3">A régua de convergência</h6>
+    <p>Em vez de exigir o mesmo crescimento de todas, mede-se quanto falta para o
+       horizonte de excelência (<b>${_n(p.T,1)}</b>) e pede-se <b>${(p.k*100).toFixed(0)}%</b>
+       dessa distância por ciclo. Quem está mais longe avança mais; quem está perto,
+       menos — porque cada décimo custa mais no alto da escala. O acréscimo fica
+       entre <b>${_n(p.piso)}</b> e <b>${_n(p.teto)}</b>: ninguém fica dispensado de
+       melhorar, ninguém recebe meta irreal.</p>
+
+    <h6 class="fw-bold mt-3">A meta é o MAIOR entre três candidatos</h6>
+    <p>Cada um existe para fechar uma brecha:</p>
+    <ol style="font-size:.92rem;">
+      <li><b>Régua sobre o IDEB</b> — o caso geral.</li>
+      <li><b>Régua sobre o desempenho, vezes a meta de fluxo</b> — sem ele, escola com
+          fluxo baixo cumpriria a meta só aprovando mais, sem aprender nada.</li>
+      <li><b>Recuperação de metade da queda</b> — sem ele, cair de um ciclo para o
+          outro renderia meta <i>mais fácil</i> do que não ter caído.</li>
+    </ol>
+
+    <h6 class="fw-bold mt-3">Por que duas metas separadas</h6>
+    <p>Além da meta de IDEB, cada escola recebe uma <b>meta de desempenho</b> — a meta de
+       IDEB dividida pela meta de fluxo, nunca abaixo da nota atual. É o que a escola
+       precisa aprender, já descontado o que virá do fluxo.</p>
+    <p>A <b>meta de fluxo</b> só existe para quem está abaixo do patamar da rede
+       (<b>${(p.patP*100).toFixed(1).replace('.',',')}%</b>): essas fecham
+       <b>${(p.ritmoP*100).toFixed(0)}%</b> da distância até ele. As demais mantêm o que têm.</p>
+
+    <p class="text-muted" style="font-size:.84rem;">Os parâmetros acima são decisão da SME e
+       valem para toda a rede. Clique no nome de uma escola na tabela para ver a conta dela.</p>`);
+}
+
+function detalharEscola(nome) {
+  const c = (window._idebCalc || []).find(x => x.nome === nome);
+  if (!c) return;
+  if (c.incompleto || c.semDado) {
+    _abrir(nome, '<p>Esta escola não tem a nota de desempenho (N) ou o indicador de rendimento (P) ' +
+      'publicados para a edição mais recente. Sem esses dois o critério não pode ser aplicado — ' +
+      'por isso ela aparece sem meta, em vez de receber um número calculado pela metade.</p>');
+    return;
+  }
+  const p = idebParams();
+  const ganhoI = Math.min(p.teto, Math.max(p.piso, p.k * (p.T - c.ideb)));
+  const ganhoN = Math.min(p.teto, Math.max(p.piso, p.k * (p.T - c.n)));
+  const caiu = c.idebAnt != null && c.ideb < c.idebAnt;
+  const linha = (venceu, titulo, conta, valor) => `
+    <div class="conta-l ${venceu ? 'venceu' : ''}">
+      <div style="font-weight:700;font-size:.85rem;">${titulo} ${venceu ? '<span style="color:#0f766e;">← determinou a meta</span>' : ''}</div>
+      <div class="conta" style="color:#475569;">${conta}</div>
+      <div style="font-weight:800;">${valor}</div>
+    </div>`;
+
+  _abrir(nome, `
+    <div style="font-size:.86rem;color:#475569;margin-bottom:.8rem;">
+      Ponto de partida: IDEB <b>${_n(c.ideb,1)}</b>${c.idebAnt != null ? ` (ciclo anterior ${_n(c.idebAnt,1)})` : ''}
+      · desempenho N <b>${_n(c.n,3)}</b> · fluxo P <b>${(c.fl*100).toFixed(2).replace('.',',')}%</b>
+    </div>
+
+    <h6 class="fw-bold">1. Meta de fluxo</h6>
+    <div class="conta-l">
+      <div class="conta">${c.fluxoAtiva
+        ? `${(c.fl*100).toFixed(2).replace('.',',')}% está ABAIXO do patamar da rede (${(p.patP*100).toFixed(1).replace('.',',')}%) → fecha ${(p.ritmoP*100).toFixed(0)}% da distância`
+        : `${(c.fl*100).toFixed(2).replace('.',',')}% já está no patamar da rede (${(p.patP*100).toFixed(1).replace('.',',')}%) → mantém`}</div>
+      <div style="font-weight:800;">Meta de fluxo = ${(c.metaP*100).toFixed(1).replace('.',',')}%</div>
+    </div>
+
+    <h6 class="fw-bold mt-3">2. Os três candidatos</h6>
+    ${linha(c.regra === 'Régua do IDEB', 'Régua do IDEB',
+        `${_n(c.ideb,1)} + ${_n(ganhoI)} &nbsp;(= ${(p.k*100).toFixed(0)}% de ${_n(p.T - c.ideb)}, limitado entre ${_n(p.piso)} e ${_n(p.teto)})`,
+        `${_n(c.c1,1)}`)}
+    ${linha(c.regra === 'Desempenho × fluxo', 'Desempenho × fluxo',
+        `(${_n(c.n,3)} + ${_n(ganhoN)}) × ${_n(c.metaP,3)}`,
+        `${_n(c.c2,1)}`)}
+    ${caiu
+      ? linha(c.regra === 'Recuperação da queda', 'Recuperação da queda',
+          `${_n(c.ideb,1)} + ${(p.queda*100).toFixed(0)}% de ${_n(c.idebAnt - c.ideb,1)} (a queda desde o ciclo anterior)`,
+          `${_n(c.c3,1)}`)
+      : `<div class="conta-l" style="color:#94a3b8;"><div style="font-weight:700;font-size:.85rem;">Recuperação da queda</div>
+         <div class="conta">não se aplica — a escola não caiu em relação ao ciclo anterior</div></div>`}
+
+    <h6 class="fw-bold mt-3">3. Resultado</h6>
+    <div class="conta-l venceu">
+      <div style="font-weight:800;font-size:1.05rem;">Meta de IDEB = ${_n(c.metaIdeb,1)}
+        <span style="font-weight:600;color:#475569;font-size:.85rem;">(acréscimo de ${_n(c.acr,1)})</span></div>
+      <div class="conta" style="color:#475569;">o maior dos candidatos acima</div>
+    </div>
+    <div class="conta-l">
+      <div style="font-weight:800;">Meta de desempenho = ${_n(c.metaN)}</div>
+      <div class="conta" style="color:#475569;">${_n(c.metaIdeb,1)} ÷ ${_n(c.metaP,3)} — o que precisa ser aprendido,
+        já descontado o que virá do fluxo (nunca abaixo do N atual, ${_n(c.n,3)})</div>
+    </div>
+
+    <p class="text-muted mt-3" style="font-size:.82rem;">Empate entre candidatos é atribuído ao primeiro
+      na ordem acima. Os parâmetros do critério são definidos pela SME e valem para toda a rede.</p>`);
+}
+
+/* A meta agora é de cada unidade, então a pergunta "por que a MINHA meta é
+   77,5%?" passa a ter resposta na própria linha. Mesmo padrão do IDEB. */
+function detalharFluencia(nome) {
+  const c = (window._calc || []).find(x => x.nome === nome);
+  if (!c) return;
+  const p = params();
+  const linhas = NIVEIS.map(n => {
+    const qtd = (escolasAtuais()[nome] || {})[n.key] || 0;
+    return `<div class="conta-l">
+      <div style="font-weight:700;font-size:.85rem;">
+        <span class="pill" style="background:${n.cor};">&nbsp;</span> ${n.nome}</div>
+      <div class="conta" style="color:#475569;">${qtd} alunos × ${Math.round(p[n.key]*100)}% =
+        <b>${c.porNivel[n.key]}</b> que devem virar leitores</div></div>`;
+  }).join('');
+  _abrir(nome, `
+    <div style="font-size:.86rem;color:#475569;margin-bottom:.8rem;">
+      ${c.avaliados.toLocaleString('pt-BR')} avaliados ·
+      <b>${c.leitores.toLocaleString('pt-BR')}</b> leitores hoje (${pt1(c.pctHoje)}%)
+      ${c.fecha ? '' : `<div style="color:#b45309;margin-top:.3rem;">⚠ as partes somam ${c.somaPartes}, e os avaliados são ${c.avaliados} — confira a base antes de usar esta meta.</div>`}
+    </div>
+    <h6 class="fw-bold">Quanto de cada nível deve avançar</h6>
+    ${linhas}
+    <div class="conta-l venceu">
+      <div style="font-weight:800;">Alunos a evoluir = ${c.novos.toLocaleString('pt-BR')}</div>
+      <div class="conta" style="color:#475569;">a soma das quatro linhas acima</div>
+    </div>
+    <h6 class="fw-bold mt-3">Meta da unidade</h6>
+    <div class="conta-l venceu">
+      <div style="font-weight:800;font-size:1.05rem;">
+        ${c.leitores.toLocaleString('pt-BR')} + ${c.novos.toLocaleString('pt-BR')} =
+        <b>${c.depois.toLocaleString('pt-BR')} leitores</b>
+        <span style="font-weight:600;color:#475569;font-size:.85rem;">(${pt1(c.pctDepois)}% dos avaliados)</span></div>
+    </div>
+    <p class="text-muted mt-3" style="font-size:.82rem;">
+      Não há alvo único para a rede: a meta desta unidade é o que resulta de aplicar os
+      percentuais definidos pela SME à composição dela. Unidade com mais pré-leitores no N4
+      recebe meta mais alta, porque tem mais alunos perto de ler.</p>`);
+}
+
+/* ── Exportar segue a aba ──────────────────────────────────────────────────
+   Um botão só, na barra do topo, servindo às duas abas. Antes ele baixava a
+   planilha de Fluência mesmo com o IDEB aberto — quem exportava do IDEB recebia
+   outro assunto sem aviso. */
+function exportar() {
+  const noIdeb = !document.getElementById('paneIdeb').hidden;
+  return noIdeb ? exportarIdeb() : exportarMetas();
+}
+
+/* Metas de IDEB em planilha, com o critério VIVO em fórmula: quem receber o
+   arquivo muda um parâmetro e vê a rede inteira recalcular, em vez de receber
+   números cravados que envelhecem no primeiro ajuste. Mesma escolha do export
+   de Fluência. */
+function exportarIdeb() {
+  const etapa = ETAPA;
+  const calc = (window._idebCalc || []).filter(c => !c.semDado);
+  if (!calc.length) { alert('Não há dados de IDEB para exportar nesta etapa.'); return; }
+  const p = idebParams();
+
+  const par = [
+    ['Metas de IDEB — Parâmetros do critério'],
+    ['Etapa:', etapa === 'AI' ? 'Anos Iniciais' : 'Anos Finais'],
+    [],
+    ['Parâmetro', 'Valor'],
+    ['Ritmo da régua (k)',            p.k],
+    ['Horizonte de excelência (T)',   p.T],
+    ['Piso do acréscimo',             p.piso],
+    ['Teto do acréscimo',             p.teto],
+    ['Patamar de fluxo da rede',      p.patP],
+    ['Ritmo de recuperação do fluxo', p.ritmoP],
+    ['Fator de recuperação da queda', p.queda],
+    [],
+    ['Edite B5:B11 — a aba de metas recalcula sozinha.'],
+    ['A meta é o MAIOR entre três candidatos; cada um fecha uma brecha:'],
+    ['  1. régua sobre o IDEB — o caso geral'],
+    ['  2. régua sobre o desempenho × meta de fluxo — impede cumprir a meta só aprovando mais'],
+    ['  3. recuperação de metade da queda — impede que cair renda meta mais fácil'],
+    [],
+    ['Gerado pelo MAPA em ' + new Date().toLocaleString('pt-BR')],
+  ];
+  const wsPar = XLSX.utils.aoa_to_sheet(par);
+  wsPar['!cols'] = [{ wch: 46 }, { wch: 16 }];
+  ['B9'].forEach(c => { if (wsPar[c]) wsPar[c].z = '0.0%'; });
+
+  const CAB = ['Escola', 'IDEB anterior', 'IDEB atual', 'Desempenho N', 'Fluxo P',
+               'META de fluxo', 'Cand. 1 régua', 'Cand. 2 desemp.×fluxo', 'Cand. 3 recuperação',
+               'META de IDEB', 'META de desempenho', 'Acréscimo', 'Regra determinante'];
+  const linhas = calc
+    .slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+    .map(c => [c.nome, c.idebAnt, c.ideb, c.n, c.fl]);
+
+  const ws = XLSX.utils.aoa_to_sheet([CAB, ...linhas]);
+  const P = n => `Parametros!$B$${n}`;   // 5=k 6=T 7=piso 8=teto 9=patP 10=ritmoP 11=queda
+  const F = (c, f, z) => { ws[c] = { t: 'n', f }; if (z) ws[c].z = z; };
+  const T = (c, f) => { ws[c] = { t: 's', f }; };
+
+  for (let r = 2; r <= 1 + linhas.length; r++) {
+    F(`F${r}`, `IF(E${r}<${P(9)},ROUND(E${r}+${P(10)}*(${P(9)}-E${r}),3),ROUND(E${r},3))`, '0.0%');
+    F(`G${r}`, `ROUND(C${r}+MIN(${P(8)},MAX(${P(7)},${P(5)}*(${P(6)}-C${r}))),1)`, '0.0');
+    F(`H${r}`, `ROUND((D${r}+MIN(${P(8)},MAX(${P(7)},${P(5)}*(${P(6)}-D${r}))))*F${r},1)`, '0.0');
+    F(`I${r}`, `IF(AND(B${r}<>"",B${r}>C${r}),ROUND(C${r}+${P(11)}*(B${r}-C${r}),1),"")`, '0.0');
+    F(`J${r}`, `MAX(G${r},H${r},IF(I${r}="",-1,I${r}))`, '0.0');
+    F(`K${r}`, `ROUND(MAX(J${r}/F${r},D${r}),2)`, '0.00');
+    F(`L${r}`, `ROUND(J${r}-C${r},1)`, '0.0');
+    T(`M${r}`, `IF(G${r}>=J${r},"Régua do IDEB",IF(H${r}>=J${r},"Desempenho × fluxo","Recuperação da queda"))`);
+    ['B','C','D'].forEach(cl => { if (ws[`${cl}${r}`]) ws[`${cl}${r}`].z = '0.0'; });
+    if (ws[`E${r}`]) ws[`E${r}`].z = '0.0%';
+  }
+  ws['!ref'] = `A1:M${1 + linhas.length}`;
+  ws['!cols'] = [{ wch: 40 }, ...Array(12).fill({ wch: 15 })];
+  ws['!freeze'] = { xSplit: 1, ySplit: 1 };
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsPar, 'Parametros');
+  XLSX.utils.book_append_sheet(wb, ws, 'Metas por Escola');
+  XLSX.writeFile(wb, `Metas_IDEB_${etapa === 'AI' ? 'anos_iniciais' : 'anos_finais'}.xlsx`);
+}
+
+/* A tabela não rola por dentro: rola a página. Mas o cabeçalho do MAPA é
+   sticky, então o cabeçalho da tabela precisa grudar ABAIXO dele — senão passa
+   por baixo e some. A altura é MEDIDA, não cravada: ela muda com a largura da
+   tela (o menu quebra em duas linhas) e no modo público, onde o menu é
+   removido. */
+function ajustarTopoFixo() {
+  const h = document.querySelector('header.mg-header');
+  document.documentElement.style.setProperty('--topo-fixo', (h ? h.offsetHeight : 0) + 'px');
+}
+window.addEventListener('resize', ajustarTopoFixo);
+
+/* ── Abas ── */
+function trocarAba(qual) {
+  const flu = qual === 'flu';
+  document.getElementById('paneFlu').hidden = !flu;
+  document.getElementById('paneIdeb').hidden = flu;
+  document.getElementById('abaFlu').classList.toggle('ativa', flu);
+  document.getElementById('abaIdeb').classList.toggle('ativa', !flu);
+  // display, NÃO hidden: os dois contêineres têm a classe d-flex do Bootstrap,
+  // que traz display:flex !important e vence o hidden do navegador. Sem isto os
+  // dois seletores aparecem ao mesmo tempo — o de avaliação, que é da Fluência,
+  // ao lado do de etapa, que é do IDEB.
+  const btn = document.getElementById('btnExportar');
+  if (btn) btn.title = flu ? 'Baixar as metas de Fluência por escola'
+                           : 'Baixar as metas de IDEB por escola';
+  // A URL acompanha a aba: a tela é pública e as pessoas compartilham o
+  // endereço. Sem isto, quem chega por #ideb, troca para Fluência e copia a
+  // URL manda ao destinatário uma tela diferente da que estava vendo.
+  // replaceState, não pushState: alternar aba não é passo de navegação, e o
+  // Voltar do navegador deve sair da tela, não desfazer cliques de aba.
+  try { history.replaceState(null, '', flu ? location.pathname + location.search : '#ideb'); } catch (e) {}
+  if (!flu && !IDEB.anos.length) carregarIdeb();
+}
+
+/* Em modo público o cabeçalho do MAPA leva a telas fechadas: cada clique seria
+   uma ida ao login. Some com a navegação interna e oferece a entrada, uma vez. */
+function ajustarModoPublico() {
+  if (!window.MAPA_MODO_PUBLICO) return;
+  document.querySelectorAll('.mg-nav, .mg-actions').forEach(el => el.remove());
+  const brand = document.querySelector('.mg-brand');
+  if (brand) { brand.style.cursor = 'default'; brand.onclick = null; }
+  const barra = document.querySelector('header.mg-header');
+  if (barra) {
+    const e = document.createElement('a');
+    e.href = 'index.html';
+    e.className = 'btn btn-sm btn-outline-light fw-bold ms-auto';
+    e.innerHTML = '<i class="bi bi-box-arrow-in-right me-1"></i>Entrar';
+    e.title = 'Acesso restrito da rede municipal';
+    barra.appendChild(e);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+  ajustarModoPublico();
+  ajustarTopoFixo();
+  // Antes de montar controle nenhum: senão a tela pisca no padrão e depois
+  // salta para a meta gravada, e quem vê o primeiro quadro anota o número errado.
+  // O papel vem junto, pelo mesmo motivo: o botão de ajustar não pode aparecer
+  // e sumir.
+  await Promise.all([carregarParametros(), verificarSuperAdmin()]);
+  carregarDados();
+  // Chegando da tela de IDEB (metas.html#ideb), abre já na aba certa em vez de
+  // obrigar a pessoa a procurá-la.
+  if ((location.hash || '').toLowerCase() === '#ideb') trocarAba('ideb');
+});
+
+/* ── Exportar com os parâmetros que estão nos controles ──
+   Mesma estrutura do export da tela de Fluência: as metas vão como FÓRMULA
+   apontando para a aba de parâmetros, então quem receber o arquivo continua
+   podendo mexer nos percentuais no Excel. O nome da aba vai sem acento de
+   propósito — ele entra nas fórmulas das outras células. */
+function exportarMetas() {
+  const av = avAtual(); const escolas = escolasAtuais();
+  const nomes = Object.keys(escolas).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  if (!nomes.length) { alert('Não há dados para exportar.'); return; }
+  const p = params();
+
+  const par = [
+    ['Metas de Fluência Leitora — Parâmetros'],
+    ['Avaliação:', av],
+    [],
+    ['Quanto de cada nível deve virar leitor', '% que deve virar leitor'],
+    ['Pré-leitor N4', p.pre_n4],
+    ['Pré-leitor N3', p.pre_n3],
+    ['Pré-leitor N2', p.pre_n2],
+    ['Pré-leitor N1', p.pre_n1],
+    [],
+    ['Edite B5:B8 — a aba de metas recalcula sozinha.'],
+    ['A meta de cada unidade resulta destes percentuais aplicados à composição'],
+    ['dela — não há alvo único para a rede.'],
+    [],
+    ['Base: alunos AVALIADOS. Leitores = Iniciantes + Fluentes.'],
+    ['Gerado pelo MAPA em ' + new Date().toLocaleString('pt-BR')],
+  ];
+  const wsPar = XLSX.utils.aoa_to_sheet(par);
+  wsPar['!cols'] = [{ wch: 46 }, { wch: 24 }];
+  ['B5','B6','B7','B8'].forEach(c => { if (wsPar[c]) wsPar[c].z = '0%'; });
+
+  const CAB = ['Escola','Avaliados','Fluentes','Iniciantes','Pré N4','Pré N3','Pré N2','Pré N1',
+               'Conferência','Leitores hoje','% hoje','Meta N4 (alunos)','Meta N3 (alunos)',
+               'Meta N2 (alunos)','Meta N1 (alunos)','Alunos a evoluir',
+               'META da unidade (leitores)','META da unidade (%)'];
+  const linhas = nomes.map(n => { const d = escolas[n];
+    return [n, +d.avaliados||0, +d.fluentes||0, +d.iniciantes||0,
+            +d.pre_n4||0, +d.pre_n3||0, +d.pre_n2||0, +d.pre_n1||0]; });
+
+  const ws = XLSX.utils.aoa_to_sheet([CAB, ...linhas]);
+  const prim = 2, ult = 1 + linhas.length, tot = ult + 2;
+  const F = (c, f, z) => { ws[c] = { t:'n', f }; if (z) ws[c].z = z; };
+  const T = (c, f) => { ws[c] = { t:'s', f }; };
+
+  for (let r = prim; r <= ult; r++) {
+    T(`I${r}`, `IF(SUM(C${r}:H${r})=B${r},"ok","confere: soma "&SUM(C${r}:H${r})&" <> "&B${r})`);
+    F(`J${r}`, `C${r}+D${r}`, '#,##0');
+    F(`K${r}`, `IF(B${r}=0,"",J${r}/B${r})`, '0.0%');
+    F(`L${r}`, `ROUND(E${r}*Parametros!$B$5,0)`, '#,##0');
+    F(`M${r}`, `ROUND(F${r}*Parametros!$B$6,0)`, '#,##0');
+    F(`N${r}`, `ROUND(G${r}*Parametros!$B$7,0)`, '#,##0');
+    F(`O${r}`, `ROUND(H${r}*Parametros!$B$8,0)`, '#,##0');
+    F(`P${r}`, `L${r}+M${r}+N${r}+O${r}`, '#,##0');
+    F(`Q${r}`, `J${r}+P${r}`, '#,##0');
+    F(`R${r}`, `IF(B${r}=0,"",Q${r}/B${r})`, '0.0%');
+  }
+
+  // Linha REDE: a meta da rede é a SOMA das metas das unidades — não há alvo
+  // único de onde derivá-la.
+  ws[`A${tot}`] = { t:'s', v:'REDE (soma das unidades)' };
+  ['B','C','D','E','F','G','H','J','L','M','N','O','P','Q'].forEach(c =>
+    F(`${c}${tot}`, `SUM(${c}${prim}:${c}${ult})`, '#,##0'));
+  F(`K${tot}`, `IF(B${tot}=0,"",J${tot}/B${tot})`, '0.0%');
+  F(`R${tot}`, `IF(B${tot}=0,"",Q${tot}/B${tot})`, '0.0%');
+
+  ws['!ref'] = `A1:R${tot}`;
+  ws['!cols'] = [{ wch:34 }, ...Array(7).fill({ wch:11 }), { wch:22 }, { wch:13 }, { wch:9 },
+                 ...Array(4).fill({ wch:15 }), { wch:15 }, { wch:22 }, { wch:18 }];
+  ws['!freeze'] = { xSplit:1, ySplit:1 };
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsPar, 'Parametros');
+  XLSX.utils.book_append_sheet(wb, ws, 'Metas por Escola');
+  const slug = String(av).replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_|_$/g, '') || 'avaliacao';
+  XLSX.writeFile(wb, `Metas_Fluencia_${slug}.xlsx`);
+}
+
+</script>
+  <script src="iago.js"></script>
+</body>
+</html>

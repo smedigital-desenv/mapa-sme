@@ -826,7 +826,11 @@ Pontos que **não** são detalhe:
   responde 400 e a tela volta ao comportamento de detalhar por clique.
 
 Secrets: `CODERP_TOKEN` (obrigatório) e `CODERP_URL` (opcional; o padrão é o
-ambiente `dsv`).
+ambiente de **testes** `gxeducdsv...«/xsads/»`; produção é
+`https://gxeduc.coderp.sp.gov.br/xsapr/ObterFichaAvaliacao`, cadastrada como
+secret — cada ambiente tem o seu token). ⚠️ O projeto Supabase é um só:
+produção e homologação do site consomem o MESMO ambiente CODERP definido nos
+secrets.
 
 #### Desenhado e AINDA NÃO LIGADO: a conferência Rede × Turma
 
@@ -895,6 +899,15 @@ caminho. Peculiaridades já tratadas no código — não "simplificar":
   isso a função exige recorte: perfil de escola só consulta com o código da
   própria unidade (`escolas_catalogo` → `posso_ver_unidade()`), e nível de
   rede exige `vejo_a_rede_toda()`.
+- **Perfil de escola tem rota própria** (`fichaMinhasEscolas` +
+  `pacoteViaFichaEscolas`): descobre o código CODERP das unidades do vínculo
+  por conjunto de palavras e consulta SÓ elas, no nível aluno. As consultas
+  de rede nem são tentadas (voltariam `403 escola_obrigatoria`). ⚠️ Quem
+  autoriza é o banco: `posso_ver_unidade()` precisa reconhecer a grafia
+  CODERP — as grafias do catálogo foram semeadas em `escola_alias`
+  (2026-08-31, casamento por tokens idênticos com a grafia oficial); sem o
+  apelido a consulta volta 403 e a tela cai para o banco, que é o lado
+  seguro.
 
 ---
 
@@ -909,8 +922,45 @@ uma avaria a ser corrigida com `grant`.
 
 ### Invariantes — quebrar qualquer uma reabre o vazamento
 
-1. **`anon` não tem permissão em nada.** Nem tabela, nem função. Se você
-   escrever `grant ... to anon`, está reabrindo o buraco.
+1. **`anon` não tem permissão em nada** — com UMA exceção, deliberada e
+   nomeada abaixo. Nem tabela, nem função. Se você escrever `grant ... to
+   anon` fora dessa exceção, está reabrindo o buraco.
+
+   ⚠️ **A exceção: a tela de Metas (`metas.html`) é pública por decisão da
+   SME.** O `anon` tem `select` em exatamente três objetos, e em mais nenhum:
+
+   | Objeto | O que expõe |
+   |---|---|
+   | `v_metas_ideb_publico` | IDEB por escola — o INEP já publica |
+   | `v_metas_fluencia_publico` | fluência **agregada por escola** |
+   | `metas_parametros` | os parâmetros do critério (configuração) |
+
+   As duas views são `security definer` e **agregam por escola de propósito**:
+   turma, período e qualquer recorte que aproxime da criança ficam de fora.
+   Não as reescreva para "aproveitar" a view por turma, e não acrescente
+   coluna sem perguntar — o que está aberto aqui é irrecuperável.
+
+   As tabelas operacionais (`fluencia_estudantes`, `av_ideb`,
+   `v_fluencia_por_turma`) seguem fechadas para `anon`.
+
+   ⚠️ **A `metas.html` NÃO passa pelo gate do central.** Ela não carrega
+   `auth-guard.js` nem `auth.js`. O gate barra por permissão de TELA, e numa
+   tela pública isso produzia o absurdo de quem está logado ver MENOS que um
+   visitante anônimo — foi o que aconteceu. Não "conserte" isso recolocando o
+   gate: quem protege o dado são os grants e as policies acima.
+
+   Consequência: a tela **não precisa estar cadastrada no catálogo do central**,
+   ao contrário de todas as outras (§7). Se ela for cadastrada um dia, nada
+   muda — o cadastro simplesmente não é consultado.
+
+   ⚠️ **Quem é super admin, nessa tela, é decidido PELO BANCO** — a função
+   `eh_super_admin()`, a mesma que a policy de escrita usa. Nas outras telas o
+   dado vem do perfil do central (`MapaAuth.perfil.is_super_admin`). Perguntar
+   ao banco faz o botão e a policy concordarem por construção: não dá para a
+   tela oferecer um botão que a gravação vai recusar.
+
+   A sessão sai do armazenamento local, posta ali pelo `auth.js` das OUTRAS
+   telas. Sem sessão — ou com sessão expirada — a tela abre em leitura.
 2. **`bimestres` e as views materializadas não são alcançáveis pelo REST.**
    O acesso a elas passa obrigatoriamente por funções `SECURITY DEFINER` que
    aplicam o recorte por unidade. View materializada **ignora RLS** — proteger

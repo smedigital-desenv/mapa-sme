@@ -313,10 +313,20 @@
         </div>
       </div>
     </div>
-    <button class="btn btn-sm btn-success d-flex align-items-center gap-2"
-            onclick="abrirImport()">
-      <i class="bi bi-cloud-arrow-up-fill"></i>Importar planilha
-    </button>
+    <div class="d-flex align-items-center gap-2">
+      <a class="btn btn-sm btn-light d-flex align-items-center gap-2 fw-bold"
+         href="metas.html" title="Simular metas com controles por nível">
+        <i class="bi bi-sliders"></i>Metas
+      </a>
+      <button class="btn btn-sm btn-light d-flex align-items-center gap-2 fw-bold"
+              onclick="exportarMetas()" title="Baixar planilha de metas por escola">
+        <i class="bi bi-file-earmark-spreadsheet-fill"></i>Exportar metas
+      </button>
+      <button class="btn btn-sm btn-success d-flex align-items-center gap-2"
+              onclick="abrirImport()">
+        <i class="bi bi-cloud-arrow-up-fill"></i>Importar planilha
+      </button>
+    </div>
   </div>
 </header>
 
@@ -2169,6 +2179,118 @@ function imprimirRelatorio() {
   w.document.close();
   w.focus();
   setTimeout(() => w.print(), 800);   // aguarda o CSS do CDN carregar
+}
+
+// ── Exportar planilha de metas por escola ───────────────────
+// Gera um .xlsx com os números por escola E as fórmulas de meta, para que a
+// rede possa ajustar os percentuais no Excel e ver o efeito na hora. Os
+// parâmetros ficam numa aba própria; as colunas de meta apontam para ela.
+//
+// O gradiente (N4 mais ambicioso, N1 mais modesto) segue a mesma ordem de
+// esforço que calcularMeta() já usa: N4 peso 1 … N1 peso 4. Não são medição —
+// é ponto de partida para a decisão pedagógica, e por isso ficam editáveis.
+const META_REDE      = 0.70;
+const META_PADRAO_N4 = 0.70;
+const META_PADRAO_N3 = 0.45;
+const META_PADRAO_N2 = 0.25;
+const META_PADRAO_N1 = 0.10;
+
+function exportarMetas() {
+  const av = document.getElementById('selAvaliacao')?.value || S.avaliacoes[0] || '';
+  const esc = S.porEscola[av] || {};
+  const nomes = Object.keys(esc).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  if (!nomes.length) {
+    alert('Não há dados carregados para exportar. Selecione uma avaliação com dados.');
+    return;
+  }
+
+  // ── Aba Parametros (sem acento no NOME da aba de propósito: o nome entra
+  //    nas fórmulas das outras células e acento ali é fonte de dor) ──
+  const par = [
+    ['Metas de Fluência Leitora — Parâmetros'],
+    ['Avaliação:', av],
+    ['Meta da rede (% de leitores sobre avaliados)', META_REDE],
+    [],
+    ['Quanto de cada nível deve virar leitor', '% que deve virar leitor', 'Dificuldade'],
+    ['Pré-leitor N4', META_PADRAO_N4, '1 — mais fácil'],
+    ['Pré-leitor N3', META_PADRAO_N3, '2'],
+    ['Pré-leitor N2', META_PADRAO_N2, '3'],
+    ['Pré-leitor N1', META_PADRAO_N1, '4 — mais difícil'],
+    [],
+    ['Edite as células B3 e B6:B9 — a aba de metas recalcula sozinha.'],
+    ['Estes percentuais são proposta de partida, não medição: não há série'],
+    ['histórica de evolução entre níveis no sistema para calibrá-los.'],
+    [],
+    ['Base de cálculo: alunos AVALIADOS. Leitores = Iniciantes + Fluentes.'],
+    ['Gerado pelo MAPA em ' + new Date().toLocaleString('pt-BR')],
+  ];
+  const wsPar = XLSX.utils.aoa_to_sheet(par);
+  wsPar['!cols'] = [{ wch: 46 }, { wch: 24 }, { wch: 18 }];
+  ['B3', 'B6', 'B7', 'B8', 'B9'].forEach(c => { if (wsPar[c]) wsPar[c].z = '0%'; });
+
+  // ── Aba Metas por Escola ──
+  const CAB = ['Escola', 'Avaliados', 'Fluentes', 'Iniciantes',
+               'Pré N4', 'Pré N3', 'Pré N2', 'Pré N1',
+               'Conferência', 'Leitores hoje', '% hoje',
+               'Meta N4 (alunos)', 'Meta N3 (alunos)', 'Meta N2 (alunos)', 'Meta N1 (alunos)',
+               'Novos leitores', 'Leitores após meta', '% após meta',
+               'Faltam p/ meta (hoje)', 'Situação'];
+
+  const linhas = nomes.map(nome => {
+    const t = esc[nome].totais || {};
+    return [nome, +t.avaliados || 0, +t.fluentes || 0, +t.iniciantes || 0,
+            +t.pre_n4 || 0, +t.pre_n3 || 0, +t.pre_n2 || 0, +t.pre_n1 || 0];
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet([CAB, ...linhas]);
+  const prim = 2;                       // primeira linha de dados (1-based)
+  const ult  = 1 + linhas.length;
+  const tot  = ult + 2;                 // linha REDE, com uma linha em branco antes
+
+  const F = (celula, formula, fmt) => {
+    ws[celula] = { t: 'n', f: formula };
+    if (fmt) ws[celula].z = fmt;
+  };
+  const T = (celula, formula) => { ws[celula] = { t: 's', f: formula }; };
+
+  for (let r = prim; r <= ult; r++) {
+    T(`I${r}`, `IF(SUM(C${r}:H${r})=B${r},"ok","confere: soma "&SUM(C${r}:H${r})&" <> "&B${r})`);
+    F(`J${r}`, `C${r}+D${r}`, '#,##0');
+    F(`K${r}`, `IF(B${r}=0,"",J${r}/B${r})`, '0.0%');
+    F(`L${r}`, `ROUND(E${r}*Parametros!$B$6,0)`, '#,##0');
+    F(`M${r}`, `ROUND(F${r}*Parametros!$B$7,0)`, '#,##0');
+    F(`N${r}`, `ROUND(G${r}*Parametros!$B$8,0)`, '#,##0');
+    F(`O${r}`, `ROUND(H${r}*Parametros!$B$9,0)`, '#,##0');
+    F(`P${r}`, `L${r}+M${r}+N${r}+O${r}`, '#,##0');
+    F(`Q${r}`, `J${r}+P${r}`, '#,##0');
+    F(`R${r}`, `IF(B${r}=0,"",Q${r}/B${r})`, '0.0%');
+    F(`S${r}`, `IF(B${r}=0,"",MAX(0,ROUNDUP(B${r}*Parametros!$B$3,0)-J${r}))`, '#,##0');
+    T(`T${r}`, `IF(B${r}=0,"",IF(R${r}>=Parametros!$B$3,"Alcança a meta","Ainda abaixo"))`);
+  }
+
+  // Linha REDE. Atenção: "Faltam p/ meta" NÃO é a soma da coluna — escola já
+  // acima da meta entra como zero e o total sairia maior que o real. Aqui se
+  // refaz o cálculo sobre os totais, como o painel de rede da tela faz.
+  ws[`A${tot}`] = { t: 's', v: 'REDE (total)' };
+  ['B','C','D','E','F','G','H','J','L','M','N','O','P','Q'].forEach(c =>
+    F(`${c}${tot}`, `SUM(${c}${prim}:${c}${ult})`, '#,##0'));
+  F(`K${tot}`, `IF(B${tot}=0,"",J${tot}/B${tot})`, '0.0%');
+  F(`R${tot}`, `IF(B${tot}=0,"",Q${tot}/B${tot})`, '0.0%');
+  F(`S${tot}`, `IF(B${tot}=0,"",MAX(0,ROUNDUP(B${tot}*Parametros!$B$3,0)-J${tot}))`, '#,##0');
+  T(`T${tot}`, `IF(B${tot}=0,"",IF(R${tot}>=Parametros!$B$3,"Rede alcança a meta","Rede abaixo da meta"))`);
+
+  ws['!ref'] = `A1:T${tot}`;
+  ws['!cols'] = [{ wch: 34 }, ...Array(7).fill({ wch: 11 }), { wch: 22 },
+                 { wch: 13 }, { wch: 9 }, ...Array(4).fill({ wch: 15 }),
+                 { wch: 14 }, { wch: 17 }, { wch: 12 }, { wch: 20 }, { wch: 22 }];
+  ws['!freeze'] = { xSplit: 1, ySplit: 1 };
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsPar, 'Parametros');
+  XLSX.utils.book_append_sheet(wb, ws, 'Metas por Escola');
+
+  const slug = String(av).replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_|_$/g, '') || 'avaliacao';
+  XLSX.writeFile(wb, `Metas_Fluencia_${slug}.xlsx`);
 }
 
 // mantida para compatibilidade com modal da turma

@@ -3137,8 +3137,30 @@ const _prefetchQueue = [];
 let _prefetchRunning = 0;
 const _prefetchMaxConcurrent = 2;
 
+/* ⚠️ A CHAVE INCLUI QUEM ESTÁ VENDO. Sem isso o `sessionStorage` é comum a
+   todas as identidades da mesma aba, e o vazio de uma vaza para a outra:
+   uma SIMULAÇÃO de perfil sem dado gravava `[]` aqui e, ao encerrar a
+   simulação, o super admin lia esse vazio como se fosse dele — a Diagnóstica
+   ficava sem aluno nenhum. Antes de a tela distinguir vazio de carregando,
+   o sintoma era pior: spinner eterno, sem nada no console. Medido em 2026-08.
+
+   Sob simulação, `MapaAuth.perfil.email` JÁ é o e-mail da pessoa simulada
+   (o `auth.js` monta o perfil a partir das permissões observadas), então a
+   separação sai de graça — não é preciso um sinalizador à parte.
+
+   ⚠️ Vale para TODOS os pacotes que passam por `_cacheSet`/`_cacheGet`
+   (dashboard, bimestre, Total), não só para a Diagnóstica.
+
+   Se a auth ainda não resolveu, a chave sai com '?': quem gravou antes e quem
+   lê depois não se encontram, e o pior caso é buscar de novo — nunca ler o
+   dado de outra pessoa. */
 function _cacheStorageKey(chave) {
-  return 'MAPA_CACHE_' + String(chave);
+  var quem = '?';
+  try {
+    var p = window.MapaAuth && window.MapaAuth.perfil;
+    if (p && p.email) quem = String(p.email).trim().toLowerCase();
+  } catch (e) {}
+  return 'MAPA_CACHE_' + quem + '_' + String(chave);
 }
 
 function _cacheSet(chave, valor) {
@@ -4956,13 +4978,22 @@ async function baixarRelatorioExcel() {
 // Corrigido: filtro de ano funcionando também no menu Rede.
 // ===========================================================
 
+/* Estado do carregamento dos alunos da Diagnóstica: 'carregando' | 'pronto' |
+   'erro'. ⚠️ Existe porque VAZIO NÃO É O MESMO QUE CARREGANDO, e enquanto os
+   dois dividiram a mesma tela o sintoma foi grave: uma consulta que volta sem
+   linhas — recorte sem lançamento, perfil sem cadastro no MAPA, filtro que não
+   casa — aparecia como "Carregando dados da Rede…" PARA SEMPRE. Quem via isso
+   concluía que a tela travou, e não havia nada no console para contradizer. */
+var _alunosDiagEstado = 'carregando';
+
 function iniciarDiagnostica() {
   avaliacaoAtual = 'AnoEscolar';
 
   prepararLayoutDiagnostica('Diagnóstica');
 
   if (!rawData || !Array.isArray(rawData.alunos) || !rawData.alunos.length) {
-    _mostrarLoadingDiagnostica();
+    if (_alunosDiagEstado === 'carregando') _mostrarLoadingDiagnostica();
+    else _mostrarVazioDiagnostica(_alunosDiagEstado === 'erro');
     return;
   }
 
@@ -4973,6 +5004,28 @@ function iniciarDiagnostica() {
   renderHierarquiaDiag(true);
   _atualizarBreadcrumbDiag();
   _aplicarFiltroDiag();
+}
+
+/* O par do _mostrarLoadingDiagnostica: a tela de quem JÁ carregou e não tem o
+   que mostrar. Diz qual é o caso e o que fazer, em vez de girar. */
+function _mostrarVazioDiagnostica(houveErro) {
+  ['kpiAlunos1', 'kpiAlunos2', 'kpiAlunos3', 'kpiAlunos4'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '—';
+  });
+  const h = document.getElementById('hierarquiaContainerDiag');
+  if (!h) return;
+  h.innerHTML = houveErro
+    ? `<div class="text-center p-4" style="color:#b45309">
+         <i class="bi bi-exclamation-triangle" style="font-size:1.4rem"></i><br>
+         <b>Não foi possível carregar a Diagnóstica.</b><br>
+         <span style="font-size:.85rem">O erro está no console. Recarregue a página; se persistir, avise a administração.</span>
+       </div>`
+    : `<div class="text-center text-muted p-4">
+         <i class="bi bi-folder-x" style="font-size:1.4rem"></i><br>
+         <b>Nenhum aluno na Avaliação Diagnóstica.</b><br>
+         <span style="font-size:.85rem">Não há lançamento para o seu recorte — não é falha de carregamento.</span>
+       </div>`;
 }
 
 function _mostrarLoadingDiagnostica() {
@@ -8388,6 +8441,85 @@ function _renderTabelaTotal(linhas) {
 
   const fichaAnoLetivo = _FICHA.fichaAnoLetivo;
 
+  /* ── Perfil de escola: quais são as MINHAS unidades no catálogo CODERP? ──
+     Perfil de escola não pode consultar a rede (a função nega por desenho,
+     com `escola_obrigatoria`): a leitura ao vivo dele é a própria unidade,
+     no nível aluno. Aqui só se DESCOBRE o código CODERP das unidades do
+     vínculo — por conjunto exato de palavras, o mesmo critério do resolvedor.
+     Quem AUTORIZA continua sendo o banco (`posso_ver_unidade`, via
+     `escola_alias`): se a grafia CODERP não estiver apelidada lá, a consulta
+     volta 403 e a tela cai para o banco, como hoje. */
+  let _fichaMinhasPromise = null;
+  function fichaMinhasEscolas() {
+    if (!_fichaMinhasPromise) {
+      _fichaMinhasPromise = (async () => {
+        const A = window.MapaAuth;
+        if (!A || !A.restritoEscola || !Array.isArray(A.escolas) || !A.escolas.length) return [];
+        const chaveTokens = nome => normalizar(String(nome || ''))
+          .replace(/[^A-Z0-9 ]/g, ' ').split(/\s+/).filter(Boolean).sort().join(' ');
+        const minhas = new Set(A.escolas.map(e => chaveTokens(e.nome)).filter(Boolean));
+        const catalogo = await fichaCatalogo();
+        const achadas = [];
+        catalogo.forEach((nome, codigo) => {
+          if (minhas.has(chaveTokens(nome))) achadas.push({ codigo: codigo, nome: nome });
+        });
+        if (!achadas.length) {
+          console.warn('[MAPA CODERP] perfil de escola sem casamento no catálogo CODERP — '
+            + 'a leitura ao vivo fica indisponível e o banco assume.');
+        }
+        return achadas;
+      })().catch(() => { _fichaMinhasPromise = null; return []; });
+    }
+    return _fichaMinhasPromise;
+  }
+
+  // Pacote de bimestre restrito às unidades do perfil: nível aluno de cada
+  // uma (memoizado) — turmas reais e contagem exata desde a primeira carga.
+  async function pacoteViaFichaEscolas(minhas, bimestre, anoFiltro) {
+    const alvoAno = (anoFiltro && anoFiltro !== 'TODOS') ? normalizar(anoFiltro) : null;
+    const partes = await Promise.all(minhas.map(m =>
+      fichaDetalheUnidade(bimestre, m.nome).catch(err => {
+        if (!(err && err.coderpStatus === 404)) {
+          console.warn('[MAPA CODERP] unidade do perfil falhou:', m.nome, err);
+        }
+        return null;
+      })));
+    if (!partes.some(Boolean)) throw new Error('nenhuma unidade do perfil respondeu pela API');
+
+    const linhas = [];
+    const hierLinhas = [];
+    const disciplinas = new Set();
+    const anosSet = new Set();
+    const bruto = {};
+    partes.forEach(det => {
+      if (!det || !det.ok) return;
+      (det.linhas || []).forEach(l => {
+        if (alvoAno && l[1] !== alvoAno) return;
+        linhas.push(l);
+        disciplinas.add(l[3]);
+        anosSet.add(l[1]);
+      });
+      (det.hierLinhas || []).forEach(h => {
+        if (alvoAno && h[1] !== alvoAno) return;
+        hierLinhas.push(h);
+        const kb = h[0] + '||' + h[1];
+        bruto[kb] = (bruto[kb] || 0) + Number(h[3] || 0);
+      });
+    });
+    if (!linhas.length) throw new Error('CODERP sem linhas para as unidades do perfil no bimestre ' + bimestre);
+
+    return {
+      ok: true,
+      linhas: linhas,
+      hierLinhas: hierLinhas,
+      disciplinas: Array.from(disciplinas).sort(),
+      anos: Array.from(anosSet).sort(),
+      bruto: bruto,
+      incompleto: partes.some(p => !p),
+      generatedAt: new Date().toISOString()
+    };
+  }
+
   // Memo do pacote do Total por filtro (TTL 10 min, alinhado às outras camadas).
   const _totalPacoteMemo = new Map();
   // ── Rede inteira numa consulta só, recortada por per_cod ──────────────────
@@ -9504,6 +9636,12 @@ function _renderTabelaTotal(linhas) {
   // Uma chamada por ano escolar: IndicadorTurma sem `escola` devolve a rede
   // inteira aberta por unidade, filtrada pelo `anoescolar`.
   async function pacoteViaFichaApi(bimestre, anoFiltro) {
+    // Perfil de escola: a rede está fora do alcance dele (por desenho) — a
+    // leitura ao vivo é a própria unidade. Evita as 5 consultas de rede que
+    // voltariam 403 e enchem o console de "escola_obrigatoria".
+    const minhas = await fichaMinhasEscolas();
+    if (minhas.length) return pacoteViaFichaEscolas(minhas, bimestre, anoFiltro);
+
     const anos = (anoFiltro && anoFiltro !== 'TODOS') ? [normalizar(anoFiltro)] : FICHA_ANOS_ESCOLARES;
 
     const [catalogo, ...respostas] = await Promise.all([
@@ -9617,6 +9755,24 @@ function _renderTabelaTotal(linhas) {
   // A turma nasce '—' e o detalhe real desce sob demanda ao clicar na unidade
   // (getDetalheUnidadeFichaTotal) — o mesmo padrão das abas de bimestre.
   async function fichaGruposTotal() {
+    // Perfil de escola: monta o Total pelas fichas das unidades do vínculo
+    // (nível aluno, memoizado) — as consultas de rede seriam negadas.
+    const minhasT = await fichaMinhasEscolas();
+    if (minhasT.length) {
+      const grupos = [];
+      let veioAlgo = false;
+      const porBim = await Promise.all([1, 2, 3, 4].map(b => fichaAlunosBimestre(b).catch(() => null)));
+      porBim.forEach((rows, bi) => {
+        if (!rows) return;
+        veioAlgo = true;
+        rows.forEach(r => grupos.push([bi + 1, r.nome_unidade, r.ano_escolar || 'TODOS',
+          String(r.turma || '—'), r.fnc_disciplina, r.descricao_fne,
+          r.valor_resposta, r.valor_resposta, 1, r.texto_resposta || '']));
+      });
+      if (!veioAlgo) throw new Error('nenhuma unidade do perfil respondeu pela API');
+      return grupos;
+    }
+
     const catalogo = await fichaCatalogo();
     const grupos = [];
     let algumaFonte = false;
@@ -9979,8 +10135,14 @@ function _renderTabelaTotal(linhas) {
       });
       if (!unis.length) throw new Error('unidade sem código no catálogo: ' + filtros.unidade);
     } else {
-      const esc = await chamarFichaApi('escola', { anoLetivo: anoLetivo, bimestre: bimestre });
-      unis = Array.from(new Set((esc.fichasAvaliacoesEscola || []).map(r => Number(r.uni_cod))));
+      // 'TODAS' para perfil de escola = as unidades do vínculo, não a rede.
+      const minhas = await fichaMinhasEscolas();
+      if (minhas.length) {
+        unis = minhas.map(m => Number(m.codigo));
+      } else {
+        const esc = await chamarFichaApi('escola', { anoLetivo: anoLetivo, bimestre: bimestre });
+        unis = Array.from(new Set((esc.fichasAvaliacoesEscola || []).map(r => Number(r.uni_cod))));
+      }
     }
 
     const nomes = await fichaNomesAlunos();
@@ -10044,8 +10206,16 @@ function _renderTabelaTotal(linhas) {
   async function _fichaAlunosBimestreImpl(bimestre, aoProgresso) {
     const catalogo = await fichaCatalogo();
     const anoLetivo = fichaAnoLetivo();
-    const esc = await chamarFichaApi('escola', { anoLetivo: anoLetivo, bimestre: bimestre });
-    const unis = Array.from(new Set((esc.fichasAvaliacoesEscola || []).map(r => Number(r.uni_cod))));
+    // Perfil de escola: só as unidades do vínculo (a consulta de rede que
+    // lista as escolas seria negada — e nem faria sentido para ele).
+    const minhas = await fichaMinhasEscolas();
+    let unis;
+    if (minhas.length) {
+      unis = minhas.map(m => Number(m.codigo));
+    } else {
+      const esc = await chamarFichaApi('escola', { anoLetivo: anoLetivo, bimestre: bimestre });
+      unis = Array.from(new Set((esc.fichasAvaliacoesEscola || []).map(r => Number(r.uni_cod))));
+    }
 
     const rows = [];
     const LOTE = 5;
@@ -11229,6 +11399,7 @@ function _carregarAlunosDiagnosticaBackground(onReady) {
 
   if (cached && Array.isArray(cached)) {
     // Aplica filtro de unidade na lista já em cache.
+    _alunosDiagEstado = 'pronto';
     rawData.alunos = (typeof _filtrarAlunosPorUnidade === 'function') ? _filtrarAlunosPorUnidade(cached) : cached;
     if (avaliacaoAtual === 'AnoEscolar' && typeof iniciarDiagnostica === 'function') iniciarDiagnostica();
     if (typeof onReady === 'function') setTimeout(onReady, 0);
@@ -11238,13 +11409,22 @@ function _carregarAlunosDiagnosticaBackground(onReady) {
   google.script.run
     .withSuccessHandler(alunos => {
       const lista = alunos || [];
-      _cacheSet(chAlunos, lista); // grava sem filtro para reutilizar no refresh
+      _alunosDiagEstado = 'pronto';
+      // ⚠️ Vazio NÃO entra em cache. Ele é barato de rebuscar e é justamente o
+      // resultado que envenena: uma vez gravado, congela a tela sem dado por
+      // toda a sessão do navegador. Mesmo princípio já aplicado ao cache da
+      // ficha do CODERP.
+      if (lista.length) _cacheSet(chAlunos, lista); // grava sem filtro p/ o refresh
       rawData.alunos = (typeof _filtrarAlunosPorUnidade === 'function') ? _filtrarAlunosPorUnidade(lista) : lista;
       if (avaliacaoAtual === 'AnoEscolar' && typeof iniciarDiagnostica === 'function') iniciarDiagnostica();
       if (typeof onReady === 'function') onReady();
     })
     .withFailureHandler(err => {
       console.error('Erro ao carregar Diagnóstica em background:', err);
+      // ⚠️ Sem isto a tela ficava no spinner: o caminho de falha não repintava
+      // nada, e "não carregou" era indistinguível de "ainda carregando".
+      _alunosDiagEstado = 'erro';
+      if (avaliacaoAtual === 'AnoEscolar' && typeof iniciarDiagnostica === 'function') iniciarDiagnostica();
       if (typeof onReady === 'function') onReady();
     })
     .getDashboardAlunos();

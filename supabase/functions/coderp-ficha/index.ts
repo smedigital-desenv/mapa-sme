@@ -39,11 +39,20 @@
        supabase functions deploy coderp-ficha
    E o secret precisa existir antes do primeiro uso:
        supabase secrets set CODERP_TOKEN=...
-   Opcional: CODERP_URL para trocar a URL base (padrão: ambiente dsv).
+   AMBIENTE: o padrão é o de TESTES do CODERP. Produção é configuração, não
+   código — cadastre o secret:
+       CODERP_URL=https://gxeduc.coderp.sp.gov.br/xsapr/ObterFichaAvaliacao
+   (e o CODERP_TOKEN correspondente ao ambiente). Atenção: o projeto Supabase
+   é um só, então homologação e produção do site consomem o MESMO ambiente
+   CODERP — o que estiver nos secrets vale para os dois.
    ============================================================================ */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
-const URL_BASE_PADRAO = 'https://gxeducdsv.coderp.sp.gov.br/xsaapids/ObterFichaAvaliacao';
+const URL_BASE_PADRAO = 'https://gxeducdsv.coderp.sp.gov.br/xsads/ObterFichaAvaliacao';
+
+// Ecoada pelo nível `diagnostico` — atualize ao publicar para saber, direto
+// pela resposta, qual versão do código está no ar.
+const VERSAO_FUNCAO = '2026-08-31-diagnostico';
 
 // Cada nível tem seu endpoint e o NOME DO CAMPO que envelopa os parâmetros no
 // corpo (parms/parmsrede/parmsescola/parmsturma — assim mesmo, é o contrato
@@ -277,6 +286,25 @@ Deno.serve(async (req) => {
     // ── 2) Valida o pedido ─────────────────────────────────────────────────
     const corpo = await req.json().catch(() => null);
     const chaveNivel = String(corpo?.nivel || '').toLowerCase();
+
+    // Diagnóstico: responde QUAL ambiente do CODERP está configurado e qual
+    // versão do código está publicada — nunca o token, nem dado de aluno.
+    // Exige sessão válida (já checada acima); serve para conferir a virada
+    // de ambiente sem adivinhar por comparação de dados.
+    if (chaveNivel === 'diagnostico') {
+      const urlConfigurada = (Deno.env.get('CODERP_URL') || URL_BASE_PADRAO).replace(/\/+$/, '');
+      let destino = urlConfigurada;
+      try { const u = new URL(urlConfigurada); destino = u.host + u.pathname; } catch (_e) { /* mantém como veio */ }
+      return json({
+        versao_funcao: VERSAO_FUNCAO,
+        coderp_destino: destino,
+        ambiente: destino.includes('gxeducdsv') ? 'TESTES (dsv)' : 'PRODUCAO',
+        secret_coderp_url: !!Deno.env.get('CODERP_URL'),
+        secret_coderp_token: !!Deno.env.get('CODERP_TOKEN'),
+        itens_no_cache: _cache.size,
+      });
+    }
+
     const ehDetalheRede = chaveNivel === NIVEL_DETALHE_REDE;
     const nivel = NIVEIS[chaveNivel];
     if (!nivel && !ehDetalheRede) {
