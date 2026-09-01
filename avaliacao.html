@@ -11662,11 +11662,17 @@ function marcarSubAvaliacao(tipo, btn) {
 }
 
 function abrirAvaliacao(tipo, btn) {
-  // O 1º Bimestre deve abrir sempre na visão geral (Todos),
-  // mesmo que a pessoa tenha deixado 2º/5º Ano selecionado em outra aba.
-  if (tipo === 'primeiroBimestre' && typeof _setAnoFiltroAtualSeguro === 'function') {
+  // TODA aba abre na visão geral (Todos): o ano escolhido numa aba não pode
+  // vazar para a seguinte — `anoFiltroAtual` é global, e sem este reset o
+  // filtro de uma tela ficava ativo em todas as outras (medido: 1º Ano
+  // escolhido no 1º Bim filtrava 2º/3º/4º Bim, Total e Diagnóstica em
+  // silêncio). A UNIDADE selecionada permanece de propósito: ela é navegação,
+  // e trocar de bimestre mantendo a escola é o uso normal da comparação.
+  const ABAS_COM_ANO = ['primeiroBimestre', 'segundoBimestre', 'terceiroBimestre',
+                        'quartoBimestre', 'Total', 'AnoEscolar'];
+  if (ABAS_COM_ANO.indexOf(tipo) !== -1 && typeof _setAnoFiltroAtualSeguro === 'function') {
     _setAnoFiltroAtualSeguro('TODOS');
-    _mostrarAnoFilterBarRede(true);
+    if (tipo === 'primeiroBimestre') _mostrarAnoFilterBarRede(true);
     _resetarAnoFilterBarRede();
   }
 
