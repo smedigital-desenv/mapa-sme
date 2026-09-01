@@ -157,6 +157,36 @@
     .btnpdf:hover{background:#014a91;color:#fff;}
     .btnpdf[aria-disabled="true"]{background:#94a3b8;pointer-events:none;}
 
+    /* ═══ PAINEL DE ESTUDANTES POR CONCEITO ═══ */
+    table.grade-t tr.clicavel{cursor:pointer;}
+    table.grade-t tr.clicavel:hover{background:#eff6ff;}
+    table.grade-t tr.clicavel:focus-visible{outline:2px solid var(--pri2);outline-offset:-2px;}
+    table.grade-t .cVer{color:var(--pri2);text-align:right;width:28px;opacity:.45;}
+    table.grade-t tr.clicavel:hover .cVer{opacity:1;}
+
+    .drawer{position:fixed;inset:0;z-index:2000;display:none;}
+    .drawer.aberto{display:block;}
+    .drawer .fundo{position:absolute;inset:0;background:rgba(2,16,38,.45);}
+    .drawer .painel{position:absolute;top:0;right:0;bottom:0;width:min(560px,96vw);
+      background:#fff;box-shadow:-14px 0 40px rgba(2,16,38,.28);display:flex;flex-direction:column;}
+    .drawer .topo{padding:16px 20px;border-bottom:1px solid var(--line);}
+    .drawer .topo .q{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.72rem;
+      font-weight:700;color:var(--pri2);background:#e8f2f7;border-radius:5px;padding:1px 6px;}
+    .drawer .topo h4{margin:.4rem 0 .2rem;font-size:1.05rem;font-weight:900;color:var(--primary);}
+    .drawer .topo .sig{font-size:.82rem;color:#475569;}
+    .drawer .corpo{padding:14px 20px;overflow-y:auto;flex:1;}
+    .drawer .fechar{position:absolute;top:12px;right:14px;border:0;background:transparent;
+      font-size:1.5rem;line-height:1;color:var(--muted);cursor:pointer;padding:4px 8px;}
+    .drawer .fechar:hover{color:var(--ink);}
+    .turmaBl{margin-bottom:14px;}
+    .turmaBl .th{font-size:.74rem;font-weight:900;letter-spacing:.07em;text-transform:uppercase;
+      color:var(--muted);margin-bottom:5px;}
+    .remas{display:flex;flex-wrap:wrap;gap:5px;}
+    .remas span{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.78rem;font-weight:700;
+      background:#f1f5f9;border:1px solid var(--line);border-radius:7px;padding:3px 9px;}
+    .drawer .nota{font-size:.79rem;color:var(--muted);border-top:1px dashed var(--line);
+      padding-top:10px;margin-top:6px;}
+
     .gated{display:none;}
     .vazio{text-align:center;color:var(--muted);padding:38px 12px;font-weight:700;}
   </style>
@@ -238,6 +268,20 @@
       <a class="btnpdf" id="irPdf" href="#" target="_blank" rel="noopener">
         <i class="bi bi-file-earmark-pdf-fill"></i>Abrir o relatório
       </a>
+    </div>
+  </div>
+
+  <!-- ═══ PAINEL: quem está neste conceito ═══ -->
+  <div class="drawer" id="irDrawer" role="dialog" aria-modal="true" aria-labelledby="irDrTit">
+    <div class="fundo" data-fechar></div>
+    <div class="painel">
+      <button class="fechar" type="button" data-fechar aria-label="Fechar">&times;</button>
+      <div class="topo">
+        <span class="q" id="irDrQ"></span>
+        <h4 id="irDrTit"></h4>
+        <div class="sig" id="irDrSig"></div>
+      </div>
+      <div class="corpo" id="irDrCorpo"></div>
     </div>
   </div>
 
@@ -471,7 +515,14 @@ function gradeHTML(asp, prop, dist, distRede, ordem, cor){
     const titulo = r.titulo || (desc ? '' : ((prop.rotulos && prop.rotulos[c]) || ''));
     const vr = distRede ? (distRede.get(c) || 0) : 0;
     const pcr = totRede ? (vr / totRede * 100) : null;
-    return '<tr' + (v ? '' : ' class="zero"') + '>'
+    // Linha com aluno vira alvo: o clique abre QUEM está nesse conceito. É a
+    // pergunta que a escola faz depois de ver a barra — "quais são os meus?".
+    const clicavel = v > 0;
+    return '<tr' + (v ? '' : ' class="zero"') + (clicavel
+        ? ' class="clicavel" tabindex="0" role="button"'
+          + ' data-q="' + esc(asp.q) + '" data-c="' + esc(c) + '"'
+          + ' title="Ver os estudantes neste conceito"'
+        : '') + '>'
       + '<td class="cLetra"><span class="sw" style="background:' + cor[c] + '"></span>'
         + '<b>' + esc(c) + '</b></td>'
       + '<td class="cSig">' + (titulo ? '<b>' + esc(titulo) + '</b>' : '')
@@ -479,6 +530,7 @@ function gradeHTML(asp, prop, dist, distRede, ordem, cor){
       + '<td class="num">' + num(v) + '</td>'
       + '<td class="num">' + pc.toFixed(1) + '%</td>'
       + '<td class="num rede">' + (pcr == null ? '—' : pcr.toFixed(1) + '%') + '</td>'
+      + '<td class="cVer">' + (clicavel ? '<i class="bi bi-people-fill"></i>' : '') + '</td>'
       + '</tr>';
   }).join('');
 
@@ -487,6 +539,7 @@ function gradeHTML(asp, prop, dist, distRede, ordem, cor){
        + '<div class="rolagem"><table class="ir grade-t"><thead><tr>'
        + '<th>Conceito</th><th>O que significa nesta questão</th>'
        + '<th class="num">Alunos</th><th class="num">%</th><th class="num rede">% rede</th>'
+       + '<th></th>'
        + '</tr></thead><tbody>' + linhas + '</tbody></table></div></details>';
 }
 
@@ -571,6 +624,101 @@ function cardKpi(rot, val, sub, alerta){
   return '<div class="kpi' + (alerta ? ' alerta' : '') + '"><div class="r">' + esc(rot) + '</div>'
        + '<div class="v">' + esc(val) + '</div>'
        + (sub ? '<div class="s">' + esc(sub) + '</div>' : '') + '</div>';
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   QUEM ESTÁ NESTE CONCEITO — painel por REMA
+   ----------------------------------------------------------------------------
+   ⚠️ O painel mostra REMA, turma e nada mais. Nome e RA nunca chegaram ao
+   banco: a importação os descarta ainda no navegador. O REMA é o código que a
+   rede já usa em todo lugar — é por ele que a escola acha a criança na própria
+   lista, sem que o MAPA guarde a identificação.
+
+   ⚠️ Quem recorta é o RLS: a consulta pede a unidade selecionada, e perfil de
+   escola só recebe linha da sua. O filtro no JS é conveniência.
+   ════════════════════════════════════════════════════════════════════════════ */
+let _drawerAberto = false;
+
+function abrirDrawer(){ document.getElementById('irDrawer').classList.add('aberto');
+  _drawerAberto = true; document.body.style.overflow = 'hidden'; }
+function fecharDrawer(){ document.getElementById('irDrawer').classList.remove('aberto');
+  _drawerAberto = false; document.body.style.overflow = ''; }
+
+async function mostrarEstudantes(questao, conceito){
+  const asp = PROPOSTAS.flatMap(pr => pr.aspectos.map(a => ({ a, pr })))
+    .find(x => x.a.q === questao);
+  if (!asp) return;
+  const rub = (RUBRICA[questao] || []).find(r =>
+    String(r.conceito).trim().toUpperCase() === conceito) || {};
+
+  document.getElementById('irDrQ').textContent = questao;
+  document.getElementById('irDrTit').textContent =
+    'Conceito ' + conceito + ' — ' + asp.a.nome;
+  document.getElementById('irDrSig').textContent =
+    rub.descricao || rub.titulo || (asp.pr.rotulos && asp.pr.rotulos[conceito]) || '';
+  const corpo = document.getElementById('irDrCorpo');
+  corpo.innerHTML = '<div style="color:#64748b">Carregando…</div>';
+  abrirDrawer();
+
+  let linhas = [];
+  try {
+    const { data, error } = await window.MAPA_SB.from('av_irc_aluno')
+      .select('turma,rema')
+      .eq('escola', escolaAtual).eq('questao', questao).eq('conceito', conceito)
+      .order('turma').order('rema');
+    if (error) throw error;
+    linhas = data || [];
+  } catch (e) {
+    corpo.innerHTML = '<div class="nota">O detalhe por estudante não está disponível: '
+      + esc(e.message || e) + '<br>Ele depende da tabela <code>av_irc_aluno</code>, '
+      + 'preenchida na importação da planilha.</div>';
+    return;
+  }
+
+  if (!linhas.length) {
+    corpo.innerHTML = '<div class="nota">Nenhum estudante desta unidade neste conceito.</div>';
+    return;
+  }
+
+  const porTurma = new Map();
+  linhas.forEach(r => {
+    const t = r.turma || '—';
+    if (!porTurma.has(t)) porTurma.set(t, []);
+    porTurma.get(t).push(r.rema);
+  });
+
+  let html = '<div style="font-weight:800;margin-bottom:10px">' + num(linhas.length)
+           + ' estudante' + (linhas.length > 1 ? 's' : '') + '</div>';
+  Array.from(porTurma.keys()).sort().forEach(t => {
+    const rs = porTurma.get(t);
+    html += '<div class="turmaBl"><div class="th">Turma ' + esc(t) + ' · '
+          + num(rs.length) + '</div><div class="remas">'
+          + rs.map(r => '<span>' + esc(r) + '</span>').join('') + '</div></div>';
+  });
+  html += '<div class="nota">Identificação por <b>REMA</b>. O MAPA não guarda nome '
+        + 'nem RA destes estudantes — a planilha da Vunesp traz esses campos, e a '
+        + 'importação os descarta antes de gravar.</div>';
+  corpo.innerHTML = html;
+}
+
+function ligarDrawer(){
+  document.getElementById('irDrawer').addEventListener('click', ev => {
+    if (ev.target.hasAttribute('data-fechar')) fecharDrawer();
+  });
+  document.addEventListener('keydown', ev => {
+    if (ev.key === 'Escape' && _drawerAberto) fecharDrawer();
+  });
+  // Delegação: as linhas nascem e morrem a cada troca de unidade, então o
+  // ouvinte fica no container, não em cada <tr>.
+  document.getElementById('irConteudo').addEventListener('click', ev => {
+    const tr = ev.target.closest('tr.clicavel');
+    if (tr) mostrarEstudantes(tr.dataset.q, tr.dataset.c);
+  });
+  document.getElementById('irConteudo').addEventListener('keydown', ev => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    const tr = ev.target.closest('tr.clicavel');
+    if (tr) { ev.preventDefault(); mostrarEstudantes(tr.dataset.q, tr.dataset.c); }
+  });
 }
 
 /* ── Botão do relatório ───────────────────────────────────────────────────── */
@@ -673,11 +821,12 @@ function ligarUpload(){
       }
       if (!linhas) throw new Error('não achei a aba de microdados (faltam as colunas Q*_N*)');
 
-      const { agreg, part, rubrica } = agregar(linhas, wb);
+      const { agreg, part, porAluno, rubrica } = agregar(linhas, wb);
       res.innerHTML = 'Agregado: ' + num(part.length - 1) + ' unidades, '
-        + num(agreg.length) + ' linhas de contagem. Gravando…';
+        + num(agreg.length) + ' linhas de contagem, '
+        + num(porAluno.length) + ' respostas por estudante. Gravando…';
 
-      await gravar(agreg, part, rubrica, res);
+      await gravar(agreg, part, porAluno, rubrica, res);
       res.innerHTML = '<span style="color:#15803d;font-weight:800">Pronto.</span> '
         + 'Recarregando a tela…';
       setTimeout(() => location.reload(), 900);
@@ -693,6 +842,7 @@ function agregar(linhas, wb){
   const porEsc = new Map();     // escola -> {cod, reg, previstos, ausentes, turmas:Set}
   const cont = new Map();       // escola||questao||conceito -> n
   const somaRede = new Map();   // questao||conceito -> n
+  const porAluno = [];          // av_irc_aluno: SÓ rema, turma e conceito
   let redePrev = 0, redeAus = 0; const redeTurmas = new Set();
 
   linhas.forEach(r => {
@@ -715,12 +865,20 @@ function agregar(linhas, wb){
     // folha vazia — que é informação pedagógica diferente.
     if (String(r.Ausente || '').trim() === '1') { u.ausentes++; redeAus++; return; }
 
+    // ⚠️ SÓ o REMA sai da planilha para o banco. Nome e RA ficam nesta função
+    // e morrem com ela — o REMA é o código que a rede já usa em toda parte
+    // (é o mesmo do nível aluno do CODERP), e é o que permite a escola achar
+    // a criança na sua própria lista sem que o MAPA guarde a identificação.
+    const rema = String(r.REMA == null ? '' : r.REMA).trim();
+    const turma = String(r.TURMA || '').trim().toUpperCase();
+
     QUESTOES.forEach(q => {
       const v = String(r[q] == null ? '' : r[q]).trim().toUpperCase() || 'EB';
       const k = escola + '||' + q + '||' + v;
       cont.set(k, (cont.get(k) || 0) + 1);
       const kr = q + '||' + v;
       somaRede.set(kr, (somaRede.get(kr) || 0) + 1);
+      if (rema) porAluno.push({ escola, codigo_escola: u.cod, turma, rema, questao: q, conceito: v });
     });
   });
 
@@ -744,7 +902,7 @@ function agregar(linhas, wb){
               previstos: redePrev, ausentes: redeAus,
               avaliados: redePrev - redeAus, turmas: redeTurmas.size });
 
-  return { agreg, part, rubrica: lerRubrica(wb) };
+  return { agreg, part, porAluno, rubrica: lerRubrica(wb) };
 }
 
 /* Em algumas linhas do arquivo a LETRA do conceito ficou repetida no começo da
@@ -789,7 +947,7 @@ function lerRubrica(wb){
   return out;
 }
 
-async function gravar(agreg, part, rubrica, res){
+async function gravar(agreg, part, porAluno, rubrica, res){
   const sb = window.MAPA_SB;
   // Substituição completa: a planilha é a fonte da verdade da edição. Sem o
   // delete, unidade que saiu do arquivo ficaria para sempre com o número velho.
@@ -806,11 +964,18 @@ async function gravar(agreg, part, rubrica, res){
   await limpar('av_irc', 'escola', true);
   await limpar('av_irc_part', 'escola', true);
   await limpar('av_irc_rubrica', 'questao', false);
+  await limpar('av_irc_aluno', 'escola', false);
 
   const LOTE = 500;
   await enviar('av_irc', agreg, LOTE, res);
   await enviar('av_irc_part', part, LOTE, res);
   if (rubrica.length) await enviar('av_irc_rubrica', rubrica, LOTE, res);
+  // O detalhe por estudante é opcional: se a tabela não existir, a tela toda
+  // continua funcionando — só o clique no conceito não abre a lista.
+  if (porAluno.length) {
+    try { await enviar('av_irc_aluno', porAluno, LOTE, res); }
+    catch (e) { console.warn('[IRC] detalhe por estudante não gravado:', e.message); }
+  }
 }
 async function enviar(tabela, linhas, LOTE, res){
   for (let i = 0; i < linhas.length; i += LOTE) {
@@ -824,12 +989,17 @@ async function enviar(tabela, linhas, LOTE, res){
 /* ── Início ───────────────────────────────────────────────────────────────── */
 document.addEventListener('mapa-auth-pronto', async () => {
   ligarPdf();
+  ligarDrawer();
   try {
-    // O gate da importação é conforto visual; quem recusa de verdade é o RLS
-    // (as políticas de escrita exigem posso_editar()).
-    const { data: rede } = await window.MAPA_SB.rpc('vejo_a_rede_toda');
-    if (rede) { document.getElementById('irUpBox').style.display = 'block'; ligarUpload(); }
-  } catch (e) { /* sem permissão: a caixa some, e está certo */ }
+    // ⚠️ O gate é `eh_super_admin()`, NÃO `vejo_a_rede_toda()`.
+    // A diferença não é sutil: `vejo_a_rede_toda()` é verdadeiro para super
+    // admin OU para qualquer perfil sem vínculo de unidade — toda a
+    // secretaria. E esta importação SUBSTITUI a base inteira (delete + insert),
+    // então um arquivo errado de qualquer um deles apagaria a edição.
+    // Continua sendo conforto visual: quem recusa de verdade é o RLS.
+    const { data: sa } = await window.MAPA_SB.rpc('eh_super_admin');
+    if (sa) { document.getElementById('irUpBox').style.display = 'block'; ligarUpload(); }
+  } catch (e) { /* sem a função ou sem permissão: a caixa some, e está certo */ }
 
   try {
     await carregarRubrica();

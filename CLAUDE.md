@@ -104,9 +104,25 @@ duas letras, ou letra única seguida de outra palavra com inicial maiúscula.
 Sem essa estreiteza, a descrição legítima `"A escrita apresentada pelo
 estudante…"` viraria `"escrita apresentada…"`.
 
+⚠️ **Clicar num conceito abre QUEM está nele — por REMA, nunca por nome.**
+A tabela `av_irc_aluno` guarda `escola, turma, rema, questao, conceito` e mais
+nada. Nome e RA continuam morrendo dentro de `agregar()`, no navegador: o REMA
+é o código que a rede já usa em toda parte (o mesmo do nível aluno do CODERP) e
+permite a escola achar a criança na própria lista sem o MAPA guardar a
+identificação. 🚫 Não acrescente `Nome_Aluno` nem `RA_do_Aluno` a essa tabela.
+
+⚠️ **O gate da importação é `eh_super_admin()`, NÃO `vejo_a_rede_toda()`.**
+A diferença não é sutil: `vejo_a_rede_toda()` é verdadeiro para super admin
+**ou para qualquer perfil sem vínculo de unidade** — toda a secretaria. E a
+importação SUBSTITUI a base inteira (delete + insert), então um arquivo errado
+de qualquer um deles apagaria a edição. ⚠️ A `avaliacao-diagnostica.html` faz o
+mesmo teste e guarda o resultado numa variável chamada `superAdmin`, o que
+engana quem lê rápido — ela não é super admin.
+
 Tabelas: `av_irc` (escola, questao, conceito, alunos), `av_irc_part`
-(participação por unidade) e `av_irc_rubrica` (as grades de correção, lidas das
-abas `Q*` da própria planilha). A linha `escola = 'REDE'` é a referência, como
+(participação por unidade), `av_irc_aluno` (uma linha por estudante × questão,
+só REMA) e `av_irc_rubrica` (as grades de correção, lidas das abas `Q*` da
+própria planilha). A linha `escola = 'REDE'` é a referência, como
 nas demais telas de avaliação externa.
 
 ⚠️ **`av_irc_rubrica` tem `select using (true)` de propósito, e ela APARECE na
