@@ -186,6 +186,7 @@
     'gerencia-liminar':      'gerencia_liminar',
     'analise-jornada':       'analise_jornada',
     'retrato-atribuicao':    'retrato_atribuicao',
+    'planejamento-atribuicao': 'planejamento_atribuicao',
     'comparativo-escolas':   'comparativo_escolas',
     'analise-desempenho':    'analise_desempenho'
   };

@@ -28,7 +28,8 @@ sob `smedigital.com.br/mapa-sme/`. Os dados ficam num projeto Supabase próprio.
 
 **Telas:** Avaliações (Diagnóstica, 1º a 4º Bimestre, Total, Análise de
 Consistência), Av. Diagnóstica SME/Vunesp, Av. Oral de Matemática, SARESP,
-IDEB, IEE, Atribuição, Retrato Quantitativo de Atribuições, Análise de Jornada,
+IDEB, IEE, Atribuição, Retrato Quantitativo de Atribuições, Planejamento da
+Atribuição, Análise de Jornada,
 Educação Especial, Gerência de Liminares, Frequência × Distância, Fluência
 Leitora, Elefante Letrado, Boletim da Escola, Boletim Estatístico, Relatórios,
 Relatório Executivo.
@@ -306,6 +307,89 @@ efeito colateral de um ajuste de usabilidade.
 
 ⚠️ As roscas **por eixo** e as de **detalhe por pergunta** (mesma tela) ainda
 não têm etiqueta externa: nelas a fatia miúda só é alcançável pela legenda.
+
+### A tela Planejamento da Atribuição
+
+`planejamento-atribuicao.html`. Lê a MESMA base das telas de Atribuição e do
+Retrato (tabela `turmas`, **mesmo cache** `mapa_atrib_turmas_v2` e mesma lista
+de colunas — uma tela aquece a outra) e responde três coisas: quantas turmas a
+rede tem **em todos os segmentos**, qual é o **quadro de aulas de cada
+disciplina por ano escolar**, e quanto isso vira de aulas no ano-alvo. Entra
+pelo botão **Planejamento** da `atribuicao.html`, ao lado do Retrato.
+
+⚠️ **SALA e TURMA são grandezas diferentes, e confundi-las é o erro clássico
+desta base.** *Sala* é unidade + ano escolar (sem o sufixo de turno) + letra —
+o agrupamento físico, em que a integral conta **uma** vez. *Turma* é sala ×
+turno real (M/T/N) — a unidade de **atribuição**, em que manhã e tarde da
+integral contam **duas**, porque são dois professores e dois blocos de aula. A
+tela mostra as duas colunas lado a lado; a de Turmas é a que reproduz o número
+do Retrato.
+
+⚠️ **Sala sem NENHUM turno real conta como uma turma, com turno `'—'`.** O
+Retrato descarta essas salas (`if (pc==='M'||pc==='T'||pc==='N')`), o que está
+certo lá, porque ele só cobre Etapas e 1º–5º. Aqui descartar apagaria a rede de
+CEI inteira em silêncio — em creche o período costuma ser justamente integral.
+Onde o Retrato funciona, as duas telas dão o **mesmo** número; a regra daqui só
+acrescenta o que lá cairia fora.
+
+⚠️ **A classificação do `ano_escolar` é uma lista de EXCLUSÃO, e a ORDEM dos
+testes decide.** `'ETAPA II - PARCIAL - LIMINAR 12H/A'` contém *ETAPA* **e**
+*LIMINAR*: com ETAPA primeiro, uma aula de liminar vira turma de etapa e infla
+o quantitativo. Por isso `classificarAno()` testa antes tudo que **não** é
+turma (liminar, substituição/complemento, atendimento de educação especial) e
+só depois EJA › ciclo › etapa › ano numérico.
+
+⚠️ **O balde "Outros" NÃO conta como turma, de propósito.** Um `ano_escolar`
+novo entrando como turma inflaria o total sem que ninguém percebesse; entrando
+em "Outros", ele acende um aviso no alto da tela com os valores brutos e alguém
+o classifica. É a mesma escolha de `MapaUnidades`: errar escondendo é visível e
+reclamável, errar mostrando é invisível e grave. As aulas dele **continuam** no
+total de aulas — o que ele não faz é virar turma.
+
+⚠️ **O quadro é a MODA, nunca a média.** Média de grade produz número quebrado
+que não existe em turma nenhuma. Empate de frequência → vence o **maior**
+(entre dois valores igualmente comuns, o maior é o lançamento mais completo),
+mesma escolha da regra de contagem de alunos da `avaliacao.html`. A célula traz
+a **cobertura** (`k/N turmas`) e marca com borda tracejada quando a rede não é
+uniforme; o título tem a distribuição inteira.
+
+⚠️ **Aula lançada na sala sem turno, numa sala de dois turnos, fica FORA da
+moda** e sai como `s/ turno` na célula. Ratear inventaria meia aula; chutar um
+turno inventaria a turma errada. Ela continua no total, e o rodapé da tabela
+diz quantas são. Numa sala de turno único não há ambiguidade: a linha é
+atribuída àquele turno.
+
+⚠️ **"Quadro" ≠ "Lançado", e a diferença corre para os DOIS lados** — a tela
+diz isso por extenso porque a leitura ingênua ("falta lançar") só cobre metade.
+Quadro **menor**: turma com mais aulas que a moda, ou carga de sala sem turno.
+Quadro **maior**: a disciplina só alcança parte das turmas do ano e o quadro a
+estende a todas. Nenhum dos dois é defeito de cálculo.
+
+⚠️ **Campo do plano em branco NÃO é zero: é "usa o observado".** Sem essa
+distinção, apagar um campo derrubaria aquele ponto da projeção para zero sem
+dizer nada.
+
+⚠️ **Os parâmetros do plano vivem no `localStorage`, por ano-alvo**
+(`mapa_planej_atrib_v1:<ano>`), como já fazia o simulador do Retrato. Duas
+pessoas planejando ao mesmo tempo veem projeções diferentes — limitação
+conhecida, não defeito. Gravar no banco exige tabela nova com RLS.
+
+⚠️ **A capacidade dos professores PEB II ficou SÓ no Retrato.** Duplicá-la aqui
+criaria duas contas que divergem na primeira correção feita em uma delas — é a
+mesma lição das seis normalizações de nome de unidade. O rodapé aponta para lá.
+
+**`node tools/testar-planejamento.js`** carrega o `<script>` da própria tela num
+DOM de mentira e o alimenta com linhas inventadas (o repositório é público; a
+agregação é função pura das linhas). Cobre a ordem dos testes de classificação,
+sala × turma, a moda com divergência, a aula sem turno e — o caso que mais
+importa — a igualdade **a soma de TODA a carga da base reaparece no total**,
+some ela em turma, em projeto ou nos baldes de fora. É ela que impede a tela de
+perder aula em silêncio. A sonda `MapaDiagPlanejamento()` responde o mesmo no
+console, com o dado do dia.
+
+⚠️ A tela precisa ser cadastrada no central com o slug **`planejamento_atribuicao`**
+(§7) para quem não é super admin. `TELA_POR_ARQUIVO`, no `auth.js`, já faz a
+tradução do nome do arquivo para esse slug.
 
 ---
 

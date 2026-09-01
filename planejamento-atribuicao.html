@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <script src="auth-guard.js"></script>
+  <script>window.MAPA_SISTEMA = 'mapa';</script>
+  <script src="auth.js" defer></script>
+  <script src="config-central.js" defer></script>
+  <script src="demo-mode.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Planejamento da Atribuição | SME Ribeirão Preto</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗓️</text></svg>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="unidades.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  <style>
+    :root { --primary:#002b5e; --neon-blue:#00e5ff; }
+    body { background:#f0f4f8; font-family:'Segoe UI',sans-serif; padding-bottom:60px; }
+
+    /* ── HEADER da tela ── */
+    .nav-header { background:var(--primary); color:#fff; border-bottom:4px solid var(--neon-blue);
+      padding:.9rem 1.6rem; box-shadow:0 6px 18px rgba(0,43,94,.18); }
+    .nav-header h1 { font-size:1.25rem; font-weight:800; margin:0; letter-spacing:.02em; }
+    .nav-header .sub { font-size:.7rem; color:rgba(255,255,255,.7); font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+    .nav-back { color:rgba(255,255,255,.85); text-decoration:none; font-size:.82rem; font-weight:700; }
+    .nav-back:hover { color:#fff; }
+
+    /* ── TOOLBAR ── */
+    .toolbar { background:rgba(0,43,94,.95); border-bottom:1px solid rgba(0,229,255,.2);
+      padding:.5rem 1.6rem; display:flex; align-items:center; gap:.6rem; flex-wrap:wrap;
+      position:sticky; top:0; z-index:1010; }
+    .seg { display:inline-flex; background:rgba(255,255,255,.08); border:1px solid rgba(0,229,255,.35); border-radius:8px; overflow:hidden; }
+    .seg button { background:transparent; border:0; color:rgba(255,255,255,.8); font-size:.76rem; font-weight:700; padding:.3rem .8rem; cursor:pointer; }
+    .seg button.active { background:var(--neon-blue); color:#002b5e; }
+    .chip-per { background:transparent; border:1px solid rgba(0,229,255,.4); color:rgba(255,255,255,.82);
+      border-radius:999px; padding:.2rem .7rem; font-size:.74rem; font-weight:700; cursor:pointer; }
+    .chip-per.active { background:#fff; color:var(--primary); border-color:#fff; }
+    .btn-tool { background:transparent; border:1px solid rgba(0,229,255,.4); color:#fff; border-radius:7px;
+      padding:.28rem .7rem; font-size:.76rem; font-weight:700; cursor:pointer; }
+    .btn-tool:hover { background:rgba(0,229,255,.14); }
+    .inp-ano { width:76px; background:rgba(255,255,255,.1); border:1px solid rgba(0,229,255,.4); color:#fff;
+      border-radius:7px; padding:.2rem .45rem; font-size:.8rem; font-weight:800; text-align:center; }
+
+    /* ── KPI ── */
+    .kpi { background:#fff; border-radius:14px; padding:.9rem 1.1rem; box-shadow:0 4px 14px rgba(0,0,0,.05);
+      border-left:5px solid #ccc; height:100%; }
+    .kpi .lbl { font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
+    .kpi .val { font-size:1.7rem; font-weight:900; color:#0f172a; line-height:1.1; }
+    .kpi .sub { font-size:.72rem; color:#94a3b8; font-weight:700; }
+
+    .card-box { background:#fff; border-radius:16px; box-shadow:0 4px 15px rgba(0,0,0,.05); }
+    .sec-tt { font-weight:900; color:var(--primary); font-size:1rem; }
+    .sec-sub { font-size:.78rem; color:#64748b; }
+
+    /* ── TABELAS ── */
+    table.matriz { width:100%; border-collapse:separate; border-spacing:0; }
+    table.matriz th, table.matriz td { padding:.5rem .6rem; text-align:center; border-bottom:1px solid #eef2f7; }
+    table.matriz thead th { position:sticky; top:0; background:#f8fafc; font-size:.7rem; text-transform:uppercase;
+      letter-spacing:.04em; color:#475569; z-index:1; }
+    table.matriz tbody th { text-align:left; font-weight:800; color:var(--primary); font-size:.83rem; white-space:nowrap; background:#fff; }
+    table.matriz td .big { font-size:1rem; font-weight:900; color:#0f172a; }
+    table.matriz td .small { font-size:.65rem; color:#94a3b8; font-weight:700; }
+    table.matriz tr.seg-row th { background:#eef2ff; color:var(--primary); font-size:.76rem; text-transform:uppercase; letter-spacing:.05em; }
+    table.matriz tr.total-row th, table.matriz tr.total-row td { background:#f1f5f9; border-top:2px solid #cbd5e1; }
+    table.matriz tr.subtotal-row th, table.matriz tr.subtotal-row td { background:#f8fafc; font-weight:800; }
+    table.matriz td.col-total .big, table.matriz th.col-total { color:var(--primary); }
+    .cel-vazia { color:#cbd5e1; font-weight:800; }
+    /* Célula em que o quadro NÃO é uniforme na rede: a moda não descreve todas as
+       turmas. O tracejado é o aviso; o título traz a distribuição inteira. */
+    .nao-uniforme { border-bottom:2px dashed #f59e0b !important; cursor:help; }
+    .inp-plan { width:64px; border:1px solid #cbd5e1; border-radius:6px; padding:2px 4px;
+      font-size:.86rem; font-weight:800; text-align:center; color:#0f172a; }
+    .inp-plan:focus { outline:2px solid #93c5fd; border-color:#3b82f6; }
+    .inp-plan.mudou { background:#eff6ff; border-color:#3b82f6; }
+    .delta-pos { color:#b91c1c; font-weight:800; }
+    .delta-neg { color:#047857; font-weight:800; }
+    .delta-zero { color:#94a3b8; font-weight:800; }
+    .pct-pill { display:inline-block; font-size:.6rem; font-weight:800; padding:1px 6px; border-radius:999px; margin-top:2px; }
+
+    .legend { font-size:.74rem; color:#64748b; }
+    .loader { text-align:center; padding:3rem 1rem; color:#64748b; }
+    .spin { width:38px; height:38px; border:4px solid #e2e8f0; border-top-color:var(--neon-blue); border-radius:50%;
+      animation:sp 1s linear infinite; margin:0 auto .8rem; }
+    @keyframes sp { to { transform:rotate(360deg); } }
+
+    /* ── Menu padrão do sistema (MAPA) ── */
+    .mg-header { background:var(--primary); color:#fff; border-bottom:5px solid var(--neon-blue); padding:.9rem 1.6rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; position:relative; z-index:1060; box-shadow:0 6px 18px rgba(0,43,94,.18); }
+    .mg-brand { display:flex; align-items:center; gap:.6rem; min-width:180px; cursor:pointer; }
+    .mg-brand-icon { width:34px; height:34px; display:grid; place-items:center; color:var(--neon-blue); font-size:1.4rem; }
+    .mg-brand h4 { margin:0; font-weight:900; font-size:1.4rem; line-height:1; }
+    .mg-brand-sub { font-size:.63rem; color:rgba(255,255,255,.68); font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-top:2px; }
+    .mg-nav { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; flex:1; min-width:280px; }
+    .mg-nav-btn { display:inline-flex; align-items:center; gap:.4rem; justify-content:center; min-width:140px; font-size:.78rem; font-weight:900; padding:6px 14px; border-radius:8px; border:2px solid transparent; color:#fff; text-decoration:none; transition:.2s; white-space:nowrap; cursor:pointer; }
+    .mg-nav-btn:hover { border-color:rgba(255,255,255,.4); } .mg-nav-btn.active { background:#fff; color:var(--primary); }
+    .mg-action-btn { background:#fff; color:var(--primary); border:0; border-radius:8px; padding:6px 12px; font-weight:900; font-size:.78rem; display:inline-flex; align-items:center; gap:.4rem; cursor:pointer; }
+    @media (max-width:992px){ .mg-nav-btn{ min-width:auto; } }
+    @media print {
+      .toolbar, .nav-back, .btn-tool, .mg-header, .no-print { display:none !important; }
+      body { background:#fff; }
+      .card-box { box-shadow:none; border:1px solid #e2e8f0; }
+      .inp-plan { border:0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ MENU PADRÃO DO SISTEMA (MAPA) ═══ -->
+  <header class="mg-header">
+    <div class="mg-brand" onclick="location.href='index.html'" title="Página inicial do MAPA">
+      <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div><div><h4>MAPA</h4><div class="mg-brand-sub">SME Ribeirão Preto</div></div>
+    </div>
+    <nav class="mg-nav">
+      <a class="mg-nav-btn" href="index.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
+      <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
+        <a class="mg-nav-btn mg-dd-toggle" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+        <div class="mg-dd-menu">
+          <a class="mg-dd-item" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+          <a class="mg-dd-item" href="avaliacao-diagnostica.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+          <a class="mg-dd-item" href="av-oral-matematica.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+          <a class="mg-dd-item" href="saresp.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+          <a class="mg-dd-item" href="ideb.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+          <a class="mg-dd-item" href="iee.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
+          <a class="mg-dd-item" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+          <a class="mg-dd-item" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+        </div>
+      </div>
+      <a class="mg-nav-btn active" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+      <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+      <div class="mg-dd" data-tela-any="frequencia,boletim_estatistico">
+        <a class="mg-nav-btn mg-dd-toggle" href="frequencia.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+        <div class="mg-dd-menu">
+          <a class="mg-dd-item" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+          <a class="mg-dd-item" href="boletim-estatistico.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+        </div>
+      </div>
+      <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+      <a class="mg-nav-btn" href="boletim.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+      <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none;min-width:auto;padding:6px 10px;" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
+    </nav>
+    <div><button class="mg-action-btn" onclick="location.reload()" title="Atualizar"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button></div>
+  </header>
+
+  <!-- ── HEADER DA TELA ── -->
+  <header class="nav-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-3">
+      <i class="bi bi-calendar3-range-fill" style="font-size:1.6rem;color:var(--neon-blue);"></i>
+      <div>
+        <h1>Planejamento da Atribuição — <span id="tituloAno">2027</span></h1>
+        <div class="sub">Quantitativo de turmas de todos os segmentos · quadro de aulas por disciplina</div>
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+      <a class="nav-back" href="retrato-atribuicao.html"><i class="bi bi-bar-chart-line-fill me-1"></i>Retrato Quantitativo</a>
+      <a class="nav-back" href="atribuicao.html"><i class="bi bi-diagram-3-fill me-1"></i>Atribuição</a>
+      <a class="nav-back" href="index.html"><i class="bi bi-house-fill me-1"></i>Início</a>
+    </div>
+  </header>
+
+  <!-- ── TOOLBAR ── -->
+  <div class="toolbar">
+    <span class="text-white-50 small fw-bold"><i class="bi bi-calendar-event me-1"></i>Ano-alvo</span>
+    <input type="number" class="inp-ano" id="anoAlvo" min="2026" max="2099" step="1" value="2027">
+    <span class="text-white-50 small fw-bold ms-2"><i class="bi bi-clock me-1"></i>Período</span>
+    <div id="periodoChips" class="d-flex gap-1 flex-wrap"></div>
+    <span class="text-white-50 small fw-bold ms-2"><i class="bi bi-table me-1"></i>Quadro</span>
+    <div class="seg" id="segModo">
+      <button data-m="base" class="active">Observado</button>
+      <button data-m="plano">Planejado</button>
+      <button data-m="delta">Diferença</button>
+    </div>
+    <div class="ms-auto d-flex gap-2">
+      <button class="btn-tool" onclick="atualizar()"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+      <button class="btn-tool" onclick="restaurarPadroes()" title="Devolve todos os campos do plano aos valores observados"><i class="bi bi-arrow-counterclockwise me-1"></i>Restaurar</button>
+      <button class="btn-tool" onclick="exportarExcel()"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+      <button class="btn-tool" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    </div>
+  </div>
+
+  <main class="container-fluid px-3 px-lg-4 py-3" style="max-width:1400px;">
+
+    <div id="estado" class="loader">
+      <div class="spin"></div>
+      <div>Carregando a base de turmas…</div>
+    </div>
+
+    <div id="conteudo" style="display:none;">
+
+      <div id="kpis" class="row g-2 g-lg-3 mb-3"></div>
+
+      <div id="avisoOutros" class="mb-3"></div>
+
+      <!-- 1 · QUANTITATIVO DE TURMAS -->
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <div class="sec-tt mb-1"><i class="bi bi-collection-fill me-2"></i>1 · Quantitativo de turmas — todos os segmentos</div>
+        <p class="sec-sub mb-3">Todo <b>ano escolar</b> da base entra em um segmento, e o que não for reconhecido aparece
+          no aviso acima em vez de sumir. A coluna <b>Turmas</b> conta a unidade de atribuição
+          (<b>sala × turno</b>): manhã e tarde de uma turma integral contam separadas, como no Retrato Quantitativo.
+          A coluna <b>Salas</b> conta o agrupamento físico (unidade + ano + letra), em que a integral conta uma vez.
+          A coluna <b>Turmas <span id="rotAnoTurmas">2027</span></b> é editável — é a projeção de matrícula que alimenta o plano.</p>
+        <div class="table-responsive">
+          <table class="matriz" id="tabTurmas"></table>
+        </div>
+        <div class="legend mt-2">
+          <i class="bi bi-info-circle me-1"></i><span id="notaSemTurno"></span>
+        </div>
+      </div>
+
+      <!-- 2 · QUADRO DE AULAS -->
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+          <div class="sec-tt"><i class="bi bi-grid-3x3-gap-fill me-2"></i>2 · Quadro de aulas por disciplina e ano escolar</div>
+          <div class="legend" id="modoLabel"></div>
+        </div>
+        <p class="sec-sub mb-3">Cada célula é o número de <b>aulas semanais por turma</b>. No modo <b>Observado</b> ele é a
+          <b>moda</b> das turmas de <span id="anoBase1">2026</span> que têm a disciplina — o valor que mais se repete na rede,
+          não a média (média de grade produz número quebrado que não existe em turma nenhuma).
+          <b>Célula com borda tracejada laranja</b> = a rede não é uniforme naquele ponto; passe o cursor para ver a
+          distribuição. No modo <b>Planejado</b> a célula vira campo editável.</p>
+        <p class="sec-sub mb-3"><b>Leia a linha de baixo da célula antes de usar o número.</b> Ela diz em
+          <b>quantas das turmas do ano</b> a disciplina aparece. Uma disciplina em 6 de 12 turmas tem uma moda perfeitamente
+          válida — e planejá-la para as 12 <b>dobra</b> as aulas dela. Isso pode ser exatamente a intenção (estender a
+          disciplina a todas as turmas) ou pode ser engano; o quadro não tem como saber, então mostra a cobertura e deixa a
+          decisão com quem planeja.</p>
+        <div id="quadros"></div>
+      </div>
+
+      <!-- 3 · PROJEÇÃO -->
+      <div class="card-box p-3 p-lg-4 mb-3" style="border:2px solid #1d4ed8;">
+        <div class="sec-tt mb-1"><i class="bi bi-calculator me-2"></i>3 · Projeção do total de aulas — <span class="tit-ano">2027</span></div>
+        <p class="sec-sub mb-3">O plano é <b>turmas × aulas/turma</b>, somado sobre todo o quadro. A coluna
+          <b>Lançado <span id="anoBase2">2026</span></b> é a soma da carga horária como ela está na base;
+          <b>Quadro <span id="anoBase3">2026</span></b> é a mesma conta do plano aplicada às turmas e ao quadro de hoje.
+          A diferença entre as duas <b>não é erro de cálculo</b>, e ela corre para os dois lados:</p>
+        <ul class="sec-sub mb-3">
+          <li><b>Quadro menor que o lançado</b> — há turma com mais aulas que a moda, ou carga lançada na sala inteira sem
+            turno (a coluna “s/ turno” do quadro), que não tem valor por turma para multiplicar.</li>
+          <li><b>Quadro maior que o lançado</b> — a disciplina só alcança parte das turmas do ano, e o quadro a estende a
+            todas. É o caso descrito no bloco 2: o número está certo, a pergunta é se é isso que se quer.</li>
+        </ul>
+        <p class="sec-sub mb-3">Por isso a comparação que importa é <b>Plano contra Lançado</b>, com a coluna Quadro ao lado
+          para mostrar quanto da diferença já existia antes de mexer em qualquer campo.</p>
+        <div class="table-responsive">
+          <table class="matriz" id="tabProjecao"></table>
+        </div>
+        <div id="foraTurmasWrap" class="mt-4"></div>
+      </div>
+
+      <!-- 4 · CONFERÊNCIA -->
+      <div class="card-box p-3 p-lg-4 mb-3">
+        <button class="btn btn-sm btn-outline-secondary no-print" type="button" data-bs-toggle="collapse" data-bs-target="#confBox">
+          <i class="bi bi-search me-1"></i>Conferência da classificação
+        </button>
+        <div class="collapse mt-3" id="confBox">
+          <p class="sec-sub mb-2">Como cada valor bruto da base foi lido. É aqui que se descobre um ano escolar novo
+            caindo em “Outros” — o defeito que, sem esta tabela, apareceria como uma unidade a menos no total.</p>
+          <div class="row g-3">
+            <div class="col-12 col-lg-6">
+              <h6 class="fw-bold">Ano escolar (<code>ano_escolar</code>)</h6>
+              <div class="table-responsive" style="max-height:420px;overflow:auto;">
+                <table class="table table-sm table-bordered align-middle mb-0" id="confAnos"></table>
+              </div>
+            </div>
+            <div class="col-12 col-lg-6">
+              <h6 class="fw-bold">Disciplina (<code>descricao_disciplina</code>)</h6>
+              <div class="table-responsive" style="max-height:420px;overflow:auto;">
+                <table class="table table-sm table-bordered align-middle mb-0" id="confDiscs"></table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="legend px-1 text-muted" id="rodape"></div>
+    </div>
+  </main>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   Planejamento da Atribuição
+   ------------------------------------------------------------------
+   Lê a MESMA base das telas de Atribuição e do Retrato Quantitativo
+   (tabela `turmas` do Supabase, mesmo cache) e responde três coisas:
+
+     1. quantas turmas a rede tem, em TODOS os segmentos;
+     2. qual é o quadro de aulas de cada disciplina por ano escolar;
+     3. quanto isso vira de aulas no ano-alvo, mexendo nos dois acima.
+
+   ⚠️ O Retrato Quantitativo cobre só Etapas e 1º–5º ano, de propósito.
+   Esta tela cobre a rede inteira, e por isso a classificação do ano
+   escolar precisa ser EXAUSTIVA: o que ela não reconhece não pode
+   sumir calado, senão o "quantitativo de todos os segmentos" mente
+   sem que ninguém perceba. É esse o papel do aviso de "Outros" e da
+   tabela de conferência — o mesmo motivo pelo qual `MapaUnidades`
+   nunca descarta um nome (ver CLAUDE.md).
+
+   ⚠️ Os parâmetros do plano ficam no NAVEGADOR (localStorage). Duas
+   pessoas planejando ao mesmo tempo veem projeções diferentes; isso
+   é limitação conhecida, não defeito. Guardar no banco exige tabela
+   nova com RLS e cadastro da tela no central.
+   ══════════════════════════════════════════════════════════════════ */
+const SUPABASE_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk';
+
+/* ── Segmentos ──────────────────────────────────────────────────────
+   `turma:true`  → o ano escolar descreve uma TURMA, e entra no quantitativo.
+   `turma:false` → são aulas que existem mas não são turma (atendimento,
+                   complemento de jornada, liminar) ou classificação que a
+                   tela não reconheceu. Vão para uma tabela à parte, com o
+                   total de aulas visível — nada é descartado, só não é
+                   contado como turma.
+
+   ⚠️ "Outros" é `turma:false` DE PROPÓSITO. Um ano escolar novo entrando
+   como turma inflaria o total em silêncio; entrando aqui, ele acende o
+   aviso do topo e alguém o classifica. Errar escondendo é reclamável;
+   errar mostrando é invisível. */
+const SEGMENTOS = [
+  { key:'Ciclos',  rot:'Educação Infantil — Ciclos',           sub:'berçário e maternal',      icon:'bi-arrow-repeat',      cor:'#0284c7', turma:true },
+  { key:'Etapas',  rot:'Educação Infantil — Etapas',           sub:'Etapa I e Etapa II',       icon:'bi-flower1',           cor:'#7c3aed', turma:true },
+  { key:'FundI',   rot:'Ensino Fundamental — Anos Iniciais',   sub:'1º ao 5º ano',             icon:'bi-1-circle',          cor:'#059669', turma:true },
+  { key:'FundII',  rot:'Ensino Fundamental — Anos Finais',     sub:'6º ao 9º ano',             icon:'bi-6-circle',          cor:'#d97706', turma:true },
+  { key:'EJA',     rot:'EJA — Termos',                         sub:'jovens e adultos',         icon:'bi-mortarboard-fill',  cor:'#0d9488', turma:true },
+  { key:'Especial',rot:'Educação Especial — atendimento',      sub:'sala de recursos, AEE, intérprete', icon:'bi-universal-access', cor:'#475569', turma:false },
+  { key:'Complem', rot:'Substituição / Complemento de jornada',sub:'aulas para completar jornada', icon:'bi-arrow-left-right', cor:'#94a3b8', turma:false },
+  { key:'Liminar', rot:'Liminar',                              sub:'aulas por decisão judicial', icon:'bi-hammer',          cor:'#94a3b8', turma:false },
+  { key:'Outros',  rot:'Não classificado',                     sub:'ano escolar que a tela não reconheceu', icon:'bi-question-circle', cor:'#b91c1c', turma:false },
+];
+const SEG = {}; SEGMENTOS.forEach(s => SEG[s.key] = s);
+const SEG_TURMA = SEGMENTOS.filter(s => s.turma).map(s => s.key);
+const SEG_FORA  = SEGMENTOS.filter(s => !s.turma).map(s => s.key);
+
+/* ── Estado ─────────────────────────────────────────────────────── */
+let ROWS = null;            // linhas cruas (após exclusão de séries e recorte por escola)
+let AGG = null;             // último agregado
+let PLANO = null;           // parâmetros do ano-alvo (localStorage)
+let periodosSel = null;     // Set de períodos selecionados (null = todos)
+let modo = 'base';          // 'base' | 'plano' | 'delta'
+let anoAlvo = 2027;
+const ANO_BASE = 2026;      // ano dos dados em `turmas`
+
+/* ── Helpers (espelham a atribuicao.html / o retrato) ───────────── */
+function normalizar(txt) {
+  return String(txt || '').trim().toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[º°]/g, '').replace(/[–—]/g, '-')
+    .replace(/\s*-\s*/g, ' - ').replace(/\s+/g, ' ');
+}
+function colapsar(txt) { return normalizar(txt).replace(/[^A-Z0-9]/g, ''); }
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+function br(n) { return Number(n || 0).toLocaleString('pt-BR'); }
+function num(v) { const n = Number(v); return isNaN(n) ? 0 : n; }
+
+/* ⚠️ O nome da unidade é resolvido pelo catálogo (`unidades.js`), nunca por
+   normalização local — ver CLAUDE.md. `oficial()` NUNCA descarta: o que o
+   catálogo não reconhece volta intacto. */
+function cleanUnit(txt) {
+  const bruto = String(txt || '').trim().replace(/\s+/g, ' ');
+  return window.MapaUnidades ? window.MapaUnidades.oficial(bruto) : bruto;
+}
+function periodoCanon(v) {
+  const p = colapsar(v);
+  if (p === 'M' || p.startsWith('MANHA')) return 'M';
+  if (p === 'T' || p.startsWith('TARDE')) return 'T';
+  if (p === 'N' || p.startsWith('NOITE')) return 'N';
+  if (p === 'I' || p.startsWith('INTEG')) return 'I';
+  return p;
+}
+function periodoDesc(valor) {
+  const p = String(valor || '').trim().toUpperCase();
+  if (p === 'M') return 'Manhã';
+  if (p === 'T') return 'Tarde';
+  if (p === 'N') return 'Noite';
+  return p || '—';
+}
+/* Base do ano para a identidade da SALA: tira o sufixo de turno do fim
+   ("... - M" / "- T" / "- N"), que vem do campo período. Sem isso, as linhas
+   da mesma turma integral (regente da manhã com "- M", da tarde com "- T")
+   viram duas salas diferentes. */
+function anoSala(ano) {
+  return normalizar(ano).replace(/\s*-\s*(MANHA|TARDE|NOITE|M|T|N)$/, '');
+}
+function salaKey(row) {
+  return [normalizar(row.nome_unidade), anoSala(row.ano_escolar), normalizar(row.letra_turma)].join('¦');
+}
+
+/* ── Classificação do ANO ESCOLAR → segmento + ano ───────────────
+   ⚠️ A ORDEM dos testes decide. "ETAPA II - PARCIAL - LIMINAR 12H/A" contém
+   ETAPA e contém LIMINAR: se ETAPA vier primeiro, uma aula de liminar vira
+   turma de etapa e infla o quantitativo. Por isso os casos que NÃO são turma
+   são testados antes dos que são.
+   ⚠️ E o teste é por TOKEN colapsado, nunca por substring solta de sigla —
+   ver, no CLAUDE.md, o caso de `CONCEICAO` casando com `CEI`. */
+function classificarAno(anoRaw) {
+  const n = normalizar(anoRaw), f = colapsar(anoRaw);
+  if (!f) return { seg:'Outros', ano:'(vazio)' };
+
+  if (f.includes('LIMINAR'))                                   return { seg:'Liminar', ano:'Liminar' };
+  if (f.includes('SUBSTITU') || f.includes('COMPLEMENTO'))     return { seg:'Complem', ano:'Substituição / Complemento' };
+  if ((f.includes('SALA') && f.includes('RECURSO')) || f.includes('INTERPRETE') ||
+      f.includes('SURDO') || f.includes('AEE') || f.includes('ATENDIMENTOEDUCACIONAL'))
+                                                               return { seg:'Especial', ano:'Educação Especial' };
+
+  if (f.includes('TERMO') || f.includes('EJA')) {
+    const m = n.match(/(\d+)\s*-?\s*TERMO/) || n.match(/TERMO\s*-?\s*(\d+)/);
+    return { seg:'EJA', ano: m ? (m[1] + 'º Termo') : 'EJA' };
+  }
+  if (f.includes('CICLO')) {
+    const m = n.match(/CICLO\s*-?\s*([IVX]+|\d+)\b/);
+    return { seg:'Ciclos', ano: m ? ('Ciclo ' + m[1]) : 'Ciclo (sem número)' };
+  }
+  if (f.includes('ETAPA')) {
+    const m = n.match(/ETAPA\s*-?\s*(II|2|DOIS|I|1|UM)\b/);
+    if (m) { const t = m[1];
+      return { seg:'Etapas', ano: (t === 'II' || t === '2' || t === 'DOIS') ? 'Etapa II' : 'Etapa I' }; }
+    return { seg:'Etapas', ano:'Etapa (sem número)' };
+  }
+  const md = f.match(/^(\d+)/);
+  if (md) {
+    const v = parseInt(md[1], 10);
+    if (v >= 1 && v <= 5) return { seg:'FundI',  ano: v + 'º Ano' };
+    if (v >= 6 && v <= 9) return { seg:'FundII', ano: v + 'º Ano' };
+  }
+  return { seg:'Outros', ano: String(anoRaw || '—').trim() };
+}
+// Ordem de um ano dentro do segmento (Etapa I/II, 1º…9º, Ciclo I/II…, 1º Termo…).
+const ROMANOS = { I:1, II:2, III:3, IV:4, V:5, VI:6, VII:7, VIII:8, IX:9 };
+function rankAno(ano) {
+  const n = normalizar(ano);
+  const rom = n.match(/\b(VIII|VII|VI|IV|IX|V|III|II|I)\b/);
+  if (rom && ROMANOS[rom[1]]) return ROMANOS[rom[1]];
+  const md = n.match(/(\d+)/);
+  if (md) return parseInt(md[1], 10);
+  return 99;
+}
+
+/* ── Nome canônico da disciplina (mesma regra do retrato) ───────── */
+function isPRADisc(disc) {
+  const f = colapsar(disc);
+  return f.includes('RECUP') && (f.includes('APREND') || f.includes('APREN')) && f.includes('ANOS') && f.includes('INIC');
+}
+// Projeto: não é turma nem entra no quadro de aulas — é um total à parte.
+// O PRA fica FORA daqui de propósito: ele faz parte da grade do 1º ao 5º.
+function nomeProjeto(disc) {
+  const f = colapsar(disc);
+  if (!f || isPRADisc(disc)) return null;
+  if (f.includes('ALFABETIZADOR') || f === 'PPA') return 'PPA — Prof. Alfabetizador';
+  if (f.includes('PRATICA') && f.includes('PEDAGOG')) return 'PPP — Práticas Pedagógicas';
+  if (f.includes('PARALELA') && f.includes('RECUP')) return 'PRP — Recuperação Paralela';
+  return null;
+}
+function nomeDisc(raw) {
+  const f = colapsar(raw);
+  if (!f) return '';
+  if (isPRADisc(raw)) return 'PRA — Recuperação';
+  if (f.includes('MAGISTERIO')) return (f.includes('MAGISTERIOII') || f.includes('MAGISTERIO2')) ? 'Magistério II' : 'Magistério I';
+  if ((f.includes('EDUCACAO') || f.includes('EDUC')) && (f.includes('FISICA') || f.includes('FIS'))) return 'Educação Física';
+  if (f.includes('INGLES') || f.includes('INGLESA')) return 'Inglês';
+  if (f.includes('ARTESVISUAIS')) return 'Artes Visuais';
+  if (f.includes('ARTE')) return 'Arte';
+  if (f.includes('PORTUGUES')) return 'Língua Portuguesa';
+  if (f.includes('MATEMATICA')) return 'Matemática';
+  if (f.includes('CIENCIAS')) return 'Ciências';
+  if (f.includes('HISTORIA')) return 'História';
+  if (f.includes('GEOGRAFIA')) return 'Geografia';
+  if (f.includes('MUSICA') || f.includes('MSICA')) return 'Música';
+  if (f.includes('ATENDIMENTOEDUCACIONAL') || f.includes('EDUCACIONALESPECIALIZADO') || f === 'AEE') return 'AEE';
+  return String(raw || '').trim().replace(/\s+/g, ' ');
+}
+const COR_DISC = {
+  'Magistério II':'#2563eb', 'Magistério I':'#1e40af', 'Arte':'#7c3aed', 'Artes Visuais':'#9333ea',
+  'Inglês':'#0d9488', 'Educação Física':'#d97706', 'Língua Portuguesa':'#dc2626', 'Matemática':'#0891b2',
+  'Ciências':'#16a34a', 'História':'#b45309', 'Geografia':'#65a30d', 'Música':'#db2777', 'AEE':'#475569',
+  'PRA — Recuperação':'#0ea5e9',
+};
+const PALETA = ['#2563eb','#7c3aed','#0d9488','#d97706','#dc2626','#0891b2','#16a34a','#b45309','#65a30d','#db2777','#475569','#9333ea','#ca8a04','#0369a1'];
+function corDisc(nome) {
+  if (COR_DISC[nome]) return COR_DISC[nome];
+  let h = 0; for (let i = 0; i < nome.length; i++) h = (h * 31 + nome.charCodeAt(i)) >>> 0;
+  return PALETA[h % PALETA.length];
+}
+
+/* ── Séries excluídas (mesma config das telas de Atribuição) ────── */
+let _seriesExcl = new Set();
+function serieNormConf(v) { return normalizar(v).replace(/[^A-Z0-9]+/g, ' ').trim(); }
+function serieExcluida(ano) { return _seriesExcl.size > 0 && _seriesExcl.has(serieNormConf(ano)); }
+async function fetchSeriesExcluidas() {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/config_series_excluidas?select=serie,excluido`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } });
+    if (r.ok) {
+      const set = new Set();
+      (await r.json() || []).filter(x => x.excluido !== false).forEach(x => set.add(serieNormConf(x.serie)));
+      _seriesExcl = set;
+    }
+  } catch (_) {}
+}
+
+/* ── Busca de dados ─────────────────────────────────────────────────
+   ⚠️ Mesma chave de cache e MESMA lista de colunas do retrato: uma tela
+   aquece a outra, e o pacote que esta grava continua servindo àquela.
+   Mudou a lista de colunas? Suba a versão da chave — pacote velho com
+   coluna a menos aparece como número faltando, sem erro no console. */
+const SELECT = 'nome_unidade,ano_escolar,letra_turma,descricao_disciplina,periodo,carga_horaria,nome_professor_prop,codigo_professor_prop,nome_professor_sub,codigo_professor_sub,situacao_professor,situacao_professor_sub,vinculo_funcao_prop,vinculo_funcao_sub,funcao_professor';
+async function _fetchTurmasRede() {
+  const PAGE = 1000;
+  const H = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+  const pageUrl = off => `${SUPABASE_URL}/rest/v1/turmas?select=${SELECT}&order=nome_unidade.asc&limit=${PAGE}&offset=${off}`;
+  const first = await fetch(pageUrl(0), { headers: { ...H, Prefer: 'count=exact' } });
+  if (!first.ok) throw new Error(`Erro ${first.status} ao ler a tabela de turmas`);
+  const firstBatch = await first.json();
+  if (firstBatch.length < PAGE) return firstBatch;
+  const total = parseInt((first.headers.get('content-range') || '').split('/')[1], 10);
+  if (Number.isFinite(total)) {
+    const offsets = [];
+    for (let off = PAGE; off < total && off <= 300000; off += PAGE) offsets.push(off);
+    const restantes = await Promise.all(offsets.map(async off => {
+      const r = await fetch(pageUrl(off), { headers: H });
+      if (!r.ok) throw new Error(`Erro ${r.status}`);
+      return r.json();
+    }));
+    return firstBatch.concat(...restantes);
+  }
+  let rows = firstBatch.slice(), offset = PAGE;
+  while (true) {
+    const r = await fetch(pageUrl(offset), { headers: H });
+    if (!r.ok) throw new Error(`Erro ${r.status}`);
+    const batch = await r.json();
+    rows = rows.concat(batch);
+    if (batch.length < PAGE) break;
+    offset += PAGE;
+    if (offset > 300000) break;
+  }
+  return rows;
+}
+async function fetchTurmas() {
+  const CACHE_KEY = 'mapa_atrib_turmas_v2';   // compartilhado com Atribuição e Retrato
+  const TTL = 10 * 60 * 1000;
+  if (!window.__forcarRefetch) {
+    try {
+      const o = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      if (o && o.ts && (Date.now() - o.ts) < TTL && Array.isArray(o.rows)) return o.rows;
+    } catch (e) {}
+  }
+  window.__forcarRefetch = false;
+  const rows = await _fetchTurmasRede();
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), rows })); } catch (e) {}
+  return rows;
+}
+function aguardarAuth() {
+  return new Promise(resolve => {
+    if (window.MapaAuth && window.MapaAuth.perfil) return resolve();
+    document.addEventListener('mapa-auth-pronto', () => resolve(), { once: true });
+    setTimeout(resolve, 8000);
+  });
+}
+/* O catálogo precisa estar carregado ANTES do primeiro `cleanUnit`, senão o
+   nome volta cru e duas grafias da mesma unidade viram duas unidades. */
+async function aguardarCatalogo() {
+  if (!window.MapaUnidades) return;
+  try { await window.MapaUnidades.carregar(); }
+  catch (e) { console.warn('[unidade] catálogo não carregou; os nomes seguem com a grafia da fonte', e); }
+}
+function filtrarTurmasPorEscola(rows) {
+  try {
+    if (window.MapaAuth && window.MapaAuth.restritoEscola)
+      return window.MapaAuth.filtrarEscolas(rows, r => r.nome_unidade);
+  } catch (e) {}
+  return rows;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   AGREGAÇÃO
+   ------------------------------------------------------------------
+   Duas grandezas diferentes, e a confusão entre elas é o erro clássico
+   desta base:
+
+     SALA   = unidade + ano escolar (sem o sufixo de turno) + letra.
+              É o agrupamento físico. A turma integral é UMA sala.
+     TURMA  = sala × turno real (M/T/N). É a unidade de ATRIBUIÇÃO:
+              manhã e tarde da integral são duas, porque são dois
+              professores e dois blocos de aula. É o mesmo número que
+              o Retrato Quantitativo mostra.
+
+   ⚠️ Sala sem NENHUM turno real (todas as linhas com período integral
+   ou vazio) conta como UMA turma, com turno "—". O retrato descarta
+   essas salas; aqui elas não podem ser descartadas, porque em creche
+   o período costuma ser justamente esse — e o quantitativo "de todos
+   os segmentos" perderia a rede inteira de CEI em silêncio.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Valor que mais se repete. Empate de frequência → vence o MAIOR: entre dois
+   valores igualmente comuns, o maior é o lançamento mais completo (o menor
+   costuma ser turma com a disciplina lançada pela metade). É a mesma escolha
+   que a regra de contagem de alunos faz no `avaliacao.html`. */
+function moda(vals) {
+  if (!vals.length) return { valor:0, uniformidade:0, dist:[] };
+  const c = new Map();
+  vals.forEach(v => c.set(v, (c.get(v) || 0) + 1));
+  const dist = [...c.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0]);
+  return { valor: dist[0][0], uniformidade: dist[0][1] / vals.length, dist };
+}
+function distTexto(dist, total) {
+  return dist.map(([v, n]) => `${br(v)} aula(s) em ${br(n)} turma(s) (${Math.round(n / total * 100)}%)`).join(' · ');
+}
+
+function agregar() {
+  const salas = new Map();
+  const fora = {}, proj = {}, anosRaw = {}, discRaw = {};
+
+  (ROWS || []).forEach(row => {
+    if (periodosSel && !periodosSel.has(periodoDesc(row.periodo))) return;
+    const carga = num(row.carga_horaria);
+
+    const rawAno = String(row.ano_escolar || '').trim() || '(vazio)';
+    const cls = classificarAno(row.ano_escolar);
+    const ra = (anosRaw[rawAno] ||= { n:0, aulas:0, seg:cls.seg, ano:cls.ano });
+    ra.n++; ra.aulas += carga;
+
+    const rawDisc = String(row.descricao_disciplina || '').trim() || '(vazio)';
+    const pn = nomeProjeto(row.descricao_disciplina);
+    const rd = (discRaw[rawDisc] ||= { n:0, aulas:0, nome: pn || nomeDisc(row.descricao_disciplina) || '(vazio)', proj: !!pn });
+    rd.n++; rd.aulas += carga;
+
+    // Projeto (PPA/PPP/PRP): não é turma e não entra no quadro de aulas — é um
+    // total à parte, porque não se distribui por turma. O PRA é exceção e fica
+    // na grade do 1º ao 5º (ver `nomeProjeto`).
+    if (pn) { proj[pn] = (proj[pn] || 0) + carga; return; }
+
+    if (!SEG[cls.seg].turma) {
+      const b = (fora[cls.seg] ||= { aulas:0, grupos:new Set(), rotulos:new Set() });
+      b.aulas += carga; b.grupos.add(salaKey(row)); b.rotulos.add(rawAno);
+      return;
+    }
+
+    const sk = salaKey(row);
+    let s = salas.get(sk);
+    if (!s) { s = { seg:cls.seg, ano:cls.ano, unidade:cleanUnit(row.nome_unidade),
+                    turnos:new Set(), integral:false, linhas:[] }; salas.set(sk, s); }
+    const pc = periodoCanon(row.periodo);
+    if (pc === 'M' || pc === 'T' || pc === 'N') s.turnos.add(pc);
+    if (colapsar(row.ano_escolar).includes('INTEGRAL')) s.integral = true;
+    s.linhas.push({ disc: nomeDisc(row.descricao_disciplina) || '(vazio)', carga, pc });
+  });
+
+  // ── Segunda passada: da sala para a turma ──────────────────────────────
+  const anos = {};
+  let salasSemTurno = 0, aulasDaSala = 0;
+  salas.forEach((s, sk) => {
+    const k = s.seg + '|' + s.ano;
+    const a = (anos[k] ||= { chave:k, seg:s.seg, ano:s.ano, turnos:{ M:0, T:0, N:0, '—':0 },
+                             turmas:0, salas:0, integrais:0, unidades:new Set(), disc:{} });
+    const units = s.turnos.size ? [...s.turnos].sort() : ['—'];
+    if (!s.turnos.size) salasSemTurno++;
+    a.salas++; a.turmas += units.length; a.unidades.add(s.unidade);
+    if (s.integral) a.integrais++;
+    units.forEach(u => a.turnos[u]++);
+
+    s.linhas.forEach(l => {
+      const cel = (a.disc[l.disc] ||= { total:0, porUnit:new Map(), semTurno:0 });
+      cel.total += l.carga;
+      // A qual turma esta linha pertence? Se o período dela é um turno real da
+      // sala, é esse. Se a sala tem UM turno só, é ele — linha de vivência da
+      // integral com período "I" numa sala de turno único não é ambígua.
+      // Sobrando ambiguidade (sala com manhã E tarde, linha sem turno), a aula
+      // é DA SALA: entra no total, fica fora da moda. Rateá-la pelos turnos
+      // inventaria meia aula, e chutar um turno inventaria a turma errada.
+      let u = null;
+      if (l.pc && units.indexOf(l.pc) >= 0) u = l.pc;
+      else if (units.length === 1) u = units[0];
+      if (u === null) { cel.semTurno += l.carga; aulasDaSala += l.carga; }
+      else { const uk = sk + '¦' + u; cel.porUnit.set(uk, (cel.porUnit.get(uk) || 0) + l.carga); }
+    });
+  });
+
+  Object.values(anos).forEach(a => {
+    Object.values(a.disc).forEach(c => {
+      const vals = [...c.porUnit.values()].filter(v => v > 0);
+      const m = moda(vals);
+      c.moda = m.valor; c.uniformidade = m.uniformidade; c.dist = m.dist; c.comDisc = vals.length;
+    });
+  });
+
+  // Ordem de exibição: segmentos na ordem declarada, anos por rank dentro deles.
+  const ordem = [];
+  SEG_TURMA.forEach(sk => {
+    Object.values(anos).filter(a => a.seg === sk)
+      .sort((x, y) => rankAno(x.ano) - rankAno(y.ano) || x.ano.localeCompare(y.ano, 'pt-BR'))
+      .forEach(a => ordem.push(a.chave));
+  });
+
+  return { anos, ordem, fora, proj, anosRaw, discRaw, salasSemTurno, aulasDaSala };
+}
+// Disciplinas de um segmento, ordenadas pelo total de aulas (a mais pesada primeiro).
+function disciplinasDoSegmento(segKey) {
+  const tot = {};
+  AGG.ordem.filter(k => AGG.anos[k].seg === segKey).forEach(k => {
+    Object.entries(AGG.anos[k].disc).forEach(([n, c]) => { tot[n] = (tot[n] || 0) + c.total; });
+  });
+  return Object.keys(tot).sort((x, y) => tot[y] - tot[x] || x.localeCompare(y, 'pt-BR'));
+}
+function anosDoSegmento(segKey) { return AGG.ordem.filter(k => AGG.anos[k].seg === segKey); }
+
+/* ══════════════════════════════════════════════════════════════════
+   PLANO — parâmetros do ano-alvo
+   ⚠️ Vivem no localStorage, por ano-alvo. Campo em branco NÃO é zero:
+   é "usa o observado". Sem essa distinção, apagar um campo derrubaria
+   a projeção daquele ponto para zero sem dizer nada.
+   ══════════════════════════════════════════════════════════════════ */
+function planoKey() { return 'mapa_planej_atrib_v1:' + anoAlvo; }
+function planoCarregar() {
+  try { PLANO = JSON.parse(localStorage.getItem(planoKey()) || 'null') || {}; } catch (e) { PLANO = {}; }
+  PLANO.turmas = PLANO.turmas || {}; PLANO.grade = PLANO.grade || {};
+  PLANO.fora = PLANO.fora || {};     PLANO.proj  = PLANO.proj  || {};
+}
+function planoSalvar() { try { localStorage.setItem(planoKey(), JSON.stringify(PLANO)); } catch (e) {} }
+function vazio(v) { return v === undefined || v === null || v === ''; }
+
+function turmasBase(k) { return AGG.anos[k] ? AGG.anos[k].turmas : 0; }
+function turmasPlano(k) { return vazio(PLANO.turmas[k]) ? turmasBase(k) : num(PLANO.turmas[k]); }
+function modaBase(k, disc) { const c = AGG.anos[k] && AGG.anos[k].disc[disc]; return c ? c.moda : 0; }
+function aulasPlano(k, disc) {
+  const v = PLANO.grade[k + '|' + disc];
+  return vazio(v) ? modaBase(k, disc) : num(v);
+}
+function lancadoBase(k, disc) { const c = AGG.anos[k] && AGG.anos[k].disc[disc]; return c ? c.total : 0; }
+// Total do ano no plano: turmas do ano-alvo × aulas/turma de cada disciplina.
+function totalPlanoAno(k) {
+  return discsMemo(AGG.anos[k].seg)
+    .reduce((s, d) => s + turmasPlano(k) * aulasPlano(k, d), 0);
+}
+function totalQuadroAno(k) {
+  return discsMemo(AGG.anos[k].seg)
+    .reduce((s, d) => s + turmasBase(k) * modaBase(k, d), 0);
+}
+function totalLancadoAno(k) {
+  return Object.values(AGG.anos[k].disc).reduce((s, c) => s + c.total, 0);
+}
+function foraPlano(segKey) { const v = PLANO.fora[segKey]; return vazio(v) ? (AGG.fora[segKey] ? AGG.fora[segKey].aulas : 0) : num(v); }
+function projPlano(nome)   { const v = PLANO.proj[nome];   return vazio(v) ? (AGG.proj[nome] || 0) : num(v); }
+
+/* ══════════════════════════════════════════════════════════════════
+   RENDER
+   ══════════════════════════════════════════════════════════════════ */
+function corDelta(d) { return d > 0 ? 'delta-pos' : d < 0 ? 'delta-neg' : 'delta-zero'; }
+function sinal(d) { return (d > 0 ? '+' : '') + br(d); }
+
+function render() {
+  AGG = agregar();
+  _discCache = {};
+  document.getElementById('tituloAno').textContent = anoAlvo;
+  document.querySelectorAll('.tit-ano').forEach(el => el.textContent = anoAlvo);
+  document.getElementById('rotAnoTurmas').textContent = anoAlvo;
+  ['anoBase1','anoBase2','anoBase3'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ANO_BASE; });
+  document.getElementById('modoLabel').innerHTML = modo === 'base'
+    ? `mostrando o quadro <b>observado em ${ANO_BASE}</b>`
+    : modo === 'plano' ? `mostrando o quadro <b>planejado para ${anoAlvo}</b> — as células são editáveis`
+    : `mostrando a <b>diferença</b> em aulas: plano ${anoAlvo} − lançado ${ANO_BASE}`;
+
+  renderAvisoOutros();
+  renderTurmas();
+  renderQuadros();
+  renderFora();
+  renderKpis();
+  renderProjecao();
+  renderConferencia();
+  renderRodape();
+}
+
+// ── Aviso de ano escolar não classificado ─────────────────────────────────
+// Sem isto, um `ano_escolar` novo sairia do total de turmas sem deixar rastro.
+function renderAvisoOutros() {
+  const box = document.getElementById('avisoOutros');
+  const b = AGG.fora['Outros'];
+  if (!b || !b.aulas) { box.innerHTML = ''; return; }
+  const lista = [...b.rotulos].sort().map(r => `<code>${escapeHtml(r)}</code>`).join(' · ');
+  box.innerHTML = `<div class="alert alert-warning mb-0 py-2 px-3">
+    <b><i class="bi bi-exclamation-triangle-fill me-1"></i>${b.rotulos.size} valor(es) de ano escolar não reconhecido(s)</b>
+    — ${br(b.aulas)} aulas em ${br(b.grupos.size)} agrupamento(s). Eles NÃO entram no quantitativo de turmas.
+    <div class="small mt-1">${lista}</div>
+    <div class="small mt-1 text-muted">Se algum deles for turma de verdade, ele precisa entrar em
+      <code>classificarAno()</code> — a tela prefere deixar de fora e avisar a contar errado em silêncio.</div>
+  </div>`;
+}
+
+// ── 1 · Quantitativo de turmas ────────────────────────────────────────────
+function renderTurmas() {
+  const thead = `<thead><tr>
+      <th style="text-align:left;">Segmento / ano escolar</th>
+      <th>Manhã</th><th>Tarde</th><th>Noite</th>
+      <th title="Salas cujas linhas não trazem turno (período integral ou vazio). Contam como uma turma.">Sem turno</th>
+      <th class="col-total">Turmas ${ANO_BASE}</th>
+      <th title="Agrupamento físico: unidade + ano + letra. A turma integral conta uma vez.">Salas</th>
+      <th>Unidades</th>
+      <th style="background:#eff6ff;">Turmas ${anoAlvo}</th>
+      <th>Δ</th>
+    </tr></thead>`;
+
+  let html = '';
+  const g = { M:0, T:0, N:0, S:0, turmas:0, salas:0, plano:0 };
+  const uniGeral = new Set();
+
+  SEG_TURMA.forEach(sk => {
+    const chaves = anosDoSegmento(sk);
+    if (!chaves.length) return;
+    const s = SEG[sk];
+    html += `<tr class="seg-row"><th colspan="10"><i class="bi ${s.icon} me-2" style="color:${s.cor};"></i>${escapeHtml(s.rot)}
+      <span class="text-muted fw-normal text-lowercase"> — ${escapeHtml(s.sub)}</span></th></tr>`;
+
+    const sub = { M:0, T:0, N:0, S:0, turmas:0, salas:0, plano:0 };
+    const uniSeg = new Set();
+    chaves.forEach(k => {
+      const a = AGG.anos[k];
+      const plano = turmasPlano(k), d = plano - a.turmas;
+      sub.M += a.turnos.M; sub.T += a.turnos.T; sub.N += a.turnos.N; sub.S += a.turnos['—'];
+      sub.turmas += a.turmas; sub.salas += a.salas; sub.plano += plano;
+      a.unidades.forEach(u => { uniSeg.add(u); uniGeral.add(u); });
+      const valPlan = vazio(PLANO.turmas[k]) ? '' : PLANO.turmas[k];
+      html += `<tr>
+        <th style="padding-left:1.6rem;">${escapeHtml(a.ano)}</th>
+        <td>${a.turnos.M || '<span class="cel-vazia">—</span>'}</td>
+        <td>${a.turnos.T || '<span class="cel-vazia">—</span>'}</td>
+        <td>${a.turnos.N || '<span class="cel-vazia">—</span>'}</td>
+        <td>${a.turnos['—'] || '<span class="cel-vazia">—</span>'}</td>
+        <td class="col-total"><div class="big">${br(a.turmas)}</div>
+          ${a.integrais ? `<div class="small">${br(a.integrais)} integral(is)</div>` : ''}</td>
+        <td>${br(a.salas)}</td>
+        <td>${br(a.unidades.size)}</td>
+        <td style="background:#f8fbff;"><input class="inp-plan${valPlan === '' ? '' : ' mudou'}" type="number" min="0" step="1"
+             data-tk="${escapeHtml(k)}" value="${valPlan}" placeholder="${a.turmas}"></td>
+        <td><span data-out="dt|${escapeHtml(k)}" class="${corDelta(d)}">${d ? sinal(d) : '—'}</span></td>
+      </tr>`;
+    });
+    g.M += sub.M; g.T += sub.T; g.N += sub.N; g.S += sub.S;
+    g.turmas += sub.turmas; g.salas += sub.salas; g.plano += sub.plano;
+    const ds = sub.plano - sub.turmas;
+    html += `<tr class="subtotal-row">
+      <th style="padding-left:1.6rem;">Subtotal — ${escapeHtml(s.rot)}</th>
+      <td>${br(sub.M)}</td><td>${br(sub.T)}</td><td>${br(sub.N)}</td><td>${br(sub.S)}</td>
+      <td class="col-total"><div class="big">${br(sub.turmas)}</div></td>
+      <td>${br(sub.salas)}</td><td>${br(uniSeg.size)}</td>
+      <td><b data-out="sp|${sk}">${br(sub.plano)}</b></td>
+      <td><span data-out="sd|${sk}" class="${corDelta(ds)}">${ds ? sinal(ds) : '—'}</span></td></tr>`;
+  });
+
+  const dg = g.plano - g.turmas;
+  html += `<tr class="total-row">
+    <th>Total da rede — todos os segmentos</th>
+    <td>${br(g.M)}</td><td>${br(g.T)}</td><td>${br(g.N)}</td><td>${br(g.S)}</td>
+    <td class="col-total"><div class="big">${br(g.turmas)}</div></td>
+    <td>${br(g.salas)}</td><td>${br(uniGeral.size)}</td>
+    <td><b data-out="sp|TOTAL">${br(g.plano)}</b></td>
+    <td><span data-out="sd|TOTAL" class="${corDelta(dg)}">${dg ? sinal(dg) : '—'}</span></td></tr>`;
+
+  document.getElementById('tabTurmas').innerHTML = thead + `<tbody>${html}</tbody>`;
+
+  const nota = [];
+  if (AGG.salasSemTurno) nota.push(`<b>${br(AGG.salasSemTurno)}</b> sala(s) não trazem turno em nenhuma linha (período integral ou vazio) e contam como uma turma cada.`);
+  if (AGG.aulasDaSala) nota.push(`<b>${br(AGG.aulasDaSala)}</b> aula(s) pertencem à sala inteira, não a um turno: entram nos totais, mas ficam fora da moda do quadro.`);
+  if (!nota.length) nota.push('Toda linha da base pôde ser atribuída a um turno.');
+  document.getElementById('notaSemTurno').innerHTML = nota.join(' ');
+}
+
+// ── 2 · Quadro de aulas por disciplina × ano ──────────────────────────────
+let _discCache = {};
+function discsMemo(segKey) { return _discCache[segKey] || (_discCache[segKey] = disciplinasDoSegmento(segKey)); }
+
+function renderQuadros() {
+  let html = '';
+  SEG_TURMA.forEach(sk => {
+    const chaves = anosDoSegmento(sk);
+    if (!chaves.length) return;
+    const s = SEG[sk], discs = discsMemo(sk);
+    html += `<div class="mb-4">
+      <h6 class="fw-bold mb-2" style="color:${s.cor};"><i class="bi ${s.icon} me-2"></i>${escapeHtml(s.rot)}</h6>
+      <div class="table-responsive"><table class="matriz">
+        <thead><tr>
+          <th style="text-align:left;">Ano escolar</th>
+          <th>Turmas</th>
+          ${discs.map(d => `<th style="color:${corDisc(d)};">${escapeHtml(d)}</th>`).join('')}
+          <th class="col-total">Total de aulas</th>
+        </tr></thead><tbody>${chaves.map(k => linhaQuadro(k, sk, discs)).join('')}
+        ${linhaQuadroTotal(sk, discs)}</tbody></table></div></div>`;
+  });
+  document.getElementById('quadros').innerHTML = html ||
+    '<div class="text-muted">Nenhuma turma no filtro atual.</div>';
+}
+
+function celulaQuadro(k, disc) {
+  const a = AGG.anos[k], cel = a.disc[disc];
+  const base = cel ? cel.moda : 0;
+  const tBase = a.turmas, tPlano = turmasPlano(k), plano = aulasPlano(k, disc);
+  const kk = k + '|' + disc;
+
+  if (modo === 'plano') {
+    const v = PLANO.grade[kk];
+    return `<td>
+      <input class="inp-plan${vazio(v) ? '' : ' mudou'}" type="number" min="0" step="1"
+             data-gk="${escapeHtml(kk)}" value="${vazio(v) ? '' : v}" placeholder="${base}">
+      <div class="small" data-out="qs|${escapeHtml(kk)}">${plano ? '× ' + br(tPlano) + ' = ' + br(plano * tPlano) : '—'}</div></td>`;
+  }
+  if (modo === 'delta') {
+    const d = plano * tPlano - (cel ? cel.total : 0);
+    return `<td data-out="qd|${escapeHtml(kk)}">
+      <div class="big ${corDelta(d)}">${d ? sinal(d) : '—'}</div>
+      <div class="small">plano ${br(plano * tPlano)} · lançado ${br(cel ? cel.total : 0)}</div></td>`;
+  }
+  // Observado
+  if (!cel) return `<td><span class="cel-vazia">—</span></td>`;
+  if (!base) {
+    // A disciplina existe no ano, mas toda a carga dela é da SALA (linha sem
+    // turno numa sala de dois turnos). Não há moda por turma — e dizer só "—"
+    // faria parecer que a disciplina não existe ali.
+    return `<td title="${escapeHtml(br(cel.total) + ' aula(s) lançadas na sala, sem turno: não há valor por turma')}">
+      <span class="cel-vazia">s/ turno</span><div class="small">${br(cel.total)} aulas</div></td>`;
+  }
+  const uni = Math.round(cel.uniformidade * 100);
+  const cob = tBase ? Math.round(cel.comDisc / tBase * 100) : 0;
+  const alerta = uni < 90;
+  const titulo = `Distribuição na rede: ${distTexto(cel.dist, cel.comDisc)}`
+    + (cel.semTurno ? ` · ${br(cel.semTurno)} aula(s) da sala, fora da moda` : '');
+  return `<td class="${alerta ? 'nao-uniforme' : ''}" title="${escapeHtml(titulo)}">
+    <div class="big">${br(base)}</div>
+    <div class="small">${br(cel.comDisc)}/${br(tBase)} turmas · ${cob}%${alerta ? ' · ' + uni + '% no valor' : ''}</div></td>`;
+}
+
+function linhaQuadro(k, segKey, discs) {
+  const a = AGG.anos[k];
+  const tot = modo === 'plano' ? totalPlanoAno(k)
+            : modo === 'delta' ? totalPlanoAno(k) - totalLancadoAno(k)
+            : totalLancadoAno(k);
+  const cls = modo === 'delta' ? corDelta(tot) : '';
+  return `<tr>
+    <th>${escapeHtml(a.ano)}</th>
+    <td><div class="big text-primary" data-out="qt|${escapeHtml(k)}">${br(modo === 'base' ? a.turmas : turmasPlano(k))}</div>
+        <div class="small">${modo === 'base' ? ANO_BASE : anoAlvo}</div></td>
+    ${discs.map(d => celulaQuadro(k, d)).join('')}
+    <td class="col-total"><div class="big ${cls}" data-out="qr|${escapeHtml(k)}">${modo === 'delta' ? sinal(tot) : br(tot)}</div></td></tr>`;
+}
+
+function totalColuna(segKey, disc) {
+  return anosDoSegmento(segKey).reduce((s, k) => s +
+    (modo === 'plano' ? aulasPlano(k, disc) * turmasPlano(k)
+     : modo === 'delta' ? aulasPlano(k, disc) * turmasPlano(k) - lancadoBase(k, disc)
+     : lancadoBase(k, disc)), 0);
+}
+function linhaQuadroTotal(segKey, discs) {
+  const chaves = anosDoSegmento(segKey);
+  const tds = discs.map(d => {
+    const v = totalColuna(segKey, d);
+    return `<td><span class="big ${modo === 'delta' ? corDelta(v) : ''}" data-out="qc|${escapeHtml(segKey + '|' + d)}">${modo === 'delta' ? sinal(v) : br(v)}</span>
+      <div class="small">aulas</div></td>`;
+  }).join('');
+  const tot = discs.reduce((s, d) => s + totalColuna(segKey, d), 0);
+  const turmas = chaves.reduce((s, k) => s + (modo === 'base' ? AGG.anos[k].turmas : turmasPlano(k)), 0);
+  return `<tr class="total-row"><th>Total do segmento</th>
+    <td><div class="big text-primary" data-out="qst|${escapeHtml(segKey)}">${br(turmas)}</div><div class="small">turmas</div></td>
+    ${tds}
+    <td class="col-total"><div class="big ${modo === 'delta' ? corDelta(tot) : ''}" data-out="qs2|${escapeHtml(segKey)}">${modo === 'delta' ? sinal(tot) : br(tot)}</div></td></tr>`;
+}
+
+// ── KPIs ──────────────────────────────────────────────────────────────────
+function totaisGerais() {
+  let turmasBaseT = 0, turmasPlanoT = 0, lancado = 0, quadro = 0, plano = 0;
+  const uni = new Set();
+  AGG.ordem.forEach(k => {
+    turmasBaseT += AGG.anos[k].turmas; turmasPlanoT += turmasPlano(k);
+    lancado += totalLancadoAno(k); quadro += totalQuadroAno(k); plano += totalPlanoAno(k);
+    AGG.anos[k].unidades.forEach(u => uni.add(u));
+  });
+  SEG_FORA.forEach(sk => { if (AGG.fora[sk]) { lancado += AGG.fora[sk].aulas; quadro += AGG.fora[sk].aulas; plano += foraPlano(sk); } });
+  Object.keys(AGG.proj).forEach(n => { lancado += AGG.proj[n]; quadro += AGG.proj[n]; plano += projPlano(n); });
+  return { turmasBaseT, turmasPlanoT, lancado, quadro, plano, unidades: uni.size };
+}
+function renderKpis() {
+  const t = totaisGerais();
+  const d = t.plano - t.lancado;
+  const pct = t.lancado > 0 ? Math.round(d / t.lancado * 1000) / 10 : 0;
+  const dt = t.turmasPlanoT - t.turmasBaseT;
+  document.getElementById('kpis').innerHTML = `
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#0f172a;">
+      <div class="lbl"><i class="bi bi-collection me-1"></i>Turmas — todos os segmentos</div>
+      <div class="val">${br(t.turmasBaseT)}</div>
+      <div class="sub">${anoAlvo}: ${br(t.turmasPlanoT)} <span class="${corDelta(dt)}">${dt ? '(' + sinal(dt) + ')' : ''}</span></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#059669;">
+      <div class="lbl"><i class="bi bi-buildings me-1"></i>Unidades com turma</div>
+      <div class="val">${br(t.unidades)}</div><div class="sub">no filtro atual</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#7c3aed;">
+      <div class="lbl"><i class="bi bi-journals me-1"></i>Aulas lançadas em ${ANO_BASE}</div>
+      <div class="val">${br(t.lancado)}</div>
+      <div class="sub">pelo quadro: ${br(t.quadro)}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi" style="border-left-color:#1d4ed8;">
+      <div class="lbl"><i class="bi bi-calculator me-1"></i>Aulas planejadas ${anoAlvo}</div>
+      <div class="val">${br(t.plano)}</div>
+      <div class="sub"><span class="${corDelta(d)}">${sinal(d)} (${pct >= 0 ? '+' : ''}${pct}%)</span> vs. lançado</div></div></div>`;
+}
+
+// ── 3 · Projeção (só leitura; os campos ficam nas tabelas de cima) ────────
+function renderProjecao() {
+  const thead = `<thead><tr>
+      <th style="text-align:left;">Segmento</th>
+      <th>Turmas ${ANO_BASE}</th><th>Turmas ${anoAlvo}</th>
+      <th title="Soma da carga horária como está na base">Lançado ${ANO_BASE}</th>
+      <th title="Turmas de ${ANO_BASE} × quadro de ${ANO_BASE}">Quadro ${ANO_BASE}</th>
+      <th style="background:#eff6ff;">Plano ${anoAlvo}</th>
+      <th>Δ vs. lançado</th><th>Δ %</th>
+    </tr></thead>`;
+  let html = '';
+  const g = { tb:0, tp:0, l:0, q:0, p:0 };
+
+  SEG_TURMA.forEach(sk => {
+    const chaves = anosDoSegmento(sk); if (!chaves.length) return;
+    const s = SEG[sk];
+    let tb = 0, tp = 0, l = 0, q = 0, p = 0;
+    chaves.forEach(k => { tb += AGG.anos[k].turmas; tp += turmasPlano(k);
+      l += totalLancadoAno(k); q += totalQuadroAno(k); p += totalPlanoAno(k); });
+    g.tb += tb; g.tp += tp; g.l += l; g.q += q; g.p += p;
+    const d = p - l, pct = l > 0 ? Math.round(d / l * 1000) / 10 : 0;
+    html += `<tr>
+      <th><i class="bi ${s.icon} me-2" style="color:${s.cor};"></i>${escapeHtml(s.rot)}</th>
+      <td>${br(tb)}</td><td>${br(tp)}</td>
+      <td>${br(l)}</td><td>${br(q)}</td>
+      <td style="background:#f8fbff;"><b>${br(p)}</b></td>
+      <td class="${corDelta(d)}">${sinal(d)}</td>
+      <td class="${corDelta(d)}">${l > 0 ? (pct >= 0 ? '+' : '') + pct + '%' : '—'}</td></tr>`;
+  });
+
+  const temFora = SEG_FORA.some(sk => AGG.fora[sk]) || Object.keys(AGG.proj).length;
+  if (temFora) {
+    html += `<tr class="seg-row"><th colspan="8">Fora do quantitativo de turmas — entram no total de aulas</th></tr>`;
+    Object.keys(AGG.proj).sort().forEach(n => {
+      const l = AGG.proj[n], p = projPlano(n), d = p - l;
+      g.l += l; g.q += l; g.p += p;
+      html += `<tr><th style="padding-left:1.6rem;color:${corDisc(n)};">${escapeHtml(n)}</th>
+        <td colspan="2" class="text-muted small">não é por turma</td>
+        <td>${br(l)}</td><td>${br(l)}</td><td style="background:#f8fbff;"><b>${br(p)}</b></td>
+        <td class="${corDelta(d)}">${sinal(d)}</td><td class="text-muted">—</td></tr>`;
+    });
+    SEG_FORA.forEach(sk => {
+      const b = AGG.fora[sk]; if (!b) return;
+      const l = b.aulas, p = foraPlano(sk), d = p - l;
+      g.l += l; g.q += l; g.p += p;
+      html += `<tr><th style="padding-left:1.6rem;">${escapeHtml(SEG[sk].rot)}</th>
+        <td colspan="2" class="text-muted small">${br(b.grupos.size)} agrupamento(s)</td>
+        <td>${br(l)}</td><td>${br(l)}</td><td style="background:#f8fbff;"><b>${br(p)}</b></td>
+        <td class="${corDelta(d)}">${sinal(d)}</td><td class="text-muted">—</td></tr>`;
+    });
+  }
+
+  const dg = g.p - g.l, pg = g.l > 0 ? Math.round(dg / g.l * 1000) / 10 : 0;
+  html += `<tr class="total-row"><th>Total da rede</th>
+    <td>${br(g.tb)}</td><td>${br(g.tp)}</td>
+    <td>${br(g.l)}</td><td>${br(g.q)}</td>
+    <td style="background:#dbeafe;"><b>${br(g.p)}</b></td>
+    <td class="${corDelta(dg)}">${sinal(dg)}</td>
+    <td class="${corDelta(dg)}">${g.l > 0 ? (pg >= 0 ? '+' : '') + pg + '%' : '—'}</td></tr>`;
+
+  document.getElementById('tabProjecao').innerHTML = thead + `<tbody>${html}</tbody>`;
+}
+
+// ── Aulas que não são turma: onde se edita o plano delas ──────────────────
+function renderFora() {
+  const box = document.getElementById('foraTurmasWrap');
+  const nomes = Object.keys(AGG.proj).sort();
+  const buckets = SEG_FORA.filter(sk => AGG.fora[sk]);
+  if (!nomes.length && !buckets.length) { box.innerHTML = ''; return; }
+
+  const linhas = []
+    .concat(nomes.map(n => ({ k:'p|' + n, rot:n, cor:corDisc(n), det:'projeto — não se distribui por turma',
+                              base:AGG.proj[n], attr:`data-pk="${escapeHtml(n)}"`, val:PLANO.proj[n] })))
+    .concat(buckets.map(sk => ({ k:'f|' + sk, rot:SEG[sk].rot, cor:SEG[sk].cor,
+                              det:`${br(AGG.fora[sk].grupos.size)} agrupamento(s) · ${escapeHtml([...AGG.fora[sk].rotulos].slice(0, 4).join(', '))}${AGG.fora[sk].rotulos.size > 4 ? '…' : ''}`,
+                              base:AGG.fora[sk].aulas, attr:`data-fk="${escapeHtml(sk)}"`, val:PLANO.fora[sk] })));
+
+  box.innerHTML = `
+    <div class="sec-tt mb-1" style="font-size:.92rem;"><i class="bi bi-box-arrow-right me-2"></i>Aulas que não são turma</div>
+    <p class="sec-sub mb-2">Projetos, atendimento de educação especial, complemento de jornada e liminares não se distribuem
+      por turma — não têm quadro. Entram no total como um número só, editável para ${anoAlvo}.</p>
+    <div class="table-responsive"><table class="matriz" style="max-width:820px;">
+      <thead><tr><th style="text-align:left;">Item</th><th>Aulas ${ANO_BASE}</th><th style="background:#eff6ff;">Aulas ${anoAlvo}</th><th>Δ</th></tr></thead>
+      <tbody>${linhas.map(l => {
+        const d = (vazio(l.val) ? l.base : num(l.val)) - l.base;
+        return `<tr><th style="text-align:left;color:${l.cor};">${escapeHtml(l.rot)}
+            <div class="small text-muted fw-normal">${l.det}</div></th>
+          <td>${br(l.base)}</td>
+          <td style="background:#f8fbff;"><input class="inp-plan${vazio(l.val) ? '' : ' mudou'}" type="number" min="0" step="1"
+               ${l.attr} value="${vazio(l.val) ? '' : l.val}" placeholder="${l.base}" style="width:88px;"></td>
+          <td><span data-out="${l.k}" class="${corDelta(d)}">${d ? sinal(d) : '—'}</span></td></tr>`;
+      }).join('')}</tbody></table></div>`;
+}
+
+// ── Conferência ───────────────────────────────────────────────────────────
+function renderConferencia() {
+  const badge = (txt, ok) => `<span class="badge ${ok ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'} border">${escapeHtml(txt)}</span>`;
+  const anos = Object.keys(AGG.anosRaw).sort().map(k => {
+    const o = AGG.anosRaw[k], s = SEG[o.seg];
+    return `<tr><td>${escapeHtml(k)}</td><td class="text-end">${br(o.n)}</td><td class="text-end">${br(o.aulas)}</td>
+      <td>${badge(s.rot + ' › ' + o.ano, o.seg !== 'Outros')}</td></tr>`;
+  }).join('');
+  document.getElementById('confAnos').innerHTML =
+    `<thead><tr><th>Valor bruto</th><th class="text-end">Linhas</th><th class="text-end">Aulas</th><th>Lido como</th></tr></thead><tbody>${anos}</tbody>`;
+
+  const discs = Object.keys(AGG.discRaw).sort().map(k => {
+    const o = AGG.discRaw[k];
+    return `<tr><td>${escapeHtml(k)}</td><td class="text-end">${br(o.n)}</td><td class="text-end">${br(o.aulas)}</td>
+      <td>${badge(o.nome + (o.proj ? ' (projeto)' : ''), true)}</td></tr>`;
+  }).join('');
+  document.getElementById('confDiscs').innerHTML =
+    `<thead><tr><th>Valor bruto</th><th class="text-end">Linhas</th><th class="text-end">Aulas</th><th>Lido como</th></tr></thead><tbody>${discs}</tbody>`;
+}
+
+function renderRodape() {
+  const unid = new Set((ROWS || []).map(r => r.nome_unidade)).size;
+  const restr = window.MapaAuth && window.MapaAuth.restritoEscola;
+  document.getElementById('rodape').innerHTML =
+    `Base: ${br((ROWS || []).length)} linhas de atribuição de ${ANO_BASE} · ${br(unid)} unidade(s)`
+    + (restr ? ' · <b>recorte de unidade ativo</b>: os totais são das suas unidades, não da rede.' : ' · rede completa.')
+    + ` Período: ${periodosSel ? escapeHtml([...periodosSel].join(', ')) : 'todos'}.`
+    + ` Os parâmetros de ${anoAlvo} ficam salvos neste navegador.`
+    + ` A capacidade dos professores PEB II fica na tela do <a href="retrato-atribuicao.html">Retrato Quantitativo</a>,`
+    + ` que é onde a regra vive — duplicá-la aqui criaria duas contas que divergem na primeira correção.`;
+}
+
+/* ── Atualização ao vivo (sem recriar os campos, para não perder o foco) ─ */
+function atualizarDerivados() {
+  // ⚠️ O valor vem do dado (nome de disciplina), então precisa ser escapado para
+  //    o seletor de atributo: uma aspa dentro do nome quebraria a consulta inteira
+  //    e a atualização pararia sem erro visível.
+  const esc = v => String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const set = (sel, html, cls) => {
+    const el = document.querySelector(`[data-out="${esc(sel)}"]`); if (!el) return;
+    el.innerHTML = html;
+    if (cls !== undefined) el.className = cls;
+  };
+  const g = { plano:0, base:0 };
+  SEG_TURMA.forEach(sk => {
+    const chaves = anosDoSegmento(sk); if (!chaves.length) return;
+    const discs = discsMemo(sk);
+    let sp = 0, sb = 0, stot = 0, sturm = 0;
+    chaves.forEach(k => {
+      const a = AGG.anos[k], tp = turmasPlano(k), d = tp - a.turmas;
+      sp += tp; sb += a.turmas;
+      set(`dt|${k}`, d ? sinal(d) : '—', corDelta(d));
+      // Quadro: turmas da linha, células e total da linha
+      set(`qt|${k}`, br(modo === 'base' ? a.turmas : tp), 'big text-primary');
+      discs.forEach(disc => {
+        const plano = aulasPlano(k, disc);
+        if (modo === 'plano') set(`qs|${k}|${disc}`, plano ? '× ' + br(tp) + ' = ' + br(plano * tp) : '—', 'small');
+        else if (modo === 'delta') {
+          const dd = plano * tp - lancadoBase(k, disc);
+          set(`qd|${k}|${disc}`, `<div class="big ${corDelta(dd)}">${dd ? sinal(dd) : '—'}</div>`
+            + `<div class="small">plano ${br(plano * tp)} · lançado ${br(lancadoBase(k, disc))}</div>`);
+        }
+      });
+      const tot = modo === 'plano' ? totalPlanoAno(k)
+                : modo === 'delta' ? totalPlanoAno(k) - totalLancadoAno(k)
+                : totalLancadoAno(k);
+      stot += tot; sturm += (modo === 'base' ? a.turmas : tp);
+      set(`qr|${k}`, modo === 'delta' ? sinal(tot) : br(tot), 'big ' + (modo === 'delta' ? corDelta(tot) : ''));
+    });
+    const ds = sp - sb;
+    set(`sp|${sk}`, br(sp)); set(`sd|${sk}`, ds ? sinal(ds) : '—', corDelta(ds));
+    discs.forEach(disc => {
+      const v = totalColuna(sk, disc);
+      set(`qc|${sk}|${disc}`, modo === 'delta' ? sinal(v) : br(v), 'big ' + (modo === 'delta' ? corDelta(v) : ''));
+    });
+    set(`qst|${sk}`, br(sturm), 'big text-primary');
+    set(`qs2|${sk}`, modo === 'delta' ? sinal(stot) : br(stot), 'big ' + (modo === 'delta' ? corDelta(stot) : ''));
+    g.plano += sp; g.base += sb;
+  });
+  const dg = g.plano - g.base;
+  set('sp|TOTAL', br(g.plano)); set('sd|TOTAL', dg ? sinal(dg) : '—', corDelta(dg));
+
+  Object.keys(AGG.proj).forEach(n => { const d = projPlano(n) - AGG.proj[n]; set(`p|${n}`, d ? sinal(d) : '—', corDelta(d)); });
+  SEG_FORA.forEach(sk => { if (!AGG.fora[sk]) return; const d = foraPlano(sk) - AGG.fora[sk].aulas; set(`f|${sk}`, d ? sinal(d) : '—', corDelta(d)); });
+
+  renderKpis();
+  renderProjecao();
+}
+
+/* ── Período: chips ─────────────────────────────────────────────── */
+function montarPeriodos() {
+  const pers = Array.from(new Set((ROWS || []).map(r => periodoDesc(r.periodo)))).filter(Boolean).sort();
+  document.getElementById('periodoChips').innerHTML = pers.map(p => {
+    const on = !periodosSel || periodosSel.has(p);
+    return `<button class="chip-per ${on ? 'active' : ''}" onclick="togglePeriodo('${escapeHtml(p)}')">${escapeHtml(p)}</button>`;
+  }).join('');
+}
+function togglePeriodo(p) {
+  const todos = Array.from(new Set((ROWS || []).map(r => periodoDesc(r.periodo))));
+  if (!periodosSel) periodosSel = new Set(todos);
+  if (periodosSel.has(p)) periodosSel.delete(p); else periodosSel.add(p);
+  if (periodosSel.size === 0 || periodosSel.size === todos.length) periodosSel = null;
+  montarPeriodos();
+  render();
+}
+
+/* ── Toolbar ────────────────────────────────────────────────────── */
+document.getElementById('segModo').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  modo = b.dataset.m;
+  document.querySelectorAll('#segModo button').forEach(x => x.classList.toggle('active', x === b));
+  if (AGG) render();
+});
+document.getElementById('anoAlvo').addEventListener('change', e => {
+  const v = parseInt(e.target.value, 10);
+  // Ano-alvo fora da faixa volta ao anterior: um ano vazio trocaria a chave do
+  // localStorage por "NaN" e o plano da pessoa sumiria da tela sem aviso.
+  if (!Number.isFinite(v) || v < 2026 || v > 2099) { e.target.value = anoAlvo; return; }
+  anoAlvo = v;
+  planoCarregar();
+  if (AGG) render();
+});
+
+/* ── Campos do plano: um listener só, delegado ──────────────────── */
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (!el.matches || !el.matches('input.inp-plan')) return;
+  const v = el.value;
+  if (el.dataset.tk !== undefined)      PLANO.turmas[el.dataset.tk] = v;
+  else if (el.dataset.gk !== undefined) PLANO.grade[el.dataset.gk]  = v;
+  else if (el.dataset.fk !== undefined) PLANO.fora[el.dataset.fk]   = v;
+  else if (el.dataset.pk !== undefined) PLANO.proj[el.dataset.pk]   = v;
+  else return;
+  el.classList.toggle('mudou', v !== '');
+  planoSalvar();
+  atualizarDerivados();
+});
+
+function restaurarPadroes() {
+  if (!confirm(`Devolver todos os campos de ${anoAlvo} aos valores observados em ${ANO_BASE}?`)) return;
+  PLANO = { turmas:{}, grade:{}, fora:{}, proj:{} };
+  planoSalvar();
+  render();
+}
+
+/* ── Excel ──────────────────────────────────────────────────────── */
+async function exportarExcel() {
+  if (!AGG) return;
+  const wb = new ExcelJS.Workbook();
+
+  // 1 — Quantitativo de turmas
+  const w1 = wb.addWorksheet('Turmas');
+  w1.addRow([`Quantitativo de turmas — todos os segmentos (base ${ANO_BASE}, plano ${anoAlvo})`]).font = { bold:true };
+  w1.addRow([`Período: ${periodosSel ? [...periodosSel].join(', ') : 'todos'}`]);
+  w1.addRow([]);
+  w1.addRow(['Segmento','Ano escolar','Manhã','Tarde','Noite','Sem turno',`Turmas ${ANO_BASE}`,'Salas','Integrais','Unidades',`Turmas ${anoAlvo}`,'Δ']).font = { bold:true };
+  AGG.ordem.forEach(k => {
+    const a = AGG.anos[k], tp = turmasPlano(k);
+    w1.addRow([SEG[a.seg].rot, a.ano, a.turnos.M, a.turnos.T, a.turnos.N, a.turnos['—'],
+               a.turmas, a.salas, a.integrais, a.unidades.size, tp, tp - a.turmas]);
+  });
+
+  // 2 — Quadro de aulas por disciplina e ano
+  const w2 = wb.addWorksheet('Quadro de aulas');
+  w2.addRow([`Quadro de aulas por disciplina e ano escolar — aulas semanais por turma`]).font = { bold:true };
+  w2.addRow([`Observado = moda das turmas de ${ANO_BASE} · Planejado = parâmetro de ${anoAlvo}`]);
+  w2.addRow([]);
+  w2.addRow(['Segmento','Ano escolar','Disciplina',`Aulas/turma ${ANO_BASE}`,'Turmas com a disciplina',
+             `Turmas ${ANO_BASE}`,'Uniformidade %',`Lançado ${ANO_BASE}`,`Aulas/turma ${anoAlvo}`,`Turmas ${anoAlvo}`,`Plano ${anoAlvo}`]).font = { bold:true };
+  SEG_TURMA.forEach(sk => {
+    const discs = discsMemo(sk);
+    anosDoSegmento(sk).forEach(k => {
+      const a = AGG.anos[k], tp = turmasPlano(k);
+      discs.forEach(d => {
+        const c = a.disc[d], p = aulasPlano(k, d);
+        w2.addRow([SEG[sk].rot, a.ano, d, c ? c.moda : 0, c ? c.comDisc : 0, a.turmas,
+                   c ? Math.round(c.uniformidade * 100) : 0, c ? c.total : 0, p, tp, p * tp]);
+      });
+    });
+  });
+
+  // 3 — Projeção
+  const w3 = wb.addWorksheet('Projeção');
+  w3.addRow([`Projeção do total de aulas — ${anoAlvo}`]).font = { bold:true };
+  w3.addRow([]);
+  w3.addRow(['Item',`Turmas ${ANO_BASE}`,`Turmas ${anoAlvo}`,`Lançado ${ANO_BASE}`,`Quadro ${ANO_BASE}`,`Plano ${anoAlvo}`,'Δ']).font = { bold:true };
+  SEG_TURMA.forEach(sk => {
+    const chaves = anosDoSegmento(sk); if (!chaves.length) return;
+    let tb = 0, tp = 0, l = 0, q = 0, p = 0;
+    chaves.forEach(k => { tb += AGG.anos[k].turmas; tp += turmasPlano(k);
+      l += totalLancadoAno(k); q += totalQuadroAno(k); p += totalPlanoAno(k); });
+    w3.addRow([SEG[sk].rot, tb, tp, l, q, p, p - l]);
+  });
+  Object.keys(AGG.proj).sort().forEach(n => w3.addRow([n, '', '', AGG.proj[n], AGG.proj[n], projPlano(n), projPlano(n) - AGG.proj[n]]));
+  SEG_FORA.forEach(sk => { const b = AGG.fora[sk]; if (!b) return;
+    w3.addRow([SEG[sk].rot, '', '', b.aulas, b.aulas, foraPlano(sk), foraPlano(sk) - b.aulas]); });
+  const t = totaisGerais();
+  w3.addRow(['TOTAL DA REDE', t.turmasBaseT, t.turmasPlanoT, t.lancado, t.quadro, t.plano, t.plano - t.lancado]).font = { bold:true };
+
+  // 4 — Conferência
+  const w4 = wb.addWorksheet('Conferência');
+  w4.addRow(['Ano escolar (valor bruto)','Linhas','Aulas','Segmento','Ano lido']).font = { bold:true };
+  Object.keys(AGG.anosRaw).sort().forEach(k => {
+    const o = AGG.anosRaw[k];
+    w4.addRow([k, o.n, o.aulas, SEG[o.seg].rot, o.ano]);
+  });
+  w4.addRow([]);
+  w4.addRow(['Disciplina (valor bruto)','Linhas','Aulas','Lida como','É projeto']).font = { bold:true };
+  Object.keys(AGG.discRaw).sort().forEach(k => {
+    const o = AGG.discRaw[k];
+    w4.addRow([k, o.n, o.aulas, o.nome, o.proj ? 'sim' : 'não']);
+  });
+
+  [w1, w2, w3, w4].forEach(ws => { ws.columns.forEach(c => c.width = 16); ws.getColumn(1).width = 34; ws.getColumn(2).width = 22; });
+  const buf = await wb.xlsx.writeBuffer();
+  const url = URL.createObjectURL(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = `planejamento-atribuicao-${anoAlvo}.xlsx`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ── Carregamento ───────────────────────────────────────────────── */
+async function carregar() {
+  document.getElementById('estado').style.display = 'block';
+  document.getElementById('conteudo').style.display = 'none';
+  try {
+    await aguardarAuth();
+    await aguardarCatalogo();     // `cleanUnit` depende dele
+    await fetchSeriesExcluidas();
+    const todas = await fetchTurmas();
+    const visiveis = filtrarTurmasPorEscola(todas);
+    ROWS = visiveis.filter(r => !serieExcluida(r.ano_escolar));
+    planoCarregar();
+    document.getElementById('estado').style.display = 'none';
+    document.getElementById('conteudo').style.display = 'block';
+    montarPeriodos();
+    render();
+    /* Grafia de unidade que não casou é invisível: a tela abre, tem linhas, e só
+       falta uma unidade. O aviso é o que cria a suspeita. */
+    if (window.MapaUnidades) window.MapaUnidades.relatar('planejamento-atribuicao');
+  } catch (e) {
+    document.getElementById('estado').innerHTML =
+      `<div class="alert alert-danger d-inline-block">Erro ao carregar os dados: ${escapeHtml(e.message || e)}</div>`;
+  }
+}
+function atualizar() { window.__forcarRefetch = true; periodosSel = null; carregar(); }
+
+/* Sonda de console: mostra como cada `ano_escolar` foi lido e o que ficou de
+   fora do quantitativo. É o caminho curto para responder "por que o total de
+   turmas não bate com o que eu esperava". */
+window.MapaDiagPlanejamento = function () {
+  if (!AGG) { console.warn('[planejamento] a tela ainda não carregou'); return; }
+  console.group('[planejamento] classificação do ano escolar');
+  const t = Object.keys(AGG.anosRaw).sort().map(k => ({
+    'ano_escolar': k, linhas: AGG.anosRaw[k].n, aulas: AGG.anosRaw[k].aulas,
+    segmento: SEG[AGG.anosRaw[k].seg].rot, 'lido como': AGG.anosRaw[k].ano,
+    'conta turma?': SEG[AGG.anosRaw[k].seg].turma ? 'sim' : 'NÃO'
+  }));
+  console.table(t);
+  console.log('salas sem turno identificado:', AGG.salasSemTurno,
+              '· aulas da sala (fora da moda):', AGG.aulasDaSala);
+  console.groupEnd();
+  return t;
+};
+
+carregar();
+</script>
+  <script src="iago.js"></script>
+</body>
+</html>
