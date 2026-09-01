@@ -102,6 +102,30 @@
     .rotRede{font-size:.66rem;color:var(--muted);font-weight:800;letter-spacing:.06em;
       text-transform:uppercase;margin-top:3px;}
 
+    /* Código da questão ao lado do nome: é por ele que a pessoa acha a aba
+       correspondente na planilha da Vunesp. */
+    .aspecto .cod{display:inline-block;font-family:ui-monospace,Menlo,Consolas,monospace;
+      font-size:.7rem;font-weight:700;color:var(--pri2);background:#e8f2f7;
+      border-radius:5px;padding:1px 6px;margin-right:.4rem;}
+
+    /* ═══ GRADE DE CORREÇÃO POR QUESTÃO ═══ */
+    details.grade{margin-top:8px;border:1px solid var(--line);border-radius:10px;background:#fff;}
+    details.grade summary{cursor:pointer;padding:9px 14px;font-size:.79rem;font-weight:800;
+      color:var(--pri2);}
+    details.grade[open] summary{border-bottom:1px solid var(--line);}
+    .rolagem{overflow-x:auto;}
+    table.grade-t{font-size:.8rem;}
+    table.grade-t td,table.grade-t th{padding:7px 12px;vertical-align:top;}
+    table.grade-t .cLetra{white-space:nowrap;display:flex;align-items:center;gap:.45rem;}
+    table.grade-t .cSig{max-width:62ch;}
+    table.grade-t .cSig .d{color:#475569;font-size:.78rem;margin-top:1px;}
+    table.grade-t .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+    table.grade-t .rede{color:var(--muted);}
+    /* Conceito sem nenhum aluno continua na tabela — a régua inteira precisa
+       ficar visível — mas apagado, para não competir com o que tem dado. */
+    table.grade-t tr.zero{opacity:.45;}
+    .sw{width:14px;height:14px;border-radius:4px;flex:0 0 auto;display:inline-block;}
+
     /* Legenda: alvo de 44px, igual para a faixa de 2% e a de 60%. */
     .leg{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
     .leg button{display:flex;align-items:center;gap:.45rem;min-height:44px;padding:6px 12px;
@@ -280,8 +304,8 @@ const PROPOSTAS = [
         + 'e ESTRELA, com encontro consonantal. Mede o estágio de alfabetização no '
         + 'nível da palavra — é a proposta de menor complexidade.',
     aspectos: [
-      { q: 'Q1_N1', nome: 'CABIDE — sílabas canônicas' },
-      { q: 'Q1_N2', nome: 'ESTRELA — com encontro consonantal' }
+      { q: 'Q1_N1', cod: 'Questão 1 · Nível 1', nome: 'CABIDE — sílabas canônicas' },
+      { q: 'Q1_N2', cod: 'Questão 1 · Nível 2', nome: 'ESTRELA — com encontro consonantal' }
     ],
     escala: ['A', 'B', 'C', 'D', 'E'],
     nao_avaliavel: null,
@@ -295,9 +319,9 @@ const PROPOSTAS = [
         + 'recipiente correto. Já não se trata de representar palavras, e sim de usar '
         + 'a escrita para representar uma ideia em uma frase.',
     aspectos: [
-      { q: 'Q21_N1', nome: 'Aspecto 1 — Adequação à proposta' },
-      { q: 'Q22_N1', nome: 'Aspecto 2 — Ortografia' },
-      { q: 'Q23_N1', nome: 'Aspecto 3 — Segmentação' }
+      { q: 'Q21_N1', cod: 'Questão 2 · Item 1 · Nível 1', nome: 'Adequação à proposta' },
+      { q: 'Q22_N1', cod: 'Questão 2 · Item 2 · Nível 1', nome: 'Ortografia' },
+      { q: 'Q23_N1', cod: 'Questão 2 · Item 3 · Nível 1', nome: 'Segmentação' }
     ],
     escala: ['A', 'B', 'C'],
     nao_avaliavel: 'D',
@@ -311,11 +335,11 @@ const PROPOSTAS = [
         + 'um jogo novo. Além de ortografia e segmentação, avalia se o texto atende ao '
         + 'gênero — é a proposta mais desafiadora das três.',
     aspectos: [
-      { q: 'Q31_N1', nome: 'Aspecto 1 — Adequação à proposta', naoAval: 'D', escala: ['A','B','C'] },
-      { q: 'Q32_N1', nome: 'Aspecto 2 — Ortografia',            naoAval: 'D', escala: ['A','B','C'] },
-      { q: 'Q33_N1', nome: 'Aspecto 3 — Segmentação',           naoAval: 'D', escala: ['A','B','C'] },
-      // No aspecto 4 a régua tem quatro degraus (A..D) e o "não avaliável" é o E.
-      { q: 'Q34_N1', nome: 'Aspecto 4 — Adequação ao gênero',   naoAval: 'E', escala: ['A','B','C','D'] }
+      { q: 'Q31_N1', cod: 'Questão 3 · Item 1 · Nível 1', nome: 'Adequação à proposta', naoAval: 'D', escala: ['A','B','C'] },
+      { q: 'Q32_N1', cod: 'Questão 3 · Item 2 · Nível 1', nome: 'Ortografia',            naoAval: 'D', escala: ['A','B','C'] },
+      { q: 'Q33_N1', cod: 'Questão 3 · Item 3 · Nível 1', nome: 'Segmentação',           naoAval: 'D', escala: ['A','B','C'] },
+      // No item 4 a régua tem quatro degraus (A..D) e o "não avaliável" é o E.
+      { q: 'Q34_N1', cod: 'Questão 3 · Item 4 · Nível 1', nome: 'Adequação ao gênero',   naoAval: 'E', escala: ['A','B','C','D'] }
     ],
     escala: ['A', 'B', 'C'],
     nao_avaliavel: 'D',
@@ -420,19 +444,50 @@ function faixaHTML(dist, ordem, cor, prop, compacta){
   return '<div class="faixa' + (compacta ? ' rede' : '') + '">' + segs + '</div>';
 }
 
-function legendaHTML(dist, ordem, cor, prop){
+/* ⚠️ O QUE CADA LETRA SIGNIFICA É PRÓPRIO DE CADA QUESTÃO.
+   "Conceito A" não quer dizer nada sozinho: na Questão 1 o A é "escrita
+   ortográfica", na 2 é "frase coerente com o tema", na 3-item-4 é "bilhete com
+   os quatro elementos do gênero". Por isso a legenda não é uma fileira de
+   fichas genéricas — é a GRADE DE CORREÇÃO daquela questão, lida da aba
+   correspondente da planilha (av_irc_rubrica), com a contagem ao lado.
+   Assim a pessoa lê o número e o critério no mesmo lugar, sem abrir outra
+   coisa e sem precisar decorar o que a letra queria dizer ali. */
+function gradeHTML(asp, prop, dist, distRede, ordem, cor){
   const total = ordem.reduce((s, c) => s + (dist.get(c) || 0), 0);
-  // Conceito com zero sai da legenda: numa unidade pequena metade da régua
-  // fica vazia, e seis fichas "0 · 0,0%" enterram as que têm dado. A faixa
-  // acima já mostra a escala inteira — a legenda serve para ler os números.
-  return '<div class="leg">' + ordem.filter(c => (dist.get(c) || 0) > 0).map(c => {
+  const totRede = distRede ? ordem.reduce((s, c) => s + (distRede.get(c) || 0), 0) : 0;
+  const rub = {};
+  (RUBRICA[asp.q] || []).forEach(r => rub[String(r.conceito).trim().toUpperCase()] = r);
+
+  const linhas = ordem.map(c => {
     const v = dist.get(c) || 0;
     const pc = total ? (v / total * 100) : 0;
-    return '<button type="button" tabindex="0">'
-      + '<span class="sw" style="background:' + cor[c] + '"></span>'
-      + '<span>' + esc(c) + ' · ' + esc(rotuloDe(prop, c)) + '</span>'
-      + '<span class="pc">' + num(v) + ' · ' + pc.toFixed(1) + '%</span></button>';
-  }).join('') + '</div>';
+    const r = rub[c] || {};
+    const desc = r.descricao || '';
+    // ⚠️ O rótulo curto da tela é RESERVA, não complemento. Quando a aba traz a
+    // descrição oficial, é ela que manda: pôr "Conceito A" na frente do texto
+    // da grade devolve exatamente o rótulo vazio que a tabela veio eliminar.
+    // `r.titulo` só existe na Questão 1, onde a aba tem a coluna "Nível de
+    // Escrita" (Ortográfico, Alfabético...) — esse é um título de verdade.
+    const titulo = r.titulo || (desc ? '' : ((prop.rotulos && prop.rotulos[c]) || ''));
+    const vr = distRede ? (distRede.get(c) || 0) : 0;
+    const pcr = totRede ? (vr / totRede * 100) : null;
+    return '<tr' + (v ? '' : ' class="zero"') + '>'
+      + '<td class="cLetra"><span class="sw" style="background:' + cor[c] + '"></span>'
+        + '<b>' + esc(c) + '</b></td>'
+      + '<td class="cSig">' + (titulo ? '<b>' + esc(titulo) + '</b>' : '')
+        + (desc ? '<div class="d">' + esc(desc) + '</div>' : '') + '</td>'
+      + '<td class="num">' + num(v) + '</td>'
+      + '<td class="num">' + pc.toFixed(1) + '%</td>'
+      + '<td class="num rede">' + (pcr == null ? '—' : pcr.toFixed(1) + '%') + '</td>'
+      + '</tr>';
+  }).join('');
+
+  return '<details class="grade"><summary>Grade de correção e contagem — '
+       + esc(asp.q) + '</summary>'
+       + '<div class="rolagem"><table class="ir grade-t"><thead><tr>'
+       + '<th>Conceito</th><th>O que significa nesta questão</th>'
+       + '<th class="num">Alunos</th><th class="num">%</th><th class="num rede">% rede</th>'
+       + '</tr></thead><tbody>' + linhas + '</tbody></table></div></details>';
 }
 
 function render(){
@@ -464,7 +519,9 @@ function render(){
       const dist = dEsc.get(asp.q) || new Map();
       const n = ordem.reduce((s, c) => s + (dist.get(c) || 0), 0);
 
-      html += '<div class="aspecto"><div class="cab"><span class="nome">' + esc(asp.nome)
+      html += '<div class="aspecto"><div class="cab"><span class="nome">'
+            + (asp.cod ? '<span class="cod">' + esc(asp.cod) + '</span> ' : '')
+            + esc(asp.nome)
             + '</span><span class="n">' + num(n) + ' avaliados</span></div>'
             + faixaHTML(dist, ordem, cor, prop, false);
 
@@ -476,30 +533,15 @@ function render(){
         html += faixaHTML(dr, ordem, cor, prop, true)
               + '<div class="rotRede">Rede — ' + num(ordem.reduce((s,c)=>s+(dr.get(c)||0),0)) + ' avaliados</div>';
       }
-      html += legendaHTML(dist, ordem, cor, prop) + '</div>';
+      html += gradeHTML(asp, prop, dist, dr || null, ordem, cor) + '</div>';
     });
 
-    html += rubricaHTML(prop) + '</div></div>';
+    html += '</div></div>';
   });
 
   alvo.innerHTML = html;
 }
 
-function rubricaHTML(prop){
-  const qs = prop.aspectos.map(a => a.q).filter(q => RUBRICA[q] && RUBRICA[q].length);
-  if (!qs.length) return '';
-  let c = '';
-  qs.forEach(q => {
-    const asp = prop.aspectos.find(a => a.q === q);
-    c += '<dt style="margin-top:14px;color:var(--primary)">' + esc(asp.nome) + '</dt>';
-    RUBRICA[q].forEach(r => {
-      c += '<dt>' + esc(r.conceito) + (r.titulo ? ' — ' + esc(r.titulo) : '') + '</dt>'
-         + '<dd>' + esc(r.descricao) + '</dd>';
-    });
-  });
-  return '<details class="rub"><summary>O que cada conceito significa</summary>'
-       + '<div class="corpo"><dl>' + c + '</dl></div></details>';
-}
 
 function renderKpis(){
   const p = PART.find(r => r.escola === escolaAtual);
@@ -705,6 +747,25 @@ function agregar(linhas, wb){
   return { agreg, part, rubrica: lerRubrica(wb) };
 }
 
+/* Em algumas linhas do arquivo a LETRA do conceito ficou repetida no começo da
+   descrição ("EB Em branco.", "A O estudante segmenta..."), resíduo de quem
+   montou a planilha. Sem tirar, a tabela exibe "EB" duas vezes na mesma linha.
+   ⚠️ A regra é estreita de propósito: só corta quando a repetição é
+   inequívoca — código de duas letras, ou letra única seguida de OUTRA palavra
+   com inicial maiúscula, que não é português natural. Assim "A escrita
+   apresentada pelo estudante…" (descrição legítima do conceito A, se um dia
+   existir) passa intacta, em vez de virar "escrita apresentada…". */
+function limparDescricao(conceito, desc){
+  const c = String(conceito || '').trim();
+  if (!c || !desc) return desc;
+  if (desc.slice(0, c.length) !== c) return desc;
+  const resto = desc.slice(c.length);
+  if (!/^\s/.test(resto)) return desc;
+  const limpo = resto.trim();
+  if (c.length >= 2) return limpo;                 // 'EB Em branco.'
+  return /^[A-ZÁ-Ú]/.test(limpo) ? limpo : desc;   // 'A O estudante…' sim; 'A escrita…' não
+}
+
 /* As abas Q*_N* da planilha trazem a grade de correção. Duas colunas em quase
    todas (Conceito | Descrição) e TRÊS na proposta 1 (Conceito | Nível | Desc). */
 function lerRubrica(wb){
@@ -720,7 +781,7 @@ function lerRubrica(wb){
       out.push({
         questao: q, conceito,
         titulo: tresCols ? String(row[1] || '').trim() : null,
-        descricao: String(tresCols ? row[2] : row[1] || '').trim(),
+        descricao: limparDescricao(conceito, String(tresCols ? row[2] : row[1] || '').trim()),
         ordem: ordem++
       });
     });

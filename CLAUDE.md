@@ -84,6 +84,26 @@ uma **URL assinada** ao Storage no momento do clique (bucket privado, 5 min),
 para o endereço não ficar no HTML. `IRC_PDF_URL`/`IRC_PDF_BUCKET`/`IRC_PDF_PATH`
 no topo do arquivo são o único ponto que aponta o documento.
 
+⚠️ **O que cada LETRA significa é próprio de CADA questão** — está na aba dela
+na planilha, e é por isso que a tela não tem legenda genérica. "Conceito A" não
+quer dizer nada sozinho: na Questão 1 é "escrita ortográfica"; na 2, "frase
+coerente com o tema"; no item 4 da 3, "bilhete com os quatro elementos do
+gênero". Cada aspecto mostra a **grade de correção da sua aba** com a contagem
+ao lado, e o código (`Q21_N1`) fica visível para achar a aba correspondente.
+🚫 Não volte a rotular por `prop.rotulos` quando a aba tem descrição: o rótulo
+curto é RESERVA, para quando a rubrica não foi importada.
+
+Leitura do código: `Q{questão}{item}_N{nível}`. `Q1_N1` e `Q1_N2` são a mesma
+questão em dois níveis (as duas palavras ditadas); `Q21`…`Q23` são os itens 1 a
+3 da questão 2; `Q31`…`Q34`, os quatro itens da questão 3.
+
+⚠️ Em algumas linhas do arquivo a letra do conceito veio **repetida no começo
+da descrição** (`"EB Em branco."`, `"A O estudante segmenta…"`).
+`limparDescricao()` corta isso, e a regra é estreita de propósito: só código de
+duas letras, ou letra única seguida de outra palavra com inicial maiúscula.
+Sem essa estreiteza, a descrição legítima `"A escrita apresentada pelo
+estudante…"` viraria `"escrita apresentada…"`.
+
 Tabelas: `av_irc` (escola, questao, conceito, alunos), `av_irc_part`
 (participação por unidade) e `av_irc_rubrica` (as grades de correção, lidas das
 abas `Q*` da própria planilha). A linha `escola = 'REDE'` é a referência, como
