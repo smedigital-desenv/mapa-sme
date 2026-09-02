@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-bs-theme="dark" data-tema="escuro" data-acento="ciano" data-fundo="medio">
 <head>
   <meta charset="UTF-8">
   <script src="auth-guard.js"></script>
@@ -7,12 +7,6 @@
   <!-- Restrito ao SUPER ADMIN: usa um slug de tela que ninguém possui (só super admin
        passa pelo can() do auth.js). Unidades NÃO acessam o Retrato Quantitativo. -->
   <script>window.MAPA_TELA = 'retrato';</script>
-  <!-- ⚠️ O nome do ARQUIVO tem hífen; o slug no catálogo do central tem
-       underline. O `acesso-sme.js` deriva a tela do nome do arquivo, então sem
-       esta linha os dois não casam e a pessoa leva "Acesso não autorizado" —
-       mas SÓ quem não é super admin, porque `can()` devolve true de saída para
-       super admin. Por isso o defeito ficou invisível para quem administra. -->
-  <script>window.ACESSO_TELA = 'retrato_atribuicao';</script>
   <script src="auth.js" defer></script>
   <script src="config-central.js" defer></script>
   <script src="demo-mode.js"></script>
@@ -21,9 +15,29 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-  <script src="unidades.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+/* defaults do Chart.js para o visual de teste — acrescentado por gerar-v2.py */
+(function () {
+  if (!window.Chart) return;
+  var C = window.Chart;
+  C.defaults.color = '#94A0AB';
+  C.defaults.borderColor = 'rgba(255,255,255,.10)';
+  C.defaults.font.family = 'DM Sans, system-ui, sans-serif';
+  if (C.defaults.plugins && C.defaults.plugins.legend) {
+    C.defaults.plugins.legend.labels.color = '#94A0AB';
+  }
+  if (C.defaults.scales) {
+    ['linear', 'category', 'radialLinear'].forEach(function (k) {
+      if (!C.defaults.scales[k]) return;
+      if (C.defaults.scales[k].grid) C.defaults.scales[k].grid.color = 'rgba(255,255,255,.08)';
+      if (C.defaults.scales[k].ticks) C.defaults.scales[k].ticks.color = '#8996A3';
+    });
+  }
+})();
+</script>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
   <style>
     :root {
@@ -114,8 +128,25 @@
       .card-box { box-shadow:none; border:1px solid #e2e8f0; }
     }
   </style>
+
+<!-- ↓↓↓ acrescentado por tools/gerar-v2.py — pele de teste ↓↓↓ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mapa-v2.css">
+<!-- ↑↑↑ -->
 </head>
 <body>
+<div class="v2-faixa">
+  <b>VERSÃO 2 · TESTE</b>
+  <span>Esta página é uma cópia para avaliar o visual novo. A que está em uso continua em</span>
+  <a href="retrato-atribuicao-v2.html">retrato-atribuicao.html</a>
+</div>
+<canvas id="ceu" aria-hidden="true"></canvas>
+<span class="v2-orbita v2-orbita--1" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--2" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--3" aria-hidden="true"></span>
+
 
   <!-- ═══ MENU PADRÃO DO SISTEMA (MAPA) ═══ -->
   <header class="mg-header">
@@ -123,32 +154,31 @@
       <div class="mg-brand-icon"><i class="bi bi-map-fill"></i></div><div><h4>MAPA</h4><div class="mg-brand-sub">SME Ribeirão Preto</div></div>
     </div>
     <nav class="mg-nav">
-      <a class="mg-nav-btn" href="index.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
-      <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_irc,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
-        <a class="mg-nav-btn mg-dd-toggle" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <a class="mg-nav-btn" href="index-v2.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
+      <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
+        <a class="mg-nav-btn mg-dd-toggle" href="avaliacao-v2.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
         <div class="mg-dd-menu">
-          <a class="mg-dd-item" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
-          <a class="mg-dd-item" href="avaliacao-diagnostica.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
-          <a class="mg-dd-item" href="av-irc.html" data-tela="avaliacao_irc"><i class="bi bi-pencil-fill"></i>Produção Escrita (IRC)</a>
-          <a class="mg-dd-item" href="av-oral-matematica.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
-          <a class="mg-dd-item" href="saresp.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
-          <a class="mg-dd-item" href="ideb.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
-          <a class="mg-dd-item" href="iee.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
-          <a class="mg-dd-item" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
-          <a class="mg-dd-item" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+          <a class="mg-dd-item" href="avaliacao-v2.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+          <a class="mg-dd-item" href="avaliacao-diagnostica-v2.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+          <a class="mg-dd-item" href="av-oral-matematica-v2.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+          <a class="mg-dd-item" href="saresp-v2.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+          <a class="mg-dd-item" href="ideb-v2.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+          <a class="mg-dd-item" href="iee-v2.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
+          <a class="mg-dd-item" href="elefante-v2.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+          <a class="mg-dd-item" href="fluencia-v2.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
         </div>
       </div>
-      <a class="mg-nav-btn active" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
-      <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+      <a class="mg-nav-btn active" href="atribuicao-v2.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+      <a class="mg-nav-btn" href="educacao_especial-v2.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
       <div class="mg-dd" data-tela-any="frequencia,boletim_estatistico">
-        <a class="mg-nav-btn mg-dd-toggle" href="frequencia.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+        <a class="mg-nav-btn mg-dd-toggle" href="frequencia-v2.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
         <div class="mg-dd-menu">
-          <a class="mg-dd-item" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
-          <a class="mg-dd-item" href="boletim-estatistico.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+          <a class="mg-dd-item" href="frequencia-v2.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+          <a class="mg-dd-item" href="boletim-estatistico-v2.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
         </div>
       </div>
-      <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
-      <a class="mg-nav-btn" href="boletim.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+      <a class="mg-nav-btn" href="relatorios-v2.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+      <a class="mg-nav-btn" href="boletim-v2.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
       <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none;min-width:auto;padding:6px 10px;" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
     </nav>
     <div><button class="mg-action-btn" onclick="location.reload()" title="Atualizar"><i class="bi bi-arrow-clockwise"></i><span class="d-none d-lg-inline">Atualizar</span></button></div>
@@ -164,8 +194,8 @@
       </div>
     </div>
     <div class="d-flex align-items-center gap-3">
-      <a class="nav-back" href="atribuicao.html"><i class="bi bi-diagram-3-fill me-1"></i>Atribuição</a>
-      <a class="nav-back" href="index.html"><i class="bi bi-house-fill me-1"></i>Início</a>
+      <a class="nav-back" href="atribuicao-v2.html"><i class="bi bi-diagram-3-fill me-1"></i>Atribuição</a>
+      <a class="nav-back" href="index-v2.html"><i class="bi bi-house-fill me-1"></i>Início</a>
     </div>
   </header>
 
@@ -402,15 +432,7 @@ function normalizar(txt) {
     .replace(/\s*-\s*/g, ' - ').replace(/\s+/g, ' ');
 }
 function colapsar(txt) { return normalizar(txt).replace(/[^A-Z0-9]/g, ''); }
-/* ⚠️ O nome da unidade é resolvido pelo catálogo (`unidades.js`), nunca por
-   normalização local — ver CLAUDE.md. Antes daqui só saía trim + colapso de
-   espaço, o que não casa grafia nenhuma: a mesma unidade escrita de dois
-   jeitos virava duas linhas, cada uma com parte das turmas.
-   `oficial()` NUNCA descarta: o que o catálogo não reconhece volta intacto. */
-function cleanUnit(txt) {
-  const bruto = String(txt || '').trim().replace(/\s+/g, ' ');
-  return window.MapaUnidades ? window.MapaUnidades.oficial(bruto) : bruto;
-}
+function cleanUnit(txt) { return String(txt || '').trim().replace(/\s+/g, ' '); }
 // Identidade de uma turma: escola + ano + letra + período (a mesma turma aparece
 // em várias linhas — uma por disciplina). Normalizamos cada parte (acentos, º,
 // caixa, espaços e o código de período) para NÃO contar a mesma turma mais de uma
@@ -671,15 +693,6 @@ function aguardarAuth() {
     document.addEventListener('mapa-auth-pronto', () => resolve(), { once: true });
     setTimeout(resolve, 8000);
   });
-}
-
-/* O catálogo precisa estar carregado ANTES do primeiro `cleanUnit`, senão o
-   nome volta cru e duas grafias da mesma unidade viram duas linhas. Falhar
-   aqui não impede a tela de abrir — só devolve o comportamento antigo. */
-async function aguardarCatalogo() {
-  if (!window.MapaUnidades) return;
-  try { await window.MapaUnidades.carregar(); }
-  catch (e) { console.warn('[unidade] catálogo não carregou; os nomes seguem com a grafia da fonte', e); }
 }
 function filtrarTurmasPorEscola(rows) {
   try {
@@ -1297,7 +1310,6 @@ async function carregar() {
   document.getElementById('conteudo').style.display = 'none';
   try {
     await aguardarAuth();
-    await aguardarCatalogo();   // `cleanUnit` depende dele
     await fetchSeriesExcluidas();
     const todas = await fetchTurmas();
     try { PROF2 = await fetchProf2(); } catch (e) { PROF2 = null; }
@@ -1306,9 +1318,6 @@ async function carregar() {
     document.getElementById('estado').style.display = 'none';
     document.getElementById('conteudo').style.display = 'block';
     montarPeriodos();
-    /* Ver o comentário equivalente na `atribuicao.html`: o aviso é o que torna
-       a grafia órfã perceptível. */
-    if (window.MapaUnidades) window.MapaUnidades.relatar('retrato-atribuicao');
     render();   // depois de exibir o conteúdo, para o gráfico medir o canvas corretamente
     simSetup(); // carrega parâmetros salvos do simulador e liga os eventos
   } catch (e) {
@@ -1321,5 +1330,6 @@ function atualizar() { window.__forcarRefetch = true; periodosSel = null; carreg
 carregar();
 </script>
   <script src="iago.js"></script>
+<script src="mapa-v2-ceu.js" defer></script>
 </body>
 </html>

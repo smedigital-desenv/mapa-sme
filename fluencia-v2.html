@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-bs-theme="dark" data-tema="escuro" data-acento="ciano" data-fundo="medio">
 <head>
   <meta charset="UTF-8">
   <script src="auth-guard.js"></script>
@@ -17,9 +17,29 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-  <script src="unidades.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+/* defaults do Chart.js para o visual de teste — acrescentado por gerar-v2.py */
+(function () {
+  if (!window.Chart) return;
+  var C = window.Chart;
+  C.defaults.color = '#94A0AB';
+  C.defaults.borderColor = 'rgba(255,255,255,.10)';
+  C.defaults.font.family = 'DM Sans, system-ui, sans-serif';
+  if (C.defaults.plugins && C.defaults.plugins.legend) {
+    C.defaults.plugins.legend.labels.color = '#94A0AB';
+  }
+  if (C.defaults.scales) {
+    ['linear', 'category', 'radialLinear'].forEach(function (k) {
+      if (!C.defaults.scales[k]) return;
+      if (C.defaults.scales[k].grid) C.defaults.scales[k].grid.color = 'rgba(255,255,255,.08)';
+      if (C.defaults.scales[k].ticks) C.defaults.scales[k].ticks.color = '#8996A3';
+    });
+  }
+})();
+</script>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     :root {
@@ -253,8 +273,25 @@
   /* header próprio do módulo não fixa (só o global) */
   .nav-header { position: static !important; }
 </style>
+
+<!-- ↓↓↓ acrescentado por tools/gerar-v2.py — pele de teste ↓↓↓ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mapa-v2.css">
+<!-- ↑↑↑ -->
 </head>
 <body>
+<div class="v2-faixa">
+  <b>VERSÃO 2 · TESTE</b>
+  <span>Esta página é uma cópia para avaliar o visual novo. A que está em uso continua em</span>
+  <a href="fluencia-v2.html">fluencia.html</a>
+</div>
+<canvas id="ceu" aria-hidden="true"></canvas>
+<span class="v2-orbita v2-orbita--1" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--2" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--3" aria-hidden="true"></span>
+
 
 <!-- ═══ HEADER GLOBAL MAPA (opção 2) ═══ -->
 <header class="mg-header">
@@ -266,32 +303,31 @@
     </div>
   </div>
   <nav class="mg-nav">
-    <a class="mg-nav-btn" href="index.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
-    <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_irc,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
-      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+    <a class="mg-nav-btn" href="index-v2.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
+    <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
+      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao-v2.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
       <div class="mg-dd-menu">
-        <a class="mg-dd-item" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
-        <a class="mg-dd-item" href="avaliacao-diagnostica.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
-        <a class="mg-dd-item" href="av-irc.html" data-tela="avaliacao_irc"><i class="bi bi-pencil-fill"></i>Produção Escrita (IRC)</a>
-        <a class="mg-dd-item" href="av-oral-matematica.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
-        <a class="mg-dd-item" href="saresp.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
-        <a class="mg-dd-item" href="ideb.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
-        <a class="mg-dd-item" href="iee.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
-        <a class="mg-dd-item" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
-        <a class="mg-dd-item active" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+        <a class="mg-dd-item" href="avaliacao-v2.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item" href="avaliacao-diagnostica-v2.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+        <a class="mg-dd-item" href="av-oral-matematica-v2.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+        <a class="mg-dd-item" href="saresp-v2.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+        <a class="mg-dd-item" href="ideb-v2.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+        <a class="mg-dd-item" href="iee-v2.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
+        <a class="mg-dd-item" href="elefante-v2.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+        <a class="mg-dd-item active" href="fluencia-v2.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
       </div>
     </div>
-    <a class="mg-nav-btn" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
-    <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <a class="mg-nav-btn" href="atribuicao-v2.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="educacao_especial-v2.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
     <div class="mg-dd" data-tela-any="frequencia,boletim_estatistico">
-      <a class="mg-nav-btn mg-dd-toggle" href="frequencia.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <a class="mg-nav-btn mg-dd-toggle" href="frequencia-v2.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
       <div class="mg-dd-menu">
-        <a class="mg-dd-item" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
-        <a class="mg-dd-item" href="boletim-estatistico.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+        <a class="mg-dd-item" href="frequencia-v2.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+        <a class="mg-dd-item" href="boletim-estatistico-v2.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
       </div>
     </div>
-    <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
-    <a class="mg-nav-btn" href="boletim.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+    <a class="mg-nav-btn" href="relatorios-v2.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+    <a class="mg-nav-btn" href="boletim-v2.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
     <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none;min-width:auto;padding:6px 10px;" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
   </nav>
   <div class="mg-actions">
@@ -309,24 +345,14 @@
         <h5 class="m-0 fw-900">Fluência Leitora</h5>
         <div style="font-size:.63rem;color:rgba(255,255,255,.65);font-weight:800;
                     letter-spacing:.08em;text-transform:uppercase;">
-          SME Ribeirão Preto · Avaliação Diagnóstica 2026
+          Avaliação Diagnóstica 2026
         </div>
       </div>
     </div>
-    <div class="d-flex align-items-center gap-2">
-      <a class="btn btn-sm btn-light d-flex align-items-center gap-2 fw-bold"
-         href="metas.html" title="Simular metas com controles por nível">
-        <i class="bi bi-sliders"></i>Metas
-      </a>
-      <button class="btn btn-sm btn-light d-flex align-items-center gap-2 fw-bold"
-              onclick="exportarMetas()" title="Baixar planilha de metas por escola">
-        <i class="bi bi-file-earmark-spreadsheet-fill"></i>Exportar metas
-      </button>
-      <button class="btn btn-sm btn-success d-flex align-items-center gap-2"
-              onclick="abrirImport()">
-        <i class="bi bi-cloud-arrow-up-fill"></i>Importar planilha
-      </button>
-    </div>
+    <button class="btn btn-sm btn-success d-flex align-items-center gap-2"
+            onclick="abrirImport()">
+      <i class="bi bi-cloud-arrow-up-fill"></i>Importar planilha
+    </button>
   </div>
 </header>
 
@@ -690,39 +716,28 @@ function _normTurma(s) {
 const _TITULOS = new Set(['PROF','PROFA','PROFO','DR','DRA','DRO',
                           'PROFESSOR','PROFESSORA','DOUTOR','DOUTORA']);
 
-/* ⚠️ O NOME DA UNIDADE É RESOLVIDO POR `unidades.js` — não reescreva a regra
-   aqui (CLAUDE.md). Esta função virou só a CHAVE de cruzamento Fluência ×
-   Elefante: as duas bases passam pelo mesmo resolvedor e viram a mesma grafia.
+// Apelidos para escolas cujo NOME diverge entre as bases (mesma escola, cadastro
+// diferente — não resolvível por regra geral). Chave e valor já normalizados:
+// mapeia a forma da Fluência para a forma do Elefante.
+//   Fluência: "ENEIDA PEREIRA DOS SANTOS DE AGUIAR, PROFA. DRA. EMEF"
+//   Elefante: "ENEIDA PEREIRA DOS SANTOS, EMEF"
+const _ESCOLA_ALIAS = {
+  'ENEIDA PEREIRA DOS SANTOS DE AGUIAR EMEF': 'ENEIDA PEREIRA DOS SANTOS EMEF',
+};
 
-   Duas coisas saíram daqui, e as duas eram defeito:
-
-   1. O MAPA DE APELIDOS cravado no front. Ele resolvia um caso real (a
-      Fluência escreve a forma longa do nome, o catálogo registra a curta), mas
-      no lugar errado: apelido pertence a `escola_alias`, no banco, porque
-      sobrevive à reimportação e é conferido por gente. A tabela já tem essa
-      linha — conferido em 2026-08-24.
-
-   2. O CORTE `if (w === 'UNID') break;`, que era uma MINA. Ele existia porque
-      o Elefante grafa "EMEF – UNID I" para a matriz. Só que cortar no 'UNID'
-      apaga TAMBÉM o "UNID II" — e a rede tem de fato duas unidades ali
-      (confirmado pela SME): a matriz e a Unidade II, escolas distintas com
-      alunos distintos. O corte as fundia numa linha só, somando as duas.
-      Medido: com a grafia de hoje ("UN. II") ele não disparava, por acidente
-      — bastava uma fonte escrever "UNID II" para somar duas escolas.
-      Quem sabe que "UNID I" é a matriz e "Unidade II" é a outra é o
-      `escola_alias`, que aponta cada uma para o seu `escola_id`. Isso é dado,
-      não regra: normalização nenhuma adivinha. */
 function _normEscola(s) {
-  const bruto = String(s || '').trim();
-  if (!bruto) return '';
-  if (window.MapaUnidades) return _norm(window.MapaUnidades.oficial(bruto));
-  /* Sem o catálogo: títulos e pontuação fora, mas SEM cortar no 'UNID' —
-     preferir não casar a casar duas escolas como uma. */
-  const limpo = _norm(bruto)
-    .replace(/[º°ª]/g, '')
-    .replace(/[.,–—-]/g, ' ')
+  const limpo = _norm(s)
+    .replace(/[º°ª]/g, '')           // ordinais masculino/feminino/grau
+    .replace(/[.,–—-]/g, ' ')        // pontuação e travessões → espaço
     .replace(/\s+/g, ' ').trim();
-  return limpo.split(' ').filter(w => !_TITULOS.has(w)).join(' ');
+  const out = [];
+  for (const w of limpo.split(' ')) {
+    if (_TITULOS.has(w)) continue;   // descarta títulos
+    if (w === 'UNID') break;         // corta sufixo "UNID I/II…"
+    out.push(w);
+  }
+  const nome = out.join(' ');
+  return _ESCOLA_ALIAS[nome] || nome;
 }
 
 function _chaveTurma(escola, ano, turma) {
@@ -782,15 +797,6 @@ async function carregarDados() {
   try {
     await aguardarAuth();   // garante que já sabemos as escolas do usuário
 
-    /* O catálogo e os apelidos precisam estar carregados ANTES do primeiro
-       `_normEscola`, senão o cruzamento Fluência × Elefante cai para a chave
-       reserva e perde as escolas que só o apelido resolve. Falhar aqui não
-       impede a tela de abrir. */
-    if (window.MapaUnidades) {
-      try { await window.MapaUnidades.carregar(); }
-      catch (e) { console.warn('[fluencia] catálogo de unidades não carregou; o cruzamento com o Elefante fica mais estrito', e); }
-    }
-
     // Busca engajamento do Elefante em paralelo (não bloqueia se falhar)
     await carregarEngajamento();
 
@@ -801,10 +807,6 @@ async function carregarDados() {
     dados = filtrarPorEscola(dados);   // só as escolas do usuário (super admin vê tudo)
 
     if (!dados.length) { semDados(); return; }
-
-    /* Grafia que nem o catálogo nem o apelido reconhecem some do cruzamento
-       em silêncio. O aviso é o que cria a suspeita (CLAUDE.md). */
-    if (window.MapaUnidades) window.MapaUnidades.relatar('fluencia');
 
     // Organiza por avaliação → escola → turmas
     const por = {};
@@ -2181,118 +2183,6 @@ function imprimirRelatorio() {
   setTimeout(() => w.print(), 800);   // aguarda o CSS do CDN carregar
 }
 
-// ── Exportar planilha de metas por escola ───────────────────
-// Gera um .xlsx com os números por escola E as fórmulas de meta, para que a
-// rede possa ajustar os percentuais no Excel e ver o efeito na hora. Os
-// parâmetros ficam numa aba própria; as colunas de meta apontam para ela.
-//
-// O gradiente (N4 mais ambicioso, N1 mais modesto) segue a mesma ordem de
-// esforço que calcularMeta() já usa: N4 peso 1 … N1 peso 4. Não são medição —
-// é ponto de partida para a decisão pedagógica, e por isso ficam editáveis.
-const META_REDE      = 0.70;
-const META_PADRAO_N4 = 0.70;
-const META_PADRAO_N3 = 0.45;
-const META_PADRAO_N2 = 0.25;
-const META_PADRAO_N1 = 0.10;
-
-function exportarMetas() {
-  const av = document.getElementById('selAvaliacao')?.value || S.avaliacoes[0] || '';
-  const esc = S.porEscola[av] || {};
-  const nomes = Object.keys(esc).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  if (!nomes.length) {
-    alert('Não há dados carregados para exportar. Selecione uma avaliação com dados.');
-    return;
-  }
-
-  // ── Aba Parametros (sem acento no NOME da aba de propósito: o nome entra
-  //    nas fórmulas das outras células e acento ali é fonte de dor) ──
-  const par = [
-    ['Metas de Fluência Leitora — Parâmetros'],
-    ['Avaliação:', av],
-    ['Meta da rede (% de leitores sobre avaliados)', META_REDE],
-    [],
-    ['Quanto de cada nível deve virar leitor', '% que deve virar leitor', 'Dificuldade'],
-    ['Pré-leitor N4', META_PADRAO_N4, '1 — mais fácil'],
-    ['Pré-leitor N3', META_PADRAO_N3, '2'],
-    ['Pré-leitor N2', META_PADRAO_N2, '3'],
-    ['Pré-leitor N1', META_PADRAO_N1, '4 — mais difícil'],
-    [],
-    ['Edite as células B3 e B6:B9 — a aba de metas recalcula sozinha.'],
-    ['Estes percentuais são proposta de partida, não medição: não há série'],
-    ['histórica de evolução entre níveis no sistema para calibrá-los.'],
-    [],
-    ['Base de cálculo: alunos AVALIADOS. Leitores = Iniciantes + Fluentes.'],
-    ['Gerado pelo MAPA em ' + new Date().toLocaleString('pt-BR')],
-  ];
-  const wsPar = XLSX.utils.aoa_to_sheet(par);
-  wsPar['!cols'] = [{ wch: 46 }, { wch: 24 }, { wch: 18 }];
-  ['B3', 'B6', 'B7', 'B8', 'B9'].forEach(c => { if (wsPar[c]) wsPar[c].z = '0%'; });
-
-  // ── Aba Metas por Escola ──
-  const CAB = ['Escola', 'Avaliados', 'Fluentes', 'Iniciantes',
-               'Pré N4', 'Pré N3', 'Pré N2', 'Pré N1',
-               'Conferência', 'Leitores hoje', '% hoje',
-               'Meta N4 (alunos)', 'Meta N3 (alunos)', 'Meta N2 (alunos)', 'Meta N1 (alunos)',
-               'Novos leitores', 'Leitores após meta', '% após meta',
-               'Faltam p/ meta (hoje)', 'Situação'];
-
-  const linhas = nomes.map(nome => {
-    const t = esc[nome].totais || {};
-    return [nome, +t.avaliados || 0, +t.fluentes || 0, +t.iniciantes || 0,
-            +t.pre_n4 || 0, +t.pre_n3 || 0, +t.pre_n2 || 0, +t.pre_n1 || 0];
-  });
-
-  const ws = XLSX.utils.aoa_to_sheet([CAB, ...linhas]);
-  const prim = 2;                       // primeira linha de dados (1-based)
-  const ult  = 1 + linhas.length;
-  const tot  = ult + 2;                 // linha REDE, com uma linha em branco antes
-
-  const F = (celula, formula, fmt) => {
-    ws[celula] = { t: 'n', f: formula };
-    if (fmt) ws[celula].z = fmt;
-  };
-  const T = (celula, formula) => { ws[celula] = { t: 's', f: formula }; };
-
-  for (let r = prim; r <= ult; r++) {
-    T(`I${r}`, `IF(SUM(C${r}:H${r})=B${r},"ok","confere: soma "&SUM(C${r}:H${r})&" <> "&B${r})`);
-    F(`J${r}`, `C${r}+D${r}`, '#,##0');
-    F(`K${r}`, `IF(B${r}=0,"",J${r}/B${r})`, '0.0%');
-    F(`L${r}`, `ROUND(E${r}*Parametros!$B$6,0)`, '#,##0');
-    F(`M${r}`, `ROUND(F${r}*Parametros!$B$7,0)`, '#,##0');
-    F(`N${r}`, `ROUND(G${r}*Parametros!$B$8,0)`, '#,##0');
-    F(`O${r}`, `ROUND(H${r}*Parametros!$B$9,0)`, '#,##0');
-    F(`P${r}`, `L${r}+M${r}+N${r}+O${r}`, '#,##0');
-    F(`Q${r}`, `J${r}+P${r}`, '#,##0');
-    F(`R${r}`, `IF(B${r}=0,"",Q${r}/B${r})`, '0.0%');
-    F(`S${r}`, `IF(B${r}=0,"",MAX(0,ROUNDUP(B${r}*Parametros!$B$3,0)-J${r}))`, '#,##0');
-    T(`T${r}`, `IF(B${r}=0,"",IF(R${r}>=Parametros!$B$3,"Alcança a meta","Ainda abaixo"))`);
-  }
-
-  // Linha REDE. Atenção: "Faltam p/ meta" NÃO é a soma da coluna — escola já
-  // acima da meta entra como zero e o total sairia maior que o real. Aqui se
-  // refaz o cálculo sobre os totais, como o painel de rede da tela faz.
-  ws[`A${tot}`] = { t: 's', v: 'REDE (total)' };
-  ['B','C','D','E','F','G','H','J','L','M','N','O','P','Q'].forEach(c =>
-    F(`${c}${tot}`, `SUM(${c}${prim}:${c}${ult})`, '#,##0'));
-  F(`K${tot}`, `IF(B${tot}=0,"",J${tot}/B${tot})`, '0.0%');
-  F(`R${tot}`, `IF(B${tot}=0,"",Q${tot}/B${tot})`, '0.0%');
-  F(`S${tot}`, `IF(B${tot}=0,"",MAX(0,ROUNDUP(B${tot}*Parametros!$B$3,0)-J${tot}))`, '#,##0');
-  T(`T${tot}`, `IF(B${tot}=0,"",IF(R${tot}>=Parametros!$B$3,"Rede alcança a meta","Rede abaixo da meta"))`);
-
-  ws['!ref'] = `A1:T${tot}`;
-  ws['!cols'] = [{ wch: 34 }, ...Array(7).fill({ wch: 11 }), { wch: 22 },
-                 { wch: 13 }, { wch: 9 }, ...Array(4).fill({ wch: 15 }),
-                 { wch: 14 }, { wch: 17 }, { wch: 12 }, { wch: 20 }, { wch: 22 }];
-  ws['!freeze'] = { xSplit: 1, ySplit: 1 };
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, wsPar, 'Parametros');
-  XLSX.utils.book_append_sheet(wb, ws, 'Metas por Escola');
-
-  const slug = String(av).replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_|_$/g, '') || 'avaliacao';
-  XLSX.writeFile(wb, `Metas_Fluencia_${slug}.xlsx`);
-}
-
 // mantida para compatibilidade com modal da turma
 function renderPctFluente(pct) {
   if (!pct || pct === '—') return '<span class="text-muted">—</span>';
@@ -2722,5 +2612,6 @@ function esc(s) {
 }
 </script>
   <script src="iago.js"></script>
+<script src="mapa-v2-ceu.js" defer></script>
 </body>
 </html>

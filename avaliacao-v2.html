@@ -1,6 +1,6 @@
 
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-bs-theme="dark" data-tema="escuro" data-acento="ciano" data-fundo="medio">
 <head>
 
 <!-- =========================================================
@@ -12,7 +12,6 @@
   <script src="auth-guard.js"></script>
   <script>window.MAPA_SISTEMA = 'mapa';</script>
   <script src="auth.js" defer></script>
-  <script src="unidades.js"></script>
   <script src="ficha-coderp.js"></script>
   <script src="config-central.js" defer></script>
   <script src="demo-mode.js"></script>
@@ -33,6 +32,27 @@
   <!-- Bibliotecas JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+/* defaults do Chart.js para o visual de teste — acrescentado por gerar-v2.py */
+(function () {
+  if (!window.Chart) return;
+  var C = window.Chart;
+  C.defaults.color = '#94A0AB';
+  C.defaults.borderColor = 'rgba(255,255,255,.10)';
+  C.defaults.font.family = 'DM Sans, system-ui, sans-serif';
+  if (C.defaults.plugins && C.defaults.plugins.legend) {
+    C.defaults.plugins.legend.labels.color = '#94A0AB';
+  }
+  if (C.defaults.scales) {
+    ['linear', 'category', 'radialLinear'].forEach(function (k) {
+      if (!C.defaults.scales[k]) return;
+      if (C.defaults.scales[k].grid) C.defaults.scales[k].grid.color = 'rgba(255,255,255,.08)';
+      if (C.defaults.scales[k].ticks) C.defaults.scales[k].ticks.color = '#8996A3';
+    });
+  }
+})();
+</script>
+
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
   <!-- Supabase -->
@@ -1231,9 +1251,26 @@
       }
     }
   </style>
+
+<!-- ↓↓↓ acrescentado por tools/gerar-v2.py — pele de teste ↓↓↓ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mapa-v2.css">
+<!-- ↑↑↑ -->
 </head>
 
 <body>
+<div class="v2-faixa">
+  <b>VERSÃO 2 · TESTE</b>
+  <span>Esta página é uma cópia para avaliar o visual novo. A que está em uso continua em</span>
+  <a href="avaliacao-v2.html">avaliacao.html</a>
+</div>
+<canvas id="ceu" aria-hidden="true"></canvas>
+<span class="v2-orbita v2-orbita--1" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--2" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--3" aria-hidden="true"></span>
+
 
   <!-- ═══════════════════════════════════════════════════════
        BARRA SUPERIOR
@@ -1267,32 +1304,31 @@
       </div>
     </div>
     <nav class="mg-nav">
-      <a class="mg-nav-btn" href="index.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
-      <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_irc,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
-        <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <a class="mg-nav-btn" href="index-v2.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
+      <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
+        <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao-v2.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
         <div class="mg-dd-menu">
           <a class="mg-dd-item active" style="cursor:pointer" onclick="document.getElementById('navAvaliacoes').checked=true;abrirModuloAvaliacoes();return false;"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
-          <a class="mg-dd-item" href="avaliacao-diagnostica.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
-          <a class="mg-dd-item" href="av-irc.html" data-tela="avaliacao_irc"><i class="bi bi-pencil-fill"></i>Produção Escrita (IRC)</a>
-          <a class="mg-dd-item" href="av-oral-matematica.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
-          <a class="mg-dd-item" href="saresp.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
-          <a class="mg-dd-item" href="ideb.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
-          <a class="mg-dd-item" href="iee.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
-          <a class="mg-dd-item" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
-          <a class="mg-dd-item" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+          <a class="mg-dd-item" href="avaliacao-diagnostica-v2.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+          <a class="mg-dd-item" href="av-oral-matematica-v2.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+          <a class="mg-dd-item" href="saresp-v2.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+          <a class="mg-dd-item" href="ideb-v2.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+          <a class="mg-dd-item" href="iee-v2.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
+          <a class="mg-dd-item" href="elefante-v2.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+          <a class="mg-dd-item" href="fluencia-v2.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
         </div>
       </div>
-      <a class="mg-nav-btn" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
-      <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+      <a class="mg-nav-btn" href="atribuicao-v2.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+      <a class="mg-nav-btn" href="educacao_especial-v2.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
       <div class="mg-dd" data-tela-any="frequencia,boletim_estatistico">
-        <a class="mg-nav-btn mg-dd-toggle" href="frequencia.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+        <a class="mg-nav-btn mg-dd-toggle" href="frequencia-v2.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
         <div class="mg-dd-menu">
-          <a class="mg-dd-item" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
-          <a class="mg-dd-item" href="boletim-estatistico.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+          <a class="mg-dd-item" href="frequencia-v2.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+          <a class="mg-dd-item" href="boletim-estatistico-v2.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
         </div>
       </div>
-      <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
-      <a class="mg-nav-btn" href="boletim.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+      <a class="mg-nav-btn" href="relatorios-v2.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+      <a class="mg-nav-btn" href="boletim-v2.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
       <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none;min-width:auto;padding:6px 10px;" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
     </nav>
     <div class="mg-actions">
@@ -1313,7 +1349,7 @@
       <div>
         <h5 class="m-0 fw-bold text-white">Avaliações</h5>
         <div style="font-size:.63rem;color:rgba(255,255,255,.65);font-weight:800;letter-spacing:.08em;text-transform:uppercase;">
-          SME Ribeirão Preto · Rede · Diagnóstica · Bimestres
+          Rede · Diagnóstica · Bimestres
         </div>
       </div>
     </div>
@@ -1329,8 +1365,8 @@
       <button type="button" class="btn-toggle" data-avaliacao="terceiroBimestre" onclick="abrirAvaliacao('terceiroBimestre', this)">3º Bim.</button>
       <button type="button" class="btn-toggle" data-avaliacao="quartoBimestre" onclick="abrirAvaliacao('quartoBimestre', this)">4º Bim.</button>
       <button type="button" class="btn-toggle" data-avaliacao="Total" onclick="abrirAvaliacao('Total', this)">Total</button>
-      <a href="analise-desempenho.html" class="btn-toggle"><i class="bi bi-bar-chart-fill me-1"></i>Análise de Desempenho</a>
-      <a href="comparativo-escolas.html" class="btn-toggle"><i class="bi bi-table me-1"></i>Comparativo de Escolas</a>
+      <a href="analise-desempenho-v2.html" class="btn-toggle"><i class="bi bi-bar-chart-fill me-1"></i>Análise de Desempenho</a>
+      <a href="comparativo-escolas-v2.html" class="btn-toggle"><i class="bi bi-table me-1"></i>Comparativo de Escolas</a>
       <button type="button" class="btn-toggle" data-avaliacao="Auditoria" onclick="abrirAvaliacao('Auditoria', this)"><i class="bi bi-shield-check me-1"></i>Análise de Consistência</button>
     </div>
   </div>
@@ -3137,30 +3173,8 @@ const _prefetchQueue = [];
 let _prefetchRunning = 0;
 const _prefetchMaxConcurrent = 2;
 
-/* ⚠️ A CHAVE INCLUI QUEM ESTÁ VENDO. Sem isso o `sessionStorage` é comum a
-   todas as identidades da mesma aba, e o vazio de uma vaza para a outra:
-   uma SIMULAÇÃO de perfil sem dado gravava `[]` aqui e, ao encerrar a
-   simulação, o super admin lia esse vazio como se fosse dele — a Diagnóstica
-   ficava sem aluno nenhum. Antes de a tela distinguir vazio de carregando,
-   o sintoma era pior: spinner eterno, sem nada no console. Medido em 2026-08.
-
-   Sob simulação, `MapaAuth.perfil.email` JÁ é o e-mail da pessoa simulada
-   (o `auth.js` monta o perfil a partir das permissões observadas), então a
-   separação sai de graça — não é preciso um sinalizador à parte.
-
-   ⚠️ Vale para TODOS os pacotes que passam por `_cacheSet`/`_cacheGet`
-   (dashboard, bimestre, Total), não só para a Diagnóstica.
-
-   Se a auth ainda não resolveu, a chave sai com '?': quem gravou antes e quem
-   lê depois não se encontram, e o pior caso é buscar de novo — nunca ler o
-   dado de outra pessoa. */
 function _cacheStorageKey(chave) {
-  var quem = '?';
-  try {
-    var p = window.MapaAuth && window.MapaAuth.perfil;
-    if (p && p.email) quem = String(p.email).trim().toLowerCase();
-  } catch (e) {}
-  return 'MAPA_CACHE_' + quem + '_' + String(chave);
+  return 'MAPA_CACHE_' + String(chave);
 }
 
 function _cacheSet(chave, valor) {
@@ -4978,22 +4992,13 @@ async function baixarRelatorioExcel() {
 // Corrigido: filtro de ano funcionando também no menu Rede.
 // ===========================================================
 
-/* Estado do carregamento dos alunos da Diagnóstica: 'carregando' | 'pronto' |
-   'erro'. ⚠️ Existe porque VAZIO NÃO É O MESMO QUE CARREGANDO, e enquanto os
-   dois dividiram a mesma tela o sintoma foi grave: uma consulta que volta sem
-   linhas — recorte sem lançamento, perfil sem cadastro no MAPA, filtro que não
-   casa — aparecia como "Carregando dados da Rede…" PARA SEMPRE. Quem via isso
-   concluía que a tela travou, e não havia nada no console para contradizer. */
-var _alunosDiagEstado = 'carregando';
-
 function iniciarDiagnostica() {
   avaliacaoAtual = 'AnoEscolar';
 
   prepararLayoutDiagnostica('Diagnóstica');
 
   if (!rawData || !Array.isArray(rawData.alunos) || !rawData.alunos.length) {
-    if (_alunosDiagEstado === 'carregando') _mostrarLoadingDiagnostica();
-    else _mostrarVazioDiagnostica(_alunosDiagEstado === 'erro');
+    _mostrarLoadingDiagnostica();
     return;
   }
 
@@ -5004,28 +5009,6 @@ function iniciarDiagnostica() {
   renderHierarquiaDiag(true);
   _atualizarBreadcrumbDiag();
   _aplicarFiltroDiag();
-}
-
-/* O par do _mostrarLoadingDiagnostica: a tela de quem JÁ carregou e não tem o
-   que mostrar. Diz qual é o caso e o que fazer, em vez de girar. */
-function _mostrarVazioDiagnostica(houveErro) {
-  ['kpiAlunos1', 'kpiAlunos2', 'kpiAlunos3', 'kpiAlunos4'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = '—';
-  });
-  const h = document.getElementById('hierarquiaContainerDiag');
-  if (!h) return;
-  h.innerHTML = houveErro
-    ? `<div class="text-center p-4" style="color:#b45309">
-         <i class="bi bi-exclamation-triangle" style="font-size:1.4rem"></i><br>
-         <b>Não foi possível carregar a Diagnóstica.</b><br>
-         <span style="font-size:.85rem">O erro está no console. Recarregue a página; se persistir, avise a administração.</span>
-       </div>`
-    : `<div class="text-center text-muted p-4">
-         <i class="bi bi-folder-x" style="font-size:1.4rem"></i><br>
-         <b>Nenhum aluno na Avaliação Diagnóstica.</b><br>
-         <span style="font-size:.85rem">Não há lançamento para o seu recorte — não é falha de carregamento.</span>
-       </div>`;
 }
 
 function _mostrarLoadingDiagnostica() {
@@ -8004,43 +7987,38 @@ function _renderTabelaTotal(linhas) {
   // palavras batem todas, para nunca fundir unidades diferentes. Sem
   // casamento, mantém a grafia original — visível e corrigível, nunca
   // silencioso.
-  /* ⚠️ A grafia oficial vem de `unidades.js`, o resolvedor único (CLAUDE.md).
-     O que existia aqui era um índice próprio, equivalente na REGRA mas com
-     duas diferenças que importavam:
+  function tokensUnidade(nome) {
+    return normalizar(String(nome || ''))
+      .replace(/[^A-Z0-9 ]/g, ' ')
+      .split(/\s+/).filter(Boolean)
+      .sort().join(' ');
+  }
 
-     - ele indexava `escolas`, que passa pelo RLS. Para um perfil de escola a
-       lista tem UMA linha, então `cleanUnit` praticamente não canonizava nada
-       — justo para quem mais depende de a tela fechar com o resto. O
-       `escolas_catalogo` não é recortado, e é dele que vêm os nomes do CODERP.
-     - era a quinta cópia da mesma regra no repositório, e cópias divergem na
-       primeira correção feita em quatro delas.
+  // Índice tokens -> grafia oficial (catálogo `escolas`). Carrega quando a
+  // sessão fica pronta; antes disso o cleanUnit devolve a grafia original.
+  let _unidadeOficialIdx = null;
+  function _carregarIndiceOficial() {
+    supa.from('escolas').select('nome').eq('ativo', true)
+      .then(({ data, error }) => {
+        if (error || !data || !data.length) return;
+        const idx = new Map();
+        data.forEach(e => {
+          const t = tokensUnidade(e.nome);
+          if (!t) return;
+          // Duas oficiais com o mesmo conjunto de palavras: ambíguo, não traduz.
+          idx.set(t, idx.has(t) ? null : String(e.nome).trim().replace(/\s+/g, ' '));
+        });
+        _unidadeOficialIdx = idx;
+      })
+      .catch(() => { /* sem catálogo, segue com as grafias originais */ });
+  }
+  document.addEventListener('mapa-auth-pronto', _carregarIndiceOficial, { once: true });
+  _carregarIndiceOficial();
 
-     ⚠️ Isto NÃO mexe em quem aparece: a LISTA continua vindo de `escolas` com
-     o RLS de sempre. Aqui só se resolve o NOME. */
   function cleanUnit(txt) {
     const bruto = String(txt || '').trim().replace(/\s+/g, ' ');
-    return window.MapaUnidades ? window.MapaUnidades.oficial(bruto) : bruto;
-  }
-  if (window.MapaUnidades) {
-    /* ⚠️ try/catch, e não só `.catch()`. Este bloco roda DENTRO do IIFE do
-       adaptador Supabase, e as três últimas linhas daquele IIFE são as que
-       instalam `google.script.run`. Qualquer exceção SÍNCRONA aqui aborta o
-       IIFE antes delas e a tela inteira para com "google is not defined" —
-       um erro que não menciona catálogo de unidade nenhum. Já aconteceu:
-       `carregar()` tocava `window.MAPA_SB` antes de a sessão existir.
-       O `.catch()` sozinho não cobre isso, porque sem promessa não há o que
-       encadear. */
-    const _carregarCatalogoUnidades = () => {
-      try {
-        return window.MapaUnidades.carregar().catch(() => {
-          /* sem catálogo, as grafias seguem como a fonte mandou */
-        });
-      } catch (e) {
-        console.warn('[MAPA] catálogo de unidades adiado:', (e && e.message) || e);
-      }
-    };
-    document.addEventListener('mapa-auth-pronto', _carregarCatalogoUnidades, { once: true });
-    _carregarCatalogoUnidades();
+    if (!bruto || !_unidadeOficialIdx) return bruto;
+    return _unidadeOficialIdx.get(tokensUnidade(bruto)) || bruto;
   }
 
   function periodoDesc(valor) {
@@ -8420,105 +8398,24 @@ function _renderTabelaTotal(linhas) {
   const fichaApiAtiva         = _FICHA.fichaApiAtiva;
   const chamarFichaApi        = _FICHA.chamarFichaApi;
 
-  /* Catálogo código CODERP -> nome da unidade. Sai do `unidades.js`, que já
-     carrega `escolas_catalogo` para resolver nome — antes esta tela consultava
-     a MESMA tabela uma segunda vez por sessão.
-     ⚠️ Continua devolvendo um Map, porque é isso que as chamadas esperam. */
+  // Catálogo código CODERP -> nome da unidade (uma busca por sessão). A
+  // tradução para a grafia oficial acontece no cleanUnit, para TODAS as fontes.
   let _fichaCatalogoPromise = null;
   function fichaCatalogo() {
     if (!_fichaCatalogoPromise) {
-      _fichaCatalogoPromise = (window.MapaUnidades
-        ? window.MapaUnidades.carregar().then(cat => {
-            const m = new Map();
-            cat.forEach(e => { if (e.codigo) m.set(e.codigo, e.nome); });
-            return m;
-          })
-        : Promise.reject(new Error('unidades.js não carregou')))
+      _fichaCatalogoPromise = supa.from('escolas_catalogo').select('codigo,nome')
+        .then(({ data, error }) => {
+          if (error) throw error;
+          const m = new Map();
+          (data || []).forEach(e => m.set(Number(e.codigo), String(e.nome || '').trim()));
+          return m;
+        })
         .catch(err => { _fichaCatalogoPromise = null; throw err; });
     }
     return _fichaCatalogoPromise;
   }
 
   const fichaAnoLetivo = _FICHA.fichaAnoLetivo;
-
-  /* ── Perfil de escola: quais são as MINHAS unidades no catálogo CODERP? ──
-     Perfil de escola não pode consultar a rede (a função nega por desenho,
-     com `escola_obrigatoria`): a leitura ao vivo dele é a própria unidade,
-     no nível aluno. Aqui só se DESCOBRE o código CODERP das unidades do
-     vínculo — por conjunto exato de palavras, o mesmo critério do resolvedor.
-     Quem AUTORIZA continua sendo o banco (`posso_ver_unidade`, via
-     `escola_alias`): se a grafia CODERP não estiver apelidada lá, a consulta
-     volta 403 e a tela cai para o banco, como hoje. */
-  let _fichaMinhasPromise = null;
-  function fichaMinhasEscolas() {
-    if (!_fichaMinhasPromise) {
-      _fichaMinhasPromise = (async () => {
-        const A = window.MapaAuth;
-        if (!A || !A.restritoEscola || !Array.isArray(A.escolas) || !A.escolas.length) return [];
-        const chaveTokens = nome => normalizar(String(nome || ''))
-          .replace(/[^A-Z0-9 ]/g, ' ').split(/\s+/).filter(Boolean).sort().join(' ');
-        const minhas = new Set(A.escolas.map(e => chaveTokens(e.nome)).filter(Boolean));
-        const catalogo = await fichaCatalogo();
-        const achadas = [];
-        catalogo.forEach((nome, codigo) => {
-          if (minhas.has(chaveTokens(nome))) achadas.push({ codigo: codigo, nome: nome });
-        });
-        if (!achadas.length) {
-          console.warn('[MAPA CODERP] perfil de escola sem casamento no catálogo CODERP — '
-            + 'a leitura ao vivo fica indisponível e o banco assume.');
-        }
-        return achadas;
-      })().catch(() => { _fichaMinhasPromise = null; return []; });
-    }
-    return _fichaMinhasPromise;
-  }
-
-  // Pacote de bimestre restrito às unidades do perfil: nível aluno de cada
-  // uma (memoizado) — turmas reais e contagem exata desde a primeira carga.
-  async function pacoteViaFichaEscolas(minhas, bimestre, anoFiltro) {
-    const alvoAno = (anoFiltro && anoFiltro !== 'TODOS') ? normalizar(anoFiltro) : null;
-    const partes = await Promise.all(minhas.map(m =>
-      fichaDetalheUnidade(bimestre, m.nome).catch(err => {
-        if (!(err && err.coderpStatus === 404)) {
-          console.warn('[MAPA CODERP] unidade do perfil falhou:', m.nome, err);
-        }
-        return null;
-      })));
-    if (!partes.some(Boolean)) throw new Error('nenhuma unidade do perfil respondeu pela API');
-
-    const linhas = [];
-    const hierLinhas = [];
-    const disciplinas = new Set();
-    const anosSet = new Set();
-    const bruto = {};
-    partes.forEach(det => {
-      if (!det || !det.ok) return;
-      (det.linhas || []).forEach(l => {
-        if (alvoAno && l[1] !== alvoAno) return;
-        linhas.push(l);
-        disciplinas.add(l[3]);
-        anosSet.add(l[1]);
-      });
-      (det.hierLinhas || []).forEach(h => {
-        if (alvoAno && h[1] !== alvoAno) return;
-        hierLinhas.push(h);
-        const kb = h[0] + '||' + h[1];
-        bruto[kb] = (bruto[kb] || 0) + Number(h[3] || 0);
-      });
-    });
-    if (!linhas.length) throw new Error('CODERP sem linhas para as unidades do perfil no bimestre ' + bimestre);
-
-    return {
-      ok: true,
-      linhas: linhas,
-      hierLinhas: hierLinhas,
-      disciplinas: Array.from(disciplinas).sort(),
-      anos: Array.from(anosSet).sort(),
-      bruto: bruto,
-      incompleto: partes.some(p => !p),
-      generatedAt: new Date().toISOString()
-    };
-  }
 
   // Memo do pacote do Total por filtro (TTL 10 min, alinhado às outras camadas).
   const _totalPacoteMemo = new Map();
@@ -9636,12 +9533,6 @@ function _renderTabelaTotal(linhas) {
   // Uma chamada por ano escolar: IndicadorTurma sem `escola` devolve a rede
   // inteira aberta por unidade, filtrada pelo `anoescolar`.
   async function pacoteViaFichaApi(bimestre, anoFiltro) {
-    // Perfil de escola: a rede está fora do alcance dele (por desenho) — a
-    // leitura ao vivo é a própria unidade. Evita as 5 consultas de rede que
-    // voltariam 403 e enchem o console de "escola_obrigatoria".
-    const minhas = await fichaMinhasEscolas();
-    if (minhas.length) return pacoteViaFichaEscolas(minhas, bimestre, anoFiltro);
-
     const anos = (anoFiltro && anoFiltro !== 'TODOS') ? [normalizar(anoFiltro)] : FICHA_ANOS_ESCOLARES;
 
     const [catalogo, ...respostas] = await Promise.all([
@@ -9755,24 +9646,6 @@ function _renderTabelaTotal(linhas) {
   // A turma nasce '—' e o detalhe real desce sob demanda ao clicar na unidade
   // (getDetalheUnidadeFichaTotal) — o mesmo padrão das abas de bimestre.
   async function fichaGruposTotal() {
-    // Perfil de escola: monta o Total pelas fichas das unidades do vínculo
-    // (nível aluno, memoizado) — as consultas de rede seriam negadas.
-    const minhasT = await fichaMinhasEscolas();
-    if (minhasT.length) {
-      const grupos = [];
-      let veioAlgo = false;
-      const porBim = await Promise.all([1, 2, 3, 4].map(b => fichaAlunosBimestre(b).catch(() => null)));
-      porBim.forEach((rows, bi) => {
-        if (!rows) return;
-        veioAlgo = true;
-        rows.forEach(r => grupos.push([bi + 1, r.nome_unidade, r.ano_escolar || 'TODOS',
-          String(r.turma || '—'), r.fnc_disciplina, r.descricao_fne,
-          r.valor_resposta, r.valor_resposta, 1, r.texto_resposta || '']));
-      });
-      if (!veioAlgo) throw new Error('nenhuma unidade do perfil respondeu pela API');
-      return grupos;
-    }
-
     const catalogo = await fichaCatalogo();
     const grupos = [];
     let algumaFonte = false;
@@ -10135,14 +10008,8 @@ function _renderTabelaTotal(linhas) {
       });
       if (!unis.length) throw new Error('unidade sem código no catálogo: ' + filtros.unidade);
     } else {
-      // 'TODAS' para perfil de escola = as unidades do vínculo, não a rede.
-      const minhas = await fichaMinhasEscolas();
-      if (minhas.length) {
-        unis = minhas.map(m => Number(m.codigo));
-      } else {
-        const esc = await chamarFichaApi('escola', { anoLetivo: anoLetivo, bimestre: bimestre });
-        unis = Array.from(new Set((esc.fichasAvaliacoesEscola || []).map(r => Number(r.uni_cod))));
-      }
+      const esc = await chamarFichaApi('escola', { anoLetivo: anoLetivo, bimestre: bimestre });
+      unis = Array.from(new Set((esc.fichasAvaliacoesEscola || []).map(r => Number(r.uni_cod))));
     }
 
     const nomes = await fichaNomesAlunos();
@@ -10206,16 +10073,8 @@ function _renderTabelaTotal(linhas) {
   async function _fichaAlunosBimestreImpl(bimestre, aoProgresso) {
     const catalogo = await fichaCatalogo();
     const anoLetivo = fichaAnoLetivo();
-    // Perfil de escola: só as unidades do vínculo (a consulta de rede que
-    // lista as escolas seria negada — e nem faria sentido para ele).
-    const minhas = await fichaMinhasEscolas();
-    let unis;
-    if (minhas.length) {
-      unis = minhas.map(m => Number(m.codigo));
-    } else {
-      const esc = await chamarFichaApi('escola', { anoLetivo: anoLetivo, bimestre: bimestre });
-      unis = Array.from(new Set((esc.fichasAvaliacoesEscola || []).map(r => Number(r.uni_cod))));
-    }
+    const esc = await chamarFichaApi('escola', { anoLetivo: anoLetivo, bimestre: bimestre });
+    const unis = Array.from(new Set((esc.fichasAvaliacoesEscola || []).map(r => Number(r.uni_cod))));
 
     const rows = [];
     const LOTE = 5;
@@ -11218,20 +11077,6 @@ function _renderTabelaTotal(linhas) {
   window.google.script = window.google.script || {};
   window.google.script.run = createRunner(null, null);
 })();
-
-/* ⚠️ Rede de segurança, não enfeite. TODA a camada de dados desta tela depende
-   das três linhas acima — e elas são as ÚLTIMAS de um IIFE de milhares de
-   linhas. Basta uma exceção em qualquer ponto dele para que não sejam
-   alcançadas, e aí o sintoma que aparece é `google is not defined` em outro
-   arquivo, na primeira consulta. Foi assim que uma linha do catálogo de
-   unidades derrubou a tela inteira, sem nada no console apontando para ela.
-   Este teste transforma a morte silenciosa numa mensagem que diz onde olhar. */
-if (!(window.google && window.google.script && window.google.script.run)) {
-  console.error('[MAPA] O adaptador Supabase NÃO terminou de carregar: '
-    + '`google.script.run` não foi instalado. A tela de Avaliações não vai '
-    + 'buscar dado nenhum. Procure a PRIMEIRA exceção do console — ela '
-    + 'aconteceu dentro do IIFE do adaptador e abortou o resto dele.');
-}
 </script>
 
 
@@ -11399,7 +11244,6 @@ function _carregarAlunosDiagnosticaBackground(onReady) {
 
   if (cached && Array.isArray(cached)) {
     // Aplica filtro de unidade na lista já em cache.
-    _alunosDiagEstado = 'pronto';
     rawData.alunos = (typeof _filtrarAlunosPorUnidade === 'function') ? _filtrarAlunosPorUnidade(cached) : cached;
     if (avaliacaoAtual === 'AnoEscolar' && typeof iniciarDiagnostica === 'function') iniciarDiagnostica();
     if (typeof onReady === 'function') setTimeout(onReady, 0);
@@ -11409,22 +11253,13 @@ function _carregarAlunosDiagnosticaBackground(onReady) {
   google.script.run
     .withSuccessHandler(alunos => {
       const lista = alunos || [];
-      _alunosDiagEstado = 'pronto';
-      // ⚠️ Vazio NÃO entra em cache. Ele é barato de rebuscar e é justamente o
-      // resultado que envenena: uma vez gravado, congela a tela sem dado por
-      // toda a sessão do navegador. Mesmo princípio já aplicado ao cache da
-      // ficha do CODERP.
-      if (lista.length) _cacheSet(chAlunos, lista); // grava sem filtro p/ o refresh
+      _cacheSet(chAlunos, lista); // grava sem filtro para reutilizar no refresh
       rawData.alunos = (typeof _filtrarAlunosPorUnidade === 'function') ? _filtrarAlunosPorUnidade(lista) : lista;
       if (avaliacaoAtual === 'AnoEscolar' && typeof iniciarDiagnostica === 'function') iniciarDiagnostica();
       if (typeof onReady === 'function') onReady();
     })
     .withFailureHandler(err => {
       console.error('Erro ao carregar Diagnóstica em background:', err);
-      // ⚠️ Sem isto a tela ficava no spinner: o caminho de falha não repintava
-      // nada, e "não carregou" era indistinguível de "ainda carregando".
-      _alunosDiagEstado = 'erro';
-      if (avaliacaoAtual === 'AnoEscolar' && typeof iniciarDiagnostica === 'function') iniciarDiagnostica();
       if (typeof onReady === 'function') onReady();
     })
     .getDashboardAlunos();
@@ -11662,17 +11497,11 @@ function marcarSubAvaliacao(tipo, btn) {
 }
 
 function abrirAvaliacao(tipo, btn) {
-  // TODA aba abre na visão geral (Todos): o ano escolhido numa aba não pode
-  // vazar para a seguinte — `anoFiltroAtual` é global, e sem este reset o
-  // filtro de uma tela ficava ativo em todas as outras (medido: 1º Ano
-  // escolhido no 1º Bim filtrava 2º/3º/4º Bim, Total e Diagnóstica em
-  // silêncio). A UNIDADE selecionada permanece de propósito: ela é navegação,
-  // e trocar de bimestre mantendo a escola é o uso normal da comparação.
-  const ABAS_COM_ANO = ['primeiroBimestre', 'segundoBimestre', 'terceiroBimestre',
-                        'quartoBimestre', 'Total', 'AnoEscolar'];
-  if (ABAS_COM_ANO.indexOf(tipo) !== -1 && typeof _setAnoFiltroAtualSeguro === 'function') {
+  // O 1º Bimestre deve abrir sempre na visão geral (Todos),
+  // mesmo que a pessoa tenha deixado 2º/5º Ano selecionado em outra aba.
+  if (tipo === 'primeiroBimestre' && typeof _setAnoFiltroAtualSeguro === 'function') {
     _setAnoFiltroAtualSeguro('TODOS');
-    if (tipo === 'primeiroBimestre') _mostrarAnoFilterBarRede(true);
+    _mostrarAnoFilterBarRede(true);
     _resetarAnoFilterBarRede();
   }
 
@@ -12494,5 +12323,6 @@ function _audRenderDetalhe(tk) {
     }
   </script>
 
+<script src="mapa-v2-ceu.js" defer></script>
 </body>
 </html>

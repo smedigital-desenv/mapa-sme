@@ -97,11 +97,12 @@
   </div>
   <nav class="mg-nav">
     <a class="mg-nav-btn" href="index.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
-    <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
+    <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_irc,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
       <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
       <div class="mg-dd-menu">
         <a class="mg-dd-item" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
         <a class="mg-dd-item" href="avaliacao-diagnostica.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+        <a class="mg-dd-item" href="av-irc.html" data-tela="avaliacao_irc"><i class="bi bi-pencil-fill"></i>Produção Escrita (IRC)</a>
         <a class="mg-dd-item" href="av-oral-matematica.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
         <a class="mg-dd-item active" href="saresp.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
         <a class="mg-dd-item" href="ideb.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
@@ -154,7 +155,6 @@
 </div>
 
 <script>
-const PERFIL_FLUXO = 's.fluxoescolar@educacao.pmrp.sp.gov.br';
 const TABELA = 'av_saresp';
 function sb(){ return window.MAPA_SB; }
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -377,14 +377,32 @@ function ligarUpload(){
 }
 
 /* Gate do upload — conforto, não segurança: quem decide é a policy de escrita. */
+/* ── Gate do upload — conforto, não segurança ──────────────────────────────
+   ⚠️ Quem pode importar é decidido PELO BANCO, pela MESMA função que a policy
+   de escrita usa (`pode_importar_avaliacao`). Perguntar ao banco faz o botão e
+   a policy concordarem por construção: não dá para a tela oferecer um botão
+   que a gravação vai recusar, nem esconder de quem o banco aceitaria.
+
+   ⚠️ NÃO volte a usar `vejo_a_rede_toda()` aqui. Ela é verdadeira para super
+   admin OU para qualquer perfil sem vínculo de unidade — ou seja, toda a
+   secretaria. A importação SUBSTITUI a base da avaliação, então um arquivo
+   errado de qualquer um deles apagaria a edição inteira.
+
+   Reserva: sem a função no banco, cai para `eh_super_admin()`, que é o
+   subconjunto seguro — some o botão de quem depende do e-mail liberado, e
+   nunca o contrário. */
+async function podeImportarAvaliacao(cli){
+  try{
+    const r = await cli.rpc('pode_importar_avaliacao');
+    if(!r.error) return !!r.data;
+  }catch(e){ /* função ainda não publicada */ }
+  try{ return !!(await cli.rpc('eh_super_admin')).data; }catch(e){ return false; }
+}
+
 async function aplicarGate(){
   try{
-    const { data } = await sb().auth.getUser();
-    const email=((data&&data.user&&data.user.email)||'').toLowerCase();
-    let redeToda=false;
-    try{ redeToda=!!(await sb().rpc('vejo_a_rede_toda')).data; }catch(e){}
-    if(email===PERFIL_FLUXO||redeToda) document.getElementById('adUpload').style.display='';
-  }catch(e){}
+    if(await podeImportarAvaliacao(sb())) document.getElementById('adUpload').style.display='';
+  }catch(e){ /* sem sessão: o guard já redirecionou */ }
 }
 
 (function(){

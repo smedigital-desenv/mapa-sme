@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-bs-theme="dark" data-tema="escuro" data-acento="ciano" data-fundo="medio">
 <head>
   <meta charset="UTF-8">
   <script src="auth-guard.js"></script>
@@ -57,10 +57,6 @@
     .ad-bar label{color:#cfe3ff;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;}
     .ad-bar select{border:0;border-radius:9px;padding:.4rem .7rem;font-weight:700;max-width:420px;}
     .ad-chip{background:rgba(255,255,255,.16);color:#fff;border-radius:999px;padding:3px 12px;font-weight:800;font-size:.72rem;}
-    /* A tela de Metas cobre IDEB e Fluência; chega-se a ela das duas. */
-    .ad-btn{margin-left:auto;background:#fff;color:#013a7a;border-radius:9px;padding:.35rem .85rem;
-      font-weight:800;font-size:.78rem;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem;}
-    .ad-btn:hover{background:#e8f1ff;color:#002b5e;}
     .page{max-width:1240px;margin:0 auto;padding:1.1rem 1rem;}
     .titbar{background:linear-gradient(135deg,var(--primary),var(--pri2));color:#fff;border-radius:14px;
       padding:.85rem 1.2rem;margin-bottom:.9rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
@@ -91,8 +87,25 @@
     .ad-obs{font-size:.74rem;color:var(--muted);border-left:3px solid var(--line);padding-left:.6rem;margin-top:.6rem;}
     .spark{height:38px;width:100%;display:block;}
   </style>
+
+<!-- ↓↓↓ acrescentado por tools/gerar-v2.py — pele de teste ↓↓↓ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mapa-v2.css">
+<!-- ↑↑↑ -->
 </head>
 <body>
+<div class="v2-faixa">
+  <b>VERSÃO 2 · TESTE</b>
+  <span>Esta página é uma cópia para avaliar o visual novo. A que está em uso continua em</span>
+  <a href="ideb-v2.html">ideb.html</a>
+</div>
+<canvas id="ceu" aria-hidden="true"></canvas>
+<span class="v2-orbita v2-orbita--1" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--2" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--3" aria-hidden="true"></span>
+
 
 <header class="mg-header">
   <div class="mg-brand" style="cursor:pointer;" onclick="location.href='index.html'">
@@ -100,32 +113,31 @@
     <div><h4>MAPA</h4><div class="mg-brand-sub">SME Ribeirão Preto</div></div>
   </div>
   <nav class="mg-nav">
-    <a class="mg-nav-btn" href="index.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
-    <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_irc,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
-      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+    <a class="mg-nav-btn" href="index-v2.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
+    <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
+      <a class="mg-nav-btn mg-dd-toggle active" href="avaliacao-v2.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
       <div class="mg-dd-menu">
-        <a class="mg-dd-item" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
-        <a class="mg-dd-item" href="avaliacao-diagnostica.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
-        <a class="mg-dd-item" href="av-irc.html" data-tela="avaliacao_irc"><i class="bi bi-pencil-fill"></i>Produção Escrita (IRC)</a>
-        <a class="mg-dd-item" href="av-oral-matematica.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
-        <a class="mg-dd-item" href="saresp.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
-        <a class="mg-dd-item active" href="ideb.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
-        <a class="mg-dd-item" href="iee.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
-        <a class="mg-dd-item" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
-        <a class="mg-dd-item" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+        <a class="mg-dd-item" href="avaliacao-v2.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+        <a class="mg-dd-item" href="avaliacao-diagnostica-v2.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+        <a class="mg-dd-item" href="av-oral-matematica-v2.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+        <a class="mg-dd-item" href="saresp-v2.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+        <a class="mg-dd-item active" href="ideb-v2.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+        <a class="mg-dd-item" href="iee-v2.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
+        <a class="mg-dd-item" href="elefante-v2.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+        <a class="mg-dd-item" href="fluencia-v2.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
       </div>
     </div>
-    <a class="mg-nav-btn" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
-    <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+    <a class="mg-nav-btn" href="atribuicao-v2.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+    <a class="mg-nav-btn" href="educacao_especial-v2.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
     <div class="mg-dd" data-tela-any="frequencia,boletim_estatistico">
-      <a class="mg-nav-btn mg-dd-toggle" href="frequencia.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <a class="mg-nav-btn mg-dd-toggle" href="frequencia-v2.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
       <div class="mg-dd-menu">
-        <a class="mg-dd-item" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
-        <a class="mg-dd-item" href="boletim-estatistico.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+        <a class="mg-dd-item" href="frequencia-v2.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+        <a class="mg-dd-item" href="boletim-estatistico-v2.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
       </div>
     </div>
-    <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
-    <a class="mg-nav-btn" href="boletim.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+    <a class="mg-nav-btn" href="relatorios-v2.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+    <a class="mg-nav-btn" href="boletim-v2.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
     <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none;min-width:auto;padding:6px 10px;" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
   </nav>
   <div class="mg-actions">
@@ -138,9 +150,6 @@
   <select id="adSel"><option>Carregando…</option></select>
   <span class="ad-chip" id="adCod">Cód. —</span>
   <span class="ad-chip" id="adInep">INEP —</span>
-  <a class="ad-btn" href="metas.html#ideb" title="Simular as metas de IDEB por escola">
-    <i class="bi bi-bullseye"></i>Metas
-  </a>
 </div>
 
 <div class="page">
@@ -155,13 +164,14 @@
 
   <div class="ad-up" id="adUpload" style="display:none">
     <div class="secLabel" style="margin-top:0">Atualizar dados</div>
-    <div class="ad-obs" style="margin-top:0;margin-bottom:.7rem">Envie a planilha <b>IDEB — Série Histórica</b> ou o arquivo do INEP <i>divulgacao_anos_iniciais_escolas_AAAA</i> / <i>anos_finais</i> — este traz também o desempenho (N) e o fluxo (P), que a tela de Metas usa. O formato é reconhecido sozinho.</div>
+    <div class="ad-obs" style="margin-top:0;margin-bottom:.7rem">Envie a planilha <b>IDEB — Série Histórica</b>.</div>
     <input type="file" id="adArq" accept=".xlsx" class="form-control form-control-sm" style="max-width:520px">
     <div id="adRes" class="ad-obs" style="margin-top:.7rem"></div>
   </div>
 </div>
 
 <script>
+const PERFIL_FLUXO = 's.fluxoescolar@educacao.pmrp.sp.gov.br';
 const TABELA = 'av_ideb';
 function sb(){ return window.MAPA_SB; }
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -221,83 +231,12 @@ function render(){
   });
   document.getElementById('tab').innerHTML=h;
 }
-/* ── Arquivo BRUTO do INEP (divulgacao_anos_*_escolas_AAAA) ───────────────
-   Layout: linha 10 traz os códigos legíveis por máquina (SG_UF, ID_ESCOLA,
-   NO_ESCOLA, VL_*), dados da 11 em diante. Interessam quatro famílias:
-
-     VL_OBSERVADO_AAAA      IDEB
-     VL_PROJECAO_AAAA       meta do INEP (só até 2021 — deixou de ser publicada)
-     VL_NOTA_MEDIA_AAAA     desempenho N
-     VL_INDICADOR_REND_AAAA fluxo P
-
-   ⚠️ CASA POR CÓDIGO INEP, NUNCA POR NOME. No arquivo do INEP a mesma escola
-   aparece como "JOSE DELIBO VEREADOR EMEF"; no banco ela é "EMEF Vereador José
-   Delibo". Importar por nome criaria uma escola paralela por unidade — 31 numa
-   passada — e o estrago só apareceria depois, com a rede duplicada na tela.
-   Medido: o código casa 31 de 31; o nome, nenhum.
-
-   Código desconhecido NÃO entra: sai na mensagem para conferência humana.
-   Errar para o lado de esconder é visível e reclamável; criar unidade errada é
-   silencioso e some no meio de 112. */
-function parseInep(wb, mapaInep){
-  const nome0 = wb.SheetNames[0];
-  const etapa = /finais/i.test(nome0) ? 'AF' : /iniciais/i.test(nome0) ? 'AI' : null;
-  if(!etapa) return null;
-  const L=XLSX.utils.sheet_to_json(wb.Sheets[nome0],{header:1,raw:true,defval:null});
-  // acha a linha dos códigos (não é fixa entre edições)
-  let h=-1;
-  for(let i=0;i<Math.min(L.length,25);i++){
-    const r=(L[i]||[]).map(v=>String(v==null?'':v).trim());
-    if(r.includes('ID_ESCOLA') && r.includes('NO_ESCOLA')){ h=i; break; }
-  }
-  if(h<0) return null;
-  const hdr=(L[h]||[]).map(v=>String(v==null?'':v).trim());
-  const at=n=>hdr.indexOf(n);
-  const jCod=at('ID_ESCOLA'), jNome=at('NO_ESCOLA');
-  const campos={VL_OBSERVADO:'ideb', VL_PROJECAO:'meta', VL_NOTA_MEDIA:'nota', VL_INDICADOR_REND:'rendimento'};
-  const cols=[];
-  hdr.forEach((t,j)=>{
-    const m=t.match(/^(VL_OBSERVADO|VL_PROJECAO|VL_NOTA_MEDIA|VL_INDICADOR_REND)_(\d{4})$/);
-    if(m) cols.push({j, campo:campos[m[1]], ano:Number(m[2])});
-  });
-  if(!cols.length) return null;
-
-  const out=[], desconhecidas=[];
-  for(let i=h+1;i<L.length;i++){
-    const r=L[i]; if(!r) continue;
-    const cod=numero(r[jCod]); if(!cod) continue;
-    const ref=mapaInep.get(cod);
-    if(!ref){ desconhecidas.push(cod+' — '+String(r[jNome]||'').trim()); continue; }
-    const porAno=new Map();
-    cols.forEach(c=>{
-      if(!porAno.has(c.ano)) porAno.set(c.ano,{ideb:null,meta:null,nota:null,rendimento:null});
-      porAno.get(c.ano)[c.campo]=numero(r[c.j]);
-    });
-    porAno.forEach((v,ano)=>{
-      if(v.ideb==null&&v.meta==null&&v.nota==null&&v.rendimento==null) return;
-      out.push({escola:ref.escola, ano, etapa, ideb:v.ideb, meta:v.meta,
-                nota:v.nota, rendimento:v.rendimento,
-                codigo_escola:ref.codigo_escola, codigo_inep:cod});
-    });
-  }
-  return { linhas: out, etapa, desconhecidas };
-}
-
 function parsePlanilha(wb){
   const L=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null});
   const hdr=L[2]||[]; const cols=[];
   for(let j=3;j<hdr.length;j++){
-    const t=String(hdr[j]||'');
-    const m=t.match(/^\s*(META\s+)?IDEB\s+(AI|AF)\s+(\d{4})/i);
-    if(m){ cols.push({j,etapa:m[2].toUpperCase(),ano:Number(m[3]),campo:m[1]?'meta':'ideb'}); continue; }
-    // Componentes do IDEB: nota de desempenho (N) e indicador de rendimento (P).
-    // Sem eles a tela de Metas só consegue a régua sobre o IDEB — perde o
-    // candidato "desempenho × fluxo" e as duas metas separadas, que são o
-    // ponto do critério. Mesma convenção de cabeçalho do IDEB: <campo> AI 2025.
-    const n=t.match(/^\s*(?:NOTA|DESEMPENHO|N)\s+(AI|AF)\s+(\d{4})/i);
-    if(n){ cols.push({j,etapa:n[1].toUpperCase(),ano:Number(n[2]),campo:'nota'}); continue; }
-    const p=t.match(/^\s*(?:FLUXO|RENDIMENTO|P)\s+(AI|AF)\s+(\d{4})/i);
-    if(p){ cols.push({j,etapa:p[1].toUpperCase(),ano:Number(p[2]),campo:'rendimento'}); }
+    const m=String(hdr[j]||'').match(/^\s*(META\s+)?IDEB\s+(AI|AF)\s+(\d{4})/i);
+    if(m) cols.push({j,etapa:m[2].toUpperCase(),ano:Number(m[3]),meta:!!m[1]});
   }
   if(!cols.length) return null;
   const out=[];
@@ -307,14 +246,14 @@ function parsePlanilha(wb){
     const agg=new Map();
     cols.forEach(c=>{
       const k=c.etapa+'|'+c.ano;
-      if(!agg.has(k)) agg.set(k,{ideb:null,meta:null,nota:null,rendimento:null});
-      agg.get(k)[c.campo]=numero(r[c.j]);
+      if(!agg.has(k)) agg.set(k,{ideb:null,meta:null});
+      const v=r[c.j];
+      agg.get(k)[c.meta?'meta':'ideb']=numero(v);
     });
     agg.forEach((v,k)=>{
-      if(v.ideb==null&&v.meta==null&&v.nota==null&&v.rendimento==null) return;
+      if(v.ideb==null&&v.meta==null) return;
       const p=k.split('|');
       out.push({escola:nome,ano:Number(p[1]),etapa:p[0],ideb:v.ideb,meta:v.meta,
-                nota:v.nota, rendimento:v.rendimento,
                 codigo_escola:numero(r[0]), codigo_inep:numero(r[1])});
     });
   }
@@ -398,13 +337,10 @@ function instalarComparativo(){
     rotuloValor: 'IDEB',
     fmt: v => nf(v),
     casasDif: 1, unidadeDif: '',
-    /* ⚠️ O seletor de ETAPA foi REMOVIDO (decisão da SME) — a tabela mostra
-       sempre as duas etapas juntas, que era o padrão dele ("Ambas (média)").
-       O recorte continua sendo PARÂMETRO do cálculo, não código apagado: o
-       filtro em `carregar` segue lá e responde a `f.etapa`. Reabrir é devolver
-       a linha do filtro aqui, e nada mais. */
     filtros: [
-      {id:'ano', rotulo:'Edição', opcoes: anosDaRede}
+      {id:'ano', rotulo:'Edição', opcoes: anosDaRede},
+      {id:'etapa', rotulo:'Etapa', opcoes: () => [{v:'',t:'Ambas (média)'}].concat(
+        ETAPAS.map(([sig,nome]) => ({v:sig, t:nome})))}
     ],
     // A meta não existe em toda edição — o INEP publica metas até 2021, e numa
     // edição sem meta as duas colunas saíam inteiras de '—'. Coluna vazia não
@@ -426,9 +362,6 @@ function instalarComparativo(){
       const ag = MapaVisaoRede.agregador();
       dados.forEach(r => {
         if(!r.escola || r.escola==='REDE' || r.ideb==null) return;
-        // Sem o seletor de etapa, `f.etapa` chega indefinido e este recorte
-        // nunca dispara — as duas etapas entram na média, como antes com
-        // "Ambas". A linha fica para o dia em que o seletor voltar.
         if(f.etapa && f.etapa !== r.etapa) return;
         ag.add(r.escola, r.ideb, REDE.get(r.ano+'|'+r.etapa), {meta:r.meta});
       });
@@ -438,13 +371,13 @@ function instalarComparativo(){
            + 'etapas</b>. A cor mede a distância relativa da rede; a coluna <b>× meta</b> '
            + 'mostra a distância da meta da própria escola, que é a régua oficial. '
            + 'Clique no nome da unidade para abrir a série histórica dela.'
-           + '<br>⚠️ A coluna Rede <b>muda de unidade para unidade</b>, e é '
+           + '<br>⚠️ Com <b>Ambas</b>, a coluna Rede <b>muda de unidade para unidade</b>, e é '
            + 'para isso que ela existe: quem só tem Anos Iniciais é comparado com a rede dos '
            + 'Anos Iniciais; quem tem as duas, com a média das duas. Uma referência única '
            + 'favoreceria a escola sem Anos Finais pela etapa que ela não oferece — os Anos '
            + 'Finais puxam qualquer média para baixo. Pelo mesmo motivo o ranking pelo IDEB '
-           + 'cru mistura coberturas diferentes: para ordenar de forma comparável, ordene '
-           + 'pela coluna <b>Dif.</b>, que já desconta a referência de cada uma.'
+           + 'cru mistura coberturas diferentes: para ordenar de forma comparável, escolha '
+           + '<b>uma etapa</b> ou ordene pela coluna <b>Dif.</b>'
   });
 }
 
@@ -464,38 +397,10 @@ function ligarUpload(){
     res.textContent='Lendo a planilha…';
     try{
       const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
-
-      // Dois formatos aceitos. O bruto do INEP é tentado primeiro porque traz
-      // o desempenho (N) e o fluxo (P), que a Série Histórica não tem e sem os
-      // quais a tela de Metas não consegue aplicar o critério.
-      const mapaInep=new Map();
-      ESCOLAS.forEach(e=>{ if(e.codigo_inep!=null) mapaInep.set(Number(e.codigo_inep), e); });
-      // Sem o catálogo carregado, TODA escola cairia como desconhecida e o
-      // arquivo pareceria incompatível. Recarrega antes de desistir.
-      if(!mapaInep.size){ await carregarEscolas(); ESCOLAS.forEach(e=>{ if(e.codigo_inep!=null) mapaInep.set(Number(e.codigo_inep), e); }); }
-      const inep=parseInep(wb, mapaInep);
-
-      let linhas, aviso='';
-      if(inep){
-        linhas=inep.linhas;
-        if(inep.desconhecidas.length){
-          // Não entram: sem correspondência de código, gravar criaria unidade
-          // paralela com o nome do INEP.
-          aviso='<div style="color:#b45309;margin-top:.5rem"><b>'+inep.desconhecidas.length
-              +' escola(s) do arquivo sem código correspondente no banco — NÃO importadas:</b><br>'
-              +inep.desconhecidas.map(esc).join('<br>')+'</div>';
-        }
-        if(!linhas.length){
-          res.innerHTML='Arquivo do INEP reconhecido ('+inep.etapa+'), mas nenhuma escola casou pelo código INEP.'+aviso;
-          return;
-        }
-      } else {
-        linhas=parsePlanilha(wb);
-      }
-      if(!linhas||!linhas.length){ res.innerHTML='Planilha não reconhecida. Envie a <b>IDEB — Série Histórica</b> ou o arquivo do INEP (<i>divulgacao_anos_*_escolas_AAAA</i>).'; return; }
+      const linhas=parsePlanilha(wb);
+      if(!linhas||!linhas.length){ res.innerHTML='Planilha não reconhecida. Envie a <b>IDEB — Série Histórica</b>.'; return; }
       await gravar(linhas,res);
-      res.innerHTML='<b>Pronto.</b> '+linhas.length+' linhas atualizadas'
-                  + (inep?' a partir do arquivo do INEP ('+(inep.etapa==='AI'?'anos iniciais':'anos finais')+')':'')+'.'+aviso;
+      res.innerHTML='<b>Pronto.</b> '+linhas.length+' linhas atualizadas.';
       await carregarRede(); await carregarEscolas();
     }catch(e){ console.error(e); res.innerHTML='Falhou: '+esc(e.message||e); }
     finally{ inp.value=''; }
@@ -503,32 +408,14 @@ function ligarUpload(){
 }
 
 /* Gate do upload — conforto, não segurança: quem decide é a policy de escrita. */
-/* ── Gate do upload — conforto, não segurança ──────────────────────────────
-   ⚠️ Quem pode importar é decidido PELO BANCO, pela MESMA função que a policy
-   de escrita usa (`pode_importar_avaliacao`). Perguntar ao banco faz o botão e
-   a policy concordarem por construção: não dá para a tela oferecer um botão
-   que a gravação vai recusar, nem esconder de quem o banco aceitaria.
-
-   ⚠️ NÃO volte a usar `vejo_a_rede_toda()` aqui. Ela é verdadeira para super
-   admin OU para qualquer perfil sem vínculo de unidade — ou seja, toda a
-   secretaria. A importação SUBSTITUI a base da avaliação, então um arquivo
-   errado de qualquer um deles apagaria a edição inteira.
-
-   Reserva: sem a função no banco, cai para `eh_super_admin()`, que é o
-   subconjunto seguro — some o botão de quem depende do e-mail liberado, e
-   nunca o contrário. */
-async function podeImportarAvaliacao(cli){
-  try{
-    const r = await cli.rpc('pode_importar_avaliacao');
-    if(!r.error) return !!r.data;
-  }catch(e){ /* função ainda não publicada */ }
-  try{ return !!(await cli.rpc('eh_super_admin')).data; }catch(e){ return false; }
-}
-
 async function aplicarGate(){
   try{
-    if(await podeImportarAvaliacao(sb())) document.getElementById('adUpload').style.display='';
-  }catch(e){ /* sem sessão: o guard já redirecionou */ }
+    const { data } = await sb().auth.getUser();
+    const email=((data&&data.user&&data.user.email)||'').toLowerCase();
+    let redeToda=false;
+    try{ redeToda=!!(await sb().rpc('vejo_a_rede_toda')).data; }catch(e){}
+    if(email===PERFIL_FLUXO||redeToda) document.getElementById('adUpload').style.display='';
+  }catch(e){}
 }
 
 (function(){
@@ -551,5 +438,6 @@ async function aplicarGate(){
   catch(e){ console.error(e); document.getElementById('adNome').textContent='Erro ao carregar: '+(e.message||e); }
 })();
 </script>
+<script src="mapa-v2-ceu.js" defer></script>
 </body>
 </html>

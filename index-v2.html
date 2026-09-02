@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-bs-theme="dark" data-tema="escuro" data-acento="ciano" data-fundo="medio">
 <head>
   <meta charset="utf-8">
   <script src="auth-guard.js"></script>
@@ -22,10 +22,10 @@
   </script>
 
   <!-- Demais módulos: prefetch (baixa em tempo ocioso, mais leve) -->
-  <link rel="prefetch" href="avaliacao.html">
-  <link rel="prefetch" href="elefante.html">
-  <link rel="prefetch" href="fluencia.html">
-  <link rel="prefetch" href="relatorios.html">
+  <link rel="prefetch" href="avaliacao-v2.html">
+  <link rel="prefetch" href="elefante-v2.html">
+  <link rel="prefetch" href="fluencia-v2.html">
+  <link rel="prefetch" href="relatorios-v2.html">
   <style>
     :root { --primary:#002b5e; --neon-blue:#00e5ff; }
     body { background:#f0f4f8; font-family:'Inter',sans-serif; padding-bottom:50px; }
@@ -95,8 +95,25 @@
     .mg-dd-item.active{background:var(--primary);color:#fff;}
     .mg-dd-item.active:hover,.mg-dd-item.active:focus-visible{background:#014a91;color:#fff;}
   </style>
+
+<!-- ↓↓↓ acrescentado por tools/gerar-v2.py — pele de teste ↓↓↓ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mapa-v2.css">
+<!-- ↑↑↑ -->
 </head>
 <body>
+<div class="v2-faixa">
+  <b>VERSÃO 2 · TESTE</b>
+  <span>Esta página é uma cópia para avaliar o visual novo. A que está em uso continua em</span>
+  <a href="index-v2.html">index.html</a>
+</div>
+<canvas id="ceu" aria-hidden="true"></canvas>
+<span class="v2-orbita v2-orbita--1" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--2" aria-hidden="true"></span>
+<span class="v2-orbita v2-orbita--3" aria-hidden="true"></span>
+
 
   <!-- ── Cabeçalho global ── -->
   <header class="mg-header">
@@ -108,32 +125,31 @@
       </div>
     </div>
     <nav class="mg-nav">
-      <a class="mg-nav-btn active" href="index.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
-      <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_irc,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
-        <a class="mg-nav-btn mg-dd-toggle" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+      <a class="mg-nav-btn active" href="index-v2.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
+      <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
+        <a class="mg-nav-btn mg-dd-toggle" href="avaliacao-v2.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
         <div class="mg-dd-menu">
-          <a class="mg-dd-item" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
-          <a class="mg-dd-item" href="avaliacao-diagnostica.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
-          <a class="mg-dd-item" href="av-irc.html" data-tela="avaliacao_irc"><i class="bi bi-pencil-fill"></i>Produção Escrita (IRC)</a>
-          <a class="mg-dd-item" href="av-oral-matematica.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
-          <a class="mg-dd-item" href="saresp.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
-          <a class="mg-dd-item" href="ideb.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
-          <a class="mg-dd-item" href="iee.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
-          <a class="mg-dd-item" href="elefante.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
-          <a class="mg-dd-item" href="fluencia.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
+          <a class="mg-dd-item" href="avaliacao-v2.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
+          <a class="mg-dd-item" href="avaliacao-diagnostica-v2.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+          <a class="mg-dd-item" href="av-oral-matematica-v2.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
+          <a class="mg-dd-item" href="saresp-v2.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
+          <a class="mg-dd-item" href="ideb-v2.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>
+          <a class="mg-dd-item" href="iee-v2.html" data-tela="iee"><i class="bi bi-trophy-fill"></i>IEE</a>
+          <a class="mg-dd-item" href="elefante-v2.html" data-tela="elefante"><i class="bi bi-book-fill"></i>Elefante Letrado</a>
+          <a class="mg-dd-item" href="fluencia-v2.html" data-tela="fluencia"><i class="bi bi-book-half"></i>Fluência Leitora</a>
         </div>
       </div>
-      <a class="mg-nav-btn" href="atribuicao.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
-      <a class="mg-nav-btn" href="educacao_especial.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
+      <a class="mg-nav-btn" href="atribuicao-v2.html" data-tela="atribuicao"><i class="bi bi-diagram-3-fill"></i>Atribuição</a>
+      <a class="mg-nav-btn" href="educacao_especial-v2.html" data-tela="educacao_especial"><i class="bi bi-universal-access-circle"></i>Educação Especial</a>
       <div class="mg-dd" data-tela-any="frequencia,boletim_estatistico">
-        <a class="mg-nav-btn mg-dd-toggle" href="frequencia.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
+        <a class="mg-nav-btn mg-dd-toggle" href="frequencia-v2.html"><i class="bi bi-signpost-split-fill"></i>Fluxo Escolar<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
         <div class="mg-dd-menu">
-          <a class="mg-dd-item" href="frequencia.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
-          <a class="mg-dd-item" href="boletim-estatistico.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
+          <a class="mg-dd-item" href="frequencia-v2.html" data-tela="frequencia"><i class="bi bi-geo-alt-fill"></i>Frequência</a>
+          <a class="mg-dd-item" href="boletim-estatistico-v2.html" data-tela="boletim_estatistico"><i class="bi bi-bar-chart-line-fill"></i>Boletim Estatístico</a>
         </div>
       </div>
-      <a class="mg-nav-btn" href="relatorios.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
-      <a class="mg-nav-btn" href="boletim.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
+      <a class="mg-nav-btn" href="relatorios-v2.html" data-tela="relatorios"><i class="bi bi-file-earmark-text-fill"></i>Relatórios</a>
+      <a class="mg-nav-btn" href="boletim-v2.html" data-tela="boletim"><i class="bi bi-clipboard2-check-fill"></i>Boletim</a>
       <a class="mg-nav-btn" href="#" id="btnConfig" style="display:none;min-width:auto;padding:6px 10px;" onclick="abrirConfig();return false;" title="Configurações"><i class="bi bi-gear-fill"></i></a>
     </nav>
     <div class="mg-spacer"></div>
@@ -144,56 +160,56 @@
     <h5 class="secao-titulo mb-3"><i class="bi bi-grid-1x2-fill me-2"></i>Módulos</h5>
     <div class="row g-3 mb-4">
       <div class="col-12 col-md-6 col-lg-3" data-tela="avaliacao">
-        <a class="mod-card" href="avaliacao.html">
+        <a class="mod-card" href="avaliacao-v2.html">
           <div class="ic" style="background:#0284c7;"><i class="bi bi-clipboard-data-fill"></i></div>
           <div><div class="tt">Avaliações</div><div class="ds">Rede · Diagnóstica · Bimestres</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
       <div class="col-12 col-md-6 col-lg-3" data-tela="atribuicao">
-        <a class="mod-card" href="atribuicao.html">
+        <a class="mod-card" href="atribuicao-v2.html">
           <div class="ic" style="background:#059669;"><i class="bi bi-diagram-3-fill"></i></div>
           <div><div class="tt">Atribuição</div><div class="ds">PPA · PRA · Disciplinas</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
       <div class="col-12 col-md-6 col-lg-3" data-tela="frequencia">
-        <a class="mod-card" href="frequencia.html">
+        <a class="mod-card" href="frequencia-v2.html">
           <div class="ic" style="background:#0ea5e9;"><i class="bi bi-geo-alt-fill"></i></div>
           <div><div class="tt">Frequência × Distância</div><div class="ds">Presença por distância da unidade</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
       <div class="col-12 col-md-6 col-lg-3" data-tela="elefante">
-        <a class="mod-card" href="elefante.html">
+        <a class="mod-card" href="elefante-v2.html">
           <div class="ic" style="background:#7c3aed;"><i class="bi bi-book-fill"></i></div>
           <div><div class="tt">Elefante Letrado</div><div class="ds">Engajamento e leitura</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
       <div class="col-12 col-md-6 col-lg-3" data-tela="fluencia">
-        <a class="mod-card" href="fluencia.html">
+        <a class="mod-card" href="fluencia-v2.html">
           <div class="ic" style="background:#d97706;"><i class="bi bi-book-half"></i></div>
           <div><div class="tt">Fluência Leitora</div><div class="ds">Avaliação diagnóstica de fluência</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
       <div class="col-12 col-md-6 col-lg-3" data-tela="educacao_especial">
-        <a class="mod-card" href="educacao_especial.html">
+        <a class="mod-card" href="educacao_especial-v2.html">
           <div class="ic" style="background:#0d9488;"><i class="bi bi-universal-access-circle"></i></div>
           <div><div class="tt">Educação Especial</div><div class="ds">Alunos com deficiência · AEE</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
       <div class="col-12 col-md-6 col-lg-3" data-tela="relatorios">
-        <a class="mod-card" href="relatorios.html" data-tela="relatorios">
+        <a class="mod-card" href="relatorios-v2.html" data-tela="relatorios">
           <div class="ic" style="background:#0891b2;"><i class="bi bi-file-earmark-text-fill"></i></div>
           <div><div class="tt">Relatórios</div><div class="ds">Visitas · Devolutivas IA · Cobertura</div></div>
           <i class="bi bi-chevron-right go"></i>
         </a>
       </div>
       <div class="col-12 col-md-6 col-lg-3" data-tela="boletim">
-        <a class="mod-card" href="boletim.html">
+        <a class="mod-card" href="boletim-v2.html">
           <div class="ic" style="background:#002b5e;"><i class="bi bi-clipboard2-check-fill"></i></div>
           <div><div class="tt">Boletim da Escola</div><div class="ds">Painel consolidado por unidade</div></div>
           <i class="bi bi-chevron-right go"></i>
@@ -295,5 +311,6 @@
   <!-- Configuracoes geral (controle de acesso) - compartilhado entre as telas -->
   <script src="config-central.js" defer></script>
   <script src="iago.js"></script>
+<script src="mapa-v2-ceu.js" defer></script>
 </body>
 </html>
