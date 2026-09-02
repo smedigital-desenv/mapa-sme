@@ -1,5 +1,5 @@
 /* ────────────────────────────────────────────────────────────────────────────
- * iago.js — Iago, o assistente flutuante do MAPA (disponível em TODAS as telas).
+ * iago.js — IAgo, o assistente flutuante do MAPA (disponível em TODAS as telas).
  *
  * Autocontido: injeta o botão flutuante + o painel de chat, carrega os PRÓPRIOS
  * dados (RPCs relat_* que já filtram por permissão + fluência/elefante) e roda o
@@ -32,11 +32,19 @@
   let _dadosPromise = null, _auxPromise = null;
   let _hist = [], _enviando = false, _aberto = false, _uiFeita = false;
 
-  // ── Permissão (mesma regra da tela Relatórios) ──────────────────────────────
+  // ── Permissão ────────────────────────────────────────────────────────────────
+  // Quem vê o IAgo: super admin e secretaria (rede toda) + qualquer perfil
+  // VINCULADO a escola — coordenadores/gestores (restritoEscola). Estes últimos
+  // só recebem respostas sobre a PRÓPRIA unidade: as RPCs (relat_visitas,
+  // relat_devolutivas) já recortam no servidor por minhas_permissoes(), e aqui
+  // ainda filtramos o catálogo/aux por filtrarEscolas. Não é o gate de segurança
+  // (esse vive no Postgres) — é quem enxerga o widget.
+  function _restrito(){ try{ return !!(window.MapaAuth && window.MapaAuth.restritoEscola); }catch(e){ return false; } }
   function podeVer(p) {
     if (!p) return false;
     if (p.is_super_admin) return true;
-    return String(p.tipo || '').trim().toLowerCase() === 'secretaria';
+    if (String(p.tipo || '').trim().toLowerCase() === 'secretaria') return true;
+    return _restrito();   // vinculado a escola → IAgo recortado na própria unidade
   }
   function emailUsuario() { const p = window.MapaAuth && window.MapaAuth.perfil; return (p && p.email) || ''; }
 
@@ -101,11 +109,21 @@
         if(dps[base]) dps[base].push(item);
       });
       dadosPorSegmento=dps;
-      // cadastro oficial → cobertura + regional
+      // cadastro oficial → cobertura + regional.
+      // relat_escolas devolve o catálogo INTEIRO (referência, não recortado);
+      // para perfil vinculado a escola, recortamos aqui por filtrarEscolas para
+      // que o panorama/cobertura cubra só a(s) unidade(s) da pessoa — senão as
+      // 112 escolas apareceriam como "rede", com visita 0 nas demais.
       const escOf={fundamental:[],infantil:[]}, regMap={fundamental:{},infantil:{}};
       if(!escRes.error) (escRes.data||[]).forEach(e=>{
         if(e.segmento==='fundamental'||e.segmento==='infantil'){ escOf[e.segmento].push(e.nome); if(e.regional) regMap[e.segmento][e.nome]=e.regional; }
       });
+      if(_restrito() && window.MapaAuth && window.MapaAuth.filtrarEscolas){
+        ['fundamental','infantil'].forEach(seg=>{
+          escOf[seg]=window.MapaAuth.filtrarEscolas(escOf[seg], n=>n);
+          const permit=new Set(escOf[seg]); Object.keys(regMap[seg]).forEach(n=>{ if(!permit.has(n)) delete regMap[seg][n]; });
+        });
+      }
       escolasOficiais=escOf; mapaRegionalOficial=regMap;
       // devolutivas
       todasDevolutivas=((devRes&&devRes.data)||[]).map(r=>({
@@ -137,7 +155,7 @@
         flu.forEach(t=>{ const e=canon(t.escola); const o=(porEA[e]=porEA[e]||{}); const a=(o[t.avaliacao]=o[t.avaliacao]||{aval:0,flu:0,ini:0,n1:0,n2:0,n3:0,n4:0,aus:0,tot:0});
           a.aval+=+t.avaliados||0;a.flu+=+t.fluentes||0;a.ini+=+t.iniciantes||0;a.n1+=+t.pre_n1||0;a.n2+=+t.pre_n2||0;a.n3+=+t.pre_n3||0;a.n4+=+t.pre_n4||0;a.aus+=+t.ausentes||0;a.tot+=+t.total_estudantes||0; });
         _fluPorEscola={}; Object.keys(porEA).forEach(e=>{ const avs=Object.keys(porEA[e]).sort(); const av=avs[avs.length-1]; _fluPorEscola[e]=Object.assign({avaliacao:av},porEA[e][av]); });
-      }catch(e){ console.warn('Iago · Fluência indisponível:',e.message); }
+      }catch(e){ console.warn('IAgo · Fluência indisponível:',e.message); }
       try{
         const meses=await _auxFetch('elefante_turmas?select=mes_referencia&order=mes_referencia.desc&limit=1');
         if(meses.length){
@@ -150,7 +168,7 @@
             esc2.forEach(r=>{ const e=canon(r.nome_escola); const o=(porE[e]=porE[e]||{est:0,lei:0,liv:0,leit:null,mes:mes}); o.leit=(o.leit||0)+(+r.leituras_concluidas||0); }); }catch(e){}
           _elePorEscola=porE;
         }
-      }catch(e){ console.warn('Iago · Elefante indisponível:',e.message); }
+      }catch(e){ console.warn('IAgo · Elefante indisponível:',e.message); }
     })();
     return _auxPromise;
   }
@@ -227,31 +245,43 @@
     const cont={}; _TEMAS.forEach(t=>cont[t.key]=0); linhas.forEach(l=>_temasDaLinha(l).forEach(k=>cont[k]++));
     const temasTxt=_TEMAS.filter(t=>cont[t.key]>0).sort((a,b)=>cont[b.key]-cont[a.key]).slice(0,8).map(t=>`${t.lbl} (${cont[t.key]})`).join('; ');
     const comV=linhas.filter(l=>l.ultima).sort((a,b)=>b.ultima.getTime()-a.ultima.getTime()); const mr=comV[0];
-    let s='PANORAMA DA REDE (apenas o que você pode ver):\n';
+    const restr=_restrito();
+    let s=(restr?'PANORAMA DA SUA UNIDADE (só os dados a que você tem acesso):\n':'PANORAMA DA REDE (apenas o que você pode ver):\n');
     s+=`- Escolas: ${total} | Visitadas: ${vis} (${cob}%) | Sem visita: ${total-vis}\n`;
     if(mr) s+=`- Visita mais recente: ${mr.escola} em ${_fmtData(mr.ultima)}\n`;
-    s+=`- Cobertura por regional (visitadas/total): ${regTxt||'—'}\n`;
+    if(!restr) s+=`- Cobertura por regional (visitadas/total): ${regTxt||'—'}\n`;
     s+=`- Risco pedagógico: alto ${risc.alto}, médio ${risc.medio}, baixo ${risc.baixo}\n`;
     s+=`- Temas recorrentes: ${temasTxt||'—'}\n`;
     return s;
   }
   function _sistema(){
-    return 'Você é o Iago, o assistente virtual do MAPA (Secretaria Municipal da Educação de Ribeirão Preto), '
+    const restr=_restrito();
+    let s='Você é o IAgo, o assistente virtual do MAPA (Secretaria Municipal da Educação de Ribeirão Preto), '
       +'que responde a gestores e técnicos sobre visitas de acompanhamento, devolutivas, Fluência Leitora e Elefante Letrado. '
-      +'Se perguntarem quem é você, apresente-se como Iago, de forma breve e cordial.\n\n'
-      +'REGRAS:\n'
+      +'Se perguntarem quem é você, apresente-se como IAgo, de forma breve e cordial.\n\n';
+    if(restr){
+      s+='ESCOPO: quem está falando com você é da equipe de UMA unidade escolar e só tem acesso aos dados da própria escola. '
+        +'Todas as funções já devolvem apenas essa escola. Fale sempre sobre "sua unidade/escola", nunca sobre a rede, outras escolas ou comparações entre regionais — esses dados não estão disponíveis para este perfil. '
+        +'Se pedirem comparação com outras escolas ou com a rede, explique cordialmente que você só enxerga os dados desta unidade.\n\n';
+    }
+    s+='REGRAS:\n'
       +'- Use as FUNÇÕES para buscar os dados que precisar (escolas, detalhe_da_escola, visitas, indicadores, buscar). Chame quantas precisar antes de responder.\n'
-      +'- Você PODE e DEVE calcular, somar, contar, agrupar, ordenar, tirar médias/percentuais, ranquear e CRUZAR os resultados (ex.: qual regional está pior na fluência, cruzar risco com engajamento). Isso NÃO é inventar.\n'
+      +'- Você PODE e DEVE calcular, somar, contar, agrupar, ordenar, tirar médias/percentuais'
+      +(restr?' e cruzar os resultados da sua unidade (ex.: cruzar risco com engajamento na leitura).'
+             :', ranquear e CRUZAR os resultados (ex.: qual regional está pior na fluência, cruzar risco com engajamento).')
+      +' Isso NÃO é inventar.\n'
       +'- Baseie-se só no panorama e nos resultados das funções. Não invente escolas, números, datas ou nomes. Se o dado não existir, diga que não consta.\n'
-      +'- Cada escola tem uma regional; use-a para agrupar/comparar por regional. Ao ranquear ou tirar média, mostre os números.\n'
+      +(restr?'':'- Cada escola tem uma regional; use-a para agrupar/comparar por regional. Ao ranquear ou tirar média, mostre os números.\n')
+      +'- "Desempenho na alfabetização" / "% de leitores" de uma escola, turma ou regional = (fluentes + iniciantes) / avaliados. Ao avaliar alfabetização, ranquear ou dizer quem está pior/melhor, use o % de LEITORES (fluente + iniciante) — não apenas o % de fluentes. Menor desempenho = menor % de leitores.\n'
       +'- Seja objetivo e institucional; pode usar listas e negrito (markdown simples).\n\n'
       +'PANORAMA ATUAL:\n'+_contextoBase();
+    return s;
   }
   const CHAT_TOOLS=[{functionDeclarations:[
     {name:'escolas',description:'Lista escolas com nº de visitas, data da última visita, prioridade e risco. Use filtros para recortar.',parameters:{type:'object',properties:{regional:{type:'string',description:'nome da regional, ex.: "Regional 3"'},status:{type:'string',description:'filtro opcional: visitada | sem_visita | com_devolutiva | risco_alto'}}}},
     {name:'detalhe_da_escola',description:'TODOS os dados de UMA escola: visitas (quem/quando/responsável), devolutiva completa, fluência e elefante.',parameters:{type:'object',properties:{escola:{type:'string',description:'nome da escola'}},required:['escola']}},
     {name:'visitas',description:'Lista as visitas realizadas (quem visitou, quando, período, responsável). Filtros opcionais.',parameters:{type:'object',properties:{regional:{type:'string'},escola:{type:'string'},responsavel:{type:'string'},de:{type:'string',description:'data inicial dd/mm/aaaa'},ate:{type:'string',description:'data final dd/mm/aaaa'}}}},
-    {name:'indicadores',description:'Fluência Leitora (avaliados, fluentes, % e níveis N1–N4) e Elefante Letrado (engajamento, livros, leituras) por escola/regional.',parameters:{type:'object',properties:{regional:{type:'string'},escola:{type:'string'}}}},
+    {name:'indicadores',description:'Fluência Leitora (avaliados, fluentes, iniciantes, leitores=fluente+iniciante, % de leitores, níveis N1–N4) e Elefante Letrado (engajamento, livros, leituras) por escola/regional. Use pct_leitores como medida de desempenho na alfabetização.',parameters:{type:'object',properties:{regional:{type:'string'},escola:{type:'string'}}}},
     {name:'buscar',description:'Procura um termo nas devolutivas e nas respostas das visitas; devolve as escolas que citam o termo.',parameters:{type:'object',properties:{termo:{type:'string'}},required:['termo']}}
   ]}];
   function _execTool(name,args){
@@ -303,7 +333,7 @@
     const { regDe, casaReg }=_chatLinhas();
     const ok=nome=>(!args.escola||_normEscola(nome)===_normEscola(args.escola))&&casaReg(regDe(nome),args.regional);
     const flu=[],ele=[];
-    if(_fluPorEscola) Object.keys(_fluPorEscola).forEach(e=>{ if(!ok(e))return; const f=_fluPorEscola[e]; flu.push({escola:e,regional:regDe(e),avaliacao:f.avaliacao,avaliados:f.aval,fluentes:f.flu,pct_fluentes:f.aval?Math.round(f.flu/f.aval*100):0,n1:f.n1,n2:f.n2,n3:f.n3,n4:f.n4,iniciantes:f.ini,ausentes:f.aus}); });
+    if(_fluPorEscola) Object.keys(_fluPorEscola).forEach(e=>{ if(!ok(e))return; const f=_fluPorEscola[e]; flu.push({escola:e,regional:regDe(e),avaliacao:f.avaliacao,avaliados:f.aval,fluentes:f.flu,iniciantes:f.ini,leitores:f.flu+f.ini,pct_leitores:f.aval?Math.round((f.flu+f.ini)/f.aval*100):0,pct_fluentes:f.aval?Math.round(f.flu/f.aval*100):0,n1:f.n1,n2:f.n2,n3:f.n3,n4:f.n4,ausentes:f.aus}); });
     if(_elePorEscola) Object.keys(_elePorEscola).forEach(e=>{ if(!ok(e))return; const g=_elePorEscola[e]; ele.push({escola:e,regional:regDe(e),estudantes:g.est,leitores:g.lei,pct_engajamento:g.est?Math.round(g.lei/g.est*100):0,livros_lidos:g.liv,leituras_concluidas:g.leit}); });
     return {fluencia:flu,elefante:ele};
   }
@@ -347,21 +377,22 @@
     const box=document.getElementById('iago-msgs'); if(!box) return;
     let html;
     if(!_hist.length&&!_enviando){
+      const _r=_restrito();
       html=`<div class="iago-vazio">
-        <img src="iago-ola.png" alt="Iago" class="iago-mascote" onerror="this.style.display='none'">
-        <div class="iago-ola">Olá! Eu sou o <b>Iago</b> 👋</div>
-        <div class="iago-desc">Seu assistente do MAPA. Consigo analisar e <b>cruzar</b> os dados aos quais você tem acesso:</div>
+        <img src="iago-ola.png" alt="IAgo" class="iago-mascote" onerror="this.style.display='none'">
+        <div class="iago-ola">Olá! Eu sou o <b>IAgo</b> 👋</div>
+        <div class="iago-desc">Seu assistente do MAPA. Consigo analisar e <b>cruzar</b> os dados ${_r?'da <b>sua unidade</b>':'aos quais você tem acesso'}:</div>
         <ul class="iago-caps">
           <li><b>Visitas</b> — quem visitou, quando e o responsável</li>
           <li><b>Devolutivas</b> — prioridade, risco, pontos fortes e fracos</li>
-          <li><b>Fluência Leitora</b> — níveis N1–N4 e % de fluentes</li>
+          <li><b>Fluência Leitora</b> — níveis N1–N4 e % de leitores</li>
           <li><b>Elefante Letrado</b> — engajamento e leituras</li>
-          <li><b>Cobertura, regionais, riscos e temas</b> da rede</li>
+          <li><b>Cobertura, riscos e temas</b> ${_r?'da sua escola':'da rede'}</li>
         </ul>
         <div class="iago-cta">Digite sua pergunta abaixo 👇</div>
       </div>`;
     } else {
-      const av=`<img src="iago-cabeca.png" alt="Iago" class="iago-av" onerror="this.style.display='none'">`;
+      const av=`<img src="iago-cabeca.png" alt="IAgo" class="iago-av" onerror="this.style.display='none'">`;
       html=_hist.map(m=> m.role==='user'
         ? `<div class="iago-b user">${esc(m.texto)}</div>`
         : `<div class="iago-row">${av}<div class="iago-b bot">${_md(m.texto)}</div></div>`).join('');
@@ -433,11 +464,11 @@
 
     const wrap=document.createElement('div'); wrap.id='iago-root';
     wrap.innerHTML=`
-      <button id="iago-fab" title="Falar com o Iago"><img src="iago-cabeca.png" alt="Iago" onerror="this.parentNode.innerHTML='🤖';this.parentNode.style.fontSize='28px'"></button>
-      <div id="iago-panel" role="dialog" aria-label="Assistente Iago">
+      <button id="iago-fab" title="Falar com o IAgo"><img src="iago-cabeca.png" alt="IAgo" onerror="this.parentNode.innerHTML='🤖';this.parentNode.style.fontSize='28px'"></button>
+      <div id="iago-panel" role="dialog" aria-label="Assistente IAgo">
         <div class="iago-top">
           <img src="iago-cabeca.png" alt="" onerror="this.style.display='none'">
-          <div><div class="t">Iago</div><div class="s">Assistente do MAPA</div></div>
+          <div><div class="t">IAgo</div><div class="s">Assistente do MAPA</div></div>
           <button class="iago-x" id="iago-fechar" title="Fechar" aria-label="Fechar">×</button>
         </div>
         <div id="iago-msgs"></div>

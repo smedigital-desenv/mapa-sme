@@ -174,6 +174,44 @@
     .bk-badge { background:#f59e0b; color:#fff; font-weight:900; border-radius:999px; padding:1px 10px; font-size:.78rem; margin-left:.4rem; }
     .bk-badge.clic { cursor:pointer; } .bk-badge.clic:hover { background:#d97706; }
     .backlog-vazio { font-size:.8rem; font-weight:700; color:#047857; background:#ecfdf5; border-radius:10px; padding:.7rem .9rem; }
+    /* ── Assistente (chatbot) ── */
+    .chat-wrap { display:flex; flex-direction:column; height:calc(100vh - 190px); min-height:420px; background:#fff; border-radius:16px; box-shadow:0 4px 18px rgba(0,0,0,.06); overflow:hidden; }
+    .chat-top { padding:.85rem 1.15rem; border-bottom:1px solid #eef2f7; display:flex; align-items:center; gap:.6rem; }
+    .chat-top .tit { font-weight:900; color:var(--primary); font-size:.98rem; }
+    .chat-top .sub { font-size:.68rem; color:#94a3b8; font-weight:600; }
+    .chat-avatar-wrap { flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; }
+    .chat-avatar { width:44px; height:44px; object-fit:contain; }
+    .chat-mascote { width:190px; max-width:60%; height:auto; margin:0 auto .8rem; display:block; filter:drop-shadow(0 8px 18px rgba(0,43,94,.20)); }
+    .chat-msgs { flex:1; overflow-y:auto; padding:1.1rem 1.15rem; display:flex; flex-direction:column; gap:.75rem; background:#f8fafc; }
+    .chat-b { max-width:82%; padding:.7rem .95rem; border-radius:14px; font-size:.86rem; line-height:1.5; white-space:normal; word-wrap:break-word; }
+    .chat-b.user { align-self:flex-end; background:var(--primary); color:#fff; border-bottom-right-radius:4px; }
+    .chat-b.bot  { align-self:flex-start; background:#fff; color:#1e293b; border:1px solid #e8eef5; border-bottom-left-radius:4px; }
+    .chat-b.bot strong { color:var(--primary); }
+    .chat-vazio { margin:auto; text-align:center; color:#94a3b8; max-width:540px; padding:1rem; }
+    .chat-vazio > i { font-size:2.4rem; color:#cbd5e1; }
+    .chat-vazio p { font-size:.85rem; font-weight:600; margin-top:.5rem; }
+    .iago-ola { font-size:1.2rem; font-weight:900; color:var(--primary); margin-top:.1rem; }
+    .iago-desc { font-size:.86rem; color:#475569; font-weight:600; margin:.5rem auto .9rem; max-width:470px; }
+    .iago-caps { list-style:none; margin:0 auto; padding:0; max-width:440px; text-align:left; display:flex; flex-direction:column; gap:.55rem; }
+    .iago-caps li { display:flex; align-items:flex-start; gap:.6rem; font-size:.82rem; color:#334155; line-height:1.35; }
+    .iago-caps li i { color:var(--neon-blue); font-size:1.05rem; margin-top:.05rem; flex-shrink:0; }
+    .iago-caps li b { color:#1e293b; }
+    .iago-cta { font-size:.8rem; font-weight:800; color:#64748b; margin-top:1.1rem; }
+    .chat-row-bot { display:flex; align-items:flex-start; gap:.5rem; align-self:flex-start; max-width:92%; }
+    .chat-row-bot .chat-b.bot { max-width:100%; }
+    .chat-avatar-msg { width:34px; height:34px; border-radius:50%; object-fit:contain; background:#eef4fb; padding:2px; flex-shrink:0; box-shadow:0 2px 6px rgba(0,43,94,.12); }
+    .chat-typing { align-self:flex-start; display:flex; gap:4px; padding:.7rem .95rem; }
+    .chat-typing span { width:7px; height:7px; border-radius:50%; background:#cbd5e1; animation:chatpulse 1.2s infinite; }
+    .chat-typing span:nth-child(2){ animation-delay:.2s; } .chat-typing span:nth-child(3){ animation-delay:.4s; }
+    @keyframes chatpulse { 0%,60%,100%{opacity:.3;transform:translateY(0);} 30%{opacity:1;transform:translateY(-3px);} }
+    .chat-chips { display:flex; flex-wrap:wrap; gap:.45rem; padding:.7rem 1.15rem 0; }
+    .chat-chip { border:1.5px solid #cbd5e1; background:#fff; color:#334155; font-weight:700; font-size:.74rem; padding:5px 12px; border-radius:999px; cursor:pointer; transition:.15s; }
+    .chat-chip:hover { border-color:var(--primary); background:#f1f6ff; }
+    .chat-input { display:flex; gap:.6rem; padding:.85rem 1.15rem; border-top:1px solid #eef2f7; align-items:flex-end; }
+    .chat-input textarea { flex:1; resize:none; border:1.5px solid #cbd5e1; border-radius:12px; padding:.6rem .85rem; font-family:inherit; font-size:.86rem; max-height:120px; }
+    .chat-input textarea:focus { outline:none; border-color:var(--primary); }
+    .chat-send { border:0; background:var(--primary); color:#fff; width:44px; height:44px; border-radius:12px; cursor:pointer; flex-shrink:0; font-size:1.1rem; }
+    .chat-send:disabled { opacity:.5; cursor:not-allowed; }
     /* ── Área de impressão / PDF ── */
     #print-area { display: none; }
     .pdf-cab { display:flex; align-items:baseline; gap:12px; border-bottom:3px solid var(--primary); padding-bottom:10px; margin-bottom:20px; flex-wrap:wrap; }
@@ -509,7 +547,7 @@ function mostrarEstado(msg, icone) {
 // ── Navegação ──
 function mudarSecao(sec) {
   secaoAtual = sec;
-  ['fundamental','infantil','devolutivas','estatisticas'].forEach(t => {
+  ['fundamental','infantil','devolutivas','estatisticas','assistente'].forEach(t => {
     const b = document.getElementById('tab-'+t);
     if (b) b.classList.toggle('active', t === sec);
   });
@@ -522,13 +560,15 @@ function mudarSecao(sec) {
     aD.style.display = 'flex'; carregarDevolutivas();
   } else if (sec === 'estatisticas') {
     aE.style.display = 'flex'; renderEstatisticas();
+  } else if (sec === 'assistente') {
+    renderAssistente();                 // sem barra lateral: o chat ocupa a área toda
   } else {
     aP.style.display = 'flex'; mudarSegmento(sec);
   }
 }
 
 // ── URL da API (Google Apps Script) ──
-const API_URL = 'https://script.google.com/macros/s/AKfycbydArqsFE8fCijWuc_st3Kd3jbQaUWRyEnQja-Nh2dOaKueuV_jX0iaDyToMKRXjKHO/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbx8s-6lhTckvshmop6c_tvV_hVZqC6JjXtuQVpN0U6sjjB9oXtCb3gTdHK27V_YjkfKBQ/exec';
 
 // ── Origem dos dados ──
 // 'appsscript': lê do Google Apps Script/Planilhas, como sempre.
@@ -2429,6 +2469,540 @@ function exportarCoberturaCSV() {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
   mostrarToast('CSV exportado!');
+}
+
+// ════════════════════════════════════════════════
+//  Assistente (chatbot) — chave central no Apps Script (GEMINI_KEYS).
+//  O contexto é montado aqui, a partir dos dados JÁ carregados (que as RPCs
+//  filtram por permissão), e enviado ao Apps Script, que chama o Gemini.
+// ════════════════════════════════════════════════
+let _chatHistorico = [];
+let _chatEnviando = false;
+const _CHAT_SUGESTOES = [
+  'Quais escolas estão em risco alto?',
+  'Qual regional está pior na fluência?',
+  'Quem visitou por último e o que observou?',
+  'Cruze o risco das visitas com o engajamento no Elefante'
+];
+
+function renderAssistente() {
+  const main = document.getElementById('main');
+  const montar = () => {
+    const chips = _CHAT_SUGESTOES.map(q =>
+      `<button class="chat-chip" onclick="enviarPergunta(this.textContent)">${escapar(q)}</button>`).join('');
+    main.innerHTML = `
+      <div class="chat-wrap">
+        <div class="chat-top">
+          <span class="chat-avatar-wrap">
+            <img src="iago.png" alt="Assistente do MAPA" class="chat-avatar" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block';">
+            <i class="bi bi-robot" style="font-size:1.4rem;color:var(--neon-blue);display:none;"></i>
+          </span>
+          <div>
+            <div class="tit">IAgo</div>
+            <div class="sub">Assistente do MAPA · responde com base nos dados que você pode ver.</div>
+          </div>
+        </div>
+        <div class="chat-msgs" id="chatMsgs"></div>
+        <div class="chat-chips" id="chatChips">${chips}</div>
+        <div class="chat-input">
+          <textarea id="chatInput" rows="1" placeholder="Pergunte sobre escolas, regionais, riscos, prioridades…"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarPergunta();}"
+            oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px';"></textarea>
+          <button class="chat-send" id="chatSend" onclick="enviarPergunta()" title="Enviar"><i class="bi bi-send-fill"></i></button>
+        </div>
+      </div>`;
+    _renderChatMsgs();
+    const inp = document.getElementById('chatInput'); if (inp) inp.focus();
+    _carregarAux();   // pré-aquece Fluência/Elefante enquanto o usuário digita
+  };
+  if (!devolutivasCarregadas) {
+    main.innerHTML = '<div class="spinner-wrapper"><div class="spinner-border text-primary" role="status"></div></div>';
+    carregarDevolutivas(montar, false);
+  } else montar();
+}
+
+function _renderChatMsgs() {
+  const box = document.getElementById('chatMsgs');
+  if (!box) return;
+  let html;
+  if (!_chatHistorico.length && !_chatEnviando) {
+    html = `<div class="chat-vazio">
+      <img src="iago-ola.png" alt="IAgo, assistente do MAPA" class="chat-mascote" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+      <i class="bi bi-chat-square-heart" style="display:none;"></i>
+      <div class="iago-ola">Olá! Eu sou o <b>IAgo</b> 👋</div>
+      <div class="iago-desc">Seu assistente do MAPA. Consigo analisar e <b>cruzar</b> os dados aos quais você tem acesso:</div>
+      <ul class="iago-caps">
+        <li><i class="bi bi-clipboard2-check-fill"></i><span><b>Visitas de acompanhamento</b> — quem visitou, quando e o responsável</span></li>
+        <li><i class="bi bi-robot"></i><span><b>Devolutivas pedagógicas</b> — prioridade, risco, pontos fortes e fracos</span></li>
+        <li><i class="bi bi-book-half"></i><span><b>Fluência Leitora</b> — níveis N1–N4 e % de fluentes</span></li>
+        <li><i class="bi bi-book-fill"></i><span><b>Elefante Letrado</b> — engajamento e leituras</span></li>
+        <li><i class="bi bi-map-fill"></i><span><b>Cobertura, regionais, riscos e temas</b> da rede</span></li>
+      </ul>
+      <div class="iago-cta">Pergunte à vontade — ou toque numa sugestão abaixo 👇</div>
+    </div>`;
+  } else {
+    const avatar = `<img src="iago-cabeca.png" alt="IAgo" class="chat-avatar-msg" onerror="this.style.display='none';">`;
+    html = _chatHistorico.map(m =>
+      m.role === 'user'
+        ? `<div class="chat-b user">${escapar(m.texto)}</div>`
+        : `<div class="chat-row-bot">${avatar}<div class="chat-b bot">${_mdSimples(m.texto)}</div></div>`
+    ).join('');
+    if (_chatEnviando) html += `<div class="chat-row-bot">${avatar}<div class="chat-typing"><span></span><span></span><span></span></div></div>`;
+  }
+  box.innerHTML = html;
+  box.scrollTop = box.scrollHeight;
+  const send = document.getElementById('chatSend'); if (send) send.disabled = _chatEnviando;
+  const chips = document.getElementById('chatChips'); if (chips) chips.style.display = _chatHistorico.length ? 'none' : 'flex';
+}
+
+// markdown mínimo e seguro (escapa antes; só negrito e bullets)
+function _mdSimples(t) {
+  let s = escapar(t);
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/^\s*[-*]\s+(.+)$/gm, '• $1');
+  return s.replace(/\n/g, '<br>');
+}
+
+// ════════════════════════════════════════════════
+//  FUNCTION CALLING — panorama pequeno + 5 funções chamadas sob demanda.
+//  As funções rodam AQUI (dados já filtrados por permissão). O Apps Script só
+//  repassa ao Gemini (chave lá) e devolve texto ou pedido de função.
+// ════════════════════════════════════════════════
+
+// cobertura + resolvedor de regional por nome (base de todas as funções)
+function _chatLinhas() {
+  const linhas = _construirCobertura(['fundamental','infantil']);
+  const regByNorm = {};
+  linhas.forEach(l => { if (l.regional && l.regional !== '—') regByNorm[_auxNormEscola(l.escola)] = l.regional; });
+  const regDe = nome => regByNorm[_auxNormEscola(nome)] || '';
+  const casaReg = (reg, alvo) => !alvo || _auxNorm(reg) === _auxNorm(alvo) || (reg || '').toLowerCase().includes(String(alvo).toLowerCase());
+  return { linhas, regDe, casaReg };
+}
+
+// PANORAMA fixo (pequeno) — sempre no contexto, diz o que existe.
+function _contextoBase() {
+  const { linhas } = _chatLinhas();
+  const total = linhas.length, vis = linhas.filter(l => l.nVisitas > 0).length;
+  const cob = total ? Math.round(vis / total * 100) : 0;
+  const porReg = {};
+  linhas.forEach(l => { const r = (l.regional && l.regional !== '—') ? l.regional : 'Sem regional';
+    const o = porReg[r] || (porReg[r] = { t:0, v:0 }); o.t++; if (l.nVisitas > 0) o.v++; });
+  const regTxt = Object.entries(porReg).sort((a,b) => a[0].localeCompare(b[0])).map(([r,o]) => `${r}: ${o.v}/${o.t}`).join('; ');
+  const risc = { alto:0, medio:0, baixo:0 };
+  linhas.forEach(l => { const n = _nivelRisco(l); if (risc[n] !== undefined) risc[n]++; });
+  const cont = {}; _TEMAS.forEach(t => cont[t.key] = 0);
+  linhas.forEach(l => _temasDaLinha(l).forEach(k => cont[k]++));
+  const temasTxt = _TEMAS.filter(t => cont[t.key] > 0).sort((a,b) => cont[b.key]-cont[a.key]).slice(0,8).map(t => `${t.lbl} (${cont[t.key]})`).join('; ');
+  const comV = linhas.filter(l => l.ultima).sort((a,b) => b.ultima.getTime() - a.ultima.getTime());
+  const mr = comV[0];
+  let s = 'PANORAMA DA REDE (apenas o que você pode ver):\n';
+  s += `- Escolas: ${total} | Visitadas: ${vis} (${cob}%) | Sem visita: ${total - vis}\n`;
+  if (mr) s += `- Visita mais recente: ${mr.escola} em ${_fmtData(mr.ultima)}\n`;
+  s += `- Cobertura por regional (visitadas/total): ${regTxt || '—'}\n`;
+  s += `- Risco pedagógico: alto ${risc.alto}, médio ${risc.medio}, baixo ${risc.baixo}\n`;
+  s += `- Temas recorrentes: ${temasTxt || '—'}\n`;
+  return s;
+}
+
+function _sistemaChat() {
+  return 'Você é o IAgo, o assistente virtual do MAPA (Secretaria Municipal da Educação de Ribeirão Preto), '
+    + 'que responde a gestores e técnicos sobre visitas de acompanhamento, devolutivas, Fluência Leitora e Elefante Letrado. '
+    + 'Se perguntarem quem é você, apresente-se como IAgo, de forma breve e cordial.\n\n'
+    + 'REGRAS:\n'
+    + '- Use as FUNÇÕES para buscar os dados que precisar (escolas, detalhe_da_escola, visitas, indicadores, buscar). Chame quantas precisar antes de responder.\n'
+    + '- Você PODE e DEVE calcular, somar, contar, agrupar, ordenar, tirar médias/percentuais, ranquear e CRUZAR os resultados (ex.: qual regional está pior na fluência, cruzar risco da visita com engajamento). Isso NÃO é inventar.\n'
+    + '- Baseie-se só no panorama e nos resultados das funções. Não invente escolas, números, datas ou nomes. Se o dado não existir, diga que não consta.\n'
+    + '- Cada escola tem uma regional; use-a para agrupar/comparar por regional. Ao ranquear ou tirar média, mostre os números.\n'
+    + '- Seja objetivo e institucional; pode usar listas e negrito (markdown simples).\n\n'
+    + 'PANORAMA ATUAL:\n' + _contextoBase();
+}
+
+// Declaração das funções para o Gemini
+const CHAT_TOOLS = [{ functionDeclarations: [
+  { name: 'escolas', description: 'Lista escolas com nº de visitas, data da última visita, prioridade e risco. Use filtros para recortar.',
+    parameters: { type: 'object', properties: {
+      regional: { type: 'string', description: 'nome da regional, ex.: "Regional 3"' },
+      status: { type: 'string', description: 'filtro opcional: visitada | sem_visita | com_devolutiva | risco_alto' } } } },
+  { name: 'detalhe_da_escola', description: 'TODOS os dados de UMA escola: visitas (quem/quando/responsável), devolutiva completa, fluência e elefante.',
+    parameters: { type: 'object', properties: { escola: { type: 'string', description: 'nome da escola' } }, required: ['escola'] } },
+  { name: 'visitas', description: 'Lista as visitas realizadas (quem visitou, quando, período, responsável). Filtros opcionais.',
+    parameters: { type: 'object', properties: {
+      regional: { type: 'string' }, escola: { type: 'string' }, responsavel: { type: 'string' },
+      de: { type: 'string', description: 'data inicial dd/mm/aaaa' }, ate: { type: 'string', description: 'data final dd/mm/aaaa' } } } },
+  { name: 'indicadores', description: 'Fluência Leitora (avaliados, fluentes, % e níveis N1–N4) e Elefante Letrado (engajamento, livros, leituras) por escola/regional.',
+    parameters: { type: 'object', properties: { regional: { type: 'string' }, escola: { type: 'string' } } } },
+  { name: 'buscar', description: 'Procura um termo nas devolutivas e nas respostas das visitas; devolve as escolas que citam o termo (ex.: coordenação, PPA, acervo).',
+    parameters: { type: 'object', properties: { termo: { type: 'string' } }, required: ['termo'] } }
+]}];
+
+// Executor das funções (roda no navegador, sobre os dados em memória)
+function _execTool(name, args) {
+  try {
+    args = args || {};
+    if (name === 'escolas')           return _toolEscolas(args);
+    if (name === 'detalhe_da_escola') return _toolDetalhe(args);
+    if (name === 'visitas')           return _toolVisitas(args);
+    if (name === 'indicadores')       return _toolIndicadores(args);
+    if (name === 'buscar')            return _toolBuscar(args);
+    return { erro: 'função desconhecida: ' + name };
+  } catch (e) { return { erro: String((e && e.message) || e) }; }
+}
+function _toolEscolas(args) {
+  const { linhas, casaReg } = _chatLinhas();
+  let ls = linhas.filter(l => casaReg(l.regional, args.regional));
+  const st = String(args.status || '').toLowerCase();
+  if (st === 'sem_visita')     ls = ls.filter(l => l.nVisitas === 0);
+  else if (st === 'visitada')  ls = ls.filter(l => l.nVisitas > 0);
+  else if (st === 'com_devolutiva') ls = ls.filter(l => l.temDev);
+  else if (st === 'risco_alto') ls = ls.filter(l => _nivelRisco(l) === 'alto');
+  return { total: ls.length, escolas: ls.map(l => ({
+    escola: l.escola, regional: l.regional, segmento: l.segmento, visitas: l.nVisitas,
+    ultima_visita: _fmtData(l.ultima),
+    prioridade: l.dev ? (l.dev.prioridade || null) : null,
+    risco: _nivelRisco(l) === 'sem' ? null : _nivelRisco(l) })) };
+}
+function _toolDetalhe(args) {
+  const alvo = _auxNormEscola(args.escola || '');
+  const { linhas } = _chatLinhas();
+  const l = linhas.find(x => _auxNormEscola(x.escola) === alvo)
+        || linhas.find(x => { const n = _auxNormEscola(x.escola); return n && (n.includes(alvo) || alvo.includes(n)); });
+  if (!l) return { erro: 'escola não encontrada: ' + (args.escola || '') };
+  const vis = [];
+  ['fundamental','infantil'].forEach(seg => (dadosPorSegmento[seg] || []).forEach(v => {
+    if (_auxNormEscola(v['_ESCOLA_'] || '') !== _auxNormEscola(l.escola)) return;
+    vis.push({ data: v['Data da Visita:'] || v['Data da visita:'] || v['Carimbo de data/hora'] || '',
+      periodo: _visCampo(v, /per[ií]odo/i), responsavel: _visCampo(v, /respons/i) || null, email: _visCampo(v, /e-?mail/i) || null });
+  }));
+  return { escola: l.escola, regional: l.regional, segmento: l.segmento, visitas: l.nVisitas,
+    ultima_visita: _fmtData(l.ultima), registros_visitas: vis,
+    devolutiva: l.dev ? _devTxtCompleto(l.dev) : null,
+    fluencia: (_fluPorEscola && _fluPorEscola[l.escola]) || null,
+    elefante: (_elePorEscola && _elePorEscola[l.escola]) || null };
+}
+function _toolVisitas(args) {
+  const { regDe, casaReg } = _chatLinhas();
+  const de = _parseData(args.de), ate = _parseData(args.ate);
+  const out = [];
+  ['fundamental','infantil'].forEach(seg => (dadosPorSegmento[seg] || []).forEach(v => {
+    const escola = v['_ESCOLA_'] || '', reg = regDe(escola);
+    const dataStr = v['Data da Visita:'] || v['Data da visita:'] || v['Carimbo de data/hora'] || '';
+    const d = _parseData(dataStr), resp = _visCampo(v, /respons/i);
+    if (!casaReg(reg, args.regional)) return;
+    if (args.escola && _auxNormEscola(escola) !== _auxNormEscola(args.escola)) return;
+    if (args.responsavel && !resp.toLowerCase().includes(String(args.responsavel).toLowerCase())) return;
+    if (de && d && d < de) return;
+    if (ate && d && d > ate) return;
+    out.push({ escola, regional: reg, data: dataStr, periodo: _visCampo(v, /per[ií]odo/i),
+      responsavel: resp || null, email: _visCampo(v, /e-?mail/i) || null, _t: d ? d.getTime() : 0 });
+  }));
+  out.sort((a,b) => b._t - a._t).forEach(o => delete o._t);
+  return { total: out.length, visitas: out };
+}
+function _toolIndicadores(args) {
+  const { regDe, casaReg } = _chatLinhas();
+  const ok = nome => (!args.escola || _auxNormEscola(nome) === _auxNormEscola(args.escola)) && casaReg(regDe(nome), args.regional);
+  const flu = [], ele = [];
+  if (_fluPorEscola) Object.keys(_fluPorEscola).forEach(e => { if (!ok(e)) return; const f = _fluPorEscola[e];
+    flu.push({ escola: e, regional: regDe(e), avaliacao: f.avaliacao, avaliados: f.aval, fluentes: f.flu,
+      pct_fluentes: f.aval ? Math.round(f.flu / f.aval * 100) : 0, n1: f.n1, n2: f.n2, n3: f.n3, n4: f.n4, iniciantes: f.ini, ausentes: f.aus }); });
+  if (_elePorEscola) Object.keys(_elePorEscola).forEach(e => { if (!ok(e)) return; const g = _elePorEscola[e];
+    ele.push({ escola: e, regional: regDe(e), estudantes: g.est, leitores: g.lei,
+      pct_engajamento: g.est ? Math.round(g.lei / g.est * 100) : 0, livros_lidos: g.liv, leituras_concluidas: g.leit }); });
+  return { fluencia: flu, elefante: ele };
+}
+function _toolBuscar(args) {
+  const termo = _auxNorm(args.termo || '');
+  if (!termo) return { erro: 'termo vazio' };
+  const { linhas, regDe } = _chatLinhas();
+  const seen = new Set(), out = [];
+  const add = (escola, regional, onde) => { const k = escola + '|' + onde; if (!seen.has(k)) { seen.add(k); out.push({ escola, regional, onde }); } };
+  linhas.forEach(l => { if (l.dev && _auxNorm(_devTxtCompleto(l.dev)).includes(termo)) add(l.escola, l.regional, 'devolutiva'); });
+  ['fundamental','infantil'].forEach(seg => (dadosPorSegmento[seg] || []).forEach(v => {
+    const escola = v['_ESCOLA_'] || ''; let hit = false;
+    for (const k in v) { if (k.charAt(0) === '_') continue; if (_auxNorm(v[k]).includes(termo)) { hit = true; break; } }
+    if (hit) add(escola, regDe(escola), 'visita');
+  }));
+  return { termo: args.termo, total: out.length, resultados: out.slice(0, 60) };
+}
+
+// Laço de conversa com function calling.
+async function enviarPergunta(texto) {
+  if (_chatEnviando) return;
+  const inp = document.getElementById('chatInput');
+  const pergunta = String(texto || (inp && inp.value) || '').trim();
+  if (!pergunta) return;
+  if (inp) { inp.value = ''; inp.style.height = 'auto'; }
+  _chatHistorico.push({ role: 'user', texto: pergunta });
+  _chatEnviando = true;
+  _renderChatMsgs();
+  try {
+    await _carregarAux();   // Fluência/Elefante prontos p/ as funções (cacheado)
+    const systemInstruction = { parts: [{ text: _sistemaChat() }] };
+    const contents = _chatHistorico.filter(m => m.texto)
+      .map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.texto }] }));
+    let final = '';
+    for (let step = 0; step < 6; step++) {
+      const res = await chamarAPI('chatfn', {
+        payload: JSON.stringify({ contents, systemInstruction, tools: CHAT_TOOLS }),
+        usuario: emailUsuario || '',
+        contar: step === 0 ? 'true' : 'false'
+      });
+      if (!res || !res.ok) { final = '⚠️ ' + ((res && res.erro) || 'Não foi possível responder agora.'); break; }
+      const parts = res.parts || [];
+      const fcs = parts.filter(p => p.functionCall).map(p => p.functionCall);
+      if (fcs.length) {
+        // Ecoa as parts ORIGINAIS do modelo (preservam o thought_signature exigido
+        // pelo Gemini); NÃO remontar, senão o 400 "missing thought_signature".
+        contents.push({ role: 'model', parts: parts });
+        contents.push({ role: 'user', parts: fcs.map(fc => ({ functionResponse: { name: fc.name, response: _execTool(fc.name, fc.args) } })) });
+        continue;   // devolve o resultado ao modelo
+      }
+      final = parts.filter(p => p.text).map(p => p.text).join('\n').trim() || '(sem resposta)';
+      break;
+    }
+    _chatHistorico.push({ role: 'assistant', texto: final || '(sem resposta)' });
+  } catch (e) {
+    _chatHistorico.push({ role: 'assistant', texto: '⚠️ Erro de conexão com o assistente: ' + (e.message || e) });
+  } finally {
+    _chatEnviando = false;
+    _renderChatMsgs();
+  }
+}
+
+// Monta o contexto (resumo + devolutivas) a partir dos dados em memória.
+// Como esses dados vieram das RPCs (que filtram por permissão), o contexto já
+// contém apenas o que o usuário logado pode ver.
+// ── Dados auxiliares p/ o chat: Fluência Leitora e Elefante Letrado ──────────
+// Lidos das MESMAS fontes que fluencia.html / elefante.html já usam (view/tabelas
+// no Supabase, com a chave anônima — pública, igual àquelas telas). Agregados por
+// escola, com o filtro por escola do MapaAuth. NÃO altera aquelas telas nem a
+// segurança dos relatórios. Nomes unificados aos das unidades dos relatórios.
+const _AUX_SB_URL = 'https://gmwotfulohkmuqrezeef.supabase.co';
+const _AUX_SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdtd290ZnVsb2hrbXVxcmV6ZWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTQxODYsImV4cCI6MjA5NzA5MDE4Nn0.6qjrT9Nux_0_Z5oH9ndpcCcJxzfO59VuXjhggVXSOFk';
+let _fluPorEscola = null, _elePorEscola = null, _auxPromise = null;
+
+function _auxNorm(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/\s+/g,' ').trim(); }
+const _AUX_TITULOS = new Set(['PROF','PROFA','PROFO','DR','DRA','DRO','PROFESSOR','PROFESSORA','DOUTOR','DOUTORA']);
+const _AUX_ALIAS = { 'ENEIDA PEREIRA DOS SANTOS DE AGUIAR EMEF': 'ENEIDA PEREIRA DOS SANTOS EMEF' };
+function _auxNormEscola(s){
+  const limpo = _auxNorm(s).replace(/[º°ª]/g,'').replace(/[.,–—-]/g,' ').replace(/\s+/g,' ').trim();
+  const out=[]; for (const w of limpo.split(' ')){ if(_AUX_TITULOS.has(w))continue; if(w==='UNID')break; out.push(w); }
+  const nome=out.join(' '); return _AUX_ALIAS[nome]||nome;
+}
+async function _auxFetch(path){
+  const r = await fetch(`${_AUX_SB_URL}/rest/v1/${path}`, { headers:{ apikey:_AUX_SB_KEY, Authorization:`Bearer ${_AUX_SB_KEY}` } });
+  if(!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
+  return r.json();
+}
+// Carrega uma vez (promise cacheada). Falhas são silenciosas: sem a fonte, a seção some.
+function _carregarAux(){
+  if (_auxPromise) return _auxPromise;
+  _auxPromise = (async () => {
+    // nome normalizado → nome oficial da unidade nos relatórios (unifica as bases)
+    const mapaOficial = {};
+    ['fundamental','infantil'].forEach(seg => (escolasOficiais[seg]||[]).forEach(n => { mapaOficial[_auxNormEscola(n)] = n; }));
+    const canon = nome => mapaOficial[_auxNormEscola(nome)] || String(nome||'').trim();
+    const filtrar = (rows, getNome) => {
+      try { if (window.MapaAuth && window.MapaAuth.restritoEscola) return window.MapaAuth.filtrarEscolas(rows, getNome); } catch(e){}
+      return rows;
+    };
+    // Fluência (view v_fluencia_por_turma) → agrega por escola, avaliação mais recente
+    try {
+      let flu = await _auxFetch('v_fluencia_por_turma?select=escola,avaliacao,avaliados,fluentes,iniciantes,pre_n1,pre_n2,pre_n3,pre_n4,ausentes,total_estudantes&order=avaliacao.asc');
+      flu = filtrar(flu, t => t.escola);
+      const porEA = {};
+      flu.forEach(t => {
+        const e = canon(t.escola);
+        const o = (porEA[e] = porEA[e] || {});
+        const a = (o[t.avaliacao] = o[t.avaliacao] || {aval:0,flu:0,ini:0,n1:0,n2:0,n3:0,n4:0,aus:0,tot:0});
+        a.aval+=+t.avaliados||0; a.flu+=+t.fluentes||0; a.ini+=+t.iniciantes||0;
+        a.n1+=+t.pre_n1||0; a.n2+=+t.pre_n2||0; a.n3+=+t.pre_n3||0; a.n4+=+t.pre_n4||0;
+        a.aus+=+t.ausentes||0; a.tot+=+t.total_estudantes||0;
+      });
+      _fluPorEscola = {};
+      Object.keys(porEA).forEach(e => { const avs = Object.keys(porEA[e]).sort(); const av = avs[avs.length-1];
+        _fluPorEscola[e] = Object.assign({ avaliacao: av }, porEA[e][av]); });
+    } catch(e){ console.warn('Fluência indisponível:', e.message); }
+    // Elefante (elefante_turmas + elefante_escolas) → agrega por escola, mês mais recente
+    try {
+      const meses = await _auxFetch('elefante_turmas?select=mes_referencia&order=mes_referencia.desc&limit=1');
+      if (meses.length) {
+        const mes = meses[0].mes_referencia;
+        let turmas = await _auxFetch(`elefante_turmas?mes_referencia=eq.${encodeURIComponent(mes)}&select=escola,estudantes,leitores,livros_lidos`);
+        turmas = filtrar(turmas, t => t.escola);
+        const porE = {};
+        turmas.forEach(t => { const e = canon(t.escola);
+          const o = (porE[e] = porE[e] || {est:0,lei:0,liv:0,leit:null,mes:mes});
+          o.est+=+t.estudantes||0; o.lei+=+t.leitores||0; o.liv+=+t.livros_lidos||0; });
+        try {
+          let esc = await _auxFetch(`elefante_escolas?mes_referencia=eq.${encodeURIComponent(mes)}&select=nome_escola,leituras_concluidas`);
+          esc = filtrar(esc, r => r.nome_escola);
+          esc.forEach(r => { const e = canon(r.nome_escola); const o = (porE[e] = porE[e] || {est:0,lei:0,liv:0,leit:null,mes:mes});
+            o.leit = (o.leit||0) + (+r.leituras_concluidas||0); });
+        } catch(e){}
+        _elePorEscola = porE;
+      }
+    } catch(e){ console.warn('Elefante indisponível:', e.message); }
+  })();
+  return _auxPromise;
+}
+
+// Primeiro campo de uma visita cujo NOME casa com o padrão (ex.: responsável, período, e-mail).
+function _visCampo(v, re) {
+  for (const k in v) { if (re.test(k)) { const val = String(v[k] == null ? '' : v[k]).trim(); if (val) return val; } }
+  return '';
+}
+
+// Formata uma devolutiva individual COMPLETA (todos os campos) para o contexto do chat.
+function _devTxtCompleto(d) {
+  const L = a => (a || []).filter(Boolean).join('; ');
+  const p = [];
+  if (d.sintese_executiva) p.push('Síntese: ' + d.sintese_executiva);
+  if (d.prioridade) p.push('Prioridade: ' + d.prioridade + (d.justificativa_prioridade ? ' (' + d.justificativa_prioridade + ')' : ''));
+  const r = d.risco_pedagogico || {};
+  if (r.nivel) p.push('Risco: ' + r.nivel + (r.descricao ? ' — ' + r.descricao : ''));
+  if ((d.pontos_fortes || []).length)  p.push('Pontos fortes: ' + L(d.pontos_fortes));
+  if ((d.pontos_fracos || []).length)  p.push('Pontos fracos: ' + L(d.pontos_fracos));
+  if ((d.pontos_atencao || []).length) p.push('Pontos de atenção: ' + L(d.pontos_atencao));
+  if ((d.encaminhamentos_proxima_visita || []).length) p.push('Encaminhamentos: ' + L(d.encaminhamentos_proxima_visita));
+  if ((d.perguntas_para_proxima_visita || []).length)  p.push('Perguntas p/ próxima visita: ' + L(d.perguntas_para_proxima_visita));
+  if ((d.foco_formativo_sugerido || []).length) p.push('Foco formativo: ' + L(d.foco_formativo_sugerido));
+  return p.join(' | ');
+}
+
+function _contextoChat() {
+  const linhas = _construirCobertura(['fundamental','infantil']);
+  const total = linhas.length, vis = linhas.filter(l => l.nVisitas > 0).length;
+  const cob = total ? Math.round(vis / total * 100) : 0;
+
+  // escolas com visita, ordenadas da mais recente para a mais antiga (p/ perguntas de data)
+  const comVisita = linhas.filter(l => l.ultima).sort((a,b) => b.ultima.getTime() - a.ultima.getTime());
+  const maisRecente = comVisita[0];
+
+  const porReg = {};
+  linhas.forEach(l => {
+    const r = (l.regional && l.regional !== '—') ? l.regional : 'Sem regional';
+    const o = porReg[r] || (porReg[r] = { t:0, v:0 }); o.t++; if (l.nVisitas > 0) o.v++;
+  });
+  const regTxt = Object.entries(porReg).sort((a,b) => a[0].localeCompare(b[0]))
+    .map(([r,o]) => `${r}: ${o.v}/${o.t} (${o.t?Math.round(o.v/o.t*100):0}%)`).join('; ');
+
+  const risc = { alto:0, medio:0, baixo:0 };
+  linhas.forEach(l => { const n = _nivelRisco(l); if (risc[n] !== undefined) risc[n]++; });
+
+  const cont = {}; _TEMAS.forEach(t => cont[t.key] = 0);
+  linhas.forEach(l => _temasDaLinha(l).forEach(k => cont[k]++));
+  const temasTxt = _TEMAS.filter(t => cont[t.key] > 0).sort((a,b) => cont[b.key]-cont[a.key])
+    .map(t => `${t.lbl} (${cont[t.key]})`).join('; ');
+
+  // Regional por escola (chave = nome normalizado) — permite agrupar Fluência/
+  // Elefante por regional, já que aquelas fontes não trazem a regional.
+  const _regByNorm = {};
+  linhas.forEach(l => { if (l.regional && l.regional !== '—') _regByNorm[_auxNormEscola(l.escola)] = l.regional; });
+  const _regDe = nome => _regByNorm[_auxNormEscola(nome)] || '';
+
+  // ═══ ESSENCIAL — montado PRIMEIRO e nunca truncado (resumo, fluência,
+  //     elefante, devolutivas de rede/regional e por escola) ═══
+  let ctx = 'RESUMO DA REDE (apenas escolas que você pode ver):\n';
+  ctx += `- Escolas: ${total} | Visitadas: ${vis} (${cob}%) | Sem visita: ${total - vis}\n`;
+  if (maisRecente) ctx += `- Visita mais recente da rede: ${maisRecente.escola} em ${_fmtData(maisRecente.ultima)}\n`;
+  ctx += `- Cobertura por regional: ${regTxt || '—'}\n`;
+  ctx += `- Risco pedagógico: alto ${risc.alto}, médio ${risc.medio}, baixo ${risc.baixo}\n`;
+  ctx += `- Temas mais frequentes: ${temasTxt || '—'}\n`;
+
+  // Visitas realizadas (quem e quando) — extraído dos registros do formulário e
+  // mantido no ESSENCIAL para nunca truncar (o modelo precisa disso p/ "quem visitou").
+  const _visitas = [];
+  ['fundamental','infantil'].forEach(seg => (dadosPorSegmento[seg] || []).forEach(v => {
+    const escola = v['_ESCOLA_'] || '';
+    const dataStr = v['Data da Visita:'] || v['Data da visita:'] || v['Carimbo de data/hora'] || '';
+    _visitas.push({
+      escola, reg: _regDe(escola), dataStr, d: _parseData(dataStr),
+      resp: _visCampo(v, /respons/i), periodo: _visCampo(v, /per[ií]odo/i), email: _visCampo(v, /e-?mail/i)
+    });
+  }));
+  _visitas.sort((a,b) => (b.d ? b.d.getTime() : 0) - (a.d ? a.d.getTime() : 0));
+  if (_visitas.length) {
+    ctx += `\nVISITAS REALIZADAS (${_visitas.length}) — quem e quando, da mais recente para a mais antiga:\n`;
+    _visitas.forEach(x => {
+      ctx += `• ${x.escola}${x.reg ? ` [${x.reg}]` : ''} — ${x.dataStr || '?'}${x.periodo ? ` (período: ${x.periodo})` : ''} — responsável: ${x.resp || 'não informado'}${x.email ? ` <${x.email}>` : ''}\n`;
+    });
+  }
+
+  // Fluência Leitora (por escola, com regional resolvida pelo cadastro dos relatórios).
+  if (_fluPorEscola && Object.keys(_fluPorEscola).length) {
+    ctx += '\nFLUÊNCIA LEITORA (por escola, avaliação mais recente; níveis do menos ao mais avançado: N1, N2, N3, N4, iniciante, fluente):\n';
+    Object.keys(_fluPorEscola).sort().forEach(e => { const f = _fluPorEscola[e]; const reg = _regDe(e);
+      const pct = f.aval > 0 ? Math.round(f.flu / f.aval * 100) : 0;
+      ctx += `• ${e}${reg ? ` [${reg}]` : ''} — ${f.avaliacao || ''}: ${f.aval} avaliados, ${f.flu} fluentes (${pct}%), iniciantes ${f.ini}, N1 ${f.n1}, N2 ${f.n2}, N3 ${f.n3}, N4 ${f.n4}, ausentes ${f.aus}\n`;
+    });
+  } else {
+    ctx += '\n(Fluência Leitora: dados indisponíveis nesta sessão.)\n';
+  }
+  // Elefante Letrado (por escola, com regional).
+  if (_elePorEscola && Object.keys(_elePorEscola).length) {
+    ctx += '\nELEFANTE LETRADO (por escola, mês mais recente; engajamento = leitores/estudantes):\n';
+    Object.keys(_elePorEscola).sort().forEach(e => { const g = _elePorEscola[e]; const reg = _regDe(e);
+      const eng = g.est > 0 ? Math.round(g.lei / g.est * 100) : 0;
+      ctx += `• ${e}${reg ? ` [${reg}]` : ''} — ${g.est} estudantes, ${g.lei} leitores (${eng}% engajamento), ${g.liv} livros lidos${g.leit != null ? `, ${g.leit} leituras concluídas` : ''}\n`;
+    });
+  }
+
+  const rede = todasDevolutivas.filter(d => d._tipo === 'sintese_global');
+  if (rede.length) {
+    ctx += '\nDEVOLUTIVAS DE REDE:\n';
+    rede.forEach(d => { const x = d._dados || {};
+      ctx += `• Rede ${_rotuloSegmento(d["Segmento"]) || ''}: ${x.sintese_executiva || ''}\n`;
+      if ((x.desafios_comuns || []).length) ctx += `  Desafios comuns: ${x.desafios_comuns.join('; ')}\n`;
+      if ((x.alertas_para_gestao || []).length) ctx += `  Alertas: ${x.alertas_para_gestao.join('; ')}\n`;
+    });
+  }
+  const regionais = todasDevolutivas.filter(d => d._tipo === 'regional');
+  if (regionais.length) {
+    ctx += '\nDEVOLUTIVAS REGIONAIS:\n';
+    regionais.forEach(d => { const x = d._dados || {};
+      ctx += `• ${d["Regional"] || 'Regional'} (${_rotuloSegmento(d["Segmento"]) || ''}): ${(x.desafios_comuns || []).slice(0,4).join('; ')}\n`;
+    });
+  }
+
+  if (comVisita.length) {
+    ctx += `\nESCOLAS VISITADAS (${comVisita.length}) — da visita mais recente para a mais antiga:\n`;
+    comVisita.forEach(l => {
+      ctx += `• ${l.escola} [${l.regional}] ${l.segmento} — ${l.nVisitas} visita(s), última em ${_fmtData(l.ultima)}`;
+      if (l.dev) ctx += `\n   ${_devTxtCompleto(l.dev)}`;
+      ctx += '\n';
+    });
+  }
+  const semVisita = linhas.filter(l => l.nVisitas === 0).map(l => l.escola);
+  if (semVisita.length) {
+    ctx += `\nESCOLAS SEM VISITA (${semVisita.length}): ${semVisita.join('; ')}\n`;
+  }
+
+  // ═══ REGISTROS BRUTOS — preenchem só o espaço que sobrar até o teto. Nunca
+  //     empurram o essencial acima para fora; truncam-se sozinhos se faltar espaço. ═══
+  let raw = '\n\nREGISTROS DETALHADOS DAS VISITAS (respostas do formulário):\n';
+  ['fundamental','infantil'].forEach(seg => {
+    (dadosPorSegmento[seg] || []).forEach(v => {
+      const escola = v['_ESCOLA_'] || '';
+      const data = v['Data da Visita:'] || v['Data da visita:'] || v['Carimbo de data/hora'] || '';
+      raw += `\n[${escola} — ${data}]\n`;
+      Object.keys(v).forEach(k => {
+        if (!k || k.charAt(0) === '_' || k === 'Carimbo de data/hora' || k === 'Endereço de e-mail') return;
+        const val = String(v[k] == null ? '' : v[k]).trim();
+        if (val) raw += `  ${k}: ${val}\n`;
+      });
+    });
+  });
+
+  const MAX = 200000;                      // teto total (~50k tokens); o essencial acima nunca é cortado
+  const restante = MAX - ctx.length;
+  if (restante > 3000) {
+    ctx += raw.length <= restante ? raw
+         : (raw.slice(0, restante) + '\n[... registros brutos truncados por tamanho; resumo, fluência, elefante e devolutivas acima estão COMPLETOS ...]');
+  } else {
+    ctx += '\n\n(Registros brutos das visitas omitidos por tamanho; resumo, fluência, elefante e devolutivas acima estão completos.)';
+  }
+  return ctx;
 }
 
 // ── Inicialização ──

@@ -44,8 +44,46 @@
       '.mg-dd-item.active{background:#002b5e;color:#fff;}' +
       '.mg-dd-item.active:hover,.mg-dd-item.active:focus-visible{background:#014a91;color:#fff;}' +
       '.mg-dd-toggle .bi-chevron-down{transition:transform .15s;}' +
-      '.mg-dd:hover .mg-dd-toggle .bi-chevron-down{transform:rotate(180deg);}';
+      '.mg-dd:hover .mg-dd-toggle .bi-chevron-down{transform:rotate(180deg);}' +
+      // Abertura por TOQUE (mobile): a classe .mg-open (posta pelo JS abaixo)
+      // mostra o submenu sem depender de hover. Mesma especificidade da regra de
+      // hover, então vale mesmo nas telas que redeclaram .mg-dd-menu.
+      '.mg-dd.mg-open .mg-dd-menu{visibility:visible;opacity:1;transition:opacity .12s ease,visibility 0s;}' +
+      '.mg-dd.mg-open .mg-dd-toggle .bi-chevron-down{transform:rotate(180deg);}';
     (document.head || document.documentElement).appendChild(st);
+  } catch (e) {}
+
+  // ── Dropdown do menu por TOQUE (mobile) ──────────────────────────────────────
+  // Em telas SEM hover (celular/tablet), tocar no botão do grupo (Aprendizagem /
+  // Fluxo Escolar) abre/fecha o submenu em vez de navegar direto — antes ele só
+  // aparecia enquanto o dedo ficava pressionado. No desktop (com mouse/hover) nada
+  // muda: hover abre e o clique no botão continua navegando.
+  try {
+    var _semHover = function () {
+      try { return !!(window.matchMedia && window.matchMedia('(hover: none), (pointer: coarse)').matches); }
+      catch (e) { return false; }
+    };
+    var _fechaTodos = function (menos) {
+      var abertos = document.querySelectorAll('.mg-dd.mg-open');
+      for (var i = 0; i < abertos.length; i++) { if (abertos[i] !== menos) abertos[i].classList.remove('mg-open'); }
+    };
+    document.addEventListener('click', function (ev) {
+      var alvo = ev.target;
+      var toggle = alvo && alvo.closest ? alvo.closest('.mg-dd-toggle') : null;
+      if (toggle && _semHover()) {
+        var dd = toggle.closest('.mg-dd');
+        if (dd) {
+          ev.preventDefault();
+          var abrir = !dd.classList.contains('mg-open');
+          _fechaTodos(dd);
+          dd.classList.toggle('mg-open', abrir);
+          if (!abrir && toggle.blur) toggle.blur();   // solta o foco p/ não reabrir via :focus-within
+          return;
+        }
+      }
+      // Toque/clique fora de qualquer dropdown → fecha os abertos.
+      if (!alvo || !alvo.closest || !alvo.closest('.mg-dd')) _fechaTodos(null);
+    }, false);
   } catch (e) {}
 
   // A própria login.html (agora só uma ponte para o central) não precisa do gate.
