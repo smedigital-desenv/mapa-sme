@@ -187,6 +187,15 @@
     .turmaBl{margin-bottom:14px;}
     .turmaBl .th{font-size:.74rem;font-weight:900;letter-spacing:.07em;text-transform:uppercase;
       color:var(--muted);margin-bottom:5px;}
+    table.alunos-t{font-size:.8rem;}
+    table.alunos-t th{font-size:.66rem;padding:5px 10px;}
+    table.alunos-t td{padding:5px 10px;}
+    table.alunos-t .rema,table.alunos-t .cod2{font-family:ui-monospace,Menlo,Consolas,monospace;
+      font-weight:700;}
+    table.alunos-t .cod2{color:var(--muted);font-weight:600;}
+    table.alunos-t .tag{background:#fef3c7;color:#92400e;border-radius:6px;
+      padding:1px 7px;font-size:.72rem;font-weight:800;}
+
     .remas{display:flex;flex-wrap:wrap;gap:5px;}
     .remas span{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.78rem;font-weight:700;
       background:#f1f5f9;border:1px solid var(--line);border-radius:7px;padding:3px 9px;}
@@ -690,7 +699,7 @@ async function mostrarEstudantes(questao, conceito){
   let linhas = [];
   try {
     const { data, error } = await window.MAPA_SB.from('av_irc_aluno')
-      .select('turma,rema,turno')
+      .select('turma,rema,turno,classe,tipo_prova,serie')
       .eq('escola', escolaAtual).eq('questao', questao).eq('conceito', conceito)
       .order('turma').order('rema');
     if (error) throw error;
@@ -712,13 +721,18 @@ async function mostrarEstudantes(questao, conceito){
   linhas.forEach(r => {
     const t = r.turma || '—';
     if (!porTurma.has(t)) porTurma.set(t, []);
-    porTurma.get(t).push(r.rema);
+    porTurma.get(t).push(r);
     if (r.turno && !turnoDa.has(t)) turnoDa.set(t, r.turno);
   });
   // A origem grava sem acento ('MANHA'); a tela escreve em português.
   const TURNO_ROTULO = { MANHA: 'Manhã', 'MANHÃ': 'Manhã', TARDE: 'Tarde',
                          NOITE: 'Noite', INTEGRAL: 'Integral' };
   const cap = t => !t ? '' : (TURNO_ROTULO[t] || (t.charAt(0) + t.slice(1).toLowerCase()));
+
+  // Prova adaptada aparece porque explica um resultado fora do padrão. Só é
+  // mostrada quando existe: uma coluna vazia em 99,8% dos casos é ruído.
+  const temProva = linhas.some(r => r.tipo_prova);
+  const temClasse = linhas.some(r => r.classe);
 
   let html = '<div style="font-weight:800;margin-bottom:10px">' + num(linhas.length)
            + ' estudante' + (linhas.length > 1 ? 's' : '') + '</div>';
@@ -727,8 +741,18 @@ async function mostrarEstudantes(questao, conceito){
     const tn = turnoDa.get(t);
     html += '<div class="turmaBl"><div class="th">Turma ' + esc(t)
           + (tn ? ' · ' + esc(cap(tn)) : '') + ' · '
-          + num(rs.length) + '</div><div class="remas">'
-          + rs.map(r => '<span>' + esc(r) + '</span>').join('') + '</div></div>';
+          + num(rs.length) + '</div>'
+          + '<div class="rolagem"><table class="ir alunos-t"><thead><tr>'
+          + '<th>REMA</th>'
+          + (temClasse ? '<th>Classe</th>' : '')
+          + (temProva ? '<th>Prova</th>' : '')
+          + '</tr></thead><tbody>'
+          + rs.map(r => '<tr><td class="rema">' + esc(r.rema) + '</td>'
+              + (temClasse ? '<td class="cod2">' + esc(r.classe || '—') + '</td>' : '')
+              + (temProva ? '<td>' + (r.tipo_prova
+                  ? '<span class="tag">Adaptada ' + esc(r.tipo_prova) + '</span>' : '—') + '</td>' : '')
+              + '</tr>').join('')
+          + '</tbody></table></div></div>';
   });
   html += '<div class="nota">Identificação por <b>REMA</b>. O MAPA não guarda nome '
         + 'nem RA destes estudantes — a planilha da Vunesp traz esses campos, e a '
@@ -760,25 +784,80 @@ function ligarDrawer(){
 // URL assinada, pedida só no clique: o link expira e não fica no HTML, então
 // não vaza por "copiar endereço do link" nem pelo histórico de quem não tem
 // sessão. Se IRC_PDF_URL estiver preenchido, ele manda.
+/* ⚠️ O botão DIZ o que deu errado, em vez de só falhar.
+   "Relatório não publicado" cobria três causas diferentes — caminho errado,
+   falta de policy no Storage e arquivo ausente — e mandava quem fosse
+   investigar para o console. Agora, ao falhar, ele lista a pasta e reporta o
+   que encontrou.
+
+   ⚠️ Quando o caminho configurado não existe MAS a pasta tem exatamente um
+   PDF, ele abre esse. É deliberado e estreito: a pasta é privada e dedicada,
+   um arquivo só não tem ambiguidade, e trocar o nome do arquivo no Storage não
+   deve exigir um deploy. Com dois ou mais, ele NÃO escolhe — pedir para a
+   pessoa decidir é melhor que abrir o documento errado. */
+const PDF_ERRO_PERMISSAO = /permission|not authorized|denied|violates row-level/i;
+
+async function abrirRelatorio(a){
+  const sb = window.MAPA_SB, bucket = sb.storage.from(IRC_PDF_BUCKET);
+  const falhar = (msg, dica) => {
+    a.setAttribute('aria-disabled', 'true');
+    a.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i>' + esc(msg);
+    a.title = dica || '';
+    console.warn('[IRC] relatório:', msg, '—', dica || '');
+  };
+
+  // 1) Caminho configurado.
+  let r = await bucket.createSignedUrl(IRC_PDF_PATH, 300);
+  if (!r.error && r.data) { window.open(r.data.signedUrl, '_blank', 'noopener'); return true; }
+
+  // 2) Falhou: a pasta diz por quê.
+  const pasta = IRC_PDF_PATH.indexOf('/') >= 0
+    ? IRC_PDF_PATH.slice(0, IRC_PDF_PATH.lastIndexOf('/')) : '';
+  const lista = await bucket.list(pasta);
+
+  if (lista.error) {
+    const perm = PDF_ERRO_PERMISSAO.test(lista.error.message || '');
+    falhar(perm ? 'Sem permissão de leitura' : 'Storage indisponível',
+      perm ? 'Falta a policy de SELECT em storage.objects para o bucket "'
+             + IRC_PDF_BUCKET + '", pasta "' + pasta + '".'
+           : (lista.error.message || ''));
+    return false;
+  }
+
+  const pdfs = (lista.data || []).filter(f => /\.pdf$/i.test(f.name || ''));
+  if (!pdfs.length) {
+    falhar('Relatório não publicado',
+      'A pasta ' + IRC_PDF_BUCKET + '/' + pasta + ' não tem nenhum PDF.');
+    return false;
+  }
+  if (pdfs.length === 1) {
+    const caminho = (pasta ? pasta + '/' : '') + pdfs[0].name;
+    const r2 = await bucket.createSignedUrl(caminho, 300);
+    if (!r2.error && r2.data) {
+      console.warn('[IRC] o arquivo no Storage chama-se "' + caminho + '", e IRC_PDF_PATH'
+        + ' aponta "' + IRC_PDF_PATH + '". Abri o que existe; alinhe os dois quando puder.');
+      window.open(r2.data.signedUrl, '_blank', 'noopener');
+      return true;
+    }
+    falhar('Não consegui abrir o relatório', r2.error && r2.error.message);
+    return false;
+  }
+  falhar('Vários PDFs na pasta',
+    'Encontrei: ' + pdfs.map(f => f.name).join(', ')
+    + '. Ajuste IRC_PDF_PATH para o correto — não escolho por conta própria.');
+  return false;
+}
+
 async function ligarPdf(){
   const a = document.getElementById('irPdf');
   if (IRC_PDF_URL) { a.href = IRC_PDF_URL; return; }
   a.addEventListener('click', async ev => {
     ev.preventDefault();
+    if (a.getAttribute('aria-disabled') === 'true') return;
     const antes = a.innerHTML;
     a.innerHTML = '<i class="bi bi-hourglass-split"></i>Abrindo…';
-    try {
-      const { data, error } = await window.MAPA_SB.storage.from(IRC_PDF_BUCKET)
-        .createSignedUrl(IRC_PDF_PATH, 300);
-      if (error || !data) throw error || new Error('sem URL');
-      window.open(data.signedUrl, '_blank', 'noopener');
-    } catch (e) {
-      a.setAttribute('aria-disabled', 'true');
-      a.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i>Relatório não publicado';
-      a.title = 'O arquivo ainda não foi enviado ao Storage (' + IRC_PDF_BUCKET + '/' + IRC_PDF_PATH + ').';
-      return;
-    }
-    a.innerHTML = antes;
+    const ok = await abrirRelatorio(a).catch(e => { console.error('[IRC] relatório', e); return false; });
+    if (ok) a.innerHTML = antes;
   });
 }
 
