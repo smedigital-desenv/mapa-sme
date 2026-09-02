@@ -326,6 +326,12 @@ function instalarComparativo(){
     rotuloValor: 'IEE',
     fmt: v => nf(v,2),
     casasDif: 2, unidadeDif: '',
+    /* A coluna da rede sai desta tela (decisão da SME). O número da rede
+       continua sendo calculado — é ele que pinta a faixa de cor do IEE e que a
+       coluna de diferença subtrai —, só não ocupa uma coluna própria. Por isso
+       o cabeçalho dela vira "Dif. p/ rede": sem a coluna ao lado, "Dif." seria
+       um número sem régua. */
+    mostrarRef: false,
     filtros: [ {id:'ano', rotulo:'Ano', opcoes: anosDaRede} ],
     colunas: [
       {id:'meta', t:'Meta', v:l=>l.cols.meta, fmt:v=>nf(v,2)},
