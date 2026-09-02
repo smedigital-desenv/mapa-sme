@@ -625,11 +625,16 @@ function renderKpis(){
   const prev = Number(p.previstos || 0), aus = Number(p.ausentes || 0);
   const aval = Number(p.avaliados || 0);
   const pct = prev ? (aval / prev * 100) : 0;
+  const ma = Number(p.avaliados_manha || 0), ta = Number(p.avaliados_tarde || 0);
   el.innerHTML =
       cardKpi('Avaliados', num(aval), 'de ' + num(prev) + ' previstos')
     + cardKpi('Participação', pct.toFixed(1) + '%', '', pct < 80)
     + cardKpi('Ausentes', num(aus), prev ? (aus / prev * 100).toFixed(1) + '% dos previstos' : '', aus > 0)
-    + cardKpi('Turmas', num(p.turmas || 0), '2º ano do Fundamental');
+    + cardKpi('Turmas', num(p.turmas || 0), p.serie || '2º ano do Fundamental')
+    // Só aparece quando a unidade de fato tem os dois turnos: num prédio de um
+    // turno só, o cartão seria uma linha repetindo o total ao lado.
+    + ((ma && ta) ? cardKpi('Manhã × Tarde', num(ma) + ' · ' + num(ta),
+         'avaliados por turno') : '');
 
   // A ausência de quase um terço da rede muda a leitura de TUDO abaixo: as
   // distribuições descrevem quem fez a prova, não a turma inteira. Dizer isso
@@ -685,7 +690,7 @@ async function mostrarEstudantes(questao, conceito){
   let linhas = [];
   try {
     const { data, error } = await window.MAPA_SB.from('av_irc_aluno')
-      .select('turma,rema')
+      .select('turma,rema,turno')
       .eq('escola', escolaAtual).eq('questao', questao).eq('conceito', conceito)
       .order('turma').order('rema');
     if (error) throw error;
@@ -703,17 +708,25 @@ async function mostrarEstudantes(questao, conceito){
   }
 
   const porTurma = new Map();
+  const turnoDa = new Map();
   linhas.forEach(r => {
     const t = r.turma || '—';
     if (!porTurma.has(t)) porTurma.set(t, []);
     porTurma.get(t).push(r.rema);
+    if (r.turno && !turnoDa.has(t)) turnoDa.set(t, r.turno);
   });
+  // A origem grava sem acento ('MANHA'); a tela escreve em português.
+  const TURNO_ROTULO = { MANHA: 'Manhã', 'MANHÃ': 'Manhã', TARDE: 'Tarde',
+                         NOITE: 'Noite', INTEGRAL: 'Integral' };
+  const cap = t => !t ? '' : (TURNO_ROTULO[t] || (t.charAt(0) + t.slice(1).toLowerCase()));
 
   let html = '<div style="font-weight:800;margin-bottom:10px">' + num(linhas.length)
            + ' estudante' + (linhas.length > 1 ? 's' : '') + '</div>';
   Array.from(porTurma.keys()).sort().forEach(t => {
     const rs = porTurma.get(t);
-    html += '<div class="turmaBl"><div class="th">Turma ' + esc(t) + ' · '
+    const tn = turnoDa.get(t);
+    html += '<div class="turmaBl"><div class="th">Turma ' + esc(t)
+          + (tn ? ' · ' + esc(cap(tn)) : '') + ' · '
           + num(rs.length) + '</div><div class="remas">'
           + rs.map(r => '<span>' + esc(r) + '</span>').join('') + '</div></div>';
   });
@@ -774,7 +787,7 @@ async function carregar(){
   const sb = window.MAPA_SB;
   const [d, p] = await Promise.all([
     sb.from('av_irc').select('escola,questao,conceito,alunos'),
-    sb.from('av_irc_part').select('escola,codigo_escola,regional,previstos,ausentes,avaliados,turmas')
+    sb.from('av_irc_part').select('escola,codigo_escola,regional,serie,previstos,ausentes,avaliados,turmas,avaliados_manha,avaliados_tarde')
   ]);
   if (d.error) throw d.error;
   if (p.error) throw p.error;
@@ -865,7 +878,8 @@ function agregar(linhas, wb){
   const cont = new Map();       // escola||questao||conceito -> n
   const somaRede = new Map();   // questao||conceito -> n
   const porAluno = [];          // av_irc_aluno: SÓ rema, turma e conceito
-  let redePrev = 0, redeAus = 0; const redeTurmas = new Set();
+  let redePrev = 0, redeAus = 0, redeManha = 0, redeTarde = 0;
+  const redeTurmas = new Set();
 
   linhas.forEach(r => {
     const escola = String(r.ESCOLA || '').trim();
@@ -874,7 +888,8 @@ function agregar(linhas, wb){
       porEsc.set(escola, {
         cod: String(r.CODESC || '').trim(),
         reg: String(r.regional || '').trim(),
-        previstos: 0, ausentes: 0, turmas: new Set()
+        serie: String(r.SERIE || '').trim(),
+        previstos: 0, ausentes: 0, manha: 0, tarde: 0, turmas: new Set()
       });
     }
     const u = porEsc.get(escola);
@@ -882,10 +897,16 @@ function agregar(linhas, wb){
     u.turmas.add(String(r.TURMA || '').trim());
     redeTurmas.add(escola + '||' + String(r.TURMA || '').trim());
 
+    // `PERIODO` e `Turno` são a MESMA informação em duas grafias (TARDE/TA).
+    // Fica a extensa, que é a que se lê na tela sem legenda.
+    const turno = String(r.PERIODO || r.Turno || '').trim().toUpperCase();
+
     // Ausente não entra em distribuição nenhuma: ele não produziu escrita, e
     // contá-lo como "em branco" misturaria quem faltou com quem entregou a
     // folha vazia — que é informação pedagógica diferente.
     if (String(r.Ausente || '').trim() === '1') { u.ausentes++; redeAus++; return; }
+    if (turno === 'MANHA' || turno === 'MANHÃ') { u.manha++; redeManha++; }
+    else if (turno === 'TARDE') { u.tarde++; redeTarde++; }
 
     // ⚠️ SÓ o REMA sai da planilha para o banco. Nome e RA ficam nesta função
     // e morrem com ela — o REMA é o código que a rede já usa em toda parte
@@ -900,7 +921,17 @@ function agregar(linhas, wb){
       cont.set(k, (cont.get(k) || 0) + 1);
       const kr = q + '||' + v;
       somaRede.set(kr, (somaRede.get(kr) || 0) + 1);
-      if (rema) porAluno.push({ escola, codigo_escola: u.cod, turma, rema, questao: q, conceito: v });
+      if (rema) porAluno.push({
+        escola, codigo_escola: u.cod, turma, rema, questao: q, conceito: v,
+        turno: turno || null,
+        // `classe` é o código da turma no sistema de origem — é por ele que
+        // esta base casa com a turma dos outros sistemas da rede.
+        classe: String(r.classe || '').trim() || null,
+        // Vazio em 2.770 dos 2.775: marca a prova adaptada. Guardado porque
+        // cinco casos que ninguém consegue explicar viram dúvida na devolutiva.
+        tipo_prova: String(r.TIPO_PROVA || '').trim() || null,
+        serie: String(r.SERIE || '').trim() || null
+      });
     });
   });
 
@@ -916,13 +947,15 @@ function agregar(linhas, wb){
 
   const part = [];
   porEsc.forEach((u, escola) => {
-    part.push({ escola, codigo_escola: u.cod, regional: u.reg,
+    part.push({ escola, codigo_escola: u.cod, regional: u.reg, serie: u.serie || null,
                 previstos: u.previstos, ausentes: u.ausentes,
-                avaliados: u.previstos - u.ausentes, turmas: u.turmas.size });
+                avaliados: u.previstos - u.ausentes, turmas: u.turmas.size,
+                avaliados_manha: u.manha, avaliados_tarde: u.tarde });
   });
-  part.push({ escola: 'REDE', codigo_escola: null, regional: null,
+  part.push({ escola: 'REDE', codigo_escola: null, regional: null, serie: null,
               previstos: redePrev, ausentes: redeAus,
-              avaliados: redePrev - redeAus, turmas: redeTurmas.size });
+              avaliados: redePrev - redeAus, turmas: redeTurmas.size,
+              avaliados_manha: redeManha, avaliados_tarde: redeTarde });
 
   return { agreg, part, porAluno, rubrica: lerRubrica(wb) };
 }

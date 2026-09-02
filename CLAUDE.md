@@ -121,10 +121,29 @@ identificação. 🚫 Não acrescente `Nome_Aluno` nem `RA_do_Aluno` a essa tabe
 
 ⚠️ **Quem importa é `pode_importar_avaliacao()` — ver a seção logo abaixo.**
 
+⚠️ **O que a importação NÃO guarda, e por quê.** A planilha tem 28 colunas; a
+tela captura o que descreve aprendizagem e descarta o resto ainda no navegador:
+
+| coluna | destino |
+|---|---|
+| `PERIODO`/`Turno`, `classe`, `TIPO_PROVA`, `SERIE` | guardados |
+| `Nome_Aluno`, `RA_do_Aluno` | **nunca** — identificam a criança |
+| `INSCRICAO` | fora: outro identificador da criança, sem ganho sobre o REMA |
+| `CARTEIRA`, `sala`, `opcao` | fora: administrativos da aplicação da prova |
+| `DEF` | **veio vazio nas 2.775 linhas** — se um arquivo futuro trouxer
+  conteúdo, é dado de saúde e a decisão de guardar precisa ser tomada de novo |
+
+⚠️ `PERIODO` e `Turno` são a MESMA informação em duas grafias (`TARDE`/`TA`), e
+a origem escreve `MANHA` sem til — `TURNO_ROTULO` faz a tradução para a tela.
+O cartão Manhã × Tarde só aparece quando a unidade tem os DOIS turnos; num
+prédio de turno único ele repetiria o total do cartão ao lado. Medido: 23 das
+31 unidades têm os dois, e a soma por turno fecha com os avaliados (884 + 1.061
+= 1.945).
+
 Tabelas: `av_irc` (escola, questao, conceito, alunos), `av_irc_part`
-(participação por unidade), `av_irc_aluno` (uma linha por estudante × questão,
-só REMA) e `av_irc_rubrica` (as grades de correção, lidas das abas `Q*` da
-própria planilha). A linha `escola = 'REDE'` é a referência, como
+(participação por unidade, com o recorte por turno), `av_irc_aluno` (uma linha
+por estudante × questão, só REMA) e `av_irc_rubrica` (as grades de correção,
+lidas das abas `Q*` da própria planilha). A linha `escola = 'REDE'` é a referência, como
 nas demais telas de avaliação externa.
 
 ⚠️ **`av_irc_rubrica` tem `select using (true)` de propósito, e ela APARECE na
