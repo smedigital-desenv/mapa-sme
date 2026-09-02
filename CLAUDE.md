@@ -27,9 +27,9 @@ Site estático (HTML/JS puro, sem framework nem build) publicado no GitHub Pages
 sob `smedigital.com.br/mapa-sme/`. Os dados ficam num projeto Supabase próprio.
 
 **Telas:** Avaliações (Diagnóstica, 1º a 4º Bimestre, Total, Análise de
-Consistência), Av. Diagnóstica SME/Vunesp, Av. Oral de Matemática, SARESP,
-IDEB, IEE, Atribuição, Retrato Quantitativo de Atribuições, Planejamento da
-Atribuição, Análise de Jornada,
+Consistência), Av. Diagnóstica SME/Vunesp, Produção Escrita (IRC),
+Av. Oral de Matemática, SARESP, IDEB, IEE, Atribuição, Retrato Quantitativo de
+Atribuições, Planejamento da Atribuição, Análise de Jornada,
 Educação Especial, Gerência de Liminares, Frequência × Distância, Fluência
 Leitora, Elefante Letrado, Boletim da Escola, Boletim Estatístico, Relatórios,
 Relatório Executivo.
@@ -46,6 +46,169 @@ da MESMA habilidade é de 13 p.p. em média (chega a 73 p.p. na rede — medido 
 2026-06). Agregar por habilidade transformaria "uma questão todos acertam,
 outra quase ninguém" num meio-termo que não descreve nenhuma das duas. Não
 "simplifique" isso somando por habilidade.
+
+#### Produção Escrita — Itens de Resposta Construída (`av-irc.html`)
+
+Av. Diagnóstica SME/Vunesp de junho/2026, **só 2º ano do Fundamental**. A prova
+trouxe três propostas de produção escrita, corrigidas por CONCEITO (A..E, EB) e
+não por acerto: escrita de duas palavras (`Q1_N1` CABIDE, `Q1_N2` ESTRELA),
+fotolegenda (`Q21`–`Q23`) e bilhete (`Q31`–`Q34`). Medido em 2026-08: 2.775
+estudantes em 31 unidades, 117 turmas, **830 ausentes (29,9%)**.
+
+⚠️ **A tela AGREGA NO NAVEGADOR e só envia contagem.** A planilha da Vunesp tem
+uma linha por aluno, **com nome e RA**. Esses campos não podem chegar ao banco:
+a importação lê o arquivo na máquina de quem importa, agrega por
+unidade × questão × conceito e grava só o número. Não "simplifique" isso
+mandando as linhas cruas e agregando no SQL.
+
+⚠️ **O conceito "D" NÃO é o fim da régua — é outra categoria.** Nas propostas 2
+e 3 (menos no aspecto 4) ele significa "a escrita está em nível silábico ou
+pré-silábico", ou seja, o aspecto **não pôde ser avaliado**. Empilhá-lo no
+degradê de qualidade faz a unidade parecer ruim em ortografia e segmentação
+quando na verdade o aluno ainda não escreve alfabeticamente. Por isso ele tem
+cor própria (âmbar), fora da rampa. No aspecto 4 do bilhete esse papel é do
+"E". Medido na rede: 21% a 26% em D nos aspectos da fotolegenda.
+
+⚠️ **A rampa é sequencial de um tom só**, não o arco-íris do `COR_FIXA`. A
+escala é ordinal (ortográfico → pré-silábico) e cor arco-íris sobre escala
+ordinal esconde a ordem. A tinta do texto acompanha a faixa, como na escala TRI.
+
+⚠️ **Ausente não entra em distribuição nenhuma.** Contá-lo como "em branco"
+misturaria quem faltou com quem entregou a folha vazia — são informações
+pedagógicas diferentes. Com 30% de ausência, a tela anuncia isso num aviso no
+alto: as distribuições descrevem quem foi avaliado, não a turma.
+
+⚠️ **O relatório de correção (PDF) NÃO é versionado.** Os exemplos manuscritos
+trazem primeiros nomes de crianças, e este repositório é público. O botão pede
+uma **URL assinada** ao Storage no momento do clique (bucket privado, 5 min),
+para o endereço não ficar no HTML. `IRC_PDF_URL`/`IRC_PDF_BUCKET`/`IRC_PDF_PATH`
+no topo do arquivo são o único ponto que aponta o documento.
+
+⚠️ **O botão DIZ o que deu errado.** "Relatório não publicado" cobria três
+causas diferentes — caminho errado, arquivo ausente e **falta de policy de
+SELECT em `storage.objects`** — e a terceira é a que acontece, porque subir o
+arquivo pelo painel não cria a policy. Ao falhar a URL assinada,
+`abrirRelatorio()` lista a pasta e separa os casos no próprio rótulo do botão.
+⚠️ Quando o caminho configurado não existe mas a pasta tem **exatamente um**
+PDF, ele abre esse e registra no console o nome real — trocar o arquivo no
+Storage não deve exigir deploy. Com dois ou mais ele **não escolhe**: abrir o
+documento errado é pior que não abrir.
+
+⚠️ **A consulta cai para as colunas básicas quando o `alter table` não rodou.**
+As acessórias (`serie`, `avaliados_manha`, `avaliados_tarde`; `turno`,
+`classe`, `tipo_prova`, `serie`) chegaram depois das tabelas, e pedi-las antes
+devolve `42703` — que derruba a consulta INTEIRA e deixa a tela em branco por
+causa de campo que ela sabe dispensar. `consultarCompat()` reconhece o 42703,
+repete com o conjunto básico e avisa no console o que falta rodar. É o que tira
+a ordem obrigatória entre o deploy e o SQL. 🚫 Não "simplifique" isso voltando
+ao select único: o custo do erro é a tela toda, e o ganho é uma consulta.
+
+⚠️ **O que cada LETRA significa é próprio de CADA questão** — está na aba dela
+na planilha, e é por isso que a tela não tem legenda genérica. "Conceito A" não
+quer dizer nada sozinho: na Questão 1 é "escrita ortográfica"; na 2, "frase
+coerente com o tema"; no item 4 da 3, "bilhete com os quatro elementos do
+gênero". Cada aspecto mostra a **grade de correção da sua aba** com a contagem
+ao lado, e o código (`Q21_N1`) fica visível para achar a aba correspondente.
+🚫 Não volte a rotular por `prop.rotulos` quando a aba tem descrição: o rótulo
+curto é RESERVA, para quando a rubrica não foi importada.
+
+Leitura do código: `Q{questão}{item}_N{nível}`. `Q1_N1` e `Q1_N2` são a mesma
+questão em dois níveis (as duas palavras ditadas); `Q21`…`Q23` são os itens 1 a
+3 da questão 2; `Q31`…`Q34`, os quatro itens da questão 3.
+
+⚠️ Em algumas linhas do arquivo a letra do conceito veio **repetida no começo
+da descrição** (`"EB Em branco."`, `"A O estudante segmenta…"`).
+`limparDescricao()` corta isso, e a regra é estreita de propósito: só código de
+duas letras, ou letra única seguida de outra palavra com inicial maiúscula.
+Sem essa estreiteza, a descrição legítima `"A escrita apresentada pelo
+estudante…"` viraria `"escrita apresentada…"`.
+
+⚠️ **Clicar na FAIXA abre quem está naquele conceito**, sem passar pela grade
+— é onde o olho vai primeiro. ⚠️ A faixa da REDE não é clicável de propósito: o
+detalhe por estudante existe só para a unidade selecionada. ⚠️ Os segmentos
+ficam FORA da ordem de tabulação, também de propósito: são ~5 por aspecto em 9
+aspectos, e 45 paradas de teclado enterrariam o resto da página. O mesmo
+destino é alcançável pelo teclado nas linhas da grade, que são `role="button"`
+— o clique na barra é atalho de mouse para ação que já tem caminho acessível.
+
+⚠️ **Clicar num conceito abre QUEM está nele — por REMA, nunca por nome.**
+A tabela `av_irc_aluno` guarda `escola, turma, rema, questao, conceito` e mais
+nada. Nome e RA continuam morrendo dentro de `agregar()`, no navegador: o REMA
+é o código que a rede já usa em toda parte (o mesmo do nível aluno do CODERP) e
+permite a escola achar a criança na própria lista sem o MAPA guardar a
+identificação. 🚫 Não acrescente `Nome_Aluno` nem `RA_do_Aluno` a essa tabela.
+
+⚠️ **Quem importa é `pode_importar_avaliacao()` — ver a seção logo abaixo.**
+
+⚠️ **O que a importação NÃO guarda, e por quê.** A planilha tem 28 colunas; a
+tela captura o que descreve aprendizagem e descarta o resto ainda no navegador:
+
+| coluna | destino |
+|---|---|
+| `PERIODO`/`Turno`, `classe`, `TIPO_PROVA`, `SERIE` | guardados |
+| `Nome_Aluno`, `RA_do_Aluno` | **nunca** — identificam a criança |
+| `INSCRICAO` | fora: outro identificador da criança, sem ganho sobre o REMA |
+| `CARTEIRA`, `sala`, `opcao` | fora: administrativos da aplicação da prova |
+| `DEF` | **veio vazio nas 2.775 linhas** — se um arquivo futuro trouxer
+  conteúdo, é dado de saúde e a decisão de guardar precisa ser tomada de novo |
+
+⚠️ `PERIODO` e `Turno` são a MESMA informação em duas grafias (`TARDE`/`TA`), e
+a origem escreve `MANHA` sem til — `TURNO_ROTULO` faz a tradução para a tela.
+O cartão Manhã × Tarde só aparece quando a unidade tem os DOIS turnos; num
+prédio de turno único ele repetiria o total do cartão ao lado. Medido: 23 das
+31 unidades têm os dois, e a soma por turno fecha com os avaliados (884 + 1.061
+= 1.945).
+
+Tabelas: `av_irc` (escola, questao, conceito, alunos), `av_irc_part`
+(participação por unidade, com o recorte por turno), `av_irc_aluno` (uma linha
+por estudante × questão, só REMA) e `av_irc_rubrica` (as grades de correção,
+lidas das abas `Q*` da própria planilha). A linha `escola = 'REDE'` é a referência, como
+nas demais telas de avaliação externa.
+
+⚠️ **A gaveta mostra REMA, Classe e Prova — e cada coluna só aparece quando há
+dado.** Com o arquivo de junho/2026 a coluna Prova **não sai**: os 5 estudantes
+com `TIPO_PROVA = 'A'` (prova adaptada) estão todos ausentes, e ausente não
+entra em distribuição nenhuma. Isso é a regra funcionando, não coluna quebrada.
+
+⚠️ **`av_irc_rubrica` tem `select using (true)` de propósito, e ela APARECE na
+auditoria de policies permissivas** (seção 3). Não é regressão: a rubrica é a
+grade de correção da prova — documentação, sem dado de aluno — e todo perfil
+logado precisa dela para entender o que cada letra significa. As outras duas
+seguem o padrão de recorte por unidade. Ao auditar, confira que o `anon`
+continua sem privilégio nas três: tabela nova no schema `public` nasce com
+grant para `anon` e `authenticated` no Supabase, e só o RLS não basta para
+manter a invariante nº 1.
+
+#### Quem pode IMPORTAR nas telas de avaliação externa
+
+As seis telas com upload de planilha — Diagnóstica, Produção Escrita (IRC),
+Av. Oral, SARESP, IDEB e IEE — usam **um único critério**, decidido pelo banco:
+
+```sql
+public.pode_importar_avaliacao()   -- super admin OU a conta da Av. Aprendizagem
+```
+
+⚠️ **NÃO volte a usar `vejo_a_rede_toda()` nesse gate.** Era o que estava lá, e
+ela é verdadeira para super admin **ou para qualquer perfil sem vínculo de
+unidade** — ou seja, **toda a secretaria**. Como a importação SUBSTITUI a base
+da avaliação (delete + insert), um arquivo errado de qualquer um deles apagaria
+a edição inteira. ⚠️ A `avaliacao-diagnostica.html` guardava o resultado numa
+variável chamada `superAdmin`, o que engana quem lê rápido — ela nunca foi.
+
+⚠️ **A tela PERGUNTA AO BANCO, pela mesma função que a policy de escrita usa.**
+É o que faz o botão e a policy concordarem por construção: a tela não oferece o
+que a gravação vai recusar, nem esconde de quem o banco aceitaria. Mesmo
+princípio da `metas.html`. O e-mail liberado mora **só** na função — trocá-lo
+não exige tocar em nenhuma das seis telas.
+
+⚠️ A reserva, quando a função ainda não existe no banco, é `eh_super_admin()` —
+o subconjunto seguro. Erra escondendo o botão de quem depende do e-mail, nunca
+mostrando para quem não pode. Medido nos quatro cenários (função diz sim, diz
+não, não existe com super admin, não existe sem).
+
+⚠️ O `PERFIL_FLUXO` (`s.fluxoescolar@…`) que liberava as cinco telas antigas
+**saiu**. Se aquela conta precisar importar de novo, o lugar de acrescentá-la é
+a função, não o HTML.
 
 #### O painel "Todas as unidades" (`visao-rede.js`)
 

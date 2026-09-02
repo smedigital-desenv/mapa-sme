@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <script src="auth-guard.js"></script>
   <script>window.MAPA_SISTEMA = 'mapa';</script>
+  <!-- ⚠️ O nome do ARQUIVO tem hífen; o slug no catálogo do central tem
+       underline. O `acesso-sme.js` deriva a tela do nome do arquivo, então sem
+       esta linha os dois não casam e a pessoa leva "Acesso não autorizado" —
+       mas SÓ quem não é super admin, porque `can()` devolve true de saída para
+       super admin. Por isso o defeito ficou invisível para quem administra. -->
+  <script>window.ACESSO_TELA = 'boletim_estatistico';</script>
   <script src="auth.js" defer></script>
   <script src="config-central.js" defer></script>
   <script src="demo-mode.js"></script>
@@ -103,11 +109,12 @@
   </div>
   <nav class="mg-nav">
     <a class="mg-nav-btn" href="index.html" data-tela="inicio"><i class="bi bi-house-fill"></i>Início</a>
-    <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
+    <div class="mg-dd" data-tela-any="avaliacao,avaliacao_diagnostica,avaliacao_irc,avaliacao_oral,saresp,ideb,iee,elefante,fluencia">
       <a class="mg-nav-btn mg-dd-toggle" href="avaliacao.html"><i class="bi bi-mortarboard-fill"></i>Aprendizagem<i class="bi bi-chevron-down ms-1" style="font-size:.62rem"></i></a>
       <div class="mg-dd-menu">
         <a class="mg-dd-item" href="avaliacao.html" data-tela="avaliacao"><i class="bi bi-clipboard-data-fill"></i>Avaliações</a>
         <a class="mg-dd-item" href="avaliacao-diagnostica.html" data-tela="avaliacao_diagnostica"><i class="bi bi-bullseye"></i>Av. Diagnóstica</a>
+        <a class="mg-dd-item" href="av-irc.html" data-tela="avaliacao_irc"><i class="bi bi-pencil-fill"></i>Produção Escrita (IRC)</a>
         <a class="mg-dd-item" href="av-oral-matematica.html" data-tela="avaliacao_oral"><i class="bi bi-mic-fill"></i>Av. Oral de Matemática</a>
         <a class="mg-dd-item" href="saresp.html" data-tela="saresp"><i class="bi bi-graph-up"></i>SARESP</a>
         <a class="mg-dd-item" href="ideb.html" data-tela="ideb"><i class="bi bi-award-fill"></i>IDEB</a>

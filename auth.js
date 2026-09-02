@@ -180,6 +180,7 @@
   // ⚠️ Renomear um arquivo OU o slug no catálogo exige mexer aqui no mesmo
   // commit. Arquivo cujo nome já é igual ao slug não entra na lista.
   var TELA_POR_ARQUIVO = {
+    'av-irc':                'avaliacao_irc',
     'av-oral-matematica':    'avaliacao_oral',
     'avaliacao-diagnostica': 'avaliacao_diagnostica',
     'boletim-estatistico':   'boletim_estatistico',
