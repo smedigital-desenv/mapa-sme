@@ -698,10 +698,12 @@ async function mostrarEstudantes(questao, conceito){
 
   let linhas = [];
   try {
-    const { data, error } = await window.MAPA_SB.from('av_irc_aluno')
-      .select('turma,rema,turno,classe,tipo_prova,serie')
-      .eq('escola', escolaAtual).eq('questao', questao).eq('conceito', conceito)
-      .order('turma').order('rema');
+    const { data, error } = await consultarCompat(
+      c => window.MAPA_SB.from('av_irc_aluno').select(c)
+        .eq('escola', escolaAtual).eq('questao', questao).eq('conceito', conceito)
+        .order('turma').order('rema'),
+      ['turma','rema','turno','classe','tipo_prova','serie'],
+      ['turma','rema']);
     if (error) throw error;
     linhas = data || [];
   } catch (e) {
@@ -862,11 +864,32 @@ async function ligarPdf(){
 }
 
 /* ── Carga ────────────────────────────────────────────────────────────────── */
+
+// ⚠️ As colunas acessórias (turno, classe, tipo_prova, serie, avaliados_manha,
+// avaliados_tarde) só existem depois do `alter table`. Pedi-las antes disso
+// derruba a consulta INTEIRA com 42703 — a tela ficaria em branco por causa de
+// um campo que ela sabe dispensar. Aqui a consulta cai para o conjunto básico e
+// avisa no console, em vez de falhar. Quem consome já trata a ausência
+// (`p.avaliados_manha || 0`), então o que se perde é a coluna, não a tela.
+const COLUNA_AUSENTE = /42703|does not exist|undefined column/i;
+async function consultarCompat(monta, completas, basicas){
+  let r = await monta(completas.join(','));
+  if (r.error && COLUNA_AUSENTE.test((r.error.code || '') + ' ' + (r.error.message || ''))) {
+    console.warn('[IRC] o banco ainda não tem as colunas novas — consulta reduzida a '
+      + basicas.join(', ') + '. Rode o `alter table` e reimporte a planilha. '
+      + 'Detalhe: ' + r.error.message);
+    r = await monta(basicas.join(','));
+  }
+  return r;
+}
+
 async function carregar(){
   const sb = window.MAPA_SB;
   const [d, p] = await Promise.all([
     sb.from('av_irc').select('escola,questao,conceito,alunos'),
-    sb.from('av_irc_part').select('escola,codigo_escola,regional,serie,previstos,ausentes,avaliados,turmas,avaliados_manha,avaliados_tarde')
+    consultarCompat(c => sb.from('av_irc_part').select(c),
+      ['escola','codigo_escola','regional','serie','previstos','ausentes','avaliados','turmas','avaliados_manha','avaliados_tarde'],
+      ['escola','codigo_escola','regional','previstos','ausentes','avaliados','turmas'])
   ]);
   if (d.error) throw d.error;
   if (p.error) throw p.error;
