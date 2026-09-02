@@ -84,6 +84,25 @@ uma **URL assinada** ao Storage no momento do clique (bucket privado, 5 min),
 para o endereço não ficar no HTML. `IRC_PDF_URL`/`IRC_PDF_BUCKET`/`IRC_PDF_PATH`
 no topo do arquivo são o único ponto que aponta o documento.
 
+⚠️ **O botão DIZ o que deu errado.** "Relatório não publicado" cobria três
+causas diferentes — caminho errado, arquivo ausente e **falta de policy de
+SELECT em `storage.objects`** — e a terceira é a que acontece, porque subir o
+arquivo pelo painel não cria a policy. Ao falhar a URL assinada,
+`abrirRelatorio()` lista a pasta e separa os casos no próprio rótulo do botão.
+⚠️ Quando o caminho configurado não existe mas a pasta tem **exatamente um**
+PDF, ele abre esse e registra no console o nome real — trocar o arquivo no
+Storage não deve exigir deploy. Com dois ou mais ele **não escolhe**: abrir o
+documento errado é pior que não abrir.
+
+⚠️ **A consulta cai para as colunas básicas quando o `alter table` não rodou.**
+As acessórias (`serie`, `avaliados_manha`, `avaliados_tarde`; `turno`,
+`classe`, `tipo_prova`, `serie`) chegaram depois das tabelas, e pedi-las antes
+devolve `42703` — que derruba a consulta INTEIRA e deixa a tela em branco por
+causa de campo que ela sabe dispensar. `consultarCompat()` reconhece o 42703,
+repete com o conjunto básico e avisa no console o que falta rodar. É o que tira
+a ordem obrigatória entre o deploy e o SQL. 🚫 Não "simplifique" isso voltando
+ao select único: o custo do erro é a tela toda, e o ganho é uma consulta.
+
 ⚠️ **O que cada LETRA significa é próprio de CADA questão** — está na aba dela
 na planilha, e é por isso que a tela não tem legenda genérica. "Conceito A" não
 quer dizer nada sozinho: na Questão 1 é "escrita ortográfica"; na 2, "frase
@@ -145,6 +164,11 @@ Tabelas: `av_irc` (escola, questao, conceito, alunos), `av_irc_part`
 por estudante × questão, só REMA) e `av_irc_rubrica` (as grades de correção,
 lidas das abas `Q*` da própria planilha). A linha `escola = 'REDE'` é a referência, como
 nas demais telas de avaliação externa.
+
+⚠️ **A gaveta mostra REMA, Classe e Prova — e cada coluna só aparece quando há
+dado.** Com o arquivo de junho/2026 a coluna Prova **não sai**: os 5 estudantes
+com `TIPO_PROVA = 'A'` (prova adaptada) estão todos ausentes, e ausente não
+entra em distribuição nenhuma. Isso é a regra funcionando, não coluna quebrada.
 
 ⚠️ **`av_irc_rubrica` tem `select using (true)` de propósito, e ela APARECE na
 auditoria de policies permissivas** (seção 3). Não é regressão: a rubrica é a
