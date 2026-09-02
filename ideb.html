@@ -398,17 +398,28 @@ function instalarComparativo(){
     rotuloValor: 'IDEB',
     fmt: v => nf(v),
     casasDif: 1, unidadeDif: '',
-    /* ⚠️ O seletor de ETAPA foi REMOVIDO (decisão da SME) — a tabela mostra
-       sempre as duas etapas juntas, que era o padrão dele ("Ambas (média)").
-       O recorte continua sendo PARÂMETRO do cálculo, não código apagado: o
-       filtro em `carregar` segue lá e responde a `f.etapa`. Reabrir é devolver
-       a linha do filtro aqui, e nada mais. */
+    /* ⚠️ A opção "Ambas (média)" SAIU do seletor de etapa (decisão da SME). O
+       seletor continua, com as duas etapas reais — a tabela passa a mostrar
+       sempre UMA delas, e abre nos Anos Iniciais (a primeira da lista).
+
+       Isso não é só tirar uma linha da lista: com uma etapa por vez, todas as
+       unidades da tabela passam a ser comparadas com a MESMA referência da
+       rede, o que muda o que a legenda precisa avisar (ver abaixo) e esvazia a
+       coluna "Etapas", que existia para dizer quantas etapas tinham entrado na
+       média. */
     filtros: [
-      {id:'ano', rotulo:'Edição', opcoes: anosDaRede}
+      {id:'ano', rotulo:'Edição', opcoes: anosDaRede},
+      {id:'etapa', rotulo:'Etapa', opcoes: () =>
+        ETAPAS.map(([sig,nome]) => ({v:sig, t:nome}))}
     ],
     // A meta não existe em toda edição — o INEP publica metas até 2021, e numa
     // edição sem meta as duas colunas saíam inteiras de '—'. Coluna vazia não
     // é informação: some quando nenhuma unidade do recorte tem meta.
+    //
+    // ⚠️ Onde ficava a coluna "Etapas" (`cols.n`, quantas etapas entraram na
+    // média) não há mais nada: sem a opção "Ambas", a tabela mostra uma etapa
+    // por vez e esse número é 1 em toda linha. Coluna constante não informa —
+    // é o mesmo critério que já esconde as colunas de meta quando vazias.
     colunas: (f, linhas) => (linhas || []).some(l => l.cols.meta != null)
       ? [{id:'meta', t:'Meta', v:l=>l.cols.meta, fmt:v=>nf(v)},
          {id:'vsMeta', t:'× meta', v:l=>(l.valor==null||l.cols.meta==null)?null:l.valor-l.cols.meta,
@@ -416,7 +427,7 @@ function instalarComparativo(){
                    const cor = r>0 ? '#166534' : (r<0 ? '#b91c1c' : '#64748b');
                    return '<span style="font-weight:800;color:'+cor+'">'
                         + (r>0?'▲ ':(r<0?'▼ ':'= '))+nf(Math.abs(r))+'</span>'; }}]
-      : [{id:'n', t:'Etapas', v:l=>l.cols.n, fmt:v=>String(v)}],
+      : [],
     carregar: async f => {
       const ano = Number(f.ano);
       if(!ano) return {linhas:[]};
@@ -426,25 +437,30 @@ function instalarComparativo(){
       const ag = MapaVisaoRede.agregador();
       dados.forEach(r => {
         if(!r.escola || r.escola==='REDE' || r.ideb==null) return;
-        // Sem o seletor de etapa, `f.etapa` chega indefinido e este recorte
-        // nunca dispara — as duas etapas entram na média, como antes com
-        // "Ambas". A linha fica para o dia em que o seletor voltar.
+        // Sem a opção "Ambas", `f.etapa` sempre chega preenchido: este é o
+        // recorte que faz cada linha da tabela ser de UMA etapa só.
         if(f.etapa && f.etapa !== r.etapa) return;
         ag.add(r.escola, r.ideb, REDE.get(r.ano+'|'+r.etapa), {meta:r.meta});
       });
       return {linhas: ag.linhas()};
     },
-    legenda: 'IDEB da unidade na edição escolhida, ao lado da média da rede <b>nas mesmas '
-           + 'etapas</b>. A cor mede a distância relativa da rede; a coluna <b>× meta</b> '
-           + 'mostra a distância da meta da própria escola, que é a régua oficial. '
-           + 'Clique no nome da unidade para abrir a série histórica dela.'
-           + '<br>⚠️ A coluna Rede <b>muda de unidade para unidade</b>, e é '
-           + 'para isso que ela existe: quem só tem Anos Iniciais é comparado com a rede dos '
-           + 'Anos Iniciais; quem tem as duas, com a média das duas. Uma referência única '
-           + 'favoreceria a escola sem Anos Finais pela etapa que ela não oferece — os Anos '
-           + 'Finais puxam qualquer média para baixo. Pelo mesmo motivo o ranking pelo IDEB '
-           + 'cru mistura coberturas diferentes: para ordenar de forma comparável, ordene '
-           + 'pela coluna <b>Dif.</b>, que já desconta a referência de cada uma.'
+    /* ⚠️ Esta legenda avisava que a coluna Rede mudava de unidade para unidade,
+       e mandava escolher uma etapa para o ranking ficar comparável. Os dois
+       avisos existiam por causa da opção "Ambas", que somava etapas diferentes
+       conforme a cobertura de cada escola. Sem ela, a tabela é de UMA etapa: a
+       referência da rede é a mesma para todas as linhas e o ranking pelo IDEB
+       cru já compara igual com igual. Manter o aviso antigo seria descrever um
+       risco que a tela não corre mais — e alerta que não vale ensina a ignorar
+       os que valem. */
+    legenda: 'IDEB da unidade na edição e na etapa escolhidas, ao lado da média da rede '
+           + '<b>na mesma etapa</b> — a mesma referência para todas as linhas, então o '
+           + 'ranking pelo IDEB compara igual com igual. A cor mede a distância relativa '
+           + 'da rede; a coluna <b>× meta</b> mostra a distância da meta da própria escola, '
+           + 'que é a régua oficial. Clique no nome da unidade para abrir a série histórica '
+           + 'dela.'
+           + '<br>⚠️ Unidade que não oferece a etapa escolhida <b>não aparece</b> na lista: '
+           + 'ela não tem IDEB nessa etapa, e mostrá-la com um traço sugeriria falta de '
+           + 'lançamento onde não há o que lançar.'
   });
 }
 
