@@ -150,6 +150,9 @@ function injetarCSS(){
      colunas    : [{id, t, v:linha=>número, fmt, ord:bool}]  colunas extras
                   (ou função (filtros, linhas) => [...], para colunas que
                   dependem do recorte ou de haver dado)
+     mostrarRef : false esconde a COLUNA da referência (o valor continua
+                  calculado: pinta a faixa de cor e alimenta a Dif., que passa
+                  a dizer no cabeçalho contra o que mede)
      filtros    : [{id, rotulo, opcoes:()=>[{v,t}]}]
      carregar   : filtros => Promise<{linhas:[{escola, valor, ref, cols}],
                                       rotuloRef?, aviso?}>
@@ -289,13 +292,31 @@ function extras(){
   return c || [];
 }
 
+/* `cfg.mostrarRef: false` esconde a COLUNA da referência. O valor continua
+   sendo calculado e usado — é ele que pinta a faixa de cor da célula e que a
+   coluna Dif. subtrai —, só não ocupa uma coluna própria.
+
+   ⚠️ Quem esconde a referência precisa dizer contra o que a Dif. é medida.
+   "Dif." sozinha, sem a coluna ao lado, é um número sem régua: o leitor vê
+   ▲0,83 e não tem como saber 0,83 acima de quê. Por isso o cabeçalho passa a
+   carregar o rótulo da referência, e ele acompanha `refRotulo` — quando a
+   referência não é a rede (Av. Oral caindo para a média das listadas), o
+   cabeçalho diz isso, pelo mesmo motivo que a coluna dizia. */
+function mostraRef(){ return cfg.mostrarRef !== false; }
+
+function rotuloRef(){ return refRotulo || cfg.rotuloRef || 'Rede'; }
+
+function rotuloDif(){
+  return mostraRef() ? 'Dif.' : 'Dif. p/ ' + rotuloRef().toLowerCase();
+}
+
 function colunas(){
   var c = [{k:'posto', t:'#', ord:false},
            {k:'escola', t:'Unidade', ord:true},
            {k:'valor', t:cfg.rotuloValor || 'Média', ord:true}];
   extras().forEach(function(x){ c.push({k:x.id, t:x.t, ord:x.ord !== false}); });
-  c.push({k:'ref', t: refRotulo || cfg.rotuloRef || 'Rede', ord:true});
-  c.push({k:'dif', t:'Dif.', ord:true});
+  if(mostraRef()) c.push({k:'ref', t: rotuloRef(), ord:true});
+  c.push({k:'dif', t:rotuloDif(), ord:true});
   return c;
 }
 
@@ -430,7 +451,11 @@ function render(){
       + esc(l.escola) + '">' + esc(l.escola) + '</button></td>'
       + '<td class="c" style="background:' + f.bg + ';color:' + f.fg + '">' + fmtVal(l.valor) + '</td>'
       + cels
-      + '<td>' + fmtVal(l.ref) + '</td>'
+      /* ⚠️ Esta célula é escrita à mão, FORA do laço de `extras()`. Se você
+         mudar a condição aqui, mude também em `colunas()` — cabeçalho e corpo
+         fora de sincronia deslocam a tabela inteira em uma coluna, e o efeito
+         é cada número aparecer sob o rótulo do vizinho. */
+      + (mostraRef() ? '<td>' + fmtVal(l.ref) + '</td>' : '')
       + celDif(l)
       + '</tr>';
   }).join('');
