@@ -62,6 +62,9 @@ const ROWS = [
   L('GAMA, EMEF','1 TERMO','A','N','LINGUA PORTUGUESA',5),
   // ⚠️ contém ETAPA *e* LIMINAR: tem de cair em Liminar, não em Etapa II
   L('GAMA, EMEF','ETAPA II - PARCIAL - LIMINAR 12H/A','X','M','MAGISTERIO II',12),
+  // ⚠️ unidade cujas linhas são TODAS de liminar: não cria sala nenhuma, e sem
+  //    `unidadesVistas` sumiria da tela por unidade sem deixar rastro
+  L('DELTA, EMEF','ETAPA I - PARCIAL - LIMINAR 12H/A','X','M','MAGISTERIO II',12),
   // projeto: nem turma, nem quadro
   L('GAMA, EMEF','1 ANO','A','M','PROFESSOR ALFABETIZADOR',8),
   // ano escolar desconhecido: vai para "Outros" e acende o aviso
@@ -99,7 +102,7 @@ vm.createContext(ctx);
 vm.runInContext(script, ctx, { filename:'planejamento.js' });
 // `let` de topo de script vive no escopo léxico global, não no objeto global —
 // por isso a ponte, num segundo script do MESMO realm.
-vm.runInContext('globalThis.__get = () => ({ AGG, PLANO, turmasPlano, aulasPlano, totalPlanoAno, totalLancadoAno, totaisGerais });', ctx);
+vm.runInContext('globalThis.__get = () => ({ AGG, PLANO, turmasPlano, aulasPlano, totalPlanoAno, totalLancadoAno, totaisGerais, linhasUnidade, unidadesSemTurma });', ctx);
 
 // ── Espera o carregar() assíncrono e confere ──────────────────────────────
 setTimeout(() => {
@@ -159,6 +162,31 @@ setTimeout(() => {
   ok(P.totalPlanoAno('FundI|1º Ano') === 5*22, 'mexer nas turmas muda o plano', P.totalPlanoAno('FundI|1º Ano'));
   P.PLANO.turmas['FundI|1º Ano'] = '';
   ok(P.totalPlanoAno('FundI|1º Ano') === 3*22, 'campo em branco volta ao observado (não vira zero)', P.totalPlanoAno('FundI|1º Ano'));
+
+  console.log('\n— Por unidade (mesmo passe da agregação por ano) —');
+  const U = A.porUnidade;
+  // 3, não 4: a DELTA está na base, mas só com linha de liminar — ela não tem turma.
+  ok(A.ordemUnidades.length === 3, '3 unidades com turma (a DELTA só tem liminar)', A.ordemUnidades.join(' | '));
+  ok(U['ALFA, EMEI'].seg.Etapas.turmas === 3, 'ALFA: 2 turmas de Etapa I + 1 de Etapa II', U['ALFA, EMEI'].seg.Etapas.turmas);
+  ok(U['ALFA, EMEI'].seg.Etapas.salas === 2, 'em 2 salas', U['ALFA, EMEI'].seg.Etapas.salas);
+  ok(U['ALFA, EMEI'].integrais === 1, 'uma delas integral', U['ALFA, EMEI'].integrais);
+  ok(U['BETA, CEI'].seg.Ciclos.turmas === 1, 'BETA: 1 turma de ciclo', U['BETA, CEI'].seg.Ciclos.turmas);
+  ok(!U['BETA, CEI'].seg.FundI, 'e nenhuma de fundamental');
+  ok(U['GAMA, EMEF'].seg.FundI.turmas === 3 && U['GAMA, EMEF'].seg.FundII.turmas === 1
+     && U['GAMA, EMEF'].seg.EJA.turmas === 1, 'GAMA: 3 Fund I, 1 Fund II, 1 EJA');
+  // ⚠️ a igualdade que impede as duas visões de divergirem
+  const somaUni = A.ordemUnidades.reduce((s, u) => s + U[u].turmas, 0);
+  const somaAno = A.ordem.reduce((s, k) => s + A.anos[k].turmas, 0);
+  ok(somaUni === somaAno, 'a soma por unidade reproduz a soma por ano', somaUni + ' = ' + somaAno);
+  // ⚠️ unidade que só tem linha de liminar/substituição não pode sumir da tela
+  ok(A.unidadesVistas.has('DELTA, EMEF'), 'unidade só com linha de liminar aparece em unidadesVistas');
+  ok(!U['DELTA, EMEF'], 'e não tem turma nenhuma');
+  ok(P.unidadesSemTurma().includes('DELTA, EMEF'), 'e a tela a lista mesmo assim, com zero');
+  const LU = P.linhasUnidade();
+  ok(LU.length === 4, 'o recorte por unidade lista as 4 (3 com turma + 1 sem)', LU.length);
+  ok(LU.filter(u => u.SEM_TURMA).length === 1, 'uma delas marcada como sem turma');
+  ok(LU.every((u, i) => i === 0 || LU[i-1].unidade.localeCompare(u.unidade, 'pt-BR') <= 0),
+     'e sai em ordem alfabética por padrão', LU.map(u => u.unidade).join(' | '));
 
   console.log('\n— Totais —');
   const t = P.totaisGerais();

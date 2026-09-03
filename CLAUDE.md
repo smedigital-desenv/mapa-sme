@@ -550,9 +550,63 @@ some ela em turma, em projeto ou nos baldes de fora. É ela que impede a tela de
 perder aula em silêncio. A sonda `MapaDiagPlanejamento()` responde o mesmo no
 console, com o dado do dia.
 
+#### O recorte por UNIDADE, no bloco 1
+
+O bloco 1 tem um seletor de recorte: **por ano escolar** (o padrão) e **por
+unidade escolar** — uma linha por unidade, uma coluna por segmento (Ciclos,
+Etapas, Fund I, Fund II, EJA), com total de turmas e de salas. Clique na linha
+abre a unidade por ano escolar e turno; clique no cabeçalho ordena; há busca por
+nome e filtro por tipo. O Excel ganhou duas abas correspondentes.
+
+⚠️ **Os dois recortes saem do MESMO passe da varredura** (`porUnidade` é
+montado junto de `anos`, dentro de `agregar`). De duas varreduras separadas os
+recortes poderiam divergir, e a tela mostraria um total diferente conforme o
+corte escolhido — o pior tipo de defeito, porque cada tela parece certa
+isolada. `tools/testar-planejamento.js` e a sonda conferem a igualdade
+**soma por unidade = soma por ano**.
+
+⚠️ **Isto NÃO é uma tela separada, e já foi.** Uma `turmas-por-unidade.html`
+chegou a existir, com a regra extraída para um `turmas-rede.js` compartilhado.
+A SME pediu o recorte aqui dentro, e com uma consumidora só o módulo passou a
+contradizer o "cada tela é autocontida" do §6 — um módulo compartilhado com um
+consumidor faz o próximo leitor procurar quem mais o usa. A regra voltou para
+dentro da tela. Se um dia uma segunda tela precisar dela, a extração está no
+histórico.
+
+⚠️ **EJA entra como coluna mesmo sendo rara.** Ela é turma; deixá-la de fora
+faria o Total não fechar com a soma das colunas — e a leitura natural de uma
+linha que não fecha é "a conta está errada", não "falta uma coluna".
+
+⚠️ **Unidade que existe na base sem turma nenhuma é LISTADA, com zero e selo.**
+É o caso de quem só aparece com linha de liminar, substituição ou atendimento:
+ela não cria sala, então sumiria do recorte por unidade sem deixar rastro. Por
+isso `agregar` devolve `unidadesVistas` — toda unidade que apareceu em qualquer
+linha — e a tela mostra a diferença. 🚫 Não "limpe" essas linhas.
+
+⚠️ **O tipo da unidade sai do catálogo (`MapaUnidades.tipo`), nunca de
+`includes` no nome** — `CONCEICAO` contém `CEI`. Sem catálogo sai `'—'` em vez
+de adivinhar: a coluna some, a unidade não.
+
+⚠️ **Busca e tipo chamam só `renderUnidades()`; o PERÍODO chama `render()`.**
+Período muda quais linhas entram na conta (uma turma pode existir só à tarde);
+os outros dois são recorte de exibição. Trocar um pelo outro faz a tela
+recalcular à toa ou, pior, mostrar número velho.
+
+⚠️ O rótulo de coluna tem duas formas em `CURTO`, `txt` e `html`. A `html`
+carrega a segunda linha ("1º–5º") e é literal DESTA tela, não dado: **não passe
+por `escapeHtml`**, senão a marcação sai crua no cabeçalho. Foi o que aconteceu
+na primeira versão. Nome de unidade e tipo, que vêm do banco, seguem escapados.
+
+⚠️ **As turmas do ano-alvo não são editáveis no recorte por unidade**, de
+propósito: o plano é por ano escolar, não por unidade. Dois campos para a mesma
+projeção precisariam de uma regra de rateio que ninguém pediu.
+
 ⚠️ A tela precisa ser cadastrada no central com o slug **`planejamento_atribuicao`**
 (§7) para quem não é super admin. `TELA_POR_ARQUIVO`, no `auth.js`, já faz a
 tradução do nome do arquivo para esse slug.
+
+⚠️ A sonda `MapaDiagPlanejamento()` devolve `{ anos, unidades }` e imprime as
+duas tabelas, com o veredicto da igualdade entre os recortes.
 
 ---
 

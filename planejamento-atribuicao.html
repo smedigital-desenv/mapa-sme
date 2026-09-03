@@ -67,6 +67,31 @@
     table.matriz tr.subtotal-row th, table.matriz tr.subtotal-row td { background:#f8fafc; font-weight:800; }
     table.matriz td.col-total .big, table.matriz th.col-total { color:var(--primary); }
     .cel-vazia { color:#cbd5e1; font-weight:800; }
+    /* O `.seg` da toolbar é branco sobre azul; aqui ele vive sobre o cartão. */
+    .seg-claro { background:#f1f5f9; border-color:#cbd5e1; }
+    .seg-claro button { color:#475569; }
+    .seg-claro button.active { background:var(--primary); color:#fff; }
+    /* O nome da unidade é a âncora da leitura: acompanha a rolagem horizontal. */
+    table.matriz th.col-unid, table.matriz td.col-unid { position:sticky; left:0; background:#fff; z-index:1;
+      text-align:left; font-weight:800; color:var(--primary); font-size:.83rem; white-space:nowrap; }
+    table.matriz thead th.col-unid { z-index:3; background:#f8fafc; }
+    table.matriz thead th.ord { cursor:pointer; user-select:none; }
+    table.matriz thead th.ord:hover { color:var(--primary); text-decoration:underline; }
+    table.matriz thead th.ord .seta { font-size:.6rem; opacity:.55; }
+    table.matriz tbody tr.linha-clic { cursor:pointer; }
+    table.matriz tbody tr.linha-clic:hover td, table.matriz tbody tr.linha-clic:hover th { background:#f6faff; }
+    table.matriz tr.total-row th.col-unid { background:#f1f5f9; }
+    tr.detalhe td { background:#f8fafc; text-align:left; padding:.6rem 1rem .8rem 2.2rem; }
+    .det-item { display:inline-block; background:#fff; border:1px solid #e2e8f0; border-radius:8px;
+      padding:.25rem .6rem; margin:.15rem .3rem .15rem 0; font-size:.74rem; }
+    .det-item b { color:var(--primary); }
+    tr.sem-turma td, tr.sem-turma th.col-unid { background:#fff7ed; }
+    .chip-tipo { display:inline-block; font-size:.6rem; font-weight:800; padding:1px 6px; border-radius:999px;
+      background:#e2e8f0; color:#475569; }
+    .chip-tipo-f { background:transparent; border:1px solid #cbd5e1; color:#475569; border-radius:999px;
+      padding:.1rem .6rem; font-size:.72rem; font-weight:700; cursor:pointer; }
+    .chip-tipo-f.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+    @media print { table.matriz th.col-unid, table.matriz td.col-unid { position:static; } }
     /* Célula em que o quadro NÃO é uniforme na rede: a moda não descreve todas as
        turmas. O tracejado é o aviso; o título traz a distribuição inteira. */
     .nao-uniforme { border-bottom:2px dashed #f59e0b !important; cursor:help; }
@@ -194,15 +219,45 @@
 
       <!-- 1 · QUANTITATIVO DE TURMAS -->
       <div class="card-box p-3 p-lg-4 mb-3">
-        <div class="sec-tt mb-1"><i class="bi bi-collection-fill me-2"></i>1 · Quantitativo de turmas — todos os segmentos</div>
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div class="sec-tt"><i class="bi bi-collection-fill me-2"></i>1 · Quantitativo de turmas — todos os segmentos</div>
+          <div class="seg seg-claro no-print" id="segCorte">
+            <button data-c="ano" class="active"><i class="bi bi-list-ol me-1"></i>Por ano escolar</button>
+            <button data-c="unidade"><i class="bi bi-buildings-fill me-1"></i>Por unidade escolar</button>
+          </div>
+        </div>
         <p class="sec-sub mb-3">Todo <b>ano escolar</b> da base entra em um segmento, e o que não for reconhecido aparece
           no aviso acima em vez de sumir. A coluna <b>Turmas</b> conta a unidade de atribuição
           (<b>sala × turno</b>): manhã e tarde de uma turma integral contam separadas, como no Retrato Quantitativo.
           A coluna <b>Salas</b> conta o agrupamento físico (unidade + ano + letra), em que a integral conta uma vez.
-          A coluna <b>Turmas <span id="rotAnoTurmas">2027</span></b> é editável — é a projeção de matrícula que alimenta o plano.</p>
-        <div class="table-responsive">
-          <table class="matriz" id="tabTurmas"></table>
+          Os dois recortes saem da <b>mesma conta</b>: o total é o mesmo, mudam as linhas.</p>
+
+        <!-- ── recorte por ANO escolar ── -->
+        <div id="corteAno">
+          <p class="sec-sub mb-3">A coluna <b>Turmas <span id="rotAnoTurmas">2027</span></b> é editável — é a projeção
+            de matrícula que alimenta o plano.</p>
+          <div class="table-responsive">
+            <table class="matriz" id="tabTurmas"></table>
+          </div>
         </div>
+
+        <!-- ── recorte por UNIDADE escolar ── -->
+        <div id="corteUnidade" style="display:none;">
+          <div class="d-flex align-items-center flex-wrap gap-2 mb-2 no-print">
+            <input class="form-control form-control-sm" id="buscaUnid" type="search"
+                   placeholder="Buscar unidade…" autocomplete="off" style="max-width:260px;">
+            <span class="legend fw-bold"><i class="bi bi-funnel me-1"></i>Tipo</span>
+            <div id="tipoChips" class="d-flex gap-1 flex-wrap"></div>
+            <span class="legend ms-auto" id="contagemUnid"></span>
+          </div>
+          <p class="sec-sub mb-2"><b>Clique na linha</b> para ver a abertura por ano escolar e turno.
+            Clique no cabeçalho para ordenar. As turmas do ano-alvo não são editáveis aqui: o plano é por
+            ano escolar, não por unidade — a projeção de matrícula fica no recorte ao lado.</p>
+          <div class="table-responsive" style="max-height:70vh;overflow:auto;">
+            <table class="matriz" id="tabUnidades"></table>
+          </div>
+        </div>
+
         <div class="legend mt-2">
           <i class="bi bi-info-circle me-1"></i><span id="notaSemTurno"></span>
         </div>
@@ -337,6 +392,11 @@ let AGG = null;             // último agregado
 let PLANO = null;           // parâmetros do ano-alvo (localStorage)
 let periodosSel = null;     // Set de períodos selecionados (null = todos)
 let modo = 'base';          // 'base' | 'plano' | 'delta'
+let corte = 'ano';          // 'ano' | 'unidade' — recorte do bloco 1
+let buscaUnid = '';         // filtro de nome no recorte por unidade
+let tiposSel = null;        // Set de tipos de unidade (null = todos)
+let ordCampo = 'unidade', ordAsc = true;   // ordenação da tabela por unidade
+let abertas = new Set();    // unidades com o detalhe expandido
 let anoAlvo = 2027;
 const ANO_BASE = 2026;      // ano dos dados em `turmas`
 
@@ -610,10 +670,16 @@ function distTexto(dist, total) {
 function agregar() {
   const salas = new Map();
   const fora = {}, proj = {}, anosRaw = {}, discRaw = {};
+  /* ⚠️ Toda unidade que aparece em QUALQUER linha entra aqui, tenha turma ou
+     não. Unidade cujas linhas sejam todas de liminar, substituição ou
+     atendimento não cria sala nenhuma — e sem esta lista ela sumiria do recorte
+     por unidade sem deixar rastro, que é o defeito invisível de sempre. */
+  const unidadesVistas = new Set();
 
   (ROWS || []).forEach(row => {
     if (periodosSel && !periodosSel.has(periodoDesc(row.periodo))) return;
     const carga = num(row.carga_horaria);
+    unidadesVistas.add(cleanUnit(row.nome_unidade));
 
     const rawAno = String(row.ano_escolar || '').trim() || '(vazio)';
     const cls = classificarAno(row.ano_escolar);
@@ -647,7 +713,11 @@ function agregar() {
   });
 
   // ── Segunda passada: da sala para a turma ──────────────────────────────
-  const anos = {};
+  /* ⚠️ O cubo por ANO e o recorte por UNIDADE saem do MESMO passe, de propósito:
+     de duas varreduras separadas, os dois recortes poderiam divergir — e a
+     tela mostraria um total diferente conforme o corte escolhido. O teste
+     confere exatamente essa igualdade. */
+  const anos = {}, porUnidade = {};
   let salasSemTurno = 0, aulasDaSala = 0;
   salas.forEach((s, sk) => {
     const k = s.seg + '|' + s.ano;
@@ -659,7 +729,18 @@ function agregar() {
     if (s.integral) a.integrais++;
     units.forEach(u => a.turnos[u]++);
 
+    const U = (porUnidade[s.unidade] ||= {
+      unidade: s.unidade, tipo: tipoUnidade(s.unidade), seg:{}, anos:{},
+      turmas:0, salas:0, integrais:0, turnos:{ M:0, T:0, N:0, '—':0 }, aulas:0 });
+    const US = (U.seg[s.seg] ||= { turmas:0, salas:0, integrais:0 });
+    const UA = (U.anos[k] ||= { seg:s.seg, ano:s.ano, turmas:0, salas:0, turnos:{ M:0, T:0, N:0, '—':0 } });
+    US.turmas += units.length; US.salas++; if (s.integral) US.integrais++;
+    UA.turmas += units.length; UA.salas++;
+    U.turmas += units.length; U.salas++; if (s.integral) U.integrais++;
+    units.forEach(u => { U.turnos[u]++; UA.turnos[u]++; });
+
     s.linhas.forEach(l => {
+      U.aulas += l.carga;
       const cel = (a.disc[l.disc] ||= { total:0, porUnit:new Map(), semTurno:0 });
       cel.total += l.carga;
       // A qual turma esta linha pertence? Se o período dela é um turno real da
@@ -692,7 +773,18 @@ function agregar() {
       .forEach(a => ordem.push(a.chave));
   });
 
-  return { anos, ordem, fora, proj, anosRaw, discRaw, salasSemTurno, aulasDaSala };
+  const ordemUnidades = Object.keys(porUnidade).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+  return { anos, ordem, porUnidade, ordemUnidades, unidadesVistas,
+           fora, proj, anosRaw, discRaw, salasSemTurno, aulasDaSala };
+}
+
+/* ⚠️ O tipo da unidade sai do CATÁLOGO (`MapaUnidades.tipo`), nunca de
+   `includes` no nome: `CONCEICAO` contém `CEI`, e a unidade viraria creche.
+   Sem catálogo, devolve '—' em vez de adivinhar — a coluna some, a unidade não. */
+function tipoUnidade(nome) {
+  try { return (window.MapaUnidades && window.MapaUnidades.tipo(nome)) || '—'; }
+  catch (e) { return '—'; }
 }
 // Disciplinas de um segmento, ordenadas pelo total de aulas (a mais pesada primeiro).
 function disciplinasDoSegmento(segKey) {
@@ -762,6 +854,7 @@ function render() {
 
   renderAvisoOutros();
   renderTurmas();
+  renderUnidades();
   renderQuadros();
   renderFora();
   renderKpis();
@@ -862,6 +955,133 @@ function renderTurmas() {
   if (AGG.aulasDaSala) nota.push(`<b>${br(AGG.aulasDaSala)}</b> aula(s) pertencem à sala inteira, não a um turno: entram nos totais, mas ficam fora da moda do quadro.`);
   if (!nota.length) nota.push('Toda linha da base pôde ser atribuída a um turno.');
   document.getElementById('notaSemTurno').innerHTML = nota.join(' ');
+}
+
+/* ── 1b · O MESMO quantitativo, recortado por UNIDADE ─────────────────────
+   Mesma agregação, transposta: unidade nas linhas, segmento nas colunas.
+   ⚠️ As colunas são os segmentos que descrevem turma, TODOS eles. EJA entra
+   mesmo sendo rara: ela é turma, e deixá-la de fora faria o Total não fechar
+   com a soma das colunas — e a leitura natural de uma linha que não fecha é
+   "a conta está errada", não "falta uma coluna". */
+const CURTO = {
+  Ciclos: { txt:'Ciclos',  html:'Ciclos' },
+  Etapas: { txt:'Etapas',  html:'Etapas' },
+  FundI:  { txt:'Fund I',  html:'Fund I<br><span style="font-weight:400;text-transform:none;">1º–5º</span>' },
+  FundII: { txt:'Fund II', html:'Fund II<br><span style="font-weight:400;text-transform:none;">6º–9º</span>' },
+  EJA:    { txt:'EJA',     html:'EJA' },
+};
+/* ⚠️ A forma `html` é literal DESTA tela, não dado: ela carrega a segunda linha
+   do cabeçalho. NÃO passe por `escapeHtml`, senão a marcação sai crua na
+   página. O que vem do banco (nome de unidade, tipo) continua escapado. */
+function curtoSeg(k, campo) { return (CURTO[k] || {})[campo] || SEG[k].rot; }
+
+// Unidades que aparecem na base sem turma nenhuma (só liminar, substituição
+// ou atendimento). Elas NÃO podem sumir da lista — ver `unidadesVistas`.
+function unidadesSemTurma() {
+  return [...AGG.unidadesVistas].filter(u => !AGG.porUnidade[u]).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
+function linhasUnidade() {
+  const todas = AGG.ordemUnidades.map(u => AGG.porUnidade[u])
+    .concat(unidadesSemTurma().map(u => ({
+      unidade:u, tipo:tipoUnidade(u), seg:{}, anos:{}, turmas:0, salas:0,
+      integrais:0, turnos:{ M:0, T:0, N:0, '—':0 }, aulas:0, SEM_TURMA:true })));
+
+  const q = normalizar(buscaUnid);
+  const filtradas = todas.filter(u =>
+    (!q || normalizar(u.unidade).includes(q)) && (!tiposSel || tiposSel.has(u.tipo)));
+
+  const val = u => ordCampo === 'unidade' ? u.unidade
+                 : ordCampo === 'tipo'    ? u.tipo
+                 : ordCampo === 'turmas'  ? u.turmas
+                 : ordCampo === 'salas'   ? u.salas
+                 : (u.seg[ordCampo] ? u.seg[ordCampo].turmas : 0);
+  return filtradas.sort((a, b) => {
+    const x = val(a), y = val(b);
+    // Texto sobe em A–Z; número desce (maior primeiro), que é a ordem útil de
+    // uma contagem. Reclicar no cabeçalho inverte.
+    const c = (typeof x === 'string') ? x.localeCompare(y, 'pt-BR')
+            : (y - x) || a.unidade.localeCompare(b.unidade, 'pt-BR');
+    return ordAsc ? c : -c;
+  });
+}
+
+function renderUnidades() {
+  montarTipos();
+  const L = linhasUnidade();
+  const seta = c => ordCampo !== c ? '' : `<span class="seta"> ${ordAsc ? '▲' : '▼'}</span>`;
+  const thead = `<thead><tr>
+      <th class="ord col-unid" data-ord="unidade" title="Ordenar por nome">Unidade escolar${seta('unidade')}</th>
+      <th class="ord" data-ord="tipo" title="Ordenar por tipo">Tipo${seta('tipo')}</th>
+      ${SEG_TURMA.map(k => `<th class="ord" data-ord="${k}" title="Ordenar por ${escapeHtml(SEG[k].rot)}"
+          style="color:${SEG[k].cor};">${curtoSeg(k, 'html')}${seta(k)}</th>`).join('')}
+      <th class="ord col-total" data-ord="turmas" title="Ordenar por total de turmas">Turmas${seta('turmas')}</th>
+      <th class="ord" data-ord="salas" title="Ordenar por salas">Salas${seta('salas')}</th>
+    </tr></thead>`;
+
+  const tot = { turmas:0, salas:0, seg:{} };
+  const corpo = L.map(u => {
+    tot.turmas += u.turmas; tot.salas += u.salas;
+    SEG_TURMA.forEach(k => { const v = u.seg[k]; if (v) {
+      const t = (tot.seg[k] ||= 0); tot.seg[k] = t + v.turmas; } });
+
+    const tds = SEG_TURMA.map(k => {
+      const v = u.seg[k];
+      return `<td>${v ? `<span class="big">${br(v.turmas)}</span>` : '<span class="cel-vazia">—</span>'}</td>`;
+    }).join('');
+    const aberta = abertas.has(u.unidade);
+    return `<tr class="linha-clic ${u.SEM_TURMA ? 'sem-turma' : ''}" data-u="${escapeHtml(u.unidade)}">
+      <th class="col-unid">
+        <i class="bi bi-chevron-${aberta ? 'down' : 'right'} me-1" style="font-size:.65rem;opacity:.5;"></i>${escapeHtml(u.unidade)}
+        ${u.SEM_TURMA ? ' <span class="chip-tipo" style="background:#fed7aa;color:#9a3412;" title="Aparece na base, mas nenhuma linha dela é turma.">sem turma</span>' : ''}
+      </th>
+      <td><span class="chip-tipo">${escapeHtml(u.tipo)}</span></td>
+      ${tds}
+      <td class="col-total"><span class="big text-primary">${br(u.turmas)}</span>
+        ${u.integrais ? `<div class="small">${br(u.integrais)} integral(is)</div>` : ''}</td>
+      <td>${br(u.salas)}</td></tr>` + (aberta ? detalheUnidade(u) : '');
+  }).join('');
+
+  const totalRow = `<tr class="total-row">
+    <th class="col-unid">Total — ${br(L.length)} unidade(s)</th><td>—</td>
+    ${SEG_TURMA.map(k => `<td>${tot.seg[k] ? br(tot.seg[k]) : '<span class="cel-vazia">—</span>'}</td>`).join('')}
+    <td class="col-total">${br(tot.turmas)}</td><td>${br(tot.salas)}</td></tr>`;
+
+  document.getElementById('tabUnidades').innerHTML = thead + `<tbody>${corpo}${totalRow}</tbody>`;
+  const totalUni = AGG.ordemUnidades.length + unidadesSemTurma().length;
+  document.getElementById('contagemUnid').innerHTML =
+    `${br(L.length)} de ${br(totalUni)} unidade(s)` + ((buscaUnid || tiposSel) ? ' · <b>filtro ativo</b>' : '');
+}
+
+// Abertura da unidade por ano escolar e turno — responde "de que ano são estas
+// turmas" sem precisar trocar de recorte.
+function detalheUnidade(u) {
+  const cols = SEG_TURMA.length + 4;
+  if (u.SEM_TURMA) {
+    return `<tr class="detalhe"><td colspan="${cols}"><span class="text-muted small">
+      Esta unidade aparece na base, mas nenhuma linha dela descreve uma turma — são aulas de liminar,
+      substituição/complemento ou atendimento de educação especial. Ela é listada com zero para não
+      sumir da conta em silêncio.</span></td></tr>`;
+  }
+  const itens = Object.keys(u.anos)
+    .sort((a, b) => SEG_TURMA.indexOf(u.anos[a].seg) - SEG_TURMA.indexOf(u.anos[b].seg)
+                 || rankAno(u.anos[a].ano) - rankAno(u.anos[b].ano))
+    .map(k => {
+      const a = u.anos[k];
+      const turnos = ['M','T','N','—'].filter(t => a.turnos[t])
+        .map(t => `${({ M:'manhã', T:'tarde', N:'noite', '—':'s/ turno' })[t]} ${a.turnos[t]}`).join(' · ');
+      return `<span class="det-item" style="border-left:3px solid ${SEG[a.seg].cor};">
+        <b>${escapeHtml(a.ano)}</b> — ${br(a.turmas)} turma(s) <span class="text-muted">(${turnos})</span></span>`;
+    }).join('');
+  return `<tr class="detalhe"><td colspan="${cols}">${itens}</td></tr>`;
+}
+
+function montarTipos() {
+  const tipos = [...new Set(AGG.ordemUnidades.map(u => AGG.porUnidade[u].tipo))].sort();
+  document.getElementById('tipoChips').innerHTML = tipos.map(t => {
+    const on = !tiposSel || tiposSel.has(t);
+    return `<button class="chip-tipo-f ${on ? 'active' : ''}" data-tipo="${escapeHtml(t)}">${escapeHtml(t)}</button>`;
+  }).join('');
 }
 
 // ── 2 · Quadro de aulas por disciplina × ano ──────────────────────────────
@@ -1215,6 +1435,52 @@ document.getElementById('anoAlvo').addEventListener('change', e => {
   if (AGG) render();
 });
 
+/* ── Recorte do bloco 1: por ano escolar × por unidade ──────────── */
+document.getElementById('segCorte').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  corte = b.dataset.c;
+  document.querySelectorAll('#segCorte button').forEach(x => x.classList.toggle('active', x === b));
+  document.getElementById('corteAno').style.display     = corte === 'ano' ? '' : 'none';
+  document.getElementById('corteUnidade').style.display = corte === 'unidade' ? '' : 'none';
+});
+
+/* ⚠️ Busca e tipo são recorte de EXIBIÇÃO: chamam só `renderUnidades()`.
+   O período, não — ele muda quais linhas entram na conta (uma turma pode
+   existir só à tarde), e por isso chama `render()` inteiro. Trocar um pelo
+   outro faz a tela recalcular à toa ou, pior, mostrar número velho. */
+let _tBusca = null;
+document.getElementById('buscaUnid').addEventListener('input', e => {
+  buscaUnid = e.target.value;
+  clearTimeout(_tBusca);
+  _tBusca = setTimeout(() => { if (AGG) renderUnidades(); }, 120);
+});
+document.getElementById('tipoChips').addEventListener('click', e => {
+  const b = e.target.closest('button[data-tipo]'); if (!b || !AGG) return;
+  const universo = [...new Set(AGG.ordemUnidades.map(u => AGG.porUnidade[u].tipo))];
+  const sel = tiposSel ? new Set(tiposSel) : new Set(universo);
+  if (sel.has(b.dataset.tipo)) sel.delete(b.dataset.tipo); else sel.add(b.dataset.tipo);
+  // Tudo selecionado equivale a filtro nenhum: manter o Set cheio faria a tela
+  // dizer "filtro ativo" enquanto mostra a rede inteira.
+  tiposSel = (sel.size === 0 || sel.size === universo.length) ? null : sel;
+  renderUnidades();
+});
+document.getElementById('tabUnidades').addEventListener('click', e => {
+  if (!AGG) return;
+  const h = e.target.closest('th.ord');
+  if (h) {
+    const c = h.dataset.ord;
+    if (ordCampo === c) ordAsc = !ordAsc; else { ordCampo = c; ordAsc = true; }
+    renderUnidades();
+    return;
+  }
+  const tr = e.target.closest('tr.linha-clic');
+  if (tr) {
+    const u = tr.dataset.u;
+    if (abertas.has(u)) abertas.delete(u); else abertas.add(u);
+    renderUnidades();
+  }
+});
+
 /* ── Campos do plano: um listener só, delegado ──────────────────── */
 document.addEventListener('input', e => {
   const el = e.target;
@@ -1291,7 +1557,35 @@ async function exportarExcel() {
   const t = totaisGerais();
   w3.addRow(['TOTAL DA REDE', t.turmasBaseT, t.turmasPlanoT, t.lancado, t.quadro, t.plano, t.plano - t.lancado]).font = { bold:true };
 
-  // 4 — Conferência
+  // 4 — Turmas por unidade (o mesmo quantitativo, recortado por unidade)
+  const w5 = wb.addWorksheet('Turmas por unidade');
+  w5.addRow(['Turmas por unidade escolar e segmento']).font = { bold:true };
+  w5.addRow([`Período: ${periodosSel ? [...periodosSel].join(', ') : 'todos'}`]);
+  w5.addRow([]);
+  w5.addRow(['Unidade', 'Tipo', ...SEG_TURMA.map(k => curtoSeg(k, 'txt')),
+             'Turmas', 'Salas', 'Integrais', 'Observação']).font = { bold:true };
+  const LU = AGG.ordemUnidades.map(u => AGG.porUnidade[u]);
+  LU.forEach(u => w5.addRow([u.unidade, u.tipo,
+    ...SEG_TURMA.map(k => u.seg[k] ? u.seg[k].turmas : 0),
+    u.turmas, u.salas, u.integrais, '']));
+  unidadesSemTurma().forEach(u => w5.addRow([u, tipoUnidade(u),
+    ...SEG_TURMA.map(() => 0), 0, 0, 0, 'sem turma — só aulas que não são turma']));
+  w5.addRow(['TOTAL', '', ...SEG_TURMA.map(k => LU.reduce((a, u) => a + (u.seg[k] ? u.seg[k].turmas : 0), 0)),
+             LU.reduce((a, u) => a + u.turmas, 0), LU.reduce((a, u) => a + u.salas, 0),
+             LU.reduce((a, u) => a + u.integrais, 0), '']).font = { bold:true };
+
+  // 5 — Unidade × ano escolar (o formato que costuma ser colado em planilha)
+  const w6 = wb.addWorksheet('Unidade x ano');
+  w6.addRow(['Unidade', 'Tipo', 'Segmento', 'Ano escolar', 'Turmas', 'Salas',
+             'Manhã', 'Tarde', 'Noite', 'Sem turno']).font = { bold:true };
+  LU.forEach(u => Object.keys(u.anos)
+    .sort((a, b) => SEG_TURMA.indexOf(u.anos[a].seg) - SEG_TURMA.indexOf(u.anos[b].seg)
+                 || rankAno(u.anos[a].ano) - rankAno(u.anos[b].ano))
+    .forEach(k => { const a = u.anos[k];
+      w6.addRow([u.unidade, u.tipo, SEG[a.seg].rot, a.ano, a.turmas, a.salas,
+                 a.turnos.M, a.turnos.T, a.turnos.N, a.turnos['—']]); }));
+
+  // 6 — Conferência
   const w4 = wb.addWorksheet('Conferência');
   w4.addRow(['Ano escolar (valor bruto)','Linhas','Aulas','Segmento','Ano lido']).font = { bold:true };
   Object.keys(AGG.anosRaw).sort().forEach(k => {
@@ -1305,7 +1599,7 @@ async function exportarExcel() {
     w4.addRow([k, o.n, o.aulas, o.nome, o.proj ? 'sim' : 'não']);
   });
 
-  [w1, w2, w3, w4].forEach(ws => { ws.columns.forEach(c => c.width = 16); ws.getColumn(1).width = 34; ws.getColumn(2).width = 22; });
+  [w1, w2, w3, w4, w5, w6].forEach(ws => { ws.columns.forEach(c => c.width = 16); ws.getColumn(1).width = 34; ws.getColumn(2).width = 22; });
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const a = document.createElement('a');
@@ -1354,7 +1648,24 @@ window.MapaDiagPlanejamento = function () {
   console.log('salas sem turno identificado:', AGG.salasSemTurno,
               '· aulas da sala (fora da moda):', AGG.aulasDaSala);
   console.groupEnd();
-  return t;
+
+  console.group('[planejamento] turmas por unidade');
+  const pu = AGG.ordemUnidades.map(u => {
+    const o = AGG.porUnidade[u], l = { unidade:u, tipo:o.tipo };
+    SEG_TURMA.forEach(k => l[curtoSeg(k, 'txt')] = o.seg[k] ? o.seg[k].turmas : 0);
+    l.total = o.turmas; l.salas = o.salas;
+    return l;
+  });
+  console.table(pu);
+  const sem = unidadesSemTurma();
+  if (sem.length) console.warn('unidades na base sem turma nenhuma:', sem);
+  // ⚠️ A igualdade que impede os dois recortes de divergirem.
+  const somaUni = pu.reduce((a, l) => a + l.total, 0);
+  const somaAno = AGG.ordem.reduce((a, k) => a + AGG.anos[k].turmas, 0);
+  console.log('soma por unidade:', somaUni, '· soma por ano:', somaAno,
+              somaUni === somaAno ? '✓ iguais' : '⚠️ DIVERGEM — não deveria acontecer');
+  console.groupEnd();
+  return { anos: t, unidades: pu };
 };
 
 carregar();
