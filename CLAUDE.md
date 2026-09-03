@@ -488,12 +488,25 @@ integral contam **duas**, porque são dois professores e dois blocos de aula. A
 tela mostra as duas colunas lado a lado; a de Turmas é a que reproduz o número
 do Retrato.
 
-⚠️ **Sala sem NENHUM turno real conta como uma turma, com turno `'—'`.** O
-Retrato descarta essas salas (`if (pc==='M'||pc==='T'||pc==='N')`), o que está
-certo lá, porque ele só cobre Etapas e 1º–5º. Aqui descartar apagaria a rede de
-CEI inteira em silêncio — em creche o período costuma ser justamente integral.
-Onde o Retrato funciona, as duas telas dão o **mesmo** número; a regra daqui só
-acrescenta o que lá cairia fora.
+⚠️ **Sala INTEGRAL é sempre DUAS turmas de atribuição — manhã e tarde —, tenha
+o regente de cada turno sido lançado ou não.** A turma existe; o que pode faltar
+é o professor. **Medido na rede em 2026-09:** em Etapa I, das 74 salas integrais,
+37 vinham com manhã e tarde lançadas e 37 vinham com TODAS as linhas sem turno
+(período "integral"). A regra antiga — "sala sem turno real conta como uma
+turma" — contava essas 37 como uma cada: **37 turmas de atribuição a menos** só
+nesse ano, 81 nas duas Etapas, e a coluna "Sem turno" era na verdade a coluna
+das integrais. Foi a SME quem apontou. Hoje a integral fica na coluna
+**Integral** (salas, com o "×2" escrito na célula), e Manhã/Tarde/Noite são só
+as **parciais**. A aula lançada com período "integral" numa sala integral é
+aula DA SALA: entra no total, fica fora da moda do quadro.
+
+⚠️ **Sala PARCIAL sem nenhum turno real ainda conta como uma turma**, na coluna
+"Sem turno" — que só aparece quando existe alguma (no dado de hoje, nenhuma).
+O Retrato descarta essas salas, o que está certo lá, porque ele só cobre Etapas
+e 1º–5º. Aqui descartar apagaria uma rede de CEI inteira em silêncio se ela
+viesse sem turno. ⚠️ O que decide "integral" é a palavra INTEGRAL no
+`ano_escolar`, nunca o período "I" da linha: uma vivência com período "I" numa
+sala parcial não a tornaria integral.
 
 ⚠️ **A classificação do `ano_escolar` é uma lista de EXCLUSÃO, e a ORDEM dos
 testes decide.** `'ETAPA II - PARCIAL - LIMINAR 12H/A'` contém *ETAPA* **e**

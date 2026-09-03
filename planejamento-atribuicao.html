@@ -228,8 +228,9 @@
         </div>
         <p class="sec-sub mb-3">Todo <b>ano escolar</b> da base entra em um segmento, e o que não for reconhecido aparece
           no aviso acima em vez de sumir. A coluna <b>Turmas</b> conta a unidade de atribuição
-          (<b>sala × turno</b>): manhã e tarde de uma turma integral contam separadas, como no Retrato Quantitativo.
-          A coluna <b>Salas</b> conta o agrupamento físico (unidade + ano + letra), em que a integral conta uma vez.
+          (<b>sala × turno</b>): uma sala <b>integral</b> é sempre <b>duas</b> turmas — manhã e tarde —, tenha o
+          regente de cada turno sido lançado ou não. A coluna <b>Salas</b> conta o agrupamento físico
+          (unidade + ano + letra), em que a integral conta uma vez.
           Os dois recortes saem da <b>mesma conta</b>: o total é o mesmo, mudam as linhas.</p>
 
         <!-- ── recorte por ANO escolar ── -->
@@ -725,25 +726,39 @@ function agregar() {
      confere exatamente essa igualdade. */
   const anos = {}, porUnidade = {};
   let salasSemTurno = 0, aulasDaSala = 0;
+  const TURNOS0 = () => ({ M:0, T:0, N:0, I:0, '—':0 });
   salas.forEach((s, sk) => {
     const k = s.seg + '|' + s.ano;
-    const a = (anos[k] ||= { chave:k, seg:s.seg, ano:s.ano, turnos:{ M:0, T:0, N:0, '—':0 },
+    const a = (anos[k] ||= { chave:k, seg:s.seg, ano:s.ano, turnos:TURNOS0(),
                              turmas:0, salas:0, integrais:0, unidades:new Set(), disc:{} });
-    const units = s.turnos.size ? [...s.turnos].sort() : ['—'];
-    if (!s.turnos.size) salasSemTurno++;
+    /* ⚠️ Sala INTEGRAL é sempre DUAS turmas de atribuição — manhã e tarde —,
+       tenha o regente de cada turno sido lançado ou não. A turma existe; o que
+       pode faltar é o professor. Medido na rede em 2026-09: em Etapa I, 37 das
+       74 salas integrais vinham com TODAS as linhas sem turno (período
+       "integral"), e a regra antiga contava cada uma como UMA turma — 37 turmas
+       de atribuição a menos só nesse ano, 81 nas Etapas. Nas colunas de turno
+       ela fica em "Integral", não em Manhã/Tarde: manhã e tarde são as parciais.
+       Sala parcial: uma turma por turno real lançado; sem nenhum, uma turma
+       "sem turno" — o caso raro, que o rodapé anuncia. */
+    let units, semTurno = false;
+    if (s.integral) units = ['M', 'T'];
+    else if (s.turnos.size) units = [...s.turnos].sort();
+    else { units = ['—']; semTurno = true; }
+    if (semTurno) salasSemTurno++;
+    const contarTurnos = t => { if (s.integral) t.I++; else units.forEach(u => t[u]++); };
     a.salas++; a.turmas += units.length; a.unidades.add(s.unidade);
     if (s.integral) a.integrais++;
-    units.forEach(u => a.turnos[u]++);
+    contarTurnos(a.turnos);
 
     const U = (porUnidade[s.unidade] ||= {
       unidade: s.unidade, tipo: tipoUnidade(s.unidade), seg:{}, anos:{},
-      turmas:0, salas:0, integrais:0, turnos:{ M:0, T:0, N:0, '—':0 }, aulas:0 });
+      turmas:0, salas:0, integrais:0, turnos:TURNOS0(), aulas:0 });
     const US = (U.seg[s.seg] ||= { turmas:0, salas:0, integrais:0 });
-    const UA = (U.anos[k] ||= { seg:s.seg, ano:s.ano, turmas:0, salas:0, turnos:{ M:0, T:0, N:0, '—':0 } });
+    const UA = (U.anos[k] ||= { seg:s.seg, ano:s.ano, turmas:0, salas:0, turnos:TURNOS0() });
     US.turmas += units.length; US.salas++; if (s.integral) US.integrais++;
     UA.turmas += units.length; UA.salas++;
     U.turmas += units.length; U.salas++; if (s.integral) U.integrais++;
-    units.forEach(u => { U.turnos[u]++; UA.turnos[u]++; });
+    contarTurnos(U.turnos); contarTurnos(UA.turnos);
 
     s.linhas.forEach(l => {
       U.aulas += l.carga;
@@ -887,45 +902,60 @@ function renderAvisoOutros() {
 
 // ── 1 · Quantitativo de turmas ────────────────────────────────────────────
 function renderTurmas() {
+  // A coluna "Sem turno" (sala parcial sem nenhum turno lançado) só aparece se
+  // a rede tiver alguma: no dado de hoje não há nenhuma, e coluna sempre vazia
+  // é ruído. Quando existir, ela aparece — o número nunca é escondido.
+  const temSemTurno = AGG.ordem.some(k => AGG.anos[k].turnos['—'] > 0);
+  const NCOL = temSemTurno ? 11 : 10;
+  const vazioOu = v => v ? br(v) : '<span class="cel-vazia">—</span>';
+  const celIntegral = n => n
+    ? `<div class="big" style="font-size:.95rem;">${br(n)}</div><div class="small">×2 = ${br(n * 2)} turmas</div>`
+    : '<span class="cel-vazia">—</span>';
+
   const thead = `<thead><tr>
       <th style="text-align:left;">Segmento / ano escolar</th>
-      <th>Manhã</th><th>Tarde</th><th>Noite</th>
-      <th title="Salas cujas linhas não trazem turno (período integral ou vazio). Contam como uma turma.">Sem turno</th>
-      <th class="col-total">Turmas ${ANO_BASE}</th>
-      <th title="Agrupamento físico: unidade + ano + letra. A turma integral conta uma vez.">Salas</th>
+      <th title="Salas parciais da manhã">Manhã</th>
+      <th title="Salas parciais da tarde">Tarde</th>
+      <th title="Salas parciais da noite">Noite</th>
+      <th title="Salas integrais. Cada uma é DUAS turmas de atribuição (manhã + tarde), tenha o regente de cada turno sido lançado ou não.">Integral</th>
+      ${temSemTurno ? '<th title="Salas parciais cujas linhas não trazem turno nenhum. Contam como uma turma.">Sem turno</th>' : ''}
+      <th class="col-total" title="Manhã + Tarde + Noite + 2 × Integral${temSemTurno ? ' + Sem turno' : ''}">Turmas ${ANO_BASE}</th>
+      <th title="Agrupamento físico: unidade + ano + letra. A sala integral conta uma vez.">Salas</th>
       <th>Unidades</th>
       <th style="background:#eff6ff;">Turmas ${anoAlvo}</th>
       <th>Δ</th>
     </tr></thead>`;
 
   let html = '';
-  const g = { M:0, T:0, N:0, S:0, turmas:0, salas:0, plano:0 };
+  const zero = () => ({ M:0, T:0, N:0, I:0, S:0, turmas:0, salas:0, plano:0 });
+  const soma = (acc, t) => { acc.M += t.M; acc.T += t.T; acc.N += t.N; acc.I += t.I; acc.S += t['—']; };
+  const g = zero();
   const uniGeral = new Set();
 
   SEG_TURMA.forEach(sk => {
     const chaves = anosDoSegmento(sk);
     if (!chaves.length) return;
     const s = SEG[sk];
-    html += `<tr class="seg-row"><th colspan="10"><i class="bi ${s.icon} me-2" style="color:${s.cor};"></i>${escapeHtml(s.rot)}
+    html += `<tr class="seg-row"><th colspan="${NCOL}"><i class="bi ${s.icon} me-2" style="color:${s.cor};"></i>${escapeHtml(s.rot)}
       <span class="text-muted fw-normal text-lowercase"> — ${escapeHtml(s.sub)}</span></th></tr>`;
 
-    const sub = { M:0, T:0, N:0, S:0, turmas:0, salas:0, plano:0 };
+    const sub = zero();
     const uniSeg = new Set();
     chaves.forEach(k => {
       const a = AGG.anos[k];
       const plano = turmasPlano(k), d = plano - a.turmas;
-      sub.M += a.turnos.M; sub.T += a.turnos.T; sub.N += a.turnos.N; sub.S += a.turnos['—'];
+      soma(sub, a.turnos);
       sub.turmas += a.turmas; sub.salas += a.salas; sub.plano += plano;
       a.unidades.forEach(u => { uniSeg.add(u); uniGeral.add(u); });
       const valPlan = vazio(PLANO.turmas[k]) ? '' : PLANO.turmas[k];
       html += `<tr>
         <th style="padding-left:1.6rem;">${escapeHtml(a.ano)}</th>
-        <td>${a.turnos.M || '<span class="cel-vazia">—</span>'}</td>
-        <td>${a.turnos.T || '<span class="cel-vazia">—</span>'}</td>
-        <td>${a.turnos.N || '<span class="cel-vazia">—</span>'}</td>
-        <td>${a.turnos['—'] || '<span class="cel-vazia">—</span>'}</td>
-        <td class="col-total"><div class="big">${br(a.turmas)}</div>
-          ${a.integrais ? `<div class="small">${br(a.integrais)} integral(is)</div>` : ''}</td>
+        <td>${vazioOu(a.turnos.M)}</td>
+        <td>${vazioOu(a.turnos.T)}</td>
+        <td>${vazioOu(a.turnos.N)}</td>
+        <td>${celIntegral(a.turnos.I)}</td>
+        ${temSemTurno ? `<td>${vazioOu(a.turnos['—'])}</td>` : ''}
+        <td class="col-total"><div class="big">${br(a.turmas)}</div></td>
         <td>${br(a.salas)}</td>
         <td>${br(a.unidades.size)}</td>
         <td style="background:#f8fbff;"><input class="inp-plan${valPlan === '' ? '' : ' mudou'}" type="number" min="0" step="1"
@@ -933,12 +963,14 @@ function renderTurmas() {
         <td><span data-out="dt|${escapeHtml(k)}" class="${corDelta(d)}">${d ? sinal(d) : '—'}</span></td>
       </tr>`;
     });
-    g.M += sub.M; g.T += sub.T; g.N += sub.N; g.S += sub.S;
+    g.M += sub.M; g.T += sub.T; g.N += sub.N; g.I += sub.I; g.S += sub.S;
     g.turmas += sub.turmas; g.salas += sub.salas; g.plano += sub.plano;
     const ds = sub.plano - sub.turmas;
     html += `<tr class="subtotal-row">
       <th style="padding-left:1.6rem;">Subtotal — ${escapeHtml(s.rot)}</th>
-      <td>${br(sub.M)}</td><td>${br(sub.T)}</td><td>${br(sub.N)}</td><td>${br(sub.S)}</td>
+      <td>${br(sub.M)}</td><td>${br(sub.T)}</td><td>${br(sub.N)}</td>
+      <td>${sub.I ? br(sub.I) + '<div class="small">×2 = ' + br(sub.I * 2) + '</div>' : '0'}</td>
+      ${temSemTurno ? `<td>${br(sub.S)}</td>` : ''}
       <td class="col-total"><div class="big">${br(sub.turmas)}</div></td>
       <td>${br(sub.salas)}</td><td>${br(uniSeg.size)}</td>
       <td><b data-out="sp|${sk}">${br(sub.plano)}</b></td>
@@ -948,7 +980,9 @@ function renderTurmas() {
   const dg = g.plano - g.turmas;
   html += `<tr class="total-row">
     <th>Total da rede — todos os segmentos</th>
-    <td>${br(g.M)}</td><td>${br(g.T)}</td><td>${br(g.N)}</td><td>${br(g.S)}</td>
+    <td>${br(g.M)}</td><td>${br(g.T)}</td><td>${br(g.N)}</td>
+    <td>${g.I ? br(g.I) + '<div class="small">×2 = ' + br(g.I * 2) + '</div>' : '0'}</td>
+    ${temSemTurno ? `<td>${br(g.S)}</td>` : ''}
     <td class="col-total"><div class="big">${br(g.turmas)}</div></td>
     <td>${br(g.salas)}</td><td>${br(uniGeral.size)}</td>
     <td><b data-out="sp|TOTAL">${br(g.plano)}</b></td>
@@ -957,18 +991,13 @@ function renderTurmas() {
   document.getElementById('tabTurmas').innerHTML = thead + `<tbody>${html}</tbody>`;
 
   const nota = [];
-  if (AGG.salasSemTurno) nota.push(`<b>${br(AGG.salasSemTurno)}</b> sala(s) não trazem turno em nenhuma linha (período integral ou vazio) e contam como uma turma cada.`);
+  if (g.I) nota.push(`<b>${br(g.I)}</b> sala(s) integral(is) contam como <b>duas</b> turmas cada (manhã + tarde), tenha o regente de cada turno sido lançado ou não — a turma existe; o que pode faltar é o professor.`);
+  if (AGG.salasSemTurno) nota.push(`<b>${br(AGG.salasSemTurno)}</b> sala(s) parcial(is) não trazem turno em nenhuma linha e contam como uma turma cada.`);
   if (AGG.aulasDaSala) nota.push(`<b>${br(AGG.aulasDaSala)}</b> aula(s) pertencem à sala inteira, não a um turno: entram nos totais, mas ficam fora da moda do quadro.`);
   if (!nota.length) nota.push('Toda linha da base pôde ser atribuída a um turno.');
   document.getElementById('notaSemTurno').innerHTML = nota.join(' ');
 }
 
-/* ── 1b · O MESMO quantitativo, recortado por UNIDADE ─────────────────────
-   Mesma agregação, transposta: unidade nas linhas, segmento nas colunas.
-   ⚠️ As colunas são os segmentos que descrevem turma, TODOS eles. EJA entra
-   mesmo sendo rara: ela é turma, e deixá-la de fora faria o Total não fechar
-   com a soma das colunas — e a leitura natural de uma linha que não fecha é
-   "a conta está errada", não "falta uma coluna". */
 const CURTO = {
   Ciclos: { txt:'Ciclos',  html:'Ciclos' },
   Etapas: { txt:'Etapas',  html:'Etapas' },
@@ -1074,8 +1103,9 @@ function detalheUnidade(u) {
                  || rankAno(u.anos[a].ano) - rankAno(u.anos[b].ano))
     .map(k => {
       const a = u.anos[k];
-      const turnos = ['M','T','N','—'].filter(t => a.turnos[t])
-        .map(t => `${({ M:'manhã', T:'tarde', N:'noite', '—':'s/ turno' })[t]} ${a.turnos[t]}`).join(' · ');
+      const turnos = ['M','T','N','I','—'].filter(t => a.turnos[t])
+        .map(t => t === 'I' ? `integral ${a.turnos.I} (×2)`
+                 : `${({ M:'manhã', T:'tarde', N:'noite', '—':'s/ turno' })[t]} ${a.turnos[t]}`).join(' · ');
       return `<span class="det-item" style="border-left:3px solid ${SEG[a.seg].cor};">
         <b>${escapeHtml(a.ano)}</b> — ${br(a.turmas)} turma(s) <span class="text-muted">(${turnos})</span></span>`;
     }).join('');
@@ -1519,11 +1549,11 @@ async function exportarExcel() {
   w1.addRow([`Quantitativo de turmas — todos os segmentos (base ${ANO_BASE}, plano ${anoAlvo})`]).font = { bold:true };
   w1.addRow([`Período: ${periodosSel ? [...periodosSel].join(', ') : 'todos'}`]);
   w1.addRow([]);
-  w1.addRow(['Segmento','Ano escolar','Manhã','Tarde','Noite','Sem turno',`Turmas ${ANO_BASE}`,'Salas','Integrais','Unidades',`Turmas ${anoAlvo}`,'Δ']).font = { bold:true };
+  w1.addRow(['Segmento','Ano escolar','Manhã (parcial)','Tarde (parcial)','Noite (parcial)','Integral (salas, ×2 turmas)','Sem turno',`Turmas ${ANO_BASE}`,'Salas','Unidades',`Turmas ${anoAlvo}`,'Δ']).font = { bold:true };
   AGG.ordem.forEach(k => {
     const a = AGG.anos[k], tp = turmasPlano(k);
-    w1.addRow([SEG[a.seg].rot, a.ano, a.turnos.M, a.turnos.T, a.turnos.N, a.turnos['—'],
-               a.turmas, a.salas, a.integrais, a.unidades.size, tp, tp - a.turmas]);
+    w1.addRow([SEG[a.seg].rot, a.ano, a.turnos.M, a.turnos.T, a.turnos.N, a.turnos.I, a.turnos['—'],
+               a.turmas, a.salas, a.unidades.size, tp, tp - a.turmas]);
   });
 
   // 2 — Quadro de aulas por disciplina e ano
@@ -1640,13 +1670,13 @@ function abasPorUnidade(wb, L, subtitulo) {
   // Unidade × ano escolar — o formato que costuma ser colado em outra planilha.
   const w6 = wb.addWorksheet('Unidade x ano');
   w6.addRow(['Unidade', 'Tipo', 'Segmento', 'Ano escolar', 'Turmas', 'Salas',
-             'Manhã', 'Tarde', 'Noite', 'Sem turno']).font = { bold:true };
+             'Manhã (parcial)', 'Tarde (parcial)', 'Noite (parcial)', 'Integral (salas, ×2 turmas)', 'Sem turno']).font = { bold:true };
   L.filter(u => !u.SEM_TURMA).forEach(u => Object.keys(u.anos)
     .sort((a, b) => SEG_TURMA.indexOf(u.anos[a].seg) - SEG_TURMA.indexOf(u.anos[b].seg)
                  || rankAno(u.anos[a].ano) - rankAno(u.anos[b].ano))
     .forEach(k => { const a = u.anos[k];
       w6.addRow([u.unidade, u.tipo, SEG[a.seg].rot, a.ano, a.turmas, a.salas,
-                 a.turnos.M, a.turnos.T, a.turnos.N, a.turnos['—']]); }));
+                 a.turnos.M, a.turnos.T, a.turnos.N, a.turnos.I, a.turnos['—']]); }));
   return [w5, w6];
 }
 
@@ -1696,7 +1726,9 @@ window.MapaDiagPlanejamento = function () {
     'conta turma?': SEG[AGG.anosRaw[k].seg].turma ? 'sim' : 'NÃO'
   }));
   console.table(t);
-  console.log('salas sem turno identificado:', AGG.salasSemTurno,
+  const integrais = AGG.ordem.reduce((n, k) => n + AGG.anos[k].integrais, 0);
+  console.log('salas integrais (2 turmas cada):', integrais,
+              '· salas parciais sem turno:', AGG.salasSemTurno,
               '· aulas da sala (fora da moda):', AGG.aulasDaSala);
   console.groupEnd();
 

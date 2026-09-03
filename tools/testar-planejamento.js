@@ -60,6 +60,12 @@ const ROWS = [
   L('GAMA, EMEF','6 ANO','A','M','EDUCACAO ESPECIAL',5),
   // EJA
   L('GAMA, EMEF','1 TERMO','A','N','LINGUA PORTUGUESA',5),
+  // ⚠️ sala INTEGRAL cujas linhas vêm TODAS sem turno (período "I"): é o caso
+  //    real das Etapas da rede, e tem de contar como DUAS turmas, não uma
+  L('BRAVO, EMEI','ETAPA II - INTEGRAL','Z','I','MAGISTERIO II',38),
+  L('BRAVO, EMEI','ETAPA II - INTEGRAL','Z','I','ARTE',4),
+  // ⚠️ sala INTEGRAL com só o regente da manhã lançado: a turma da tarde existe
+  L('CHARLIE, EMEI','ETAPA I - INTEGRAL - M','Y','M','MAGISTERIO II',19),
   // ⚠️ contém ETAPA *e* LIMINAR: tem de cair em Liminar, não em Etapa II
   L('GAMA, EMEF','ETAPA II - PARCIAL - LIMINAR 12H/A','X','M','MAGISTERIO II',12),
   // ⚠️ unidade cujas linhas são TODAS de liminar: não cria sala nenhuma, e sem
@@ -122,19 +128,27 @@ setTimeout(() => {
   ok(!!g('FundII|6º Ano'), '6º Ano existe');
   ok(!!g('EJA|1º Termo'), '1º Termo existe');
   ok(!!A.fora.Liminar, 'liminar foi para o balde de liminar');
-  ok(!g('Etapas|Etapa II') || g('Etapas|Etapa II').turmas === 1,
-     'a linha de LIMINAR não virou turma de Etapa II', g('Etapas|Etapa II').turmas);
+  // 3 = ALFA parcial (1) + BRAVO integral (2). Se a liminar tivesse virado turma, seriam 4.
+  ok(g('Etapas|Etapa II').turmas === 3 && A.fora.Liminar.aulas === 24,
+     'a linha de LIMINAR não virou turma de Etapa II (ficou no balde, com as 24 aulas)', g('Etapas|Etapa II').turmas + ' turmas · liminar ' + A.fora.Liminar.aulas);
   ok(!!A.fora.Outros && A.fora.Outros.aulas === 4, 'OFICINA DE XADREZ caiu em Outros', A.fora.Outros && A.fora.Outros.aulas);
   ok(!!A.fora.Complem && A.fora.Complem.aulas === 6, 'SUBSTITUICAO caiu em Complemento', A.fora.Complem && A.fora.Complem.aulas);
   ok(A.proj['PPA — Prof. Alfabetizador'] === 8, 'PPA foi para projetos', A.proj['PPA — Prof. Alfabetizador']);
 
   console.log('\n— Turmas (sala × turno) —');
-  ok(g('Etapas|Etapa I').turmas === 2, 'Etapa I integral = 2 turmas (manhã + tarde)', g('Etapas|Etapa I').turmas);
-  ok(g('Etapas|Etapa I').salas === 1, 'Etapa I integral = 1 sala', g('Etapas|Etapa I').salas);
-  ok(g('Etapas|Etapa I').integrais === 1, 'marcada como integral', g('Etapas|Etapa I').integrais);
+  ok(g('Etapas|Etapa I').turmas === 4, 'Etapa I: 2 salas integrais = 4 turmas (ALFA com M+T, CHARLIE só com M)', g('Etapas|Etapa I').turmas);
+  ok(g('Etapas|Etapa I').salas === 2, 'Etapa I = 2 salas', g('Etapas|Etapa I').salas);
+  ok(g('Etapas|Etapa I').integrais === 2, 'ambas marcadas como integral', g('Etapas|Etapa I').integrais);
+  ok(g('Etapas|Etapa I').turnos.I === 2 && g('Etapas|Etapa I').turnos.M === 0 && g('Etapas|Etapa I').turnos.T === 0,
+     'integral fica na coluna Integral, não em Manhã/Tarde', JSON.stringify(g('Etapas|Etapa I').turnos));
+  ok(g('Etapas|Etapa II').turmas === 3, 'Etapa II: 1 parcial (ALFA, manhã) + 1 integral só com período I (BRAVO) = 3 turmas', g('Etapas|Etapa II').turmas);
+  ok(g('Etapas|Etapa II').turnos.M === 1 && g('Etapas|Etapa II').turnos.I === 1 && g('Etapas|Etapa II').turnos['—'] === 0,
+     'a integral sem turno NÃO é "sem turno": é integral', JSON.stringify(g('Etapas|Etapa II').turnos));
   ok(g('Ciclos|Ciclo II').turmas === 1, 'ciclo só com período integral = 1 turma', g('Ciclos|Ciclo II').turmas);
   ok(g('Ciclos|Ciclo II').turnos['—'] === 1, 'e aparece na coluna "sem turno"', g('Ciclos|Ciclo II').turnos['—']);
-  ok(A.salasSemTurno === 1, 'uma sala sem turno identificado', A.salasSemTurno);
+  ok(A.salasSemTurno === 1, 'uma sala PARCIAL sem turno (o ciclo, cujo nome não diz integral)', A.salasSemTurno);
+  const bz = g('Etapas|Etapa II').disc['Magistério II'];
+  ok(bz.semTurno === 38, 'aulas da integral sem turno são DA SALA: fora da moda, dentro do total', bz.semTurno);
   ok(g('FundI|1º Ano').turmas === 3, '1º ano = 3 turmas', g('FundI|1º Ano').turmas);
   ok(g('FundI|1º Ano').turnos.M === 2 && g('FundI|1º Ano').turnos.T === 1, '1º ano: 2 manhã, 1 tarde',
      g('FundI|1º Ano').turnos.M + '/' + g('FundI|1º Ano').turnos.T);
@@ -149,7 +163,8 @@ setTimeout(() => {
   ok(ing.moda === 1 && ing.comDisc === 1, 'Inglês em 1 das 3 turmas', ing.comDisc + '/3');
   const viv = g('Etapas|Etapa I').disc['VIVENCIA ALIMENTACAO'];
   ok(viv.semTurno === 5 && viv.moda === 0, 'aula sem turno em sala de 2 turnos fica fora da moda', viv.semTurno);
-  ok(A.aulasDaSala === 5, 'e é contada como aula da sala', A.aulasDaSala);
+  // 5 (vivência da ALFA) + 38 + 4 (as duas linhas "I" da BRAVO integral) = 47
+  ok(A.aulasDaSala === 47, 'e é contada como aula da sala, junto com as da integral sem turno', A.aulasDaSala);
   const cic = g('Ciclos|Ciclo II').disc['Magistério I'];
   ok(cic.moda === 30, 'sala de turno único absorve a linha sem turno', cic.moda);
 
@@ -166,8 +181,10 @@ setTimeout(() => {
   console.log('\n— Por unidade (mesmo passe da agregação por ano) —');
   const U = A.porUnidade;
   // 3, não 4: a DELTA está na base, mas só com linha de liminar — ela não tem turma.
-  ok(A.ordemUnidades.length === 3, '3 unidades com turma (a DELTA só tem liminar)', A.ordemUnidades.join(' | '));
+  ok(A.ordemUnidades.length === 5, '5 unidades com turma (a DELTA só tem liminar)', A.ordemUnidades.join(' | '));
   ok(U['ALFA, EMEI'].seg.Etapas.turmas === 3, 'ALFA: 2 turmas de Etapa I + 1 de Etapa II', U['ALFA, EMEI'].seg.Etapas.turmas);
+  ok(U['BRAVO, EMEI'].seg.Etapas.turmas === 2 && U['BRAVO, EMEI'].integrais === 1, 'BRAVO: 1 sala integral = 2 turmas', U['BRAVO, EMEI'].turmas);
+  ok(U['CHARLIE, EMEI'].seg.Etapas.turmas === 2, 'CHARLIE: integral só com a manhã lançada = 2 turmas mesmo assim', U['CHARLIE, EMEI'].turmas);
   ok(U['ALFA, EMEI'].seg.Etapas.salas === 2, 'em 2 salas', U['ALFA, EMEI'].seg.Etapas.salas);
   ok(U['ALFA, EMEI'].integrais === 1, 'uma delas integral', U['ALFA, EMEI'].integrais);
   ok(U['BETA, CEI'].seg.Ciclos.turmas === 1, 'BETA: 1 turma de ciclo', U['BETA, CEI'].seg.Ciclos.turmas);
@@ -183,7 +200,7 @@ setTimeout(() => {
   ok(!U['DELTA, EMEF'], 'e não tem turma nenhuma');
   ok(P.unidadesSemTurma().includes('DELTA, EMEF'), 'e a tela a lista mesmo assim, com zero');
   const LU = P.linhasUnidade();
-  ok(LU.length === 4, 'o recorte por unidade lista as 4 (3 com turma + 1 sem)', LU.length);
+  ok(LU.length === 6, 'o recorte por unidade lista as 6 (5 com turma + 1 sem)', LU.length);
   ok(LU.filter(u => u.SEM_TURMA).length === 1, 'uma delas marcada como sem turma');
   ok(LU.every((u, i) => i === 0 || LU[i-1].unidade.localeCompare(u.unidade, 'pt-BR') <= 0),
      'e sai em ordem alfabética por padrão', LU.map(u => u.unidade).join(' | '));
@@ -192,7 +209,7 @@ setTimeout(() => {
   const t = P.totaisGerais();
   const somaCarga = ROWS.reduce((s,r)=>s+r.carga_horaria,0);
   ok(t.lancado === somaCarga, 'nada se perde: total lançado = soma de TODA a carga da base', t.lancado + ' vs ' + somaCarga);
-  ok(t.turmasBaseT === 2+1+1+3+1+1, 'turmas = etapa I 2 + etapa II 1 + ciclo 1 + 1º ano 3 + 6º ano 1 + EJA 1', t.turmasBaseT);
+  ok(t.turmasBaseT === 4+3+1+3+1+1, 'turmas = etapa I 4 + etapa II 3 + ciclo 1 + 1º ano 3 + 6º ano 1 + EJA 1', t.turmasBaseT);
 
   console.log(falhas ? `\n${falhas} FALHA(S)` : '\nTUDO OK');
   process.exit(falhas ? 1 : 0);
