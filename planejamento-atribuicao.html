@@ -249,10 +249,16 @@
             <span class="legend fw-bold"><i class="bi bi-funnel me-1"></i>Tipo</span>
             <div id="tipoChips" class="d-flex gap-1 flex-wrap"></div>
             <span class="legend ms-auto" id="contagemUnid"></span>
+            <button class="btn btn-sm btn-success" onclick="exportarExcelUnidades()"
+                    title="Baixa exatamente esta tabela, com o filtro e a ordem que estão na tela">
+              <i class="bi bi-file-earmark-excel me-1"></i>Excel desta tabela
+            </button>
           </div>
           <p class="sec-sub mb-2"><b>Clique na linha</b> para ver a abertura por ano escolar e turno.
             Clique no cabeçalho para ordenar. As turmas do ano-alvo não são editáveis aqui: o plano é por
-            ano escolar, não por unidade — a projeção de matrícula fica no recorte ao lado.</p>
+            ano escolar, não por unidade — a projeção de matrícula fica no recorte ao lado.
+            O botão <b>Excel desta tabela</b> baixa o que está na tela, com o filtro e a ordem atuais
+            (o botão da barra do topo traz o plano inteiro, com a rede completa).</p>
           <div class="table-responsive" style="max-height:70vh;overflow:auto;">
             <table class="matriz" id="tabUnidades"></table>
           </div>
@@ -1557,33 +1563,11 @@ async function exportarExcel() {
   const t = totaisGerais();
   w3.addRow(['TOTAL DA REDE', t.turmasBaseT, t.turmasPlanoT, t.lancado, t.quadro, t.plano, t.plano - t.lancado]).font = { bold:true };
 
-  // 4 — Turmas por unidade (o mesmo quantitativo, recortado por unidade)
-  const w5 = wb.addWorksheet('Turmas por unidade');
-  w5.addRow(['Turmas por unidade escolar e segmento']).font = { bold:true };
-  w5.addRow([`Período: ${periodosSel ? [...periodosSel].join(', ') : 'todos'}`]);
-  w5.addRow([]);
-  w5.addRow(['Unidade', 'Tipo', ...SEG_TURMA.map(k => curtoSeg(k, 'txt')),
-             'Turmas', 'Salas', 'Integrais', 'Observação']).font = { bold:true };
-  const LU = AGG.ordemUnidades.map(u => AGG.porUnidade[u]);
-  LU.forEach(u => w5.addRow([u.unidade, u.tipo,
-    ...SEG_TURMA.map(k => u.seg[k] ? u.seg[k].turmas : 0),
-    u.turmas, u.salas, u.integrais, '']));
-  unidadesSemTurma().forEach(u => w5.addRow([u, tipoUnidade(u),
-    ...SEG_TURMA.map(() => 0), 0, 0, 0, 'sem turma — só aulas que não são turma']));
-  w5.addRow(['TOTAL', '', ...SEG_TURMA.map(k => LU.reduce((a, u) => a + (u.seg[k] ? u.seg[k].turmas : 0), 0)),
-             LU.reduce((a, u) => a + u.turmas, 0), LU.reduce((a, u) => a + u.salas, 0),
-             LU.reduce((a, u) => a + u.integrais, 0), '']).font = { bold:true };
-
-  // 5 — Unidade × ano escolar (o formato que costuma ser colado em planilha)
-  const w6 = wb.addWorksheet('Unidade x ano');
-  w6.addRow(['Unidade', 'Tipo', 'Segmento', 'Ano escolar', 'Turmas', 'Salas',
-             'Manhã', 'Tarde', 'Noite', 'Sem turno']).font = { bold:true };
-  LU.forEach(u => Object.keys(u.anos)
-    .sort((a, b) => SEG_TURMA.indexOf(u.anos[a].seg) - SEG_TURMA.indexOf(u.anos[b].seg)
-                 || rankAno(u.anos[a].ano) - rankAno(u.anos[b].ano))
-    .forEach(k => { const a = u.anos[k];
-      w6.addRow([u.unidade, u.tipo, SEG[a.seg].rot, a.ano, a.turmas, a.salas,
-                 a.turnos.M, a.turnos.T, a.turnos.N, a.turnos['—']]); }));
+  // 4 e 5 — o recorte por unidade. Aqui vai a REDE COMPLETA: esta planilha é o
+  // plano inteiro, e sua aba "Turmas" (por ano) também é da rede toda — uma aba
+  // filtrada ao lado de outra não filtrada, no mesmo arquivo, não fecharia.
+  // Quem quer o que está na tela usa o botão do próprio bloco.
+  const [w5, w6] = abasPorUnidade(wb, todasAsUnidades(), 'rede completa — não segue o filtro da tela');
 
   // 6 — Conferência
   const w4 = wb.addWorksheet('Conferência');
@@ -1600,10 +1584,77 @@ async function exportarExcel() {
   });
 
   [w1, w2, w3, w4, w5, w6].forEach(ws => { ws.columns.forEach(c => c.width = 16); ws.getColumn(1).width = 34; ws.getColumn(2).width = 22; });
+  await baixarPlanilha(wb, `planejamento-atribuicao-${anoAlvo}.xlsx`);
+}
+
+/* ── Excel só do recorte por unidade ────────────────────────────────
+   ⚠️ Este baixa O QUE ESTÁ NA TELA: mesma ordem, mesma busca, mesmo filtro de
+   tipo. Antes só existia o botão da barra do topo, que traz a rede completa —
+   então quem filtrava para EMEF e exportava recebia as 112 unidades sem
+   perceber. Baixar coisa diferente do que está na tela é pior que não ter
+   botão: a pessoa confere o número na tela e confia no arquivo.
+   O filtro ativo vai escrito no cabeçalho da aba, para o arquivo não virar
+   "uma lista qualquer" depois de sair da tela. */
+async function exportarExcelUnidades() {
+  if (!AGG) return;
+  const wb = new ExcelJS.Workbook();
+  const [w1, w2] = abasPorUnidade(wb, linhasUnidade(), descricaoFiltroUnidade());
+  [w1, w2].forEach(ws => { ws.columns.forEach(c => c.width = 16); ws.getColumn(1).width = 44; ws.getColumn(2).width = 12; });
+  await baixarPlanilha(wb, `turmas-por-unidade-${ANO_BASE}.xlsx`);
+}
+
+// Toda unidade, sem filtro nenhum — inclusive as que não têm turma.
+function todasAsUnidades() {
+  return AGG.ordemUnidades.map(u => AGG.porUnidade[u]).concat(
+    unidadesSemTurma().map(u => ({ unidade:u, tipo:tipoUnidade(u), seg:{}, anos:{},
+      turmas:0, salas:0, integrais:0, turnos:{ M:0, T:0, N:0, '—':0 }, aulas:0, SEM_TURMA:true })));
+}
+// O filtro ativo, por extenso, para ir no cabeçalho da planilha.
+function descricaoFiltroUnidade() {
+  const p = [];
+  p.push(`período: ${periodosSel ? [...periodosSel].join(', ') : 'todos'}`);
+  if (tiposSel) p.push(`tipo: ${[...tiposSel].sort().join(', ')}`);
+  if (buscaUnid) p.push(`busca: "${buscaUnid}"`);
+  return p.join(' · ') + (tiposSel || buscaUnid ? ' — recorte da tela' : '');
+}
+
+/* As duas abas do recorte por unidade, montadas a partir de uma LISTA de
+   unidades. Ter um montador só é o que faz o botão do bloco e o da barra
+   produzirem a mesma tabela — mudando apenas quais unidades entram. */
+function abasPorUnidade(wb, L, subtitulo) {
+  const w5 = wb.addWorksheet('Turmas por unidade');
+  w5.addRow(['Turmas por unidade escolar e segmento']).font = { bold:true };
+  w5.addRow([subtitulo]);
+  w5.addRow([]);
+  w5.addRow(['Unidade', 'Tipo', ...SEG_TURMA.map(k => curtoSeg(k, 'txt')),
+             'Turmas', 'Salas', 'Integrais', 'Observação']).font = { bold:true };
+  L.forEach(u => w5.addRow([u.unidade, u.tipo,
+    ...SEG_TURMA.map(k => u.seg[k] ? u.seg[k].turmas : 0),
+    u.turmas, u.salas, u.integrais,
+    u.SEM_TURMA ? 'sem turma — só aulas que não são turma' : '']));
+  w5.addRow([`TOTAL — ${L.length} unidade(s)`, '',
+             ...SEG_TURMA.map(k => L.reduce((a, u) => a + (u.seg[k] ? u.seg[k].turmas : 0), 0)),
+             L.reduce((a, u) => a + u.turmas, 0), L.reduce((a, u) => a + u.salas, 0),
+             L.reduce((a, u) => a + u.integrais, 0), '']).font = { bold:true };
+
+  // Unidade × ano escolar — o formato que costuma ser colado em outra planilha.
+  const w6 = wb.addWorksheet('Unidade x ano');
+  w6.addRow(['Unidade', 'Tipo', 'Segmento', 'Ano escolar', 'Turmas', 'Salas',
+             'Manhã', 'Tarde', 'Noite', 'Sem turno']).font = { bold:true };
+  L.filter(u => !u.SEM_TURMA).forEach(u => Object.keys(u.anos)
+    .sort((a, b) => SEG_TURMA.indexOf(u.anos[a].seg) - SEG_TURMA.indexOf(u.anos[b].seg)
+                 || rankAno(u.anos[a].ano) - rankAno(u.anos[b].ano))
+    .forEach(k => { const a = u.anos[k];
+      w6.addRow([u.unidade, u.tipo, SEG[a.seg].rot, a.ano, a.turmas, a.salas,
+                 a.turnos.M, a.turnos.T, a.turnos.N, a.turnos['—']]); }));
+  return [w5, w6];
+}
+
+async function baixarPlanilha(wb, nome) {
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const a = document.createElement('a');
-  a.href = url; a.download = `planejamento-atribuicao-${anoAlvo}.xlsx`; a.click();
+  a.href = url; a.download = nome; a.click();
   URL.revokeObjectURL(url);
 }
 

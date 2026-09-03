@@ -601,6 +601,22 @@ na primeira versão. Nome de unidade e tipo, que vêm do banco, seguem escapados
 propósito: o plano é por ano escolar, não por unidade. Dois campos para a mesma
 projeção precisariam de uma regra de rateio que ninguém pediu.
 
+⚠️ **São DOIS botões de Excel, e a diferença entre eles é deliberada.** O do
+**bloco** ("Excel desta tabela") baixa o que está na tela: mesma busca, mesmo
+filtro de tipo, mesma ordem — e escreve o filtro ativo no cabeçalho da aba, para
+o arquivo não virar "uma lista qualquer" depois de sair da tela. O da **barra do
+topo** baixa o plano inteiro, com a rede completa, e o cabeçalho da aba diz isso
+por extenso. Uma aba filtrada ao lado da aba "Turmas" (por ano, sempre da rede
+toda) no mesmo arquivo não fecharia.
+
+⚠️ **Isso foi um DEFEITO em produção, medido em 2026-09-03:** só existia o botão
+da barra, e ele ignorava o filtro — quem recortava para EMEF e exportava recebia
+a rede inteira sem perceber. Baixar coisa diferente do que está na tela é pior
+que não ter botão, porque a pessoa confere o número na tela e confia no arquivo.
+As duas abas saem de **um montador só** (`abasPorUnidade`), mudando apenas quais
+unidades entram; de dois montadores, os botões divergiriam na primeira correção
+feita num deles.
+
 ⚠️ A tela precisa ser cadastrada no central com o slug **`planejamento_atribuicao`**
 (§7) para quem não é super admin. `TELA_POR_ARQUIVO`, no `auth.js`, já faz a
 tradução do nome do arquivo para esse slug.
