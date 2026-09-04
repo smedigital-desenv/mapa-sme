@@ -528,6 +528,35 @@
     var MapaFichaCache = (function () {
       var TTL = 10 * 60 * 1000;
       var abrir = null;
+      /* ⚠️ A CHAVE INCLUI QUEM ESTÁ VENDO — pelo mesmo motivo de
+         `_cacheStorageKey` na avaliacao.html (medido em 2026-08 para o
+         sessionStorage, e este IndexedDB tinha ficado de fora).
+
+         O banco `mapa_ficha_cache` é do NAVEGADOR, não da sessão: sobrevive
+         ao logout, à troca de conta e ao "Ver como". Sem o e-mail na chave,
+         duas coisas erradas aconteciam ao mesmo tempo:
+
+         1. Um super admin simulando alguém via os pacotes de rede que ELE
+            mesmo tinha aquecido minutos antes — e concluía que "ao simular
+            os dados aparecem", quando a pessoa simulada recebia 403 da
+            `coderp-ficha` e caía para o banco. A simulação deixava de ser
+            evidência de coisa nenhuma.
+         2. Na mesma máquina, quem logasse em seguida dentro dos 10 min lia a
+            resposta da API de outra pessoa — inclusive um perfil de escola
+            lendo a rede inteira. A permissão é conferida por requisição no
+            servidor, mas o cache local respondia SEM requisição.
+
+         Sob simulação `api.perfil.email` já é o e-mail da pessoa simulada,
+         então a separação sai de graça. Sem perfil resolvido a chave sai com
+         '?': o pior caso é buscar de novo, nunca ler o dado de outra pessoa. */
+      function chave(corpo) {
+        var quem = '?';
+        try {
+          var p = api && api.perfil;
+          if (p && p.email) quem = String(p.email).trim().toLowerCase();
+        } catch (e) {}
+        return quem + '|' + String(corpo);
+      }
       function db() {
         if (!abrir) {
           abrir = new Promise(function (res, rej) {
@@ -549,10 +578,11 @@
         var s = v.stream().pipeThrough(new DecompressionStream('gzip'));
         return new Response(s).text();
       }
-      function ler(chave) {
+      function ler(corpo) {
+        var k = chave(corpo);
         return db().then(function (d) {
           return new Promise(function (res) {
-            var t = d.transaction('resp').objectStore('resp').get(chave);
+            var t = d.transaction('resp').objectStore('resp').get(k);
             t.onsuccess = function () { res(t.result || null); };
             t.onerror = function () { res(null); };
           });
@@ -561,10 +591,11 @@
           return gunzip(hit.v);
         }).catch(function () { return null; });
       }
-      function gravar(chave, texto) {
+      function gravar(corpo, texto) {
+        var k = chave(corpo);
         return gzip(texto).then(function (v) {
           return db().then(function (d) {
-            d.transaction('resp', 'readwrite').objectStore('resp').put({ t: Date.now(), v: v }, chave);
+            d.transaction('resp', 'readwrite').objectStore('resp').put({ t: Date.now(), v: v }, k);
           });
         }).catch(function () {});
       }

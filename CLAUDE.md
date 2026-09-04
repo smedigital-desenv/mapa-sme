@@ -683,6 +683,24 @@ e **nunca vai para o navegador nem para este repositório**. A função:
    instantânea. As três camadas (IndexedDB, memória da função, CODERP) têm o
    mesmo TTL de propósito.
 
+   ⚠️ **A chave do cache local INCLUI O E-MAIL de quem vê** (desde 2026-09-04).
+   O IndexedDB é do navegador, não da sessão: sobrevive a logout, troca de
+   conta e "Ver como". Sem o e-mail na chave, um super admin simulando alguém
+   lia os pacotes que ELE mesmo tinha aquecido — e concluía "ao simular os
+   dados aparecem" enquanto a pessoa simulada recebia 403 da `coderp-ficha` e
+   caía para o banco. E, na mesma máquina, quem logasse dentro dos 10 min lia
+   a resposta da API de outra pessoa sem passar pela permissão do servidor,
+   que é conferida por requisição — e o cache respondia sem requisição. Foi o
+   mesmo defeito já corrigido no `sessionStorage` (`_cacheStorageKey`), que
+   tinha deixado esta camada de fora. 🚫 Não "simplifique" tirando o prefixo
+   para "compartilhar o aquecimento entre usuários": é exatamente o vazamento.
+
+   ⚠️ Por isso **"funciona quando eu simulo" NÃO é evidência** de que funciona
+   para a pessoa. Quem responde é o console DELA: `MapaDiagFonte(1)` diz de
+   que fonte veio o pacote, e a queda para o banco sai como
+   `[MAPA CODERP] API da ficha indisponível, usando o banco: coderp-ficha 403 …`
+   — o código do erro nomeia a causa (`sem_permissao`, `escola_obrigatoria`).
+
 #### O nível sintético `detalherede` — por que ele existe
 
 ⚠️ **Leia isto antes de mexer.** `/IndicadorTurma` EXISTE e é a fonte dos
